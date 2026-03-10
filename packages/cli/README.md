@@ -1,4 +1,4 @@
-# @coherent/cli
+# @getcoherent/cli
 
 CLI for **Coherent Design Method** — generate and maintain Next.js apps with a single design-system config.
 

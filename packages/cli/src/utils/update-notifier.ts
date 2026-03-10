@@ -4,7 +4,7 @@ import { homedir } from 'os'
 import chalk from 'chalk'
 import { CLI_VERSION } from '@getcoherent/core'
 
-const PACKAGE_NAME = '@coherent/cli'
+const PACKAGE_NAME = '@getcoherent/cli'
 const CACHE_DIR = join(homedir(), '.coherent')
 const CACHE_FILE = join(CACHE_DIR, 'update-check.json')
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000 // 24 hours
