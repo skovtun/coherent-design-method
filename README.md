@@ -86,11 +86,11 @@ Every change respects the existing design system. New pages inherit shared compo
 When you request multiple pages, Coherent uses a 4-phase architecture to ensure visual consistency:
 
 ```
-Phase 1: Plan         →  AI plans all pages (names, routes, descriptions)
-Phase 2: Generate Home →  AI generates the home page with header, footer, full styling
-Phase 3: Extract       →  Local processing: extracts header/footer as shared components,
+Phase 1: Plan           →  AI plans all pages (names, routes, descriptions)
+Phase 2: Generate Home  →  AI generates the home page with header, footer, full styling
+Phase 3: Extract        →  Local processing: extracts header/footer as shared components,
                            captures style patterns (cards, spacing, colors, typography)
-Phase 4: Generate Rest →  AI generates remaining pages with extracted style context
+Phase 4: Generate Rest  →  AI generates remaining pages with extracted style context
                            injected into each prompt — ensuring visual consistency
 ```
 
