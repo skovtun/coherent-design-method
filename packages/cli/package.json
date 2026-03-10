@@ -15,7 +15,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/coherent-design/coherent.git",
+    "url": "https://github.com/skovtun/coherent-design-method.git",
     "directory": "packages/cli"
   },
   "keywords": [

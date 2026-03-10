@@ -367,7 +367,7 @@ export default function HomePage() {
             >
               getcoherent.design
             </a>
-            <a href="#" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+            <a href="https://github.com/skovtun/coherent-design-method" target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
               GitHub
             </a>
             <a href="#" className="text-xs text-muted-foreground hover:text-foreground transition-colors">

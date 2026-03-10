@@ -159,4 +159,4 @@ Planned support for:
 
 - [Setup API Key Guide](./SETUP_API_KEY.md)
 - [Troubleshooting Guide](./TROUBLESHOOTING.md)
-- [GitHub Issues](https://github.com/coherent-design/coherent/issues)
+- [GitHub Issues](https://github.com/skovtun/coherent-design-method/issues)

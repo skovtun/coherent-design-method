@@ -104,4 +104,4 @@ node -e "require('dotenv').config(); console.log(process.env.ANTHROPIC_API_KEY ?
 
 - [Anthropic Documentation](https://docs.anthropic.com)
 - [Coherent Troubleshooting Guide](./TROUBLESHOOTING.md)
-- [GitHub Issues](https://github.com/coherent-design/coherent/issues)
+- [GitHub Issues](https://github.com/skovtun/coherent-design-method/issues)

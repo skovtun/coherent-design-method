@@ -109,10 +109,10 @@ your-project/
 
 ## Learn More
 
-- **Methodology:** [coherent-design/coherent-design-method](https://github.com/coherent-design/coherent-design-method)
-- **Case Studies:** [API Portal Example](https://github.com/coherent-design/coherent-design-method/blob/main/docs/examples/api-portal-case-study.md)
-- **Principles:** [Core Concepts](https://github.com/coherent-design/coherent-design-method/blob/main/docs/philosophy/core-concepts.md)
-- **Issues:** [Report bugs or request features](https://github.com/coherent-design/coherent/issues)
+- **Methodology:** [coherent-design/coherent-design-method](https://github.com/skovtun/coherent-design-method)
+- **Case Studies:** [API Portal Example](https://github.com/skovtun/coherent-design-method/blob/main/docs/examples/api-portal-case-study.md)
+- **Principles:** [Core Concepts](https://github.com/skovtun/coherent-design-method/blob/main/docs/philosophy/core-concepts.md)
+- **Issues:** [Report bugs or request features](https://github.com/skovtun/coherent-design-method/issues)
 
 ## Pro Tips 💡
 

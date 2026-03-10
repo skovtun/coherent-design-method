@@ -28,7 +28,7 @@ export function showSuccessMessage(projectPath: string = '.'): void {
   console.log(chalk.gray('   • Design tokens cascade automatically'))
   console.log(chalk.gray('   • AI maintains architectural coherence\n'))
   console.log(chalk.gray('   Created by Sergei Kovtun'))
-  console.log(chalk.blue('   https://github.com/coherent-design/coherent\n'))
+  console.log(chalk.blue('   https://github.com/skovtun/coherent-design-method\n'))
   
   console.log(chalk.cyan('🚀 Get Started:\n'))
   
@@ -54,7 +54,7 @@ export function showSuccessMessage(projectPath: string = '.'): void {
   console.log(chalk.gray('   • Changes cascade through your design system\n'))
   
   console.log(chalk.cyan('❓ Questions or issues?'))
-  console.log(chalk.blue('   https://github.com/coherent-design/coherent/issues\n'))
+  console.log(chalk.blue('   https://github.com/skovtun/coherent-design-method/issues\n'))
   
   console.log(chalk.magenta('Happy building! ✨\n'))
 }

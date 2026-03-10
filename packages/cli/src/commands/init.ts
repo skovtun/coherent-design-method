@@ -175,7 +175,7 @@ export async function initCommand() {
       console.log(chalk.cyan('💡 Want to start fresh?'))
       console.log(chalk.yellow('   $ rm design-system.config.ts'))
       console.log(chalk.yellow('   $ coherent init\n'))
-      console.log(chalk.blue('📖 Learn more: https://github.com/coherent-design/coherent\n'))
+      console.log(chalk.blue('📖 Learn more: https://github.com/skovtun/coherent-design-method\n'))
       process.exit(0)
     }
 

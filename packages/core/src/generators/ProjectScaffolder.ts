@@ -568,7 +568,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ## Learn More
 
-This project was generated with [Coherent Design Method](https://github.com/coherent-design/coherent).
+This project was generated with [Coherent Design Method](https://github.com/skovtun/coherent-design-method).
 `
     await this.writeFile('README.md', content)
   }
