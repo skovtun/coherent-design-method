@@ -1,6 +1,6 @@
-<p align="center">
+<h1 align="center">
   <strong>Coherent Design Method</strong>
-</p>
+</h1>
 
 <p align="center">
   AI-powered design system generator.<br>
