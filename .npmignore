@@ -1,0 +1,47 @@
+# Source files
+src/
+*.ts
+!*.d.ts
+
+# Development
+.bmad-core/
+.cursor/
+web-bundles/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts (only dist/ should be published)
+*.tsbuildinfo
+
+# Tests
+*.test.ts
+*.spec.ts
+__tests__/
+coverage/
+
+# Documentation (keep README.md)
+docs/
+packages/docs/
+
+# Examples
+examples/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Git
+.git/
+.gitignore
+
+# CI/CD
+.github/
+
+# Temporary
+tmp/
+temp/
+*.tmp
+*.log

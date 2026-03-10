@@ -1,0 +1,49 @@
+{
+  "name": "@coherent/core",
+  "version": "0.1.0",
+  "description": "Core design system engine for Coherent",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/coherent-design/coherent.git",
+    "directory": "packages/core"
+  },
+  "keywords": [
+    "design-system",
+    "frontend",
+    "ai",
+    "code-generation",
+    "coherent"
+  ],
+  "author": "Coherent Design Method",
+  "license": "MIT",
+  "scripts": {
+    "dev": "tsup --watch",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "handlebars": "^4.7.8",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.1"
+  }
+}
+

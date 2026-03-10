@@ -1,0 +1,61 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+.cursor/
+.windsurf/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary / E2E
+tmp/
+temp/
+*.tmp
+.tmp-e2e/
+
+# BMAD internal tooling
+.bmad-core/
+_bmad/
+_bmad-output/
+web-bundles/
+
+# Coherent local data
+.coherent/
+
+# Generated projects
+examples/*/node_modules/
+examples/*/.next/
+
+# Next.js in monorepo
+**/.next/

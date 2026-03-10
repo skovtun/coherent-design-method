@@ -1,0 +1,41 @@
+{
+  "name": "coherent-design-method",
+  "version": "0.1.0",
+  "description": "AI-powered design system generator with stateful component management - BMAD for frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm --filter '@coherent/*' build",
+    "dev": "pnpm --filter '@coherent/*' dev",
+    "typecheck": "pnpm --filter '@coherent/*' typecheck",
+    "test": "pnpm --filter '@coherent/*' test",
+    "lint": "pnpm --filter '@coherent/*' lint",
+    "test:quality": "bash packages/cli/tests/quality-smoke.sh"
+  },
+  "keywords": [
+    "design-system",
+    "cli",
+    "frontend",
+    "ai",
+    "code-generation",
+    "nextjs",
+    "react"
+  ],
+  "author": "Sergei Kovtun",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.4",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.1"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}
+

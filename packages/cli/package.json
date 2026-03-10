@@ -1,0 +1,56 @@
+{
+  "name": "@coherent/cli",
+  "version": "0.1.0",
+  "description": "CLI interface for Coherent Design Method",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "coherent": "./bin/coherent"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/coherent-design/coherent.git",
+    "directory": "packages/cli"
+  },
+  "keywords": [
+    "design-system",
+    "cli",
+    "frontend",
+    "ai",
+    "code-generation",
+    "nextjs",
+    "react",
+    "coherent"
+  ],
+  "author": "Coherent Design Method",
+  "license": "MIT",
+  "scripts": {
+    "dev": "tsup --watch",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@coherent/core": "workspace:*",
+    "@anthropic-ai/sdk": "^0.32.0",
+    "chalk": "^5.3.0",
+    "commander": "^11.1.0",
+    "dotenv": "^16.4.5",
+    "open": "^10.1.0",
+    "ora": "^7.0.1",
+    "prompts": "^2.4.2",
+    "zod": "^3.22.4",
+    "chokidar": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3"
+  }
+}

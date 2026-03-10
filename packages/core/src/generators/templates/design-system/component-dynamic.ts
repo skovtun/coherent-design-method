@@ -1,0 +1,496 @@
+/**
+ * Dynamic component route: reads config at runtime, single [id] route.
+ */
+
+export const COMPONENT_DYNAMIC_PAGE = `import { notFound } from 'next/navigation'
+import { config } from '../../../../design-system.config'
+import ComponentShowcase from './ComponentShowcase'
+
+export default async function ComponentPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params
+
+  const component = config.components?.find((c: { id: string }) => c.id === id)
+
+  if (!component) {
+    notFound()
+  }
+
+  return <ComponentShowcase component={component} />
+}
+
+export async function generateStaticParams() {
+  const components = config.components ?? []
+  return components.map((c: { id: string }) => ({
+    id: c.id,
+  }))
+}
+`
+
+export const COMPONENT_SHOWCASE_CLIENT = `'use client'
+import { useState } from 'react'
+
+interface ComponentShowcaseProps {
+  component: any
+}
+
+const knownNames: Record<string, string> = {
+  button: 'Button',
+  input: 'Input',
+  label: 'Label',
+  select: 'Select',
+  switch: 'Switch',
+  checkbox: 'Checkbox',
+  card: 'Card',
+  badge: 'Badge',
+  table: 'Table',
+  textarea: 'Textarea',
+  dialog: 'Dialog',
+  'alert-dialog': 'AlertDialog',
+  alert: 'Alert',
+  progress: 'Progress',
+  avatar: 'Avatar',
+  separator: 'Separator',
+  tabs: 'Tabs',
+  accordion: 'Accordion',
+  skeleton: 'Skeleton',
+  tooltip: 'Tooltip',
+  'radio-group': 'RadioGroup',
+  slider: 'Slider',
+}
+
+const descriptions: Record<string, string> = {
+  button: 'Triggers an action or event',
+  input: 'Text input field for forms',
+  label: 'Accessible label for form controls',
+  select: 'Dropdown selection from a list of options',
+  switch: 'Toggle between on and off states',
+  checkbox: 'Select one or more items from a set',
+  card: 'Container for grouped content and actions',
+  badge: 'Status indicator or category label',
+  table: 'Structured data display in rows and columns',
+  textarea: 'Multi-line text input field',
+  dialog: 'Modal dialog for focused tasks',
+  alert: 'Display important feedback messages',
+  progress: 'Show progress of a task',
+  avatar: 'Display user or entity image',
+  separator: 'Visual divider between content',
+  tabs: 'Organize content into switchable panels',
+  accordion: 'Collapsible content sections',
+  skeleton: 'Placeholder while content loads',
+  tooltip: 'Contextual info on hover',
+  'radio-group': 'Select one option from a set',
+  slider: 'Select a value from a range',
+}
+
+function displayName(component: any): string {
+  return knownNames[component.id] || component.name || component.id
+}
+
+function cn(...parts: (string | undefined | false | null)[]) {
+  return parts.filter(Boolean).join(' ')
+}
+
+function resolveClasses(component: any, variantName?: string, sizeName?: string) {
+  const base = component.baseClassName || ''
+  const vCls = variantName
+    ? component.variants?.find((v: any) => v.name === variantName)?.className || ''
+    : component.variants?.[0]?.className || ''
+  const sCls = sizeName
+    ? component.sizes?.find((s: any) => s.name === sizeName)?.className || ''
+    : component.sizes?.[0]?.className || ''
+  return cn(base, vCls, sCls)
+}
+
+const chevronSvg = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-50"><path d="m6 9 6 6 6-6"/></svg>
+
+const buttonStyles: Record<string, string> = {
+  default: 'bg-primary text-primary-foreground hover:opacity-90',
+  secondary: 'bg-secondary text-secondary-foreground hover:opacity-90',
+  outline: 'border border-input bg-background hover:bg-muted',
+  ghost: 'hover:bg-muted',
+  link: 'text-primary underline-offset-4 hover:underline',
+  destructive: 'bg-destructive text-destructive-foreground hover:opacity-90',
+}
+
+const buttonSizes: Record<string, string> = {
+  xs: 'h-7 px-2 text-xs',
+  sm: 'h-8 px-3 text-xs',
+  md: 'h-9 px-4 py-2 text-sm',
+  lg: 'h-10 px-6 text-sm',
+  xl: 'h-11 px-8 text-base',
+}
+
+const badgeStyles: Record<string, string> = {
+  default: 'border-transparent bg-primary text-primary-foreground',
+  secondary: 'border-transparent bg-secondary text-secondary-foreground',
+  success: 'border-transparent bg-green-500 text-white',
+  error: 'border-transparent bg-red-500 text-white',
+  outline: 'text-foreground',
+  destructive: 'border-transparent bg-destructive text-destructive-foreground',
+}
+
+const badgeSizes: Record<string, string> = {
+  xs: 'text-[10px] px-1.5 py-0',
+  sm: 'text-xs px-2 py-0.5',
+  md: 'text-sm px-2.5 py-0.5',
+  lg: 'text-base px-3 py-1',
+  xl: 'text-lg px-4 py-1.5',
+}
+
+function SwitchPreview() {
+  const [on, setOn] = useState(false)
+  return (
+    <button role="switch" aria-checked={on} onClick={() => setOn(!on)}
+      className={cn(
+        'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        on ? 'bg-primary' : 'bg-input'
+      )}>
+      <span className={cn('pointer-events-none block size-5 rounded-full bg-background shadow-lg ring-0 transition-transform', on ? 'translate-x-5' : 'translate-x-0')} />
+    </button>
+  )
+}
+
+function CheckboxPreview() {
+  const [checked, setChecked] = useState(true)
+  return (
+    <div className="flex items-center gap-2">
+      <button role="checkbox" aria-checked={checked} onClick={() => setChecked(!checked)}
+        className={cn(
+          'flex size-4 items-center justify-center rounded-sm border transition-colors',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+          checked ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background hover:bg-muted'
+        )}>
+        {checked && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>}
+      </button>
+      <label className="text-sm leading-none cursor-pointer select-none" onClick={() => setChecked(!checked)}>Accept terms</label>
+    </div>
+  )
+}
+
+const selectOptions = ['Option A', 'Option B', 'Option C']
+
+const inputSizes: Record<string, string> = {
+  xs: 'h-7 text-xs px-2',
+  sm: 'h-8 text-xs px-3',
+  md: 'h-9 text-sm px-3',
+  lg: 'h-10 text-sm px-3',
+  xl: 'h-12 text-base px-4',
+}
+
+const selectSizes: Record<string, string> = {
+  xs: 'h-7 text-xs px-2',
+  sm: 'h-8 text-xs px-3',
+  md: 'h-9 text-sm px-3',
+  lg: 'h-10 text-sm px-3',
+  xl: 'h-12 text-base px-4',
+}
+
+const textareaSizes: Record<string, string> = {
+  xs: 'min-h-[50px] text-xs px-2 py-1',
+  sm: 'min-h-[60px] text-xs px-3 py-1.5',
+  md: 'min-h-[80px] text-sm px-3 py-2',
+  lg: 'min-h-[120px] text-sm px-3 py-2',
+  xl: 'min-h-[160px] text-base px-4 py-3',
+}
+
+function SelectPreview({ size }: { size?: string }) {
+  const [open, setOpen] = useState(false)
+  const [selected, setSelected] = useState('')
+  const s = size || 'md'
+  const sCls = selectSizes[s] || selectSizes.md
+  return (
+    <div className="relative w-48">
+      <button onClick={() => setOpen(!open)}
+        className={cn(
+          'flex w-full items-center justify-between rounded-md border border-input bg-background py-2 transition-colors',
+          'hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          open && 'ring-2 ring-ring',
+          sCls
+        )}>
+        <span className={selected ? '' : 'text-muted-foreground'}>{selected || 'Select option\u2026'}</span>
+        {chevronSvg}
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95">
+          <div className="p-1">
+            {selectOptions.map(opt => (
+              <button key={opt} onClick={() => { setSelected(opt); setOpen(false) }}
+                className={cn(
+                  'relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors',
+                  'hover:bg-muted focus:bg-muted',
+                  selected === opt && 'bg-muted font-medium'
+                )}>
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Preview({ component, variant, size }: { component: any; variant?: string; size?: string }) {
+  const id = component.id
+
+  if (id === 'button' || component.category === 'action') {
+    const v = variant || component.variants?.[0]?.name || 'default'
+    const s = size || component.sizes?.[0]?.name || 'md'
+    const vStyle = buttonStyles[v] || buttonStyles.default
+    const sStyle = buttonSizes[s] || buttonSizes.md
+    return (
+      <button className={cn(
+        'inline-flex items-center justify-center rounded-md font-medium transition-all',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        'active:scale-[0.98]',
+        vStyle, sStyle
+      )}>
+        {displayName(component)}
+      </button>
+    )
+  }
+
+  if (id === 'switch') return <SwitchPreview />
+  if (id === 'checkbox') return <CheckboxPreview />
+  if (id === 'select') return <SelectPreview size={size} />
+
+  if (id === 'input') {
+    const s = size || component.sizes?.[0]?.name || 'md'
+    const iCls = inputSizes[s] || inputSizes.md
+    return <input className={cn('flex w-48 rounded-md border border-input bg-background shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', iCls)} placeholder="Enter text\u2026" />
+  }
+
+  if (id === 'textarea') {
+    const s = size || component.sizes?.[0]?.name || 'md'
+    const tCls = textareaSizes[s] || textareaSizes.md
+    return <textarea className={cn('flex w-48 rounded-md border border-input bg-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', tCls)} placeholder="Message\u2026" rows={3} />
+  }
+
+  if (id === 'card') {
+    return (
+      <div className="w-64 rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow">
+        <div className="p-4 pb-2"><div className="text-sm font-semibold">Card Title</div></div>
+        <div className="px-4 pb-4"><div className="text-xs text-muted-foreground">Card description goes here.</div></div>
+      </div>
+    )
+  }
+
+  if (id === 'separator') {
+    return <div className="h-px w-full bg-border" />
+  }
+
+  if (id === 'progress') {
+    return (
+      <div className="relative h-2 w-48 overflow-hidden rounded-full bg-muted">
+        <div className="h-full bg-primary rounded-full transition-all" style={{ width: '60%' }} />
+      </div>
+    )
+  }
+
+  if (id === 'avatar') {
+    const sizeMap: Record<string, string> = { xs: 'size-6 text-xs', sm: 'size-8 text-xs', md: 'size-10 text-sm', lg: 'size-12 text-base', xl: 'size-14 text-lg' }
+    const s = size || 'md'
+    return (
+      <div className={cn('flex items-center justify-center rounded-full bg-muted font-medium', sizeMap[s] || sizeMap.md)}>
+        <span>AV</span>
+      </div>
+    )
+  }
+
+  if (id === 'table') {
+    return (
+      <div className="w-full max-w-sm rounded-lg border overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="border-b bg-muted/50"><tr><th className="p-2 text-left text-xs font-medium text-muted-foreground">Name</th><th className="p-2 text-left text-xs font-medium text-muted-foreground">Status</th></tr></thead>
+          <tbody>
+            <tr className="border-b hover:bg-muted/50 transition-colors"><td className="p-2">Alice</td><td className="p-2"><span className="inline-flex items-center rounded-full border border-transparent bg-primary text-primary-foreground px-2 py-0.5 text-xs font-medium">Active</span></td></tr>
+            <tr className="hover:bg-muted/50 transition-colors"><td className="p-2">Bob</td><td className="p-2"><span className="inline-flex items-center rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-xs font-medium">Inactive</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+
+  if (id === 'label') {
+    return <label className="text-sm font-medium leading-none cursor-pointer">Email address</label>
+  }
+
+  if (id === 'skeleton') {
+    return <div className="h-4 w-48 animate-pulse rounded-md bg-muted" />
+  }
+
+  if (id === 'badge') {
+    const v = variant || component.variants?.[0]?.name || 'default'
+    const s = size || component.sizes?.[0]?.name || 'md'
+    const badgeCls = badgeStyles[v] || badgeStyles.default
+    const badgeSize = badgeSizes[s] || badgeSizes.md
+    return <span className={cn('inline-flex items-center rounded-full border font-semibold transition-colors', badgeCls, badgeSize)}>{v}</span>
+  }
+
+  if (id === 'dialog' || id === 'alert-dialog') {
+    return (
+      <div className="relative inline-block w-72 rounded-lg border border-border bg-card text-card-foreground shadow-lg p-4">
+        <div className="text-sm font-semibold mb-1">{displayName(component)}</div>
+        <p className="text-xs text-muted-foreground mb-3">Are you sure you want to continue?</p>
+        <div className="flex justify-end gap-2">
+          <button className="inline-flex items-center justify-center rounded-md border border-input bg-background px-3 h-8 text-xs font-medium hover:bg-muted transition-colors">Cancel</button>
+          <button className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-3 h-8 text-xs font-medium hover:opacity-90 transition-opacity">Confirm</button>
+        </div>
+      </div>
+    )
+  }
+
+  const cls = resolveClasses(component, variant, size)
+  if (cls) {
+    return <div className={cn(cls)}>{displayName(component)}</div>
+  }
+
+  return <div className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">&lt;{displayName(component)} /&gt;</div>
+}
+
+export default function ComponentShowcase({ component }: ComponentShowcaseProps) {
+  const [copied, setCopied] = useState(false)
+  const name = displayName(component)
+
+  const copyCode = (code: string) => {
+    navigator.clipboard.writeText(code)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const usageCode = (() => {
+    const n = name
+    const id = component.id
+    if (id === 'button') return \`<\${n} variant="\${component.variants?.[0]?.name || 'default'}">Click me</\${n}>\`
+    if (id === 'input') return \`<\${n} placeholder="Enter text…" />\`
+    if (id === 'textarea') return \`<\${n} placeholder="Message…" rows={4} />\`
+    if (id === 'checkbox') return \`<\${n} id="terms" />\\n<Label htmlFor="terms">Accept terms</Label>\`
+    if (id === 'select') return \`<\${n}>\\n  <SelectTrigger>\\n    <SelectValue placeholder="Select…" />\\n  </SelectTrigger>\\n  <SelectContent>\\n    <SelectItem value="a">Option A</SelectItem>\\n    <SelectItem value="b">Option B</SelectItem>\\n  </SelectContent>\\n</\${n}>\`
+    if (id === 'switch') return \`<\${n} />\\n<Label>Airplane mode</Label>\`
+    if (id === 'badge') return \`<\${n} variant="\${component.variants?.[0]?.name || 'default'}">\${n}</\${n}>\`
+    if (id === 'card') return \`<\${n}>\\n  <CardHeader>\\n    <CardTitle>Title</CardTitle>\\n  </CardHeader>\\n  <CardContent>Content</CardContent>\\n</\${n}>\`
+    if (id === 'label') return \`<\${n} htmlFor="email">Email</\${n}>\`
+    if (id === 'table') return \`<\${n}>\\n  <TableHeader>…</TableHeader>\\n  <TableBody>…</TableBody>\\n</\${n}>\`
+    if (id === 'separator') return \`<\${n} />\`
+    if (id === 'progress') return \`<\${n} value={60} />\`
+    if (id === 'avatar') return \`<\${n}>\\n  <AvatarImage src="/avatar.png" />\\n  <AvatarFallback>AV</AvatarFallback>\\n</\${n}>\`
+    return \`<\${n} />\`
+  })()
+
+  return (
+    <div className="space-y-10">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">{name}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {descriptions[component.id] || \`\${name} component\`}
+        </p>
+      </div>
+
+      <div>
+        <h2 className="text-sm font-medium mb-3">Preview</h2>
+        <div className="flex flex-wrap items-center gap-4 rounded-lg border p-6 bg-muted/30">
+          <Preview component={component} />
+        </div>
+      </div>
+
+      {component.variants && component.variants.length > 0 && (
+        <div>
+          <h2 className="text-sm font-medium mb-3">Variants</h2>
+          <div className="rounded-lg border divide-y">
+            {component.variants.map((v: any) => (
+              <div key={v.name} className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="shrink-0">
+                    <Preview component={component} variant={v.name} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-mono text-xs font-medium">{v.name}</div>
+                    {v.className && <code className="text-xs text-muted-foreground break-all">{v.className}</code>}
+                  </div>
+                </div>
+                <code className="text-xs text-muted-foreground hidden md:block shrink-0 ml-4">variant=&quot;{v.name}&quot;</code>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {component.sizes && component.sizes.length > 0 && (
+        <div>
+          <h2 className="text-sm font-medium mb-3">Sizes</h2>
+          <div className="rounded-lg border divide-y">
+            {component.sizes.map((s: any) => (
+              <div key={s.name} className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="shrink-0">
+                    <Preview component={component} size={s.name} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-mono text-xs font-medium">{s.name}</div>
+                    {s.className && <code className="text-xs text-muted-foreground break-all">{s.className}</code>}
+                  </div>
+                </div>
+                <code className="text-xs text-muted-foreground hidden md:block shrink-0 ml-4">size=&quot;{s.name}&quot;</code>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <h2 className="text-sm font-medium mb-3">Usage</h2>
+        <div className="relative rounded-lg border bg-muted/50 p-4">
+          <button
+            onClick={() => copyCode(usageCode)}
+            className="absolute top-3 right-3 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {copied ? 'Copied!' : 'Copy'}
+          </button>
+          <pre className="text-sm overflow-x-auto"><code>{usageCode}</code></pre>
+        </div>
+      </div>
+
+      <div>
+        <h2 className="text-sm font-medium mb-3">Props</h2>
+        <div className="rounded-lg border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="border-b bg-muted/50">
+              <tr>
+                <th className="p-3 text-left text-xs font-medium text-muted-foreground">Prop</th>
+                <th className="p-3 text-left text-xs font-medium text-muted-foreground">Type</th>
+                <th className="p-3 text-left text-xs font-medium text-muted-foreground">Default</th>
+              </tr>
+            </thead>
+            <tbody>
+              {component.variants && component.variants.length > 0 && (
+                <tr className="border-b">
+                  <td className="p-3 font-mono text-xs">variant</td>
+                  <td className="p-3 font-mono text-xs">{component.variants.map((v: any) => \`"\${v.name}"\`).join(' | ')}</td>
+                  <td className="p-3 font-mono text-xs">&quot;{component.variants[0].name}&quot;</td>
+                </tr>
+              )}
+              {component.sizes && component.sizes.length > 0 && (
+                <tr className="border-b">
+                  <td className="p-3 font-mono text-xs">size</td>
+                  <td className="p-3 font-mono text-xs">{component.sizes.map((s: any) => \`"\${s.name}"\`).join(' | ')}</td>
+                  <td className="p-3 font-mono text-xs">&quot;{component.sizes[0].name}&quot;</td>
+                </tr>
+              )}
+              <tr>
+                <td className="p-3 font-mono text-xs">className</td>
+                <td className="p-3 font-mono text-xs">string</td>
+                <td className="p-3 font-mono text-xs">undefined</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+`
