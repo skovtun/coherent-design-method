@@ -7,7 +7,7 @@
 
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
-import { buildCssVariables } from '@coherent/core'
+import { buildCssVariables } from '@getcoherent/core'
 
 /**
  * Check if globals.css needs fixing (old format with :root/.dark causes Next.js build SyntaxError 51:12)

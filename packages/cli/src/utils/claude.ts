@@ -6,8 +6,8 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
-import type { DiscoveryResult, DesignSystemConfig } from '@coherent/core'
-import { validateConfig } from '@coherent/core'
+import type { DiscoveryResult, DesignSystemConfig } from '@getcoherent/core'
+import { validateConfig } from '@getcoherent/core'
 import type { AIProviderInterface } from './ai-provider.js'
 
 export class ClaudeClient implements AIProviderInterface {

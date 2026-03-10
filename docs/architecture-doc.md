@@ -711,7 +711,7 @@ Result: All buttons across all pages are now blue
 
 ```typescript
 // This file is auto-generated. Do not edit manually.
-import type { DesignSystemConfig } from '@coherent/core'
+import type { DesignSystemConfig } from '@getcoherent/core'
 
 export const config: DesignSystemConfig = {
   version: '1.0.0',

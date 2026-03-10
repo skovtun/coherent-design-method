@@ -5,7 +5,7 @@ CLI for **Coherent Design Method** — generate and maintain Next.js apps with a
 ## Install
 
 ```bash
-npm install -g @coherent/cli
+npm install -g @getcoherent/cli
 ```
 
 ## Quick Start

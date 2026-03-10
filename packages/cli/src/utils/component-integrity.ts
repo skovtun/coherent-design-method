@@ -7,7 +7,7 @@
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'fs'
 import { join, relative } from 'path'
-import type { SharedComponentsManifest, SharedComponentEntry } from '@coherent/core'
+import type { SharedComponentsManifest, SharedComponentEntry } from '@getcoherent/core'
 
 // ── Types ────────────────────────────────────────────────────────
 

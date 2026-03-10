@@ -103,7 +103,7 @@ Web Responsive — all generated pages must work on mobile (320px), tablet (768p
 
 ### Repository Structure: Monorepo
 
-Existing pnpm monorepo with `@coherent/core` and `@coherent/cli`. No changes needed.
+Existing pnpm monorepo with `@getcoherent/core` and `@getcoherent/cli`. No changes needed.
 
 ### Service Architecture
 

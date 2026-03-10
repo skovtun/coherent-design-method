@@ -11,8 +11,8 @@ import type {
   ModificationRequest,
   ComponentDefinition,
   ComponentSpec,
-} from '@coherent/core'
-import { ComponentManager } from '@coherent/core'
+} from '@getcoherent/core'
+import { ComponentManager } from '@getcoherent/core'
 import { createAIProvider, type AIProvider } from '../utils/ai-provider.js'
 import { expandPageRequest } from './page-templates.js'
 import { listShadcnComponents } from '../utils/shadcn-installer.js'

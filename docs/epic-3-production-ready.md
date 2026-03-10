@@ -72,7 +72,7 @@ Headline feature: "Import your Figma → get a working prototype with a design s
 
 **Infrastructure:**
 
-- [ ] npm package published (`npm install -g @coherent/cli`)
+- [ ] npm package published (`npm install -g @getcoherent/cli`)
 - [ ] GitHub repo public
 - [ ] License chosen (MIT?)
 - [ ] CHANGELOG.md

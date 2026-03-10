@@ -32,7 +32,7 @@ import {
   ComponentGenerator,
   loadManifest,
   saveManifest,
-} from '@coherent/core'
+} from '@getcoherent/core'
 import { writeFile } from '../utils/files.js'
 import { isShadcnComponent, installShadcnComponent } from '../utils/shadcn-installer.js'
 import {

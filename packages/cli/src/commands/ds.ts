@@ -5,7 +5,7 @@
 import chalk from 'chalk'
 import ora from 'ora'
 import { findConfig, exitNotCoherent } from '../utils/find-config.js'
-import { DesignSystemManager } from '@coherent/core'
+import { DesignSystemManager } from '@getcoherent/core'
 import { writeDesignSystemFiles } from '../utils/ds-files.js'
 
 export async function dsRegenerateCommand() {

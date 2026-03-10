@@ -13,7 +13,7 @@ import { resolve, join } from 'path'
 import { readdir } from 'fs/promises'
 import { findConfig, exitNotCoherent } from '../utils/find-config.js'
 import { needsGlobalsFix, fixGlobalsCss } from '../utils/fix-globals-css.js'
-import { DesignSystemManager, ComponentGenerator } from '@coherent/core'
+import { DesignSystemManager, ComponentGenerator } from '@getcoherent/core'
 import {
   findMissingPackages,
   installPackages,

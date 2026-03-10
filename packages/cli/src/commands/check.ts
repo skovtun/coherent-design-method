@@ -17,7 +17,7 @@ import { resolve } from 'path'
 import { readdirSync, readFileSync, statSync, existsSync } from 'fs'
 import { validatePageQuality, formatIssues } from '../utils/quality-validator.js'
 import { findConfig, exitNotCoherent } from '../utils/find-config.js'
-import { loadManifest, runAudit } from '@coherent/core'
+import { loadManifest, runAudit } from '@getcoherent/core'
 import {
   findPagesImporting,
   isUsedInLayout,
@@ -105,7 +105,7 @@ export async function checkCommand(opts: CheckOptions = {}) {
   // Load config for route validation
   let validRoutes: string[] = []
   try {
-    const { DesignSystemManager } = await import('@coherent/core')
+    const { DesignSystemManager } = await import('@getcoherent/core')
     const dsm = new DesignSystemManager(project.configPath)
     await dsm.load()
     validRoutes = dsm.getConfig().pages.map((p: any) => p.route).filter(Boolean)

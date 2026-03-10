@@ -32,13 +32,13 @@ jobs:
       - name: Build packages
         run: pnpm build
 
-      - name: Publish @coherent/core
+      - name: Publish @getcoherent/core
         working-directory: ./packages/core
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish @coherent/cli
+      - name: Publish @getcoherent/cli
         working-directory: ./packages/cli
         run: npm publish --access public
         env:

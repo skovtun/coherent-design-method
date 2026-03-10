@@ -9,7 +9,7 @@ This guide will help you apply Coherent Design Method to your projects, whether 
 The fastest way to get started is with the CLI:
 
 ```bash
-npm install -g @coherent/cli
+npm install -g @getcoherent/cli
 coherent init
 npm install
 coherent preview

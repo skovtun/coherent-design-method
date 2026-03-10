@@ -1,5 +1,8 @@
 {
-  "name": "@coherent/core",
+  "name": "@getcoherent/core",
+  "publishConfig": {
+    "access": "public"
+  },
   "version": "0.1.0",
   "description": "Core design system engine for Coherent",
   "type": "module",

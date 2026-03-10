@@ -31,7 +31,7 @@ This installs dependencies for all packages in the monorepo (core, cli, template
 pnpm build
 ```
 
-Builds `@coherent/core` first, then `@coherent/cli`. Both must be built before the CLI can run.
+Builds `@getcoherent/core` first, then `@getcoherent/cli`. Both must be built before the CLI can run.
 
 ### 4. Link CLI globally
 
@@ -61,14 +61,14 @@ You should see a Next.js app running at `http://localhost:3000` with a Design Sy
 ```
 coherent-design-method/
 ├── packages/
-│   ├── core/                   # @coherent/core
+│   ├── core/                   # @getcoherent/core
 │   │   └── src/
 │   │       ├── generators/     # Code generators (pages, components, tailwind config)
 │   │       ├── managers/       # Design system, component, page managers
 │   │       ├── types/          # TypeScript types and Zod schemas
 │   │       └── audit/          # Component consistency auditor
 │   │
-│   ├── cli/                    # @coherent/cli
+│   ├── cli/                    # @getcoherent/cli
 │   │   └── src/
 │   │       ├── commands/       # CLI command implementations
 │   │       ├── providers/      # AI providers (Anthropic, OpenAI)
@@ -85,9 +85,9 @@ coherent-design-method/
 
 ### Package responsibilities
 
-**`@coherent/core`** — The engine. Handles design system configuration, component registration, page generation templates, Tailwind config generation, shared component management, and the Design System viewer file generation. This package has no AI dependencies — it's pure logic.
+**`@getcoherent/core`** — The engine. Handles design system configuration, component registration, page generation templates, Tailwind config generation, shared component management, and the Design System viewer file generation. This package has no AI dependencies — it's pure logic.
 
-**`@coherent/cli`** — The interface. Implements all `coherent` commands, AI provider integrations (Claude, OpenAI), quality validation, auto-fix routines, file watching, and the sync/check/fix pipeline. This is the package users interact with.
+**`@getcoherent/cli`** — The interface. Implements all `coherent` commands, AI provider integrations (Claude, OpenAI), quality validation, auto-fix routines, file watching, and the sync/check/fix pipeline. This is the package users interact with.
 
 ## Making Changes
 

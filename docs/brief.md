@@ -211,7 +211,7 @@ The author can:
 
 ### Architecture Considerations
 
-- **Repository:** pnpm monorepo (`@coherent/core`, `@coherent/cli`)
+- **Repository:** pnpm monorepo (`@getcoherent/core`, `@getcoherent/cli`)
 - **Config-driven:** Single `design-system.config.ts` as source of truth
 - **Generator pipeline:** AI parse → validate (Zod) → apply (managers) → generate (generators) → write files
 - **Figma integration (new):** Figma REST API → node tree parsing → component extraction → token extraction → layout interpretation → config generation

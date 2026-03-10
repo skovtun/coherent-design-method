@@ -58,7 +58,7 @@ export interface AIProviderInterface {
 }
 
 // Import types for interface
-import type { DiscoveryResult, DesignSystemConfig } from '@coherent/core'
+import type { DiscoveryResult, DesignSystemConfig } from '@getcoherent/core'
 
 /**
  * Detect available AI provider from environment

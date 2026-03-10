@@ -5,7 +5,7 @@
  * No AI calls, no AST parser — pure string matching, ~1ms per page.
  */
 
-import type { PageAnalysis } from '@coherent/core'
+import type { PageAnalysis } from '@getcoherent/core'
 
 const FORM_COMPONENTS = new Set(['Input', 'Textarea', 'Label', 'Select', 'Checkbox', 'Switch'])
 

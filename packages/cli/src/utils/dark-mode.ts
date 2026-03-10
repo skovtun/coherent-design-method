@@ -11,7 +11,7 @@ import {
   generateSharedComponent,
   loadManifest,
   integrateSharedLayoutIntoRootLayout,
-} from '@coherent/core'
+} from '@getcoherent/core'
 
 const THEME_TOGGLE_CODE = `'use client'
 

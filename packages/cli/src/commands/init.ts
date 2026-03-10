@@ -16,8 +16,8 @@ import { join } from 'path'
 import { execSync } from 'child_process'
 import { writeFile } from '../utils/files.js'
 import { fileExistsAsync } from '../utils/files.js'
-import type { DesignSystemConfig } from '@coherent/core'
-import { ProjectScaffolder, ComponentGenerator } from '@coherent/core'
+import type { DesignSystemConfig } from '@getcoherent/core'
+import { ProjectScaffolder, ComponentGenerator } from '@getcoherent/core'
 import { createMinimalConfig } from '../utils/minimal-config.js'
 import { showSuccessMessage } from '../utils/success-message.js'
 import { appendRecentChanges } from '../utils/recent-changes.js'
@@ -131,9 +131,17 @@ export const config = ${jsonString} as const
 `
 }
 
-export async function initCommand() {
+export async function initCommand(name?: string) {
   try {
-    // Step 0: Verify current directory exists and is accessible
+    // Step 0: If name provided, create directory and cd into it
+    if (name) {
+      const targetDir = join(cwd(), name)
+      if (!existsSync(targetDir)) {
+        mkdirSync(targetDir, { recursive: true })
+      }
+      process.chdir(targetDir)
+    }
+
     let projectPath: string
     try {
       projectPath = cwd()

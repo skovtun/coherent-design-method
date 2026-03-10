@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { homedir } from 'os'
 import chalk from 'chalk'
-import { CLI_VERSION } from '@coherent/core'
+import { CLI_VERSION } from '@getcoherent/core'
 
 const PACKAGE_NAME = '@coherent/cli'
 const CACHE_DIR = join(homedir(), '.coherent')

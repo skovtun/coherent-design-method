@@ -23,7 +23,7 @@ Coherent is an open-source CLI that generates multi-page UI prototypes where eve
 ## Quick Start
 
 ```bash
-npm install -g @coherent/cli
+npm install -g @getcoherent/cli
 coherent init my-app
 cd my-app
 coherent chat "create a SaaS app with dashboard, settings, and pricing pages"

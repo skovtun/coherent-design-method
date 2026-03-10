@@ -1,4 +1,4 @@
-import type { ComponentDefinition } from '@coherent/core'
+import type { ComponentDefinition } from '@getcoherent/core'
 
 /**
  * shadcn/ui component templates (Coherent ComponentDefinition shape)

@@ -139,7 +139,7 @@ packages/core/src/
 ### Последние исправления (стабилизация)
 
 - **next build:** В сгенерированном `package.json` скрипт `build` изменён с `next build --turbopack` на `next build` (флаг не поддерживается в production build). Источник: `packages/core/src/generators/ProjectScaffolder.ts`.
-- **Standalone-проект:** Конфиг больше не импортирует `@coherent/core` — сгенерированный проект собирается без зависимости от монорепозитория. Правки: `packages/cli/src/commands/init.ts` (generateConfigFile), `packages/core/src/managers/DesignSystemManager.ts` (save).
+- **Standalone-проект:** Конфиг больше не импортирует `@getcoherent/core` — сгенерированный проект собирается без зависимости от монорепозитория. Правки: `packages/cli/src/commands/init.ts` (generateConfigFile), `packages/core/src/managers/DesignSystemManager.ts` (save).
 - **Дублирование навигации в Documentation:** Шаблоны docs приведены к одному источнику навигации (только layout Design System). Для **уже созданных** проектов добавлена команда `coherent regenerate-docs` — перезаписывает `app/design-system/docs/*` актуальными шаблонами. Причина дублирования: при «Project already initialized» init не перезаписывал docs, поэтому старые layout (с шапкой) и страницы (с «← Documentation») оставались. См. TROUBLESHOOTING § Дублирование навигации.
 
 ---
@@ -416,7 +416,7 @@ coherent export --format=a2ui
 
 ### Общее
 
-- [ ] После любых правок config не должно быть `import ... from '@coherent/core'` в сгенерированном проекте (standalone).
+- [ ] После любых правок config не должно быть `import ... from '@getcoherent/core'` в сгенерированном проекте (standalone).
 - [ ] Скрипт `build` в package.json сгенерированного проекта: `next build` (без `--turbopack`).
 
 ---

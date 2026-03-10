@@ -13,7 +13,7 @@ import {
   loadManifest,
   generateSharedComponent,
   integrateSharedLayoutIntoRootLayout,
-} from '@coherent/core'
+} from '@getcoherent/core'
 import { existsSync } from 'fs'
 import { resolve } from 'path'
 import { writeDesignSystemFiles } from '../utils/ds-files.js'

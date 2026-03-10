@@ -8,7 +8,7 @@ import chalk from 'chalk'
 import { basename } from 'path'
 import { findConfig } from '../utils/find-config.js'
 import { readRecentChanges, formatTimeAgo } from '../utils/recent-changes.js'
-import { DesignSystemManager } from '@coherent/core'
+import { DesignSystemManager } from '@getcoherent/core'
 
 /**
  * Count design tokens recursively

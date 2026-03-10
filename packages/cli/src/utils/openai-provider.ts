@@ -7,8 +7,8 @@
 
 // Dynamic import - package may not be installed
 // We'll use dynamic import in createAIProvider instead
-import type { DiscoveryResult, DesignSystemConfig } from '@coherent/core'
-import { validateConfig } from '@coherent/core'
+import type { DiscoveryResult, DesignSystemConfig } from '@getcoherent/core'
+import { validateConfig } from '@getcoherent/core'
 import type { AIProviderInterface } from './ai-provider.js'
 
 export class OpenAIClient implements AIProviderInterface {

@@ -5,10 +5,10 @@
 
 import { writeFileSync, existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
-import type { DesignSystemConfig } from '@coherent/core'
-import type { SharedComponentsManifest } from '@coherent/core'
-import { loadManifest } from '@coherent/core'
-import { DesignSystemManager } from '@coherent/core'
+import type { DesignSystemConfig } from '@getcoherent/core'
+import type { SharedComponentsManifest } from '@getcoherent/core'
+import { loadManifest } from '@getcoherent/core'
+import { DesignSystemManager } from '@getcoherent/core'
 
 function buildSharedComponentsListForClaude(manifest: SharedComponentsManifest): string {
   if (!manifest.shared || manifest.shared.length === 0) {

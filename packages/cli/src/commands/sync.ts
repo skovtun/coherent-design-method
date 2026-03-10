@@ -15,7 +15,7 @@ import { existsSync, readFileSync } from 'fs'
 import { join, relative, dirname } from 'path'
 import { readdir, readFile } from 'fs/promises'
 import { findConfig } from '../utils/find-config.js'
-import { DesignSystemManager } from '@coherent/core'
+import { DesignSystemManager } from '@getcoherent/core'
 import { analyzePageCode } from '../utils/page-analyzer.js'
 import { writeDesignSystemFiles } from '../utils/ds-files.js'
 import { writeCursorRules } from '../utils/cursor-rules.js'
@@ -25,7 +25,7 @@ import {
   saveManifest,
   createEntry,
   findSharedComponent,
-} from '@coherent/core'
+} from '@getcoherent/core'
 import { reconcileComponents } from '../utils/component-integrity.js'
 
 export interface SyncOptions {

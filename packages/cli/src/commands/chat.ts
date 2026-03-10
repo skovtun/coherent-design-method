@@ -31,7 +31,7 @@ import {
   type ComponentDefinition,
   type PageDefinition,
   type TemplateOptions,
-} from '@coherent/core'
+} from '@getcoherent/core'
 import { parseModification } from '../agents/modifier.js'
 import { isAuthRoute } from '../agents/page-templates.js'
 import { ensureAuthRouteGroup } from '../utils/auth-route-group.js'

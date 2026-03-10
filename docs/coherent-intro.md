@@ -299,7 +299,7 @@ coherent export
 ### Quick Start
 ```bash
 # Install
-npm install -g @coherent/cli
+npm install -g @getcoherent/cli
 
 # Initialize project
 coherent init

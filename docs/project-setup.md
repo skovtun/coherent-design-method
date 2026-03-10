@@ -200,7 +200,7 @@ cd packages/cli
 # Package.json
 cat > package.json << EOF
 {
-  "name": "@coherent/cli",
+  "name": "@getcoherent/cli",
   "version": "0.1.0",
   "type": "module",
   "bin": {
@@ -212,7 +212,7 @@ cat > package.json << EOF
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@coherent/core": "workspace:*",
+    "@getcoherent/core": "workspace:*",
     "@anthropic-ai/sdk": "^0.32.0",
     "commander": "^11.1.0",
     "inquirer": "^9.2.12",
@@ -244,7 +244,7 @@ cd packages/core
 
 cat > package.json << EOF
 {
-  "name": "@coherent/core",
+  "name": "@getcoherent/core",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",

@@ -31,18 +31,26 @@ Coherent is a CLI that creates production-ready Next.js projects with a built-in
 ### 1. Install
 
 ```bash
-# From source (recommended during beta)
+npm install -g @getcoherent/cli
+```
+
+<details>
+<summary>Or install from source</summary>
+
+```bash
 git clone https://github.com/skovtun/coherent-design-method.git
 cd coherent-design-method
 pnpm install && pnpm build
 cd packages/cli && pnpm link --global
 ```
 
+</details>
+
 ### 2. Create a project
 
 ```bash
-mkdir my-app && cd my-app
-coherent init
+coherent init my-app
+cd my-app
 ```
 
 This creates a Next.js 15 project with Tailwind CSS, a component library, design tokens, and a Design System viewer — all pre-configured. During init, you'll be asked for an [Anthropic API key](#ai-provider-setup) (needed for AI generation).
@@ -355,8 +363,8 @@ coherent --version
 ```
 coherent-design-method/
 ├── packages/
-│   ├── core/       # @coherent/core — design system engine, generators, managers
-│   ├── cli/        # @coherent/cli  — CLI commands, AI providers, quality tools
+│   ├── core/       # @getcoherent/core — design system engine, generators, managers
+│   ├── cli/        # @getcoherent/cli  — CLI commands, AI providers, quality tools
 │   └── templates/  # Project templates
 ├── docs/           # Documentation
 └── package.json    # Monorepo root (pnpm workspaces)

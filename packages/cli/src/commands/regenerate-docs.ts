@@ -14,8 +14,8 @@
 import chalk from 'chalk'
 import ora from 'ora'
 import { findConfig } from '../utils/find-config.js'
-import { DesignSystemManager } from '@coherent/core'
-import { ProjectScaffolder } from '@coherent/core'
+import { DesignSystemManager } from '@getcoherent/core'
+import { ProjectScaffolder } from '@getcoherent/core'
 
 export async function regenerateDocsCommand() {
   const project = findConfig()

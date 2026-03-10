@@ -5,8 +5,8 @@
  * that can be customized later via coherent chat.
  */
 
-import type { DesignSystemConfig } from '@coherent/core'
-import { CLI_VERSION, FRAMEWORK_VERSIONS } from '@coherent/core'
+import type { DesignSystemConfig } from '@getcoherent/core'
+import { CLI_VERSION, FRAMEWORK_VERSIONS } from '@getcoherent/core'
 
 export function createMinimalConfig(): DesignSystemConfig {
   const now = new Date().toISOString()

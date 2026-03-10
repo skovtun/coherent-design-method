@@ -22,7 +22,7 @@ import chalk from 'chalk'
 import ora from 'ora'
 import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
-import { DesignSystemManager, CLI_VERSION } from '@coherent/core'
+import { DesignSystemManager, CLI_VERSION } from '@getcoherent/core'
 import { findConfig, exitNotCoherent } from '../utils/find-config.js'
 import { writeDesignSystemFiles } from '../utils/ds-files.js'
 import { writeCursorRules } from '../utils/cursor-rules.js'
@@ -60,7 +60,7 @@ export async function updateCommand(opts: { patchGlobals?: boolean }) {
     if (compareSemver(projectVersion, CLI_VERSION) > 0) {
       spinner.warn('Project was created with a newer CLI version')
       console.log(chalk.yellow(`   Project: v${projectVersion} → CLI: v${CLI_VERSION}`))
-      console.log(chalk.yellow('   Update your CLI: npm install -g @coherent/cli@latest\n'))
+      console.log(chalk.yellow('   Update your CLI: npm install -g @getcoherent/cli@latest\n'))
       return
     }
 

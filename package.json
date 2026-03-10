@@ -5,11 +5,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "pnpm --filter '@coherent/*' build",
-    "dev": "pnpm --filter '@coherent/*' dev",
-    "typecheck": "pnpm --filter '@coherent/*' typecheck",
-    "test": "pnpm --filter '@coherent/*' test",
-    "lint": "pnpm --filter '@coherent/*' lint",
+    "build": "pnpm --filter '@getcoherent/*' build",
+    "dev": "pnpm --filter '@getcoherent/*' dev",
+    "typecheck": "pnpm --filter '@getcoherent/*' typecheck",
+    "test": "pnpm --filter '@getcoherent/*' test",
+    "lint": "pnpm --filter '@getcoherent/*' lint",
     "test:quality": "bash packages/cli/tests/quality-smoke.sh"
   },
   "keywords": [

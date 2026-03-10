@@ -4,8 +4,8 @@
 
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { relative, join } from 'path'
-import { loadManifest, saveManifest } from '@coherent/core'
-import type { SharedComponentsManifest } from '@coherent/core'
+import { loadManifest, saveManifest } from '@getcoherent/core'
+import type { SharedComponentsManifest } from '@getcoherent/core'
 import {
   findMissingPackagesInCode,
   installPackages,

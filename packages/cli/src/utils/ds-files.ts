@@ -5,8 +5,8 @@
 
 import { mkdir, writeFile } from 'fs/promises'
 import { join, dirname } from 'path'
-import { DesignSystemGenerator } from '@coherent/core'
-import type { DesignSystemConfig } from '@coherent/core'
+import { DesignSystemGenerator } from '@getcoherent/core'
+import type { DesignSystemConfig } from '@getcoherent/core'
 
 const SHARED_DS_KEYS = [
   'app/design-system/shared/page.tsx',

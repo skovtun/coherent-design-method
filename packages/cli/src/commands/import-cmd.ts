@@ -24,9 +24,9 @@ import {
   validateConfig,
   FRAMEWORK_VERSIONS,
   CLI_VERSION,
-} from '@coherent/core'
-import type { DesignSystemConfig, PageDefinition } from '@coherent/core'
-import type { FigmaPageData } from '@coherent/core'
+} from '@getcoherent/core'
+import type { DesignSystemConfig, PageDefinition } from '@getcoherent/core'
+import type { FigmaPageData } from '@getcoherent/core'
 import { findConfig } from '../utils/find-config.js'
 import { writeDesignSystemFiles } from '../utils/ds-files.js'
 import { writeCursorRules } from '../utils/cursor-rules.js'

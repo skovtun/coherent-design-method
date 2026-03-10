@@ -54,7 +54,7 @@ pnpm typecheck  # Should compile
 
 **What was done:**
 - Copied types from `docs/design-system-types.ts`
-- Exported all types from `@coherent/core`
+- Exported all types from `@getcoherent/core`
 - Zod schemas work for validation
 
 ---
@@ -563,7 +563,7 @@ export class A2UIExporter {
 3. **Add export command:**
 ```typescript
 // packages/cli/src/commands/export.ts
-import { A2UIExporter } from '@coherent/core'
+import { A2UIExporter } from '@getcoherent/core'
 
 export async function exportCommand(options: { format?: string }) {
   if (options.format === 'a2ui') {

@@ -9,7 +9,7 @@ try {
 }
 
 import { Command } from 'commander'
-import { CLI_VERSION } from '@coherent/core'
+import { CLI_VERSION } from '@getcoherent/core'
 import { initCommand } from './commands/init.js'
 import { chatCommand } from './commands/chat.js'
 import { previewCommand } from './commands/preview.js'
@@ -42,6 +42,7 @@ program
 
 program
   .command('init')
+  .argument('[name]', 'Project directory name (created if it does not exist)')
   .description('Initialize a new Coherent project')
   .action(initCommand)
 
