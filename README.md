@@ -8,10 +8,10 @@
 </p>
 
 <p align="center">
+  <a href="https://www.npmjs.com/package/@getcoherent/cli"><img src="https://img.shields.io/npm/v/@getcoherent/cli.svg" alt="npm version"></a>
   <a href="https://github.com/skovtun/coherent-design-method/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" alt="Node 20+">
   <img src="https://img.shields.io/badge/next.js-15-black" alt="Next.js 15">
-  <img src="https://img.shields.io/badge/tailwind-v3-38bdf8" alt="Tailwind CSS">
 </p>
 
 ---
