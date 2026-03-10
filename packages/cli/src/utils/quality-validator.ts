@@ -90,12 +90,18 @@ function checkLines(code: string, pattern: RegExp, type: string, message: string
 export function validatePageQuality(code: string, validRoutes?: string[]): QualityIssue[] {
   const issues: QualityIssue[] = []
 
-  // Skip RAW_COLOR on lines with font-mono (terminal/code blocks use intentional raw colors)
+  // Skip RAW_COLOR inside terminal/code block contexts
+  // Check the line itself AND nearby lines (parent elements) for terminal indicators
+  const allLines = code.split('\n')
+  const isTerminalContext = (lineNum: number): boolean => {
+    const start = Math.max(0, lineNum - 20)
+    const nearby = allLines.slice(start, lineNum).join(' ')
+    if (/font-mono/.test(allLines[lineNum - 1] || '')) return true
+    if (/bg-zinc-950|bg-zinc-900/.test(nearby) && /font-mono/.test(nearby)) return true
+    return false
+  }
   issues.push(...checkLines(code, RAW_COLOR_RE, 'RAW_COLOR', 'Raw Tailwind color detected — use semantic tokens (bg-primary, text-muted-foreground, etc.)', 'error')
-    .filter(issue => {
-      const line = code.split('\n')[issue.line - 1] || ''
-      return !line.includes('font-mono')
-    }))
+    .filter(issue => !isTerminalContext(issue.line)))
   issues.push(...checkLines(code, HEX_IN_CLASS_RE, 'HEX_IN_CLASS', 'Hex color in className — use CSS variables via semantic tokens', 'error'))
   issues.push(...checkLines(code, TEXT_BASE_RE, 'TEXT_BASE', 'text-base detected — use text-sm as base font size', 'warning'))
   issues.push(...checkLines(code, HEAVY_SHADOW_RE, 'HEAVY_SHADOW', 'Heavy shadow detected — use shadow-sm or none', 'warning'))
@@ -106,7 +112,15 @@ export function validatePageQuality(code: string, validRoutes?: string[]): Quali
 
   // Native HTML — always error (Story 3.4: kill native elements)
   // skipCommentsAndStrings=true to avoid false positives on `<button` inside strings/comments
-  issues.push(...checkLines(code, RAW_BUTTON_RE, 'NATIVE_BUTTON', 'Native <button> — use Button from @/components/ui/button', 'error', true))
+  // Skip native buttons that are intentional: icon-only (aria-label), copy buttons, inline text buttons
+  const codeLines = code.split('\n')
+  issues.push(...checkLines(code, RAW_BUTTON_RE, 'NATIVE_BUTTON', 'Native <button> — use Button from @/components/ui/button', 'error', true)
+    .filter(issue => {
+      const nearby = codeLines.slice(Math.max(0, issue.line - 1), issue.line + 5).join(' ')
+      if (nearby.includes('aria-label')) return false
+      if (/onClick=\{.*copy/i.test(nearby)) return false
+      return true
+    }))
   issues.push(...checkLines(code, RAW_SELECT_RE, 'NATIVE_SELECT', 'Native <select> — use Select from @/components/ui/select', 'error', true))
   issues.push(...checkLines(code, NATIVE_CHECKBOX_RE, 'NATIVE_CHECKBOX', 'Native <input type="checkbox"> — use Switch or Checkbox from @/components/ui/switch or @/components/ui/checkbox', 'error', true))
   issues.push(...checkLines(code, NATIVE_TABLE_RE, 'NATIVE_TABLE', 'Native <table> — use Table, TableHeader, TableBody, etc. from @/components/ui/table', 'warning', true))
@@ -314,11 +328,38 @@ export function autoFixCode(code: string): { code: string; fixes: string[] } {
     }
   }
 
-  // Native <button> → <Button> with import
-  const nativeButtonRe = /<button\b/g
-  if (nativeButtonRe.test(fixed)) {
-    fixed = fixed.replace(/<button\b/g, '<Button')
-    fixed = fixed.replace(/<\/button>/g, '</Button>')
+  // Native <button> → <Button> with import (skip intentional native buttons)
+  const lines = fixed.split('\n')
+  let hasReplacedButton = false
+  for (let i = 0; i < lines.length; i++) {
+    if (!/<button\b/.test(lines[i])) continue
+    // Skip intentional native buttons: icon-only (aria-label), copy handlers, inline text buttons
+    if (lines[i].includes('aria-label')) continue
+    if (/onClick=\{.*copy/i.test(lines[i])) continue
+    // Check next few lines for aria-label or copy patterns
+    const block = lines.slice(i, i + 5).join(' ')
+    if (block.includes('aria-label') || /onClick=\{.*copy/i.test(block)) continue
+    lines[i] = lines[i].replace(/<button\b/g, '<Button')
+    hasReplacedButton = true
+  }
+  if (hasReplacedButton) {
+    fixed = lines.join('\n')
+    fixed = fixed.replace(/<\/button>/g, (match, offset) => {
+      // Only replace closing tags that correspond to replaced opening tags
+      // Simple heuristic: if there are more </Button> than <Button, keep as </button>
+      return '</Button>'
+    })
+    // Recount to fix mismatched closing tags
+    const openCount = (fixed.match(/<Button\b/g) || []).length
+    const closeCount = (fixed.match(/<\/Button>/g) || []).length
+    if (closeCount > openCount) {
+      // Too many </Button>, convert extras back
+      let excess = closeCount - openCount
+      fixed = fixed.replace(/<\/Button>/g, (m) => {
+        if (excess > 0) { excess--; return '</button>' }
+        return m
+      })
+    }
     const hasButtonImport = /import\s.*\bButton\b.*from\s+['"]@\/components\/ui\/button['"]/.test(fixed)
     if (!hasButtonImport) {
       const lastImportIdx = fixed.lastIndexOf('\nimport ')
@@ -351,13 +392,26 @@ export function autoFixCode(code: string): { code: string; fixes: string[] } {
   }
 
   // Process color replacements per-className to preserve intentional styling
-  // in terminal/code blocks (detected by font-mono, bg-zinc-950, or pre/code context)
+  // in terminal/code blocks (detected by font-mono, bg-zinc-950, or parent context)
   const isCodeContext = (classes: string): boolean =>
     /\bfont-mono\b/.test(classes) || /\bbg-zinc-950\b/.test(classes) || /\bbg-zinc-900\b/.test(classes)
 
+  const isInsideTerminalBlock = (offset: number): boolean => {
+    const preceding = fixed.slice(Math.max(0, offset - 600), offset)
+    if (!/(bg-zinc-950|bg-zinc-900)/.test(preceding)) return false
+    if (!/font-mono/.test(preceding)) return false
+    const lastClose = Math.max(preceding.lastIndexOf('</div>'), preceding.lastIndexOf('</section>'))
+    const lastTerminal = Math.max(
+      preceding.lastIndexOf('bg-zinc-950'),
+      preceding.lastIndexOf('bg-zinc-900')
+    )
+    return lastTerminal > lastClose
+  }
+
   let hadColorFix = false
-  fixed = fixed.replace(/className="([^"]*)"/g, (fullMatch, classes: string) => {
+  fixed = fixed.replace(/className="([^"]*)"/g, (fullMatch, classes: string, offset: number) => {
     if (isCodeContext(classes)) return fullMatch
+    if (isInsideTerminalBlock(offset)) return fullMatch
 
     let result = classes
     const accentColorRe = /\b(bg|text|border)-(emerald|blue|violet|indigo|purple|teal|cyan|sky|rose|amber)-(\d+)\b/g

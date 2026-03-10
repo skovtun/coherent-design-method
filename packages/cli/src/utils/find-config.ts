@@ -8,6 +8,7 @@
 import { existsSync } from 'fs'
 import { resolve, dirname, parse } from 'path'
 import { cwd } from 'process'
+import chalk from 'chalk'
 
 export interface ProjectInfo {
   root: string
@@ -61,4 +62,13 @@ export function getProjectRoot(startDir?: string): string {
     throw new Error('Not a Coherent project')
   }
   return project.root
+}
+
+/**
+ * Print a standardized "not a Coherent project" error and exit.
+ */
+export function exitNotCoherent(): never {
+  console.error(chalk.red('❌ Not a Coherent project'))
+  console.log(chalk.dim('Run coherent init first, or cd into a project directory.\n'))
+  process.exit(1)
 }

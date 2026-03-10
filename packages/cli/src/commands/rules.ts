@@ -4,13 +4,12 @@
 
 import chalk from 'chalk'
 import { regenerateCursorRules } from '../utils/cursor-rules.js'
+import { exitNotCoherent } from '../utils/find-config.js'
 
 export async function rulesCommand() {
   const result = await regenerateCursorRules()
   if (!result.written) {
-    console.log(chalk.red('Not a Coherent project.'))
-    console.log(chalk.dim('Run from a directory with design-system.config.ts, or run coherent init first.\n'))
-    process.exit(1)
+    exitNotCoherent()
   }
   const parts: string[] = []
   if (result.sharedCount !== undefined) parts.push(`${result.sharedCount} shared components`)

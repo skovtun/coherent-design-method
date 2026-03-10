@@ -6,7 +6,7 @@
 
 import { Command } from 'commander'
 import chalk from 'chalk'
-import { findConfig } from '../utils/find-config.js'
+import { findConfig, exitNotCoherent } from '../utils/find-config.js'
 import {
   DesignSystemManager,
   ComponentManager,
@@ -31,11 +31,7 @@ export function createComponentsCommand(): Command {
     .action(async () => {
       const project = findConfig()
 
-      if (!project) {
-        console.error(chalk.red('❌ Not a Coherent project\n'))
-        console.log(chalk.yellow('Run this command from a Coherent project directory'))
-        process.exit(1)
-      }
+      if (!project) exitNotCoherent()
 
       const dsm = new DesignSystemManager(project.configPath)
       await dsm.load()
@@ -110,11 +106,7 @@ export function createComponentsCommand(): Command {
     .option('--verbose', 'Show file paths and usage details')
     .action(async (opts: { json?: boolean; verbose?: boolean }) => {
       const project = findConfig()
-      if (!project) {
-        console.error(chalk.red('❌ Not a Coherent project\n'))
-        console.log(chalk.yellow('Run this command from a Coherent project directory'))
-        process.exit(1)
-      }
+      if (!project) exitNotCoherent()
 
       const manifest = await loadManifest(project.root)
 
@@ -165,10 +157,7 @@ export function createComponentsCommand(): Command {
     .option('-d, --description <desc>', 'Description')
     .action(async (name: string, opts: { type?: string; description?: string }) => {
       const project = findConfig()
-      if (!project) {
-        console.error(chalk.red('❌ Not a Coherent project\n'))
-        process.exit(1)
-      }
+      if (!project) exitNotCoherent()
       const type = (opts.type === 'section' || opts.type === 'widget' ? opts.type : 'layout') as 'layout' | 'section' | 'widget'
       const result = await generateSharedComponent(project.root, {
         name: name.trim(),

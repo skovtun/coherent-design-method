@@ -11,7 +11,7 @@ import { spawn, ChildProcess } from 'child_process'
 import { existsSync, rmSync, readFileSync, writeFileSync } from 'fs'
 import { resolve, join } from 'path'
 import { readdir } from 'fs/promises'
-import { findConfig } from '../utils/find-config.js'
+import { findConfig, exitNotCoherent } from '../utils/find-config.js'
 import { needsGlobalsFix, fixGlobalsCss } from '../utils/fix-globals-css.js'
 import { DesignSystemManager, ComponentGenerator } from '@coherent/core'
 import {
@@ -280,10 +280,10 @@ async function healthCheck(port: number): Promise<void> {
     if (res.status === 200) {
       console.log(chalk.green(`\n✅ Preview healthy at http://localhost:${port}`))
     } else {
-      console.log(chalk.yellow(`\n⚠ Preview returned ${res.status}. Run: coherent repair`))
+      console.log(chalk.yellow(`\n⚠ Preview returned ${res.status}. Run: coherent fix`))
     }
   } catch {
-    console.log(chalk.yellow(`\n⚠ Preview not responding. Run: coherent repair`))
+    console.log(chalk.yellow(`\n⚠ Preview not responding. Run: coherent fix`))
   }
 }
 
@@ -353,8 +353,8 @@ function launchWithMonitoring(projectRoot: string, restarts: number): Promise<vo
       }
       if (msg.includes('Failed to compile')) {
         console.log(chalk.yellow('\n⚠ Compilation error detected.'))
-        console.log(chalk.dim('  Hint: run "coherent doctor" in another terminal to auto-fix'))
-        console.log(chalk.dim('  Or:  coherent repair  |  coherent chat "fix the broken page"'))
+        console.log(chalk.dim('  Hint: run "coherent fix" in another terminal to auto-fix'))
+        console.log(chalk.dim('  Or:  coherent chat "fix the broken page"'))
       }
     })
 
@@ -439,13 +439,7 @@ export async function previewCommand() {
   const project = findConfig()
   if (!project) {
     spinner.fail('Not a Coherent project')
-    console.log(chalk.red('\n❌ Not a Coherent project'))
-    console.log(chalk.dim('Run this command from a Coherent project directory:'))
-    console.log(chalk.white('  $ cd your-project'))
-    console.log(chalk.white('  $ coherent preview'))
-    console.log(chalk.gray('\nOr initialize a new project:'))
-    console.log(chalk.white('  $ coherent init\n'))
-    process.exit(1)
+    exitNotCoherent()
   }
   
   const projectRoot = project.root
@@ -500,6 +494,7 @@ export async function previewCommand() {
     await fixMissingComponentExports(projectRoot)
     await backfillPageAnalysis(projectRoot)
     spinner.succeed('Project ready')
+    console.log(chalk.dim('  💡 Edited files manually? Run `coherent sync` to update the Design System.\n'))
 
     // Step 3: Start dev server with error monitoring and health check
     console.log(chalk.blue('\n🚀 Starting Next.js dev server...\n'))

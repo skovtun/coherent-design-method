@@ -4,16 +4,14 @@
 
 import chalk from 'chalk'
 import ora from 'ora'
-import { findConfig } from '../utils/find-config.js'
+import { findConfig, exitNotCoherent } from '../utils/find-config.js'
 import { DesignSystemManager } from '@coherent/core'
 import { writeDesignSystemFiles } from '../utils/ds-files.js'
 
 export async function dsRegenerateCommand() {
   const project = findConfig()
   if (!project) {
-    console.error(chalk.red('❌ Not a Coherent project\n'))
-    console.log(chalk.yellow('Run this from a project directory with design-system.config.ts'))
-    process.exit(1)
+    exitNotCoherent()
   }
 
   const spinner = ora('Loading config and regenerating Design System pages...').start()

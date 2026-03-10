@@ -16,8 +16,15 @@ import chalk from 'chalk'
 import { resolve } from 'path'
 import { readdirSync, readFileSync, statSync, existsSync } from 'fs'
 import { validatePageQuality, formatIssues } from '../utils/quality-validator.js'
-import { findConfig } from '../utils/find-config.js'
+import { findConfig, exitNotCoherent } from '../utils/find-config.js'
 import { loadManifest, runAudit } from '@coherent/core'
+import {
+  findPagesImporting,
+  isUsedInLayout,
+  findUnregisteredComponents,
+  findInlineDuplicates,
+  extractExportedComponentNames,
+} from '../utils/component-integrity.js'
 
 export interface CheckOptions {
   json?: boolean
@@ -81,9 +88,7 @@ function findTsxFiles(dir: string): string[] {
 export async function checkCommand(opts: CheckOptions = {}) {
   const project = findConfig()
   if (!project) {
-    console.log(chalk.red('Not a Coherent project.'))
-    console.log(chalk.dim('  Run from a project with design-system.config.ts'))
-    process.exit(1)
+    exitNotCoherent()
   }
 
   const projectRoot = project.root
@@ -215,35 +220,106 @@ export async function checkCommand(opts: CheckOptions = {}) {
   // ─── Section 2: Shared Components ───────────────────────────────────
   if (!skipShared) {
     try {
-      const auditResult = await runAudit(projectRoot)
-      result.shared = {
-        total: auditResult.summary.total,
-        consistent: auditResult.summary.consistent,
-        unused: auditResult.summary.unused,
-        withInlineDuplicates: auditResult.summary.withInlineDuplicates,
-        entries: auditResult.shared.map(e => ({
-          id: e.id,
-          name: e.name,
-          type: e.type,
-          status: e.status,
-          message: e.message,
-          suggestions: e.suggestions,
-        })),
+      const manifest = await loadManifest(projectRoot)
+
+      if (!opts.json && manifest.shared.length > 0) {
+        console.log(chalk.cyan(`\n  🧩 Shared Components`) + chalk.dim(` (${manifest.shared.length} registered)\n`))
       }
 
-      if (!opts.json && auditResult.summary.total > 0) {
-        console.log(chalk.cyan(`\n  🧩 Shared Components`) + chalk.dim(` (${auditResult.summary.total} registered)\n`))
+      let consistent = 0
+      let orphaned = 0
+      let unused = 0
+      let staleUsedIn = 0
+      let nameMismatch = 0
 
-        for (const e of auditResult.shared) {
-          const icon = e.status === 'ok' ? chalk.green('✔') :
-            e.status === 'unused' ? chalk.blue('ℹ') : chalk.yellow('⚠')
-          console.log(`  ${icon} ${e.id} ${e.name}` + chalk.dim(` (${e.type}) — ${e.message}`))
-          if (e.suggestions?.length) {
-            e.suggestions.forEach(s => console.log(chalk.dim(`    → ${s}`)))
+      for (const entry of manifest.shared) {
+        const filePath = resolve(projectRoot, entry.file)
+        const fileExists = existsSync(filePath)
+
+        if (!fileExists) {
+          orphaned++
+          if (!opts.json) {
+            console.log(chalk.red(`  ❌ ${entry.id} (${entry.name}) — file missing: ${entry.file}`))
+            console.log(chalk.dim(`     Fix: coherent fix  or  coherent sync`))
+          }
+          continue
+        }
+
+        // Check export name matches
+        try {
+          const code = readFileSync(filePath, 'utf-8')
+          const actualExports = extractExportedComponentNames(code)
+          if (actualExports.length > 0 && !actualExports.includes(entry.name)) {
+            nameMismatch++
+            if (!opts.json) {
+              console.log(chalk.yellow(`  ⚠ ${entry.id} — manifest name "${entry.name}" doesn't match export "${actualExports[0]}"`))
+              console.log(chalk.dim(`     Fix: coherent sync`))
+            }
+          }
+        } catch { /* skip */ }
+
+        // Check actual usage
+        const actualUsedIn = findPagesImporting(projectRoot, entry.name, entry.file)
+        const inLayout = isUsedInLayout(projectRoot, entry.name)
+        const totalUsage = actualUsedIn.length + (inLayout ? 1 : 0)
+
+        // Check stale usedIn
+        const manifestUsedIn = entry.usedIn || []
+        const fullActual = inLayout ? [...new Set([...actualUsedIn, 'app/layout.tsx'])] : actualUsedIn
+        const isStale = manifestUsedIn.length !== fullActual.length ||
+          !manifestUsedIn.every(p => fullActual.includes(p))
+        if (isStale) staleUsedIn++
+
+        if (totalUsage === 0) {
+          unused++
+          if (!opts.json) {
+            console.log(chalk.blue(`  ℹ ${entry.id} (${entry.name}) — registered but not used anywhere`))
+            console.log(chalk.dim(`     Remove: coherent components shared remove ${entry.id}`))
+          }
+        } else {
+          consistent++
+          const usageDesc = inLayout
+            ? `layout + ${actualUsedIn.length} page(s)`
+            : `${actualUsedIn.length} page(s)`
+          if (!opts.json) {
+            const staleNote = isStale ? chalk.yellow(' [usedIn stale]') : ''
+            console.log(chalk.green(`  ✔ ${entry.id} (${entry.name})`) + chalk.dim(` — ${usageDesc}`) + staleNote)
           }
         }
       }
-    } catch { /* no audit data */ }
+
+      // Find unregistered components
+      const unregistered = findUnregisteredComponents(projectRoot, manifest)
+      if (unregistered.length > 0 && !opts.json) {
+        console.log(chalk.cyan(`\n  📦 Unregistered components found:`))
+        for (const comp of unregistered) {
+          console.log(chalk.blue(`  ℹ ${comp.name}`) + chalk.dim(` — ${comp.file} (not in manifest)`))
+          console.log(chalk.dim(`     Register: coherent sync`))
+        }
+      }
+
+      // Find inline duplicates
+      const inlineDupes = findInlineDuplicates(projectRoot, manifest)
+      if (inlineDupes.length > 0 && !opts.json) {
+        console.log(chalk.cyan(`\n  🔍 Inline duplicates:`))
+        for (const dup of inlineDupes) {
+          console.log(chalk.yellow(`  ⚠ ${dup.pageFile}`) + chalk.dim(` has inline ${dup.componentName}`))
+          console.log(chalk.dim(`     Use shared: import { ${dup.componentName} } from "@/${dup.sharedFile.replace('.tsx', '')}"`))
+        }
+      }
+
+      result.shared = {
+        total: manifest.shared.length,
+        consistent,
+        unused,
+        withInlineDuplicates: inlineDupes.length,
+        entries: manifest.shared.map(e => ({
+          id: e.id, name: e.name, type: e.type,
+          status: existsSync(resolve(projectRoot, e.file)) ? 'ok' : 'unused',
+          message: '', suggestions: undefined,
+        })),
+      }
+    } catch { /* no manifest */ }
   }
 
   // ─── Summary ────────────────────────────────────────────────────────

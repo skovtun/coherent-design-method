@@ -10,7 +10,7 @@ import ora from 'ora'
 import { resolve } from 'path'
 import { existsSync, readFileSync } from 'fs'
 import { execSync } from 'child_process'
-import { findConfig } from '../utils/find-config.js'
+import { findConfig, exitNotCoherent } from '../utils/find-config.js'
 import {
   DesignSystemManager,
   ComponentManager,
@@ -178,7 +178,24 @@ function buildExistingPagesContext(config: DesignSystemConfig): string {
     return summarizePageAnalysis(p.name || p.id, p.route, p.pageAnalysis)
   })
 
-  return `EXISTING PAGES CONTEXT:\n${lines.join('\n')}\n\nUse consistent component choices, spacing, and layout patterns across all pages. Match the style and structure of existing pages.`
+  let ctx = `EXISTING PAGES CONTEXT:\n${lines.join('\n')}\n\nUse consistent component choices, spacing, and layout patterns across all pages. Match the style and structure of existing pages.`
+
+  // Inject saved style patterns from `coherent sync` if available
+  const sp = (config as any).stylePatterns
+  if (sp && typeof sp === 'object') {
+    const parts: string[] = []
+    if (sp.card) parts.push(`Cards: ${sp.card}`)
+    if (sp.section) parts.push(`Sections: ${sp.section}`)
+    if (sp.terminal) parts.push(`Terminal blocks: ${sp.terminal}`)
+    if (sp.iconContainer) parts.push(`Icon containers: ${sp.iconContainer}`)
+    if (sp.heroHeadline) parts.push(`Hero headline: ${sp.heroHeadline}`)
+    if (sp.sectionTitle) parts.push(`Section title: ${sp.sectionTitle}`)
+    if (parts.length > 0) {
+      ctx += `\n\nPROJECT STYLE PATTERNS (from sync — match these exactly):\n${parts.join('\n')}`
+    }
+  }
+
+  return ctx
 }
 
 /**
@@ -946,13 +963,7 @@ async function loadConfig(configPath: string): Promise<DesignSystemConfig> {
 function requireProject(): { root: string; configPath: string } {
   const project = findConfig()
   if (!project) {
-    console.error(chalk.red('❌ Not a Coherent project\n'))
-    console.log(chalk.yellow('Run this command from a Coherent project directory:'))
-    console.log(chalk.white('  $ cd your-project'))
-    console.log(chalk.white('  $ coherent chat "your message"'))
-    console.log(chalk.gray('\nOr initialize a new project:'))
-    console.log(chalk.white('  $ coherent init\n'))
-    process.exit(1)
+    exitNotCoherent()
   }
   return project
 }
@@ -2439,7 +2450,22 @@ export async function chatCommand(message: string, options: { provider?: string 
 
     // Step 2: Parse modification request (include shared components for Epic 2 — Story 2.11: all types, reuse first)
     spinner.start('Parsing your request...')
-    const manifest = await loadManifest(project.root)
+    let manifest = await loadManifest(project.root)
+
+    // Pre-generation: clean orphaned entries so AI doesn't reference deleted components
+    const validShared = manifest.shared.filter(s => {
+      const fp = resolve(project.root, s.file)
+      return existsSync(fp)
+    })
+    if (validShared.length !== manifest.shared.length) {
+      const cleaned = manifest.shared.length - validShared.length
+      manifest = { ...manifest, shared: validShared }
+      await saveManifest(project.root, manifest)
+      if (process.env.COHERENT_DEBUG === '1') {
+        console.log(chalk.dim(`[pre-gen] Cleaned ${cleaned} orphaned component(s) from manifest`))
+      }
+    }
+
     const sharedComponentsSummary =
       manifest.shared.length > 0
         ? manifest.shared

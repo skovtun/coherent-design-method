@@ -28,6 +28,7 @@ import { createImportCommand } from './commands/import-cmd.js'
 import { dsRegenerateCommand } from './commands/ds.js'
 import { updateCommand } from './commands/update.js'
 import { undoCommand } from './commands/undo.js'
+import { syncCommand } from './commands/sync.js'
 import { checkForUpdates } from './utils/update-notifier.js'
 
 const program = new Command()
@@ -79,6 +80,15 @@ program
   .option('--no-build', 'Skip running next build in output')
   .option('--keep-ds', 'Keep Design System viewer and config in export')
   .action((opts) => exportCommand(opts))
+
+program
+  .command('sync')
+  .description('Sync Design System with actual code (after manual edits in Cursor/IDE)')
+  .option('--dry-run', 'Show what would change without writing')
+  .option('--tokens', 'Only extract and update tokens')
+  .option('--components', 'Only detect and register components')
+  .option('--patterns', 'Only extract style patterns')
+  .action((opts) => syncCommand(opts))
 
 // ─── Maintenance commands ───────────────────────────────────────────
 

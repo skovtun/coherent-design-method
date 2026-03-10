@@ -9,6 +9,8 @@ import type { PageAnalysis } from '@coherent/core'
 
 const FORM_COMPONENTS = new Set(['Input', 'Textarea', 'Label', 'Select', 'Checkbox', 'Switch'])
 
+const VISUAL_WORDS = /\b(grid lines?|glow|radial|gradient|blur|shadow|overlay|animation|particles?|dots?|vertical|horizontal|decorat|behind|background|divider|spacer|wrapper|container|inner|outer|absolute|relative|translate|opacity|z-index|transition)\b/i
+
 /**
  * Analyze generated page code and return structured metadata.
  */
@@ -44,8 +46,8 @@ function extractSections(code: string): Array<{ name: string; order: number }> {
     const wordCount = name.split(/\s+/).length
     if (wordCount > 5) continue
     if (/[{}()=<>;:`"']/.test(name)) continue
-    // Skip implementation/decorative comments (lowercase multi-word descriptions)
     if (/^[a-z]/.test(name) && wordCount > 2) continue
+    if (VISUAL_WORDS.test(name)) continue
     seen.add(name.toLowerCase())
     sections.push({ name, order: sections.length })
   }

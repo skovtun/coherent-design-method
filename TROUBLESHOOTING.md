@@ -249,7 +249,7 @@ ls packages/cli/dist/
 
 ```bash
 cd .tmp-e2e   # если приложение там
-coherent repair
+coherent fix
 ```
 
 Либо вручную:

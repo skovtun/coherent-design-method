@@ -23,7 +23,7 @@ import ora from 'ora'
 import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
 import { DesignSystemManager, CLI_VERSION } from '@coherent/core'
-import { findConfig } from '../utils/find-config.js'
+import { findConfig, exitNotCoherent } from '../utils/find-config.js'
 import { writeDesignSystemFiles } from '../utils/ds-files.js'
 import { writeCursorRules } from '../utils/cursor-rules.js'
 import { getPendingMigrations, compareSemver } from '../utils/migrations.js'
@@ -40,9 +40,7 @@ interface UpdateReport {
 export async function updateCommand(opts: { patchGlobals?: boolean }) {
   const project = findConfig()
   if (!project) {
-    console.error(chalk.red('❌ Not a Coherent project\n'))
-    console.log(chalk.yellow('Run this from a project directory with design-system.config.ts'))
-    process.exit(1)
+    exitNotCoherent()
   }
 
   const spinner = ora('Loading project configuration...').start()
@@ -157,7 +155,7 @@ function printReport(report: UpdateReport) {
 
   console.log('')
   console.log(chalk.dim('  Your pages and components were NOT modified.'))
-  console.log(chalk.dim('  Run `coherent validate` to check existing pages against new rules.\n'))
+  console.log(chalk.dim('  Run `coherent check` to check existing pages against new rules.\n'))
 }
 
 /**

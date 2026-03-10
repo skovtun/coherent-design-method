@@ -68,11 +68,10 @@ After `coherent init` you can use either workflow (or both).
 
 | Workflow | When to use | How |
 |----------|-------------|-----|
-| **Cursor / IDE** | Fine-grained control, custom components, styling | Edit `design-system.config.ts`, `app/*`, `components/`; hot reload. |
+| **Cursor / IDE** | Fine-grained control, custom components, styling | Edit `design-system.config.ts`, `app/*`, `components/`; hot reload. Then run `coherent sync`. |
 | **`coherent chat`** | Fast scaffolding, new pages, token changes | Run `coherent chat "add dashboard page"`; config and files update automatically. |
 
-**Best practice:** Use chat for structure, then Cursor for details. Commit before each `coherent chat` so you can `git diff` and revert if needed.  
-→ See [QUICK_REFERENCE.md](./QUICK_REFERENCE.md) and [CONTEXT.md](./CONTEXT.md) §7 for full workflow details.
+**Best practice:** Use chat for structure, then Cursor for polish. After manual edits, run `coherent sync` to update the Design System.
 
 ### Examples (chat)
 
@@ -81,9 +80,9 @@ coherent chat "add e-commerce pages: products, cart, checkout"
 coherent chat "add Button, Input, Card from shadcn"
 coherent chat "add contact page with form"
 coherent chat "change primary color to #6366f1"
-coherent status   # show config summary
-coherent components   # list components
-coherent regenerate-docs   # fix docs nav duplication in existing projects
+coherent sync     # sync Design System after manual edits
+coherent check    # show quality issues
+coherent fix      # auto-fix issues
 ```
 
 ## Getting Started

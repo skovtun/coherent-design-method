@@ -15,7 +15,7 @@ import { spawn } from 'child_process'
 import { existsSync, rmSync, readdirSync } from 'fs'
 import { resolve, join, relative, dirname } from 'path'
 import { readdir, readFile, writeFile, mkdir, copyFile } from 'fs/promises'
-import { findConfig } from '../utils/find-config.js'
+import { findConfig, exitNotCoherent } from '../utils/find-config.js'
 
 /** Files/dirs to skip entirely during copy */
 const COPY_EXCLUDE = new Set([
@@ -265,9 +265,7 @@ export async function exportCommand(options: ExportOptions = {}) {
   const project = findConfig()
   if (!project) {
     spinner.fail('Not a Coherent project')
-    console.log(chalk.red('\n❌ Not a Coherent project'))
-    console.log(chalk.dim('Run from a Coherent project directory or run coherent init first.\n'))
-    process.exit(1)
+    exitNotCoherent()
   }
 
   const projectRoot = project.root
@@ -315,6 +313,9 @@ export async function exportCommand(options: ExportOptions = {}) {
     // 5. Prepare for build
     await ensureReadmeDeploySection(outputDir)
     await patchNextConfigForExport(outputDir)
+
+    // 5.5 Suggest quality check
+    console.log(chalk.dim('\n   Tip: run `coherent check` before export to catch quality issues.\n'))
 
     // 6. Build
     let buildOk = false

@@ -4,7 +4,7 @@
 
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { relative, join } from 'path'
-import { loadManifest } from '@coherent/core'
+import { loadManifest, saveManifest } from '@coherent/core'
 import type { SharedComponentsManifest } from '@coherent/core'
 import {
   findMissingPackagesInCode,
@@ -13,6 +13,7 @@ import {
   ensureUseClientIfNeeded,
 } from './self-heal.js'
 import { writeCursorRules } from './cursor-rules.js'
+import { extractExportedComponentNames } from './component-integrity.js'
 
 const NATIVE_PATTERNS = [
   { pattern: /<button(\s|>)/g, name: '<button>' },
@@ -133,6 +134,55 @@ export async function handleFileChange(projectRoot: string, filePath: string): P
   }
 }
 
+/**
+ * Handle file deletion: auto-remove orphaned manifest entries.
+ */
+export async function handleFileDelete(projectRoot: string, filePath: string): Promise<void> {
+  const relativePath = relative(projectRoot, filePath).replace(/\\/g, '/')
+  if (!relativePath.startsWith('components/') || relativePath.startsWith('components/ui/')) return
+
+  try {
+    const chalk = (await import('chalk')).default
+    const manifest = await loadManifest(projectRoot)
+    const orphaned = manifest.shared.find(s => s.file === relativePath)
+    if (orphaned) {
+      const cleaned = {
+        ...manifest,
+        shared: manifest.shared.filter(s => s.id !== orphaned.id),
+      }
+      await saveManifest(projectRoot, cleaned)
+      console.log(chalk.cyan(`\n  🗑 Auto-removed ${orphaned.id} (${orphaned.name}) — file deleted`))
+      await writeCursorRules(projectRoot)
+    }
+  } catch { /* ignore */ }
+}
+
+/**
+ * Detect new unregistered component files on creation.
+ */
+async function detectNewComponent(projectRoot: string, filePath: string): Promise<void> {
+  const relativePath = relative(projectRoot, filePath).replace(/\\/g, '/')
+  if (!relativePath.startsWith('components/') || relativePath.startsWith('components/ui/')) return
+  if (!relativePath.endsWith('.tsx') && !relativePath.endsWith('.jsx')) return
+
+  try {
+    const chalk = (await import('chalk')).default
+    const manifest = await loadManifest(projectRoot)
+    const alreadyRegistered = manifest.shared.some(s => s.file === relativePath)
+    if (alreadyRegistered) return
+
+    const code = readFileSync(filePath, 'utf-8')
+    const exports = extractExportedComponentNames(code)
+    if (exports.length > 0) {
+      const alreadyByName = exports.every(n => manifest.shared.some(s => s.name === n))
+      if (!alreadyByName) {
+        console.log(chalk.cyan(`\n  ℹ New component detected: ${exports[0]} in ${relativePath}`))
+        console.log(chalk.dim('    Register with: coherent sync'))
+      }
+    }
+  } catch { /* ignore */ }
+}
+
 export async function handleManifestChange(projectRoot: string): Promise<void> {
   try {
     await writeCursorRules(projectRoot)
@@ -156,7 +206,11 @@ export function startFileWatcher(projectRoot: string): () => void {
       awaitWriteFinish: { stabilityThreshold: 500 },
     })
     watcher.on('change', (fp: string) => handleFileChange(projectRoot, fp))
-    watcher.on('add', (fp: string) => handleFileChange(projectRoot, fp))
+    watcher.on('add', (fp: string) => {
+      handleFileChange(projectRoot, fp)
+      detectNewComponent(projectRoot, fp)
+    })
+    watcher.on('unlink', (fp: string) => handleFileDelete(projectRoot, fp))
   })
 
   const manifestPath = join(projectRoot, 'coherent.components.json')

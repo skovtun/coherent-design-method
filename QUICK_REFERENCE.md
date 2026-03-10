@@ -64,16 +64,38 @@ git commit -m "Initial structure"
 # - Стили каталога
 # - Логика корзины
 
+# 3. Синхронизация Design System с реальным кодом
+coherent sync
 git commit -m "Implemented product catalog"
 
-# 3. Новые фичи снова через CLI
+# 4. Новые фичи снова через CLI
 coherent chat "add admin panel"
 git commit -m "Admin scaffolding"
 
-# 4. Доработка в Cursor
+# 5. Доработка в Cursor → sync
 # - Dashboard widgets
 # - Admin forms
+coherent sync
 ```
+
+### `coherent sync` — обратная синхронизация
+
+После ручных правок в Cursor, Design System не знает о ваших изменениях. `coherent sync` сканирует код и обновляет всё:
+
+```bash
+coherent sync              # полная синхронизация
+coherent sync --tokens     # только CSS-переменные
+coherent sync --components # только обнаружение компонентов
+coherent sync --patterns   # только стилевые паттерны
+coherent sync --dry-run    # посмотреть что изменится, без записи
+```
+
+**Что делает sync:**
+- Извлекает CSS-переменные из `globals.css` / `layout.tsx`
+- Обнаруживает новые компоненты в `components/` и регистрирует их
+- Извлекает паттерны стилей (карточки, секции, типографика)
+- Обновляет метаданные страниц (секции, используемые компоненты)
+- Регенерирует DS viewer, `.cursorrules`, `CLAUDE.md`
 
 ---
 

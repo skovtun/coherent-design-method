@@ -15,13 +15,23 @@
 import chalk from 'chalk'
 import { readdirSync, readFileSync, existsSync, writeFileSync, rmSync, mkdirSync } from 'fs'
 import { resolve, join } from 'path'
-import { findConfig } from '../utils/find-config.js'
+import { findConfig, exitNotCoherent } from '../utils/find-config.js'
+import {
+  removeOrphanedEntries,
+  findPagesImporting,
+  isUsedInLayout,
+  findUnregisteredComponents,
+  findComponentFileByExportName,
+  inferComponentType as inferCompType,
+  arraysEqual,
+} from '../utils/component-integrity.js'
 import {
   DesignSystemManager,
   ComponentManager,
   PageManager,
   ComponentGenerator,
   loadManifest,
+  saveManifest,
 } from '@coherent/core'
 import { writeFile } from '../utils/files.js'
 import { isShadcnComponent, installShadcnComponent } from '../utils/shadcn-installer.js'
@@ -81,9 +91,7 @@ export async function fixCommand(opts: FixOptions = {}) {
 
   const project = findConfig()
   if (!project) {
-    console.log(chalk.red('Not a Coherent project.'))
-    console.log(chalk.dim('  Run from a project with design-system.config.ts'))
-    console.log(chalk.dim('  $ coherent init   # in an empty folder first\n'))
+    exitNotCoherent()
     process.exit(1)
   }
 
@@ -189,7 +197,9 @@ export async function fixCommand(opts: FixOptions = {}) {
               await writeFile(filePath, code)
               installed++
             }
-          } catch { /* skip */ }
+          } catch (err) {
+            console.log(chalk.yellow(`  ⚠ Failed to install ${componentId}: ${err instanceof Error ? err.message : 'unknown'}`))
+          }
         }
         if (installed > 0) {
           await dsm.save()
@@ -272,15 +282,87 @@ export async function fixCommand(opts: FixOptions = {}) {
     fileIssues.push({ path: relativePath, report })
   }
 
+  // ─── Step 6: Shared component integrity ─────────────────────────
   try {
-    const manifest = await loadManifest(project.root)
-    if (manifest.shared.length > 0) {
-      for (const entry of manifest.shared) {
-        const fullPath = resolve(project.root, entry.file)
-        if (!existsSync(fullPath)) {
-          remaining.push(`Missing shared component file: ${entry.id} (${entry.file})`)
-          totalErrors++
+    let manifest = await loadManifest(project.root)
+    let manifestModified = false
+
+    // 6a. Remove orphaned entries (file deleted)
+    const { manifest: cleaned, removed: orphaned } = removeOrphanedEntries(project.root, manifest)
+    if (orphaned.length > 0) {
+      manifest = cleaned
+      manifestModified = true
+      for (const o of orphaned) {
+        // Check if file moved
+        const newPath = findComponentFileByExportName(project.root, o.name)
+        if (newPath) {
+          const entry = manifest.shared.find(s => s.id === o.id)
+          if (entry) entry.file = newPath
+          if (dryRun) {
+            fixes.push(`Would update ${o.id} path to ${newPath}`)
+          } else {
+            console.log(chalk.green(`  ✔ Updated ${o.id} (${o.name}) path → ${newPath}`))
+          }
+        } else {
+          if (dryRun) {
+            fixes.push(`Would remove orphaned ${o.id} (${o.name})`)
+          } else {
+            console.log(chalk.green(`  ✔ Removed orphaned ${o.id} (${o.name}) — file missing`))
+          }
         }
+      }
+    }
+
+    // 6b. Update stale usedIn
+    for (const entry of manifest.shared) {
+      const actualUsedIn = findPagesImporting(project.root, entry.name, entry.file)
+      const inLayout = isUsedInLayout(project.root, entry.name)
+      const fullActual = inLayout
+        ? [...new Set([...actualUsedIn, 'app/layout.tsx'])]
+        : actualUsedIn
+
+      if (!arraysEqual(fullActual, entry.usedIn || [])) {
+        entry.usedIn = fullActual
+        manifestModified = true
+        if (!dryRun) {
+          console.log(chalk.green(`  ✔ Updated ${entry.id} usedIn: ${fullActual.join(', ') || 'none'}`))
+        }
+      }
+    }
+
+    // 6c. Register unregistered components
+    const unregistered = findUnregisteredComponents(project.root, manifest)
+    for (const comp of unregistered) {
+      const id = `CID-${String(manifest.nextId).padStart(3, '0')}`
+      if (!dryRun) {
+        manifest.shared.push({
+          id,
+          name: comp.name,
+          type: comp.type,
+          file: comp.file,
+          usedIn: comp.usedIn,
+          description: 'Auto-registered by fix',
+          createdAt: new Date().toISOString(),
+        })
+        manifest.nextId++
+        console.log(chalk.green(`  ✔ Registered ${id} (${comp.name}) from ${comp.file}`))
+      } else {
+        fixes.push(`Would register ${comp.name} from ${comp.file}`)
+      }
+      manifestModified = true
+    }
+
+    if (manifestModified && !dryRun) {
+      await saveManifest(project.root, manifest)
+      fixes.push('Shared component manifest updated')
+    }
+
+    // 6d. Report unused components (need user decision)
+    for (const entry of manifest.shared) {
+      const actualUsedIn = findPagesImporting(project.root, entry.name, entry.file)
+      const inLayout = isUsedInLayout(project.root, entry.name)
+      if (actualUsedIn.length === 0 && !inLayout) {
+        remaining.push(`${entry.id} (${entry.name}) — unused. Remove: coherent components shared remove ${entry.id}`)
       }
     }
   } catch { /* no manifest */ }
