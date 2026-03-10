@@ -49,8 +49,12 @@ program
 program
   .command('chat')
   .description('Modify design system via conversation')
-  .argument('<message>', 'Modification request')
+  .argument('[message]', 'Modification request')
   .option('--provider <provider>', 'AI provider: claude|openai|auto', 'auto')
+  .option('--component <name>', 'Target a specific component by name or CID')
+  .option('--page <name>', 'Target a specific page by name, id, or route')
+  .option('--token <name>', 'Target a specific design token')
+  .option('-i, --interactive', 'Interactive chat mode')
   .action(chatCommand)
 
 program

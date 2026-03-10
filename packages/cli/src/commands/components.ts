@@ -27,8 +27,9 @@ export function createComponentsCommand(): Command {
 
   cmd
     .command('list')
-    .description('List all components')
-    .action(async () => {
+    .description('List all components (shared + UI)')
+    .option('--json', 'Machine-readable JSON output')
+    .action(async (opts: { json?: boolean }) => {
       const project = findConfig()
 
       if (!project) exitNotCoherent()
@@ -37,57 +38,61 @@ export function createComponentsCommand(): Command {
       await dsm.load()
       const config = dsm.getConfig()
       const cm = new ComponentManager(config)
+      const manifest = await loadManifest(project.root)
 
-      const installed = cm.getAllComponents()
-      const availableShadcn = listShadcnComponents()
-      const installedIds = new Set(installed.map(c => c.id))
-      const notInstalled = availableShadcn.filter(id => !installedIds.has(id))
+      if (opts.json) {
+        const installed = cm.getAllComponents()
+        console.log(JSON.stringify({ shared: manifest.shared, ui: installed }, null, 2))
+        return
+      }
 
-      console.log(chalk.bold('\n📦 Component Registry\n'))
-
-      if (installed.length === 0) {
-        console.log(chalk.yellow('   No components installed yet\n'))
+      // Shared components
+      console.log(chalk.bold('\n📦 Shared Components'))
+      if (manifest.shared.length === 0) {
+        console.log(chalk.gray('   None yet. Generate pages with header/footer to create them.\n'))
       } else {
-        console.log(chalk.cyan(`📦 Installed Components (${installed.length}):`))
-        installed.forEach(comp => {
-          const variantsCount = comp.variants.length
-          const sizesCount = comp.sizes.length
-          const usageCount = comp.usedInPages.length
-          const source =
-            comp.source === 'shadcn' ? chalk.gray('(built-in)') : chalk.gray('(custom)')
-
-          console.log(chalk.white(`   ✓ ${comp.name} ${source}`))
+        const order: Record<string, number> = { layout: 0, section: 1, widget: 2 }
+        const sorted = [...manifest.shared].sort(
+          (a, b) => (order[a.type] ?? 9) - (order[b.type] ?? 9) || a.name.localeCompare(b.name)
+        )
+        console.log('')
+        sorted.forEach(entry => {
+          const usage =
+            entry.usedIn.length === 0
+              ? chalk.gray('unused')
+              : entry.usedIn.includes('app/layout.tsx')
+                ? chalk.green('all pages')
+                : chalk.gray(entry.usedIn.join(', '))
           console.log(
-            chalk.gray(
-              `     ${variantsCount} variants, ${sizesCount} sizes - used in ${usageCount} page(s)`
-            )
+            `   ${chalk.cyan(entry.id.padEnd(8))} ${chalk.white(entry.name.padEnd(18))} ${chalk.gray(entry.type.padEnd(9))} ${usage}`
           )
         })
         console.log('')
       }
 
-      if (notInstalled.length > 0) {
-        console.log(
-          chalk.cyan(`📚 Available components (${notInstalled.length} more):`)
-        )
-        const grouped = notInstalled.reduce(
-          (acc, id, i) => {
-            if (i % 5 === 0) acc.push([])
-            acc[acc.length - 1].push(id)
-            return acc
-          },
-          [] as string[][]
-        )
+      // UI components (shadcn)
+      const installed = cm.getAllComponents()
+      const availableShadcn = listShadcnComponents()
+      const installedIds = new Set(installed.map(c => c.id))
+      const notInstalled = availableShadcn.filter(id => !installedIds.has(id))
 
-        grouped.forEach(group => {
-          console.log(chalk.gray(`   ○ ${group.join(', ')}`))
-        })
-        console.log('')
+      console.log(chalk.bold('🧩 UI Components (shadcn)'))
+      if (installed.length === 0) {
+        console.log(chalk.gray('   None installed yet.\n'))
+      } else {
+        const names = installed.map(c => c.name).sort()
+        console.log(chalk.green(`   Installed (${names.length}): `) + chalk.white(names.join(', ')))
       }
 
-      console.log(chalk.cyan('💡 Install components:'))
-      console.log(chalk.white(`   coherent chat "add [component-name]"`))
-      console.log(chalk.gray('   Example: coherent chat "add button"\n'))
+      if (notInstalled.length > 0) {
+        console.log(chalk.gray(`   Available (${notInstalled.length}):  `) + chalk.gray(notInstalled.join(', ')))
+      }
+      console.log('')
+
+      console.log(chalk.cyan('💡 Commands:'))
+      console.log(chalk.white('   coherent chat "add a testimonial component"'))
+      console.log(chalk.white('   coherent chat --component "Header" "add a search button"'))
+      console.log('')
     })
 
   cmd
