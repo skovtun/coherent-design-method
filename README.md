@@ -94,7 +94,7 @@ Phase 4: Generate Rest →  AI generates remaining pages with extracted style co
                            injected into each prompt — ensuring visual consistency
 ```
 
-Phase 3 is the key insight: style patterns are extracted programmatically from the home page and injected as concrete CSS classes into subsequent prompts. Not "match the style" — but "use `rounded-xl border-border/15 bg-card hover:border-border/30`."
+Phase 3 extracts style patterns from the home page and injects them as concrete CSS classes into subsequent page prompts — ensuring every page uses the same card styles, spacing, typography, and color patterns.
 
 ## CLI Commands
 
@@ -111,6 +111,8 @@ Phase 3 is the key insight: style patterns are extracted programmatically from t
 | `coherent rules` | Regenerate `.cursorrules` and `CLAUDE.md` (AI editor context) |
 | `coherent update` | Apply platform updates to an existing project |
 | `coherent status` | Show current project status |
+| `coherent components list` | List all shared and UI components |
+| `coherent chat -i` | Interactive chat mode (REPL) |
 
 ### Examples
 
@@ -121,20 +123,20 @@ coherent chat "create an e-commerce site with product catalog, cart, checkout, a
 # Modify design tokens
 coherent chat "change primary color to #6366f1 and use Inter font"
 
-# Add a single page
-coherent chat "add a blog page with article cards and categories"
+# Target a specific component
+coherent chat --component "Header" "add a search button"
 
-# Update existing pages
-coherent chat "update the home page: make the hero section taller with gradient text"
+# Target a specific page
+coherent chat --page "pricing" "add a fourth enterprise tier"
+
+# Target a design token
+coherent chat --token "primary" "change to indigo"
+
+# Interactive mode
+coherent chat -i
 
 # After editing code manually in Cursor/VS Code
 coherent sync
-
-# Check for issues
-coherent check
-
-# Auto-fix issues
-coherent fix
 
 # Export for deployment
 coherent export
@@ -257,10 +259,10 @@ export ANTHROPIC_API_KEY=sk-ant-...
 
 ### Model configuration
 
-Coherent uses `claude-sonnet-4-20250514` by default. To use a different model:
+Coherent uses the latest Claude Sonnet model by default. To override:
 
 ```bash
-export CLAUDE_MODEL=claude-sonnet-4-20250514
+export CLAUDE_MODEL=claude-sonnet-4-20250514   # or any Claude model
 ```
 
 ### Security
@@ -287,7 +289,7 @@ The viewer updates automatically when you add pages or run `coherent sync`.
 
 ## Quality System
 
-Coherent includes a built-in quality checker that validates generated code against design system rules.
+Coherent validates generated code against 97 design rules covering typography, spacing, accessibility, and color usage.
 
 ### `coherent check` (read-only diagnostics)
 
