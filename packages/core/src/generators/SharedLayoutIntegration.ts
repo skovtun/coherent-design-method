@@ -71,6 +71,12 @@ export async function integrateSharedLayoutIntoRootLayout(projectRoot: string): 
     }
   }
 
+  // When shared Header is added, AppNav is redundant — remove it
+  if (headers.length > 0) {
+    result = result.replace(/\s*<AppNav\s*\/>\s*\n?/g, '\n')
+    result = result.replace(/^import\s.*['"]\.\/AppNav['"]\s*;?\n?/gm, '')
+  }
+
   // Insert Header(s) right after <body ...> tag, before any existing content
   if (headers.length > 0) {
     const bodyOpen = result.indexOf('<body')

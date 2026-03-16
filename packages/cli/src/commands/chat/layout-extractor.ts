@@ -1,9 +1,25 @@
-import { readFileSync } from 'fs'
+import { readFileSync, readdirSync } from 'fs'
+import { join, resolve } from 'path'
 import chalk from 'chalk'
 import { loadManifest, generateSharedComponent, integrateSharedLayoutIntoRootLayout } from '@getcoherent/core'
 import { readFile, writeFile } from '../../utils/files.js'
 import { ensureAuthRouteGroup } from '../../utils/auth-route-group.js'
 import { extractBalancedTag, extractRelevantImports, extractStateHooks, addActiveNavToHeader } from './jsx-extractor.js'
+
+function findAllPageFiles(dir: string): string[] {
+  const results: string[] = []
+  try {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name)
+      if (entry.isDirectory() && entry.name !== 'node_modules' && entry.name !== '.next' && entry.name !== 'design-system') {
+        results.push(...findAllPageFiles(full))
+      } else if (entry.name === 'page.tsx' || entry.name === 'page.jsx') {
+        results.push(full)
+      }
+    }
+  } catch { /* ignore permission errors */ }
+  return results
+}
 
 export async function extractAndShareLayoutComponents(
   projectRoot: string,
@@ -81,7 +97,11 @@ export async function extractAndShareLayoutComponents(
   await integrateSharedLayoutIntoRootLayout(projectRoot)
   await ensureAuthRouteGroup(projectRoot)
 
-  for (const file of generatedPageFiles) {
+  const allPageFiles = new Set([
+    ...generatedPageFiles,
+    ...findAllPageFiles(resolve(projectRoot, 'app')),
+  ])
+  for (const file of allPageFiles) {
     try {
       let code = await readFile(file)
       const original = code

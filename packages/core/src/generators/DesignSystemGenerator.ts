@@ -835,17 +835,23 @@ function loadPages() {
     const jsonStart = jsonMatch ? raw.indexOf('{', raw.indexOf(jsonMatch[0])) : -1
     if (jsonStart === -1) return []
     let jsonStr = raw.slice(jsonStart)
-    jsonStr = jsonStr.replace(/\\}\\s*as\\s+const\\s*;?\\s*$/, '}')
+    jsonStr = jsonStr.replace(/\\}\\s*(as\\s+const|satisfies\\s+\\w+)\\s*;?\\s*$/, '}')
+    jsonStr = jsonStr.replace(/,\\s*([\\]\\}])/g, '$1')
     const json = JSON.parse(jsonStr)
-    return (json.pages || []).map((p: any) => ({
-      name: p.name || p.id,
-      route: p.route || '/' + p.id,
-      sections: p.pageAnalysis?.sections?.map((s: any) => s.name) || [],
-      componentUsage: p.pageAnalysis?.componentUsage || {},
-      iconCount: p.pageAnalysis?.iconCount ?? 0,
-      layoutPattern: p.pageAnalysis?.layoutPattern || null,
-      hasForm: p.pageAnalysis?.hasForm ?? false,
-    }))
+    return (json.pages || [])
+      .filter((p: any) => {
+        const route = p.route || '/' + p.id
+        return !route.includes('[') && !route.includes(']')
+      })
+      .map((p: any) => ({
+        name: p.name || p.id,
+        route: p.route || '/' + p.id,
+        sections: p.pageAnalysis?.sections?.map((s: any) => s.name) || [],
+        componentUsage: p.pageAnalysis?.componentUsage || {},
+        iconCount: p.pageAnalysis?.iconCount ?? 0,
+        layoutPattern: p.pageAnalysis?.layoutPattern || null,
+        hasForm: p.pageAnalysis?.hasForm ?? false,
+      }))
   } catch {
     return []
   }

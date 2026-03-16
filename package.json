@@ -1,6 +1,6 @@
 {
   "name": "coherent-design-method",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "AI-powered design system generator with stateful component management - BMAD for frontend",
   "private": true,
   "type": "module",
@@ -40,4 +40,3 @@
     "pnpm": ">=10.0.0"
   }
 }
-

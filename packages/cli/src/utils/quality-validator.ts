@@ -782,6 +782,59 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
     }
   }
 
+  // Fix unimported icon references in JSX (AI uses <SettingsIcon> without importing)
+  const lucideImportMatch2 = fixed.match(/import\s*\{([^}]+)\}\s*from\s*["']lucide-react["']/)
+  if (lucideImportMatch2) {
+    let lucideExports2: Set<string> | null = null
+    try {
+      const { createRequire } = await import('module')
+      const req = createRequire(process.cwd() + '/package.json')
+      const lr = req('lucide-react')
+      lucideExports2 = new Set(Object.keys(lr).filter(k => /^[A-Z]/.test(k)))
+    } catch {
+      /* skip */
+    }
+    if (lucideExports2) {
+      const importedNames = new Set(
+        lucideImportMatch2[1]
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean),
+      )
+      const jsxIconRefs = [...fixed.matchAll(/<([A-Z][a-zA-Z]*(?:Icon)?)\s/g)].map(m => m[1])
+      const htmlElements = new Set(['Link', 'Fragment', 'Suspense', 'Image'])
+      const missing: string[] = []
+      for (const ref of jsxIconRefs) {
+        if (importedNames.has(ref) || htmlElements.has(ref)) continue
+        if (fixed.includes(`function ${ref}`) || fixed.includes(`const ${ref}`)) continue
+        if (/^import\s.*\b${ref}\b/m.test(fixed)) continue
+        const baseName = ref.replace(/Icon$/, '')
+        if (lucideExports2.has(ref)) {
+          missing.push(ref)
+          importedNames.add(ref)
+        } else if (lucideExports2.has(baseName)) {
+          const re = new RegExp(`\\b${ref}\\b`, 'g')
+          fixed = fixed.replace(re, baseName)
+          missing.push(baseName)
+          importedNames.add(baseName)
+          fixes.push(`renamed ${ref} → ${baseName} (lucide-react)`)
+        } else {
+          const fallback = 'Circle'
+          const re = new RegExp(`\\b${ref}\\b`, 'g')
+          fixed = fixed.replace(re, fallback)
+          importedNames.add(fallback)
+          fixes.push(`unknown icon ${ref} → ${fallback}`)
+        }
+      }
+      if (missing.length > 0) {
+        const allNames = [...importedNames]
+        const origLine = lucideImportMatch2[0]
+        fixed = fixed.replace(origLine, `import { ${allNames.join(', ')} } from "lucide-react"`)
+        fixes.push(`added missing lucide imports: ${missing.join(', ')}`)
+      }
+    }
+  }
+
   // Clean up double spaces in className that may result from previous fixes
   fixed = fixed.replace(/className="([^"]*)"/g, (_match, inner: string) => {
     const cleaned = inner.replace(/\s{2,}/g, ' ').trim()
