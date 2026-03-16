@@ -658,13 +658,6 @@ export function AppNav() {
           </div>
           <div className="flex items-center gap-1">
             <ThemeToggle />
-            <Link
-              href="/design-system"
-              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-            >
-              <CoherentLogo size={16} />
-              Design System
-            </Link>
           </div>
         </div>
       </nav>
