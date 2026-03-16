@@ -795,39 +795,50 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
       /* skip */
     }
     if (lucideExports2) {
-      const importedNames = new Set(
+      // Collect ALL imported names from ALL import statements (not just lucide)
+      const allImportedNames = new Set<string>()
+      for (const m of fixed.matchAll(/import\s*\{([^}]+)\}\s*from/g)) {
+        m[1]
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean)
+          .forEach(n => allImportedNames.add(n))
+      }
+      for (const m of fixed.matchAll(/import\s+([A-Z]\w+)\s+from/g)) {
+        allImportedNames.add(m[1])
+      }
+
+      const lucideImported = new Set(
         lucideImportMatch2[1]
           .split(',')
           .map(s => s.trim())
           .filter(Boolean),
       )
-      const jsxIconRefs = [...fixed.matchAll(/<([A-Z][a-zA-Z]*(?:Icon)?)\s/g)].map(m => m[1])
-      const htmlElements = new Set(['Link', 'Fragment', 'Suspense', 'Image'])
+      const jsxIconRefs = [...new Set([...fixed.matchAll(/<([A-Z][a-zA-Z]*Icon)\s/g)].map(m => m[1]))]
       const missing: string[] = []
       for (const ref of jsxIconRefs) {
-        if (importedNames.has(ref) || htmlElements.has(ref)) continue
+        if (allImportedNames.has(ref)) continue
         if (fixed.includes(`function ${ref}`) || fixed.includes(`const ${ref}`)) continue
-        if (/^import\s.*\b${ref}\b/m.test(fixed)) continue
         const baseName = ref.replace(/Icon$/, '')
         if (lucideExports2.has(ref)) {
           missing.push(ref)
-          importedNames.add(ref)
+          lucideImported.add(ref)
         } else if (lucideExports2.has(baseName)) {
           const re = new RegExp(`\\b${ref}\\b`, 'g')
           fixed = fixed.replace(re, baseName)
           missing.push(baseName)
-          importedNames.add(baseName)
+          lucideImported.add(baseName)
           fixes.push(`renamed ${ref} → ${baseName} (lucide-react)`)
         } else {
           const fallback = 'Circle'
           const re = new RegExp(`\\b${ref}\\b`, 'g')
           fixed = fixed.replace(re, fallback)
-          importedNames.add(fallback)
+          lucideImported.add(fallback)
           fixes.push(`unknown icon ${ref} → ${fallback}`)
         }
       }
       if (missing.length > 0) {
-        const allNames = [...importedNames]
+        const allNames = [...lucideImported]
         const origLine = lucideImportMatch2[0]
         fixed = fixed.replace(origLine, `import { ${allNames.join(', ')} } from "lucide-react"`)
         fixes.push(`added missing lucide imports: ${missing.join(', ')}`)
