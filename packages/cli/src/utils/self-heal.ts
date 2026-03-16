@@ -18,14 +18,56 @@ export const COHERENT_REQUIRED_PACKAGES = [
 const IMPORT_FROM_REGEX = /from\s+['"]([^'"]+)['"]/g
 
 const NODE_BUILTINS = new Set([
-  'assert', 'async_hooks', 'buffer', 'child_process', 'cluster', 'console', 'constants',
-  'crypto', 'dgram', 'diagnostics_channel', 'dns', 'domain', 'events', 'fs', 'http',
-  'http2', 'https', 'inspector', 'module', 'net', 'os', 'path', 'perf_hooks', 'process',
-  'punycode', 'querystring', 'readline', 'repl', 'stream', 'string_decoder', 'sys',
-  'test', 'timers', 'tls', 'trace_events', 'tty', 'url', 'util', 'v8', 'vm', 'wasi',
-  'worker_threads', 'zlib',
-  'fs/promises', 'path/posix', 'path/win32', 'stream/promises', 'stream/web',
-  'timers/promises', 'util/types',
+  'assert',
+  'async_hooks',
+  'buffer',
+  'child_process',
+  'cluster',
+  'console',
+  'constants',
+  'crypto',
+  'dgram',
+  'diagnostics_channel',
+  'dns',
+  'domain',
+  'events',
+  'fs',
+  'http',
+  'http2',
+  'https',
+  'inspector',
+  'module',
+  'net',
+  'os',
+  'path',
+  'perf_hooks',
+  'process',
+  'punycode',
+  'querystring',
+  'readline',
+  'repl',
+  'stream',
+  'string_decoder',
+  'sys',
+  'test',
+  'timers',
+  'tls',
+  'trace_events',
+  'tty',
+  'url',
+  'util',
+  'v8',
+  'vm',
+  'wasi',
+  'worker_threads',
+  'zlib',
+  'fs/promises',
+  'path/posix',
+  'path/win32',
+  'stream/promises',
+  'stream/web',
+  'timers/promises',
+  'util/types',
 ])
 
 /** Extract top-level npm package names from code (skips relative, @/, next, and Node builtins). */
@@ -51,7 +93,8 @@ export function getInstalledPackages(projectRoot: string): Set<string> {
     const json = JSON.parse(readFileSync(pkgPath, 'utf-8'))
     const deps = { ...(json.dependencies ?? {}), ...(json.devDependencies ?? {}) }
     return new Set(Object.keys(deps))
-  } catch {
+  } catch (e) {
+    if (process.env.COHERENT_DEBUG === '1') console.error('Failed to read package.json:', e)
     return new Set()
   }
 }
@@ -63,7 +106,11 @@ async function collectImportedPackages(dir: string, extensions: Set<string>): Pr
 
   async function walk(d: string): Promise<void> {
     let entries
-    try { entries = await readdir(d, { withFileTypes: true }) } catch { return }
+    try {
+      entries = await readdir(d, { withFileTypes: true })
+    } catch {
+      return
+    }
     for (const e of entries) {
       const full = join(d, e.name)
       if (e.isDirectory() && !e.name.startsWith('.') && e.name !== 'node_modules') {
@@ -74,7 +121,7 @@ async function collectImportedPackages(dir: string, extensions: Set<string>): Pr
       const ext = e.name.replace(/^.*\./, '')
       if (!extensions.has(ext)) continue
       const content = await readFile(full, 'utf-8').catch(() => '')
-      extractNpmPackagesFromCode(content).forEach((p) => packages.add(p))
+      extractNpmPackagesFromCode(content).forEach(p => packages.add(p))
     }
   }
   await walk(dir)
@@ -87,7 +134,7 @@ async function collectImportedPackages(dir: string, extensions: Set<string>): Pr
  */
 export async function findMissingPackages(
   projectRoot: string,
-  dirs: string[] = ['app', 'components']
+  dirs: string[] = ['app', 'components'],
 ): Promise<string[]> {
   const installed = getInstalledPackages(projectRoot)
   const required = new Set(COHERENT_REQUIRED_PACKAGES)
@@ -96,10 +143,10 @@ export async function findMissingPackages(
   for (const d of dirs) {
     const abs = join(projectRoot, d)
     const pkgs = await collectImportedPackages(abs, extensions)
-    pkgs.forEach((p) => imported.add(p))
+    pkgs.forEach(p => imported.add(p))
   }
   const needed = new Set([...required, ...imported])
-  return [...needed].filter((p) => !installed.has(p)).sort()
+  return [...needed].filter(p => !installed.has(p)).sort()
 }
 
 /**
@@ -110,7 +157,7 @@ export function findMissingPackagesInCode(code: string, projectRoot: string): st
   const required = new Set(COHERENT_REQUIRED_PACKAGES)
   const fromCode = extractNpmPackagesFromCode(code)
   const needed = new Set([...required, ...fromCode])
-  return [...needed].filter((p) => !installed.has(p)).sort()
+  return [...needed].filter(p => !installed.has(p)).sort()
 }
 
 const SAFE_PKG_NAME = /^(@[a-z0-9._-]+\/)?[a-z0-9._-]+$/
@@ -119,7 +166,7 @@ export function installPackages(projectRoot: string, packages: string[]): Promis
   if (packages.length === 0) return Promise.resolve(true)
   const safe = packages.filter(p => SAFE_PKG_NAME.test(p))
   if (safe.length === 0) return Promise.resolve(true)
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     try {
       const hasPnpm = existsSync(join(projectRoot, 'pnpm-lock.yaml'))
       if (hasPnpm) {
@@ -131,7 +178,8 @@ export function installPackages(projectRoot: string, packages: string[]): Promis
         })
       }
       resolve(true)
-    } catch {
+    } catch (e) {
+      if (process.env.COHERENT_DEBUG === '1') console.error('Failed to install packages:', e)
       resolve(false)
     }
   })

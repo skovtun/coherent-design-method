@@ -1,18 +1,15 @@
 import type { DashboardContent, TemplateOptions } from './types.js'
 import { D, collectIcons, resolveIcon } from './_shared.js'
 
-export function dashboardTemplate(
-  content: DashboardContent,
-  options: TemplateOptions
-): string {
+export function dashboardTemplate(content: DashboardContent, options: TemplateOptions): string {
   const { title, description, stats, recentActivity } = content
   const { pageName } = options
 
-  const icons = collectIcons(stats.map((s) => s.icon))
+  const icons = collectIcons(stats.map(s => s.icon))
   const iconImport = `import { ${icons.join(', ')} } from 'lucide-react'`
 
   const statCards = stats
-    .map((s) => {
+    .map(s => {
       const icon = resolveIcon(s.icon) || icons[0]
       return `        <div className="${D.card} p-6">
           <div className="${D.statHeader}">
@@ -31,13 +28,13 @@ export function dashboardTemplate(
   if (recentActivity && recentActivity.length > 0) {
     const items = recentActivity
       .map(
-        (a) => `            <div className="${D.listItem}">
+        a => `            <div className="${D.listItem}">
               <div>
                 <p className="${D.body} font-medium">${a.title}</p>
                 <p className="${D.muted}">${a.description}</p>
               </div>
               <span className="${D.mutedXs} whitespace-nowrap ml-4">${a.time}</span>
-            </div>`
+            </div>`,
       )
       .join('\n')
 

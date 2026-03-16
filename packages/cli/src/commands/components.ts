@@ -21,9 +21,7 @@ import { listShadcnComponents } from '../utils/shadcn-installer.js'
 import { writeCursorRules } from '../utils/cursor-rules.js'
 
 export function createComponentsCommand(): Command {
-  const cmd = new Command('components').description(
-    'Manage design system components and shared components (Epic 2)'
-  )
+  const cmd = new Command('components').description('Manage design system components and shared components (Epic 2)')
 
   cmd
     .command('list')
@@ -53,7 +51,7 @@ export function createComponentsCommand(): Command {
       } else {
         const order: Record<string, number> = { layout: 0, section: 1, widget: 2 }
         const sorted = [...manifest.shared].sort(
-          (a, b) => (order[a.type] ?? 9) - (order[b.type] ?? 9) || a.name.localeCompare(b.name)
+          (a, b) => (order[a.type] ?? 9) - (order[b.type] ?? 9) || a.name.localeCompare(b.name),
         )
         console.log('')
         sorted.forEach(entry => {
@@ -64,7 +62,7 @@ export function createComponentsCommand(): Command {
                 ? chalk.green('all pages')
                 : chalk.gray(entry.usedIn.join(', '))
           console.log(
-            `   ${chalk.cyan(entry.id.padEnd(8))} ${chalk.white(entry.name.padEnd(18))} ${chalk.gray(entry.type.padEnd(9))} ${usage}`
+            `   ${chalk.cyan(entry.id.padEnd(8))} ${chalk.white(entry.name.padEnd(18))} ${chalk.gray(entry.type.padEnd(9))} ${usage}`,
           )
         })
         console.log('')
@@ -103,9 +101,7 @@ export function createComponentsCommand(): Command {
     })
 
   // Epic 2: Shared Components (coherent.components.json)
-  const sharedCmd = cmd
-    .command('shared')
-    .description('List or add shared components (Header, Footer, etc.)')
+  const sharedCmd = cmd.command('shared').description('List or add shared components (Header, Footer, etc.)')
   sharedCmd
     .option('--json', 'Machine-readable JSON output')
     .option('--verbose', 'Show file paths and usage details')
@@ -124,17 +120,13 @@ export function createComponentsCommand(): Command {
 
       if (manifest.shared.length === 0) {
         console.log(chalk.yellow('   No shared components yet.\n'))
-        console.log(
-          chalk.gray('   Create via chat: coherent chat "add a page with header and footer"\n')
-        )
+        console.log(chalk.gray('   Create via chat: coherent chat "add a page with header and footer"\n'))
         return
       }
 
       // Order: layout first, then section, then widget
       const order = { layout: 0, section: 1, widget: 2 }
-      const sorted = [...manifest.shared].sort(
-        (a, b) => order[a.type] - order[b.type] || a.name.localeCompare(b.name)
-      )
+      const sorted = [...manifest.shared].sort((a, b) => order[a.type] - order[b.type] || a.name.localeCompare(b.name))
 
       sorted.forEach(entry => {
         const usedIn =
@@ -163,7 +155,10 @@ export function createComponentsCommand(): Command {
     .action(async (name: string, opts: { type?: string; description?: string }) => {
       const project = findConfig()
       if (!project) exitNotCoherent()
-      const type = (opts.type === 'section' || opts.type === 'widget' ? opts.type : 'layout') as 'layout' | 'section' | 'widget'
+      const type = (opts.type === 'section' || opts.type === 'widget' ? opts.type : 'layout') as
+        | 'layout'
+        | 'section'
+        | 'widget'
       const result = await generateSharedComponent(project.root, {
         name: name.trim(),
         type,

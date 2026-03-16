@@ -14,18 +14,13 @@ import ora from 'ora'
 import { existsSync, readFileSync } from 'fs'
 import { join, relative, dirname } from 'path'
 import { readdir, readFile } from 'fs/promises'
-import { findConfig } from '../utils/find-config.js'
+import { findConfig, exitNotCoherent } from '../utils/find-config.js'
 import { DesignSystemManager } from '@getcoherent/core'
 import { analyzePageCode } from '../utils/page-analyzer.js'
 import { writeDesignSystemFiles } from '../utils/ds-files.js'
 import { writeCursorRules } from '../utils/cursor-rules.js'
 import { generateClaudeCodeFiles } from '../utils/claude-code.js'
-import {
-  loadManifest,
-  saveManifest,
-  createEntry,
-  findSharedComponent,
-} from '@getcoherent/core'
+import { loadManifest, saveManifest, findSharedComponent } from '@getcoherent/core'
 import { reconcileComponents } from '../utils/component-integrity.js'
 
 export interface SyncOptions {
@@ -103,10 +98,7 @@ function extractTokensFromProject(projectRoot: string): ExtractedTokens | null {
 
   // Extract radius
   let radius: string | undefined
-  const allCss = [
-    existsSync(globalsPath) ? readFileSync(globalsPath, 'utf-8') : '',
-    layoutCode,
-  ].join('\n')
+  const allCss = [existsSync(globalsPath) ? readFileSync(globalsPath, 'utf-8') : '', layoutCode].join('\n')
   const radiusMatch = allCss.match(/--radius:\s*([^;]+);/)
   if (radiusMatch) radius = radiusMatch[1].trim()
 
@@ -133,10 +125,7 @@ function parseVarsInto(block: string, target: Record<string, string>): void {
 
 // ── Phase 2: Component Detection ─────────────────────────────────
 
-async function detectCustomComponents(
-  projectRoot: string,
-  allPageCode: string
-): Promise<DetectedComponent[]> {
+async function detectCustomComponents(projectRoot: string, allPageCode: string): Promise<DetectedComponent[]> {
   const results: DetectedComponent[] = []
   const componentsDir = join(projectRoot, 'components')
   if (!existsSync(componentsDir)) return results
@@ -145,18 +134,18 @@ async function detectCustomComponents(
   await walkForTsx(componentsDir, files, ['ui'])
 
   const fileResults = await Promise.all(
-    files.map(async (filePath) => {
+    files.map(async filePath => {
       const code = await readFile(filePath, 'utf-8')
       const relFile = relative(projectRoot, filePath)
       const exportedNames = extractExportedComponentNames(code)
-      return exportedNames.map((name) => ({
+      return exportedNames.map(name => ({
         name,
         file: relFile,
         type: inferComponentType(name, code),
         usedInPages: findPagesUsingComponent(allPageCode, name),
         isNew: true as const,
       }))
-    })
+    }),
   )
 
   return fileResults.flat()
@@ -164,7 +153,11 @@ async function detectCustomComponents(
 
 async function walkForTsx(dir: string, files: string[], skipDirs: string[]): Promise<void> {
   let entries
-  try { entries = await readdir(dir, { withFileTypes: true }) } catch { return }
+  try {
+    entries = await readdir(dir, { withFileTypes: true })
+  } catch {
+    return
+  }
   for (const e of entries) {
     const full = join(dir, e.name)
     if (e.isDirectory()) {
@@ -188,7 +181,7 @@ function extractExportedComponentNames(code: string): string[] {
   return [...new Set(names)]
 }
 
-function inferComponentType(name: string, code: string): 'layout' | 'section' | 'widget' {
+function inferComponentType(name: string, _code: string): 'layout' | 'section' | 'widget' {
   const lower = name.toLowerCase()
   if (/header|footer|sidebar|nav|layout|appbar|topbar/.test(lower)) return 'layout'
   if (/section|hero|pricing|testimonial|features|cta|banner/.test(lower)) return 'section'
@@ -216,23 +209,22 @@ function extractStylePatterns(allCode: string): StylePatterns {
   const patterns: StylePatterns = {}
 
   // Card styling: most common className containing rounded + border + bg-card
-  const cardClasses = findMostCommonPattern(allCode,
-    /className="([^"]*(?:rounded)[^"]*(?:border|bg-card)[^"]*)"/g)
+  const cardClasses = findMostCommonPattern(allCode, /className="([^"]*(?:rounded)[^"]*(?:border|bg-card)[^"]*)"/g)
   if (cardClasses) patterns.card = cardClasses
 
   // Section spacing
-  const sectionSpacing = findMostCommonPattern(allCode,
-    /className="[^"]*(py-\d+\s+(?:md|lg):py-\d+)[^"]*"/g)
+  const sectionSpacing = findMostCommonPattern(allCode, /className="[^"]*(py-\d+\s+(?:md|lg):py-\d+)[^"]*"/g)
   if (sectionSpacing) patterns.section = sectionSpacing
 
   // Terminal blocks
-  const termClasses = findMostCommonPattern(allCode,
-    /className="([^"]*(?:bg-zinc-950|font-mono)[^"]*(?:font-mono|bg-zinc-950)[^"]*)"/g)
+  const termClasses = findMostCommonPattern(
+    allCode,
+    /className="([^"]*(?:bg-zinc-950|font-mono)[^"]*(?:font-mono|bg-zinc-950)[^"]*)"/g,
+  )
   if (termClasses) patterns.terminal = termClasses
 
   // Icon containers
-  const iconClasses = findMostCommonPattern(allCode,
-    /className="([^"]*bg-primary\/\d+[^"]*rounded[^"]*)"/g)
+  const iconClasses = findMostCommonPattern(allCode, /className="([^"]*bg-primary\/\d+[^"]*rounded[^"]*)"/g)
   if (iconClasses) patterns.iconContainer = iconClasses
 
   // Hero headline: largest text-Nxl with font-bold
@@ -273,7 +265,11 @@ async function discoverPages(appDir: string): Promise<DiscoveredPage[]> {
 
   async function walk(dir: string): Promise<void> {
     let entries
-    try { entries = await readdir(dir, { withFileTypes: true }) } catch { return }
+    try {
+      entries = await readdir(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
     for (const entry of entries) {
       const full = join(dir, entry.name)
       if (entry.isDirectory()) {
@@ -304,7 +300,10 @@ function inferPageName(route: string, code: string): string {
   const titleMatch = code.match(/title:\s*['"]([^'"]+)['"]/)
   if (titleMatch) return titleMatch[1].split(/[|–—-]/).map(s => s.trim())[0] || 'Untitled'
   if (route === '/') return 'Home'
-  return route.replace(/^\//, '').replace(/[-/]/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  return route
+    .replace(/^\//, '')
+    .replace(/[-/]/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase())
 }
 
 // ── Actual Token Usage (from classNames) ─────────────────────────
@@ -319,9 +318,24 @@ function extractActualTokenUsage(allCode: string) {
 
   for (const cls of allClasses.split(/\s+/)) {
     const base = cls.replace(/^(hover:|focus:|active:|md:|lg:|sm:|dark:)+/, '')
-    if (/^(text|bg|border|ring|from|to|via)-(primary|secondary|muted|destructive|accent|card|popover|foreground|background)/.test(base)) colorSet.add(base)
-    else if (/^(text|bg|border)-(zinc|gray|slate|emerald|red|blue|green|amber|purple|orange|rose|indigo|cyan|yellow|white|black)/.test(base)) colorSet.add(base)
-    if (/^(text-(xs|sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl)|font-(thin|light|normal|medium|semibold|bold|extrabold)|tracking-|leading-)/.test(base)) typographySet.add(base)
+    if (
+      /^(text|bg|border|ring|from|to|via)-(primary|secondary|muted|destructive|accent|card|popover|foreground|background)/.test(
+        base,
+      )
+    )
+      colorSet.add(base)
+    else if (
+      /^(text|bg|border)-(zinc|gray|slate|emerald|red|blue|green|amber|purple|orange|rose|indigo|cyan|yellow|white|black)/.test(
+        base,
+      )
+    )
+      colorSet.add(base)
+    if (
+      /^(text-(xs|sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl)|font-(thin|light|normal|medium|semibold|bold|extrabold)|tracking-|leading-)/.test(
+        base,
+      )
+    )
+      typographySet.add(base)
     if (/^rounded/.test(base)) radiusSet.add(base)
   }
 
@@ -352,7 +366,7 @@ function extractReusablePatterns(code: string) {
 
 export async function syncCommand(options: SyncOptions = {}) {
   const project = findConfig()
-  if (!project) exitNotCoherent()
+  if (!project) return exitNotCoherent()
 
   const dryRun = options.dryRun === true
   const runAll = !options.tokens && !options.components && !options.patterns
@@ -373,7 +387,7 @@ export async function syncCommand(options: SyncOptions = {}) {
 
     const dsm = new DesignSystemManager(project.configPath)
     await dsm.load()
-    const config = dsm.getConfig() as Record<string, any>
+    const config = dsm.getConfig() as any
 
     // ── Discover pages ───────────────────────────────────────
     const discoveredPages = await discoverPages(appDir)
@@ -454,11 +468,12 @@ export async function syncCommand(options: SyncOptions = {}) {
 
     // ── Phase 4: Page Analysis ───────────────────────────────
     spinner.start('Analyzing pages...')
-    let updated = 0, added = 0
+    let updated = 0,
+      added = 0
     for (const page of discoveredPages) {
       const analysis = analyzePageCode(page.code)
       const existingIdx = config.pages.findIndex(
-        (p: any) => p.route === page.route || (p.id === 'home' && page.route === '/')
+        (p: any) => p.route === page.route || (p.id === 'home' && page.route === '/'),
       )
       if (existingIdx !== -1) {
         if (!dryRun) {
@@ -471,13 +486,19 @@ export async function syncCommand(options: SyncOptions = {}) {
         if (!dryRun) {
           const id = page.route === '/' ? 'home' : page.route.replace(/^\//, '').replace(/\//g, '-')
           config.pages.push({
-            id, name: page.name, route: page.route,
+            id,
+            name: page.name,
+            route: page.route,
             layout: analysis.layoutPattern || 'centered',
             sections: (analysis.sections || []).map((s: any) => ({ name: s.name })),
-            generatedWithPageCode: true, pageAnalysis: analysis,
-            title: page.name, description: `${page.name} page`,
-            requiresAuth: false, noIndex: false,
-            createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+            generatedWithPageCode: true,
+            pageAnalysis: analysis,
+            title: page.name,
+            description: `${page.name} page`,
+            requiresAuth: false,
+            noIndex: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
           })
         }
         added++
@@ -499,7 +520,9 @@ export async function syncCommand(options: SyncOptions = {}) {
       }
     }
 
-    spinner.succeed(`Analyzed ${discoveredPages.length} page(s): ${updated} updated, ${added} added, ${removed} removed`)
+    spinner.succeed(
+      `Analyzed ${discoveredPages.length} page(s): ${updated} updated, ${added} added, ${removed} removed`,
+    )
 
     // ── Phase 5: Save & Regenerate ───────────────────────────
     if (!dryRun) {
@@ -527,7 +550,9 @@ export async function syncCommand(options: SyncOptions = {}) {
     console.log(chalk.blue('📄 Pages:'))
     for (const page of discoveredPages) {
       const a = analyzePageCode(page.code)
-      const comps = Object.entries(a.componentUsage || {}).filter(([, c]) => c > 0).map(([n]) => n)
+      const comps = Object.entries(a.componentUsage || {})
+        .filter(([, c]) => c > 0)
+        .map(([n]) => n)
       console.log(chalk.gray(`   ${page.route} — ${page.name}`))
       if (comps.length > 0) console.log(chalk.gray(`     Components: ${comps.join(', ')}`))
       if (a.sections?.length) console.log(chalk.gray(`     Sections: ${a.sections.map(s => s.name).join(', ')}`))
@@ -561,8 +586,12 @@ export async function syncCommand(options: SyncOptions = {}) {
         console.log(chalk.yellow(`   ⚠ ${w.message}`))
         console.log(chalk.dim(`     ${w.suggestion}`))
       }
-      if (reconcileResult.removed.length === 0 && reconcileResult.updated.length === 0 &&
-          reconcileResult.added.length === 0 && reconcileResult.warnings.length === 0) {
+      if (
+        reconcileResult.removed.length === 0 &&
+        reconcileResult.updated.length === 0 &&
+        reconcileResult.added.length === 0 &&
+        reconcileResult.warnings.length === 0
+      ) {
         console.log(chalk.gray('   All components consistent ✓'))
       }
     }
@@ -575,8 +604,10 @@ export async function syncCommand(options: SyncOptions = {}) {
       if (stylePatterns.section) console.log(chalk.gray(`   Sections: ${stylePatterns.section}`))
       if (stylePatterns.terminal) console.log(chalk.gray(`   Terminal: ${stylePatterns.terminal.slice(0, 80)}`))
       if (stylePatterns.iconContainer) console.log(chalk.gray(`   Icons: ${stylePatterns.iconContainer.slice(0, 80)}`))
-      if (stylePatterns.heroHeadline) console.log(chalk.gray(`   Hero headline: ${stylePatterns.heroHeadline.slice(0, 80)}`))
-      if (stylePatterns.sectionTitle) console.log(chalk.gray(`   Section title: ${stylePatterns.sectionTitle.slice(0, 80)}`))
+      if (stylePatterns.heroHeadline)
+        console.log(chalk.gray(`   Hero headline: ${stylePatterns.heroHeadline.slice(0, 80)}`))
+      if (stylePatterns.sectionTitle)
+        console.log(chalk.gray(`   Section title: ${stylePatterns.sectionTitle.slice(0, 80)}`))
     }
 
     // Token usage from classNames
@@ -584,8 +615,16 @@ export async function syncCommand(options: SyncOptions = {}) {
     if (tokenUsage.colors.length > 0) {
       console.log('')
       console.log(chalk.blue('🏷️  Actual token usage (from classNames):'))
-      console.log(chalk.gray(`   Colors: ${tokenUsage.colors.slice(0, 12).join(', ')}${tokenUsage.colors.length > 12 ? ` (+${tokenUsage.colors.length - 12})` : ''}`))
-      console.log(chalk.gray(`   Typography: ${tokenUsage.typography.slice(0, 8).join(', ')}${tokenUsage.typography.length > 8 ? ` (+${tokenUsage.typography.length - 8})` : ''}`))
+      console.log(
+        chalk.gray(
+          `   Colors: ${tokenUsage.colors.slice(0, 12).join(', ')}${tokenUsage.colors.length > 12 ? ` (+${tokenUsage.colors.length - 12})` : ''}`,
+        ),
+      )
+      console.log(
+        chalk.gray(
+          `   Typography: ${tokenUsage.typography.slice(0, 8).join(', ')}${tokenUsage.typography.length > 8 ? ` (+${tokenUsage.typography.length - 8})` : ''}`,
+        ),
+      )
       console.log(chalk.gray(`   Radius: ${tokenUsage.borderRadius.join(', ')}`))
     }
 

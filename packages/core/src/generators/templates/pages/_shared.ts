@@ -23,7 +23,8 @@ export const D = {
   formContainer: 'w-full max-w-sm',
 
   card: 'bg-card border border-border/15 rounded-xl hover:border-border/30 transition-colors',
-  cardDark: 'bg-zinc-900/50 border border-border/10 rounded-xl backdrop-blur-sm hover:border-border/30 transition-colors',
+  cardDark:
+    'bg-zinc-900/50 border border-border/10 rounded-xl backdrop-blur-sm hover:border-border/30 transition-colors',
   icon: 'size-4 text-muted-foreground',
   featureIcon: 'h-5 w-5 text-primary',
   featureIconWrap: 'flex items-center justify-center rounded-lg bg-primary/10 p-2.5',
@@ -83,7 +84,5 @@ export function collectIcons(names: (string | undefined)[]): string[] {
 }
 
 export function pascalCase(s: string): string {
-  return s
-    .replace(/[-_\s]+(.)?/g, (_, c) => (c ? c.toUpperCase() : ''))
-    .replace(/^./, (c) => c.toUpperCase())
+  return s.replace(/[-_\s]+(.)?/g, (_, c) => (c ? c.toUpperCase() : '')).replace(/^./, c => c.toUpperCase())
 }

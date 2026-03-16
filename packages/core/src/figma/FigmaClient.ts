@@ -11,7 +11,10 @@ export interface FigmaClientOptions {
 }
 
 export class FigmaClient {
-  constructor(private token: string, private options: FigmaClientOptions = {}) {}
+  constructor(
+    private token: string,
+    private options: FigmaClientOptions = {},
+  ) {}
 
   private progress(msg: string): void {
     this.options.onProgress?.(msg)
@@ -37,7 +40,7 @@ export class FigmaClient {
   private async fetchWithRetry(url: string, retries = 2): Promise<Response> {
     const res = await fetch(url, {
       method: 'GET',
-      headers: { 'X-Figma-Token': this.token, 'Accept': 'application/json' },
+      headers: { 'X-Figma-Token': this.token, Accept: 'application/json' },
     })
     if (res.status === 429 && retries > 0) {
       const retryAfter = parseInt(res.headers.get('Retry-After') ?? '', 10)
@@ -86,7 +89,7 @@ export class FigmaClient {
   async fetchImages(
     fileKey: string,
     nodeIds: string[],
-    options: { format?: 'svg' | 'png'; scale?: number } = {}
+    options: { format?: 'svg' | 'png'; scale?: number } = {},
   ): Promise<Record<string, string>> {
     if (nodeIds.length === 0) return {}
     this.progress(`Fetching images for ${nodeIds.length} node(s)...`)
@@ -99,7 +102,7 @@ export class FigmaClient {
       const text = await res.text().catch(() => '')
       throw new Error(`Figma images API error ${res.status}: ${text.slice(0, 150)}`)
     }
-    const data = await this.safeJson(res) as { err?: string; images?: Record<string, string> }
+    const data = (await this.safeJson(res)) as { err?: string; images?: Record<string, string> }
     if (data.err) throw new Error(data.err)
     return data.images ?? {}
   }

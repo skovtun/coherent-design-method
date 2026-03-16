@@ -28,12 +28,14 @@ function hasNativeElements(content: string): boolean {
 
 function findInlineDuplicatesOfShared(
   content: string,
-  manifest: SharedComponentsManifest
+  manifest: SharedComponentsManifest,
 ): Array<{ cid: string; name: string; file: string }> {
   const matches: Array<{ cid: string; name: string; file: string }> = []
   for (const entry of manifest.shared) {
     const kebab = entry.file.replace(/^components\/shared\//, '').replace(/\.tsx$/, '')
-    const hasImport = content.includes(`@/components/shared/${kebab}`) || content.includes(`@/components/shared/${entry.file.replace('.tsx', '')}`)
+    const hasImport =
+      content.includes(`@/components/shared/${kebab}`) ||
+      content.includes(`@/components/shared/${entry.file.replace('.tsx', '')}`)
     if (hasImport) continue
     const tagName = entry.name
     const openTag = new RegExp(`<${tagName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|>)`)
@@ -104,7 +106,7 @@ export async function handleFileChange(projectRoot: string, filePath: string): P
   }
 
   if (config.autoFix) {
-    let fixed = sanitizeMetadataStrings(ensureUseClientIfNeeded(content))
+    const fixed = sanitizeMetadataStrings(ensureUseClientIfNeeded(content))
     if (fixed !== content) {
       writeFileSync(filePath, fixed, 'utf-8')
       console.log(chalk.cyan(`  🔧 Auto-fixed syntax in ${relativePath}`))
@@ -154,7 +156,9 @@ export async function handleFileDelete(projectRoot: string, filePath: string): P
       console.log(chalk.cyan(`\n  🗑 Auto-removed ${orphaned.id} (${orphaned.name}) — file deleted`))
       await writeCursorRules(projectRoot)
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 /**
@@ -180,7 +184,9 @@ async function detectNewComponent(projectRoot: string, filePath: string): Promis
         console.log(chalk.dim('    Register with: coherent sync'))
       }
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 export async function handleManifestChange(projectRoot: string): Promise<void> {
@@ -195,10 +201,10 @@ export function startFileWatcher(projectRoot: string): () => void {
   const config = getWatcherConfig(projectRoot)
   if (!config.enabled) return () => {}
 
-  let watcher: { close: () => void } | null = null
-  let manifestWatcher: { close: () => void } | null = null
+  let watcher: any = null
+  let manifestWatcher: any = null
 
-  import('chokidar').then((chokidar) => {
+  import('chokidar').then(chokidar => {
     const appGlob = join(projectRoot, 'app', '**', '*.tsx')
     const compGlob = join(projectRoot, 'components', '**', '*.tsx')
     watcher = chokidar.default.watch([appGlob, compGlob], {
@@ -215,7 +221,7 @@ export function startFileWatcher(projectRoot: string): () => void {
 
   const manifestPath = join(projectRoot, 'coherent.components.json')
   if (existsSync(manifestPath)) {
-    import('chokidar').then((chokidar) => {
+    import('chokidar').then(chokidar => {
       manifestWatcher = chokidar.default.watch(manifestPath, { ignoreInitial: true })
       manifestWatcher!.on('change', () => handleManifestChange(projectRoot))
     })

@@ -1,18 +1,15 @@
 import type { LandingContent, TemplateOptions } from './types.js'
 import { D, collectIcons, resolveIcon } from './_shared.js'
 
-export function landingTemplate(
-  content: LandingContent,
-  options: TemplateOptions
-): string {
+export function landingTemplate(content: LandingContent, options: TemplateOptions): string {
   const { title, description, hero, features, finalCta } = content
   const { pageName } = options
 
-  const icons = collectIcons(features.map((f) => f.icon))
+  const icons = collectIcons(features.map(f => f.icon))
   const iconImport = `import { ${icons.join(', ')} } from 'lucide-react'`
 
   const featureCards = features
-    .map((f) => {
+    .map(f => {
       const icon = resolveIcon(f.icon) || icons[0]
       return `        <div className="${D.card} p-6">
           <div className="${D.featureIconWrap} mb-4">

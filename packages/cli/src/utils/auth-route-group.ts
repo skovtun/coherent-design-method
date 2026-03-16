@@ -63,13 +63,22 @@ export async function ensureAuthRouteGroup(projectRoot: string): Promise<void> {
 
   if (layoutContent.includes('ShowWhenNotAuthRoute')) return
 
-  if (!layoutContent.includes("from './ShowWhenNotAuthRoute'") && !layoutContent.includes('from "./ShowWhenNotAuthRoute"')) {
-    const lastImport = layoutContent.match(/(\nimport\s+[^;]+;\s*)+/g)
-    const insertAfter = lastImport ? layoutContent.indexOf(lastImport[lastImport.length - 1]) + lastImport[lastImport.length - 1].length : 0
-    layoutContent =
-      layoutContent.slice(0, insertAfter) +
-      "\nimport ShowWhenNotAuthRoute from './ShowWhenNotAuthRoute'"
-      + layoutContent.slice(insertAfter)
+  if (
+    !layoutContent.includes("from './ShowWhenNotAuthRoute'") &&
+    !layoutContent.includes('from "./ShowWhenNotAuthRoute"')
+  ) {
+    // Find the last import line (with or without semicolons) — never insert inside JSX/strings
+    const lines = layoutContent.split('\n')
+    let lastImportLineIdx = -1
+    for (let i = 0; i < lines.length; i++) {
+      if (/^\s*import\s/.test(lines[i])) lastImportLineIdx = i
+    }
+    if (lastImportLineIdx >= 0) {
+      lines.splice(lastImportLineIdx + 1, 0, "import ShowWhenNotAuthRoute from './ShowWhenNotAuthRoute'")
+    } else {
+      lines.unshift("import ShowWhenNotAuthRoute from './ShowWhenNotAuthRoute'")
+    }
+    layoutContent = lines.join('\n')
   }
 
   const wrapComponent = (tag: string): void => {

@@ -45,9 +45,7 @@ export async function setupApiKey(projectRoot: string): Promise<ApiKeySetupResul
         type: (prev: string) => (prev === 'skip' ? null : 'password'),
         name: 'apiKey',
         message: (_: unknown, values: { provider?: string }) =>
-          values?.provider === 'anthropic'
-            ? 'Enter your Anthropic API key:'
-            : 'Enter your OpenAI API key:',
+          values?.provider === 'anthropic' ? 'Enter your Anthropic API key:' : 'Enter your OpenAI API key:',
         validate: (value: string) => {
           if (!value || value.length === 0) return 'API key is required'
           if (value.length < 20) return 'API key seems too short'
@@ -55,7 +53,7 @@ export async function setupApiKey(projectRoot: string): Promise<ApiKeySetupResul
         },
       },
     ],
-    { onCancel: () => ({ provider: undefined }) }
+    { onCancel: () => ({ provider: undefined }) },
   )
 
   if (!response.provider) {
@@ -70,8 +68,7 @@ export async function setupApiKey(projectRoot: string): Promise<ApiKeySetupResul
     return { provider: 'skip', saved: false }
   }
 
-  const envVar =
-    response.provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'
+  const envVar = response.provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'
   const envPath = path.join(projectRoot, '.env')
   const envContent = `${envVar}=${response.apiKey}\n`
 
@@ -81,9 +78,7 @@ export async function setupApiKey(projectRoot: string): Promise<ApiKeySetupResul
 
     const providerName = response.provider === 'anthropic' ? 'Claude' : 'ChatGPT'
     const getKeyUrl =
-      response.provider === 'anthropic'
-        ? 'https://console.anthropic.com/'
-        : 'https://platform.openai.com/'
+      response.provider === 'anthropic' ? 'https://console.anthropic.com/' : 'https://platform.openai.com/'
 
     console.log(chalk.gray(`  Using: ${providerName}`))
     console.log(chalk.gray(`  Get more keys: ${getKeyUrl}\n`))

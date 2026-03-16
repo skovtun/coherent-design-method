@@ -1,17 +1,17 @@
 import type { SettingsContent, TemplateOptions } from './types.js'
 import { D } from './_shared.js'
 
-export function settingsTemplate(
-  content: SettingsContent,
-  options: TemplateOptions
-): string {
+export function settingsTemplate(content: SettingsContent, options: TemplateOptions): string {
   const { title, description, sections } = content
   const { pageName } = options
 
-  const normalSections = sections.filter((s) => !/danger|delete|destruct/i.test(s.title))
-  const dangerSections = sections.filter((s) => /danger|delete|destruct/i.test(s.title))
+  const normalSections = sections.filter(s => !/danger|delete|destruct/i.test(s.title))
+  const dangerSections = sections.filter(s => /danger|delete|destruct/i.test(s.title))
 
-  const renderField = (f: { name: string; label: string; type: string; value?: string; options?: string[] }, desc?: string) => {
+  const renderField = (
+    f: { name: string; label: string; type: string; value?: string; options?: string[] },
+    desc?: string,
+  ) => {
     if (f.type === 'toggle') {
       return `            <div className="flex items-center justify-between gap-4">
               <div className="${D.fieldGroup} flex-1 space-y-1">
@@ -22,7 +22,7 @@ export function settingsTemplate(
             </div>`
     }
     if (f.type === 'select' && f.options && f.options.length > 0) {
-      const opts = f.options.map((o) => `                <SelectItem value="${o}">${o}</SelectItem>`).join('\n')
+      const opts = f.options.map(o => `                <SelectItem value="${o}">${o}</SelectItem>`).join('\n')
       return `            <div className="${D.fieldGroup}">
               <Label htmlFor="${f.name}">${f.label}</Label>
               ${desc ? `<p className="${D.mutedXs}">${desc}</p>` : ''}
@@ -44,10 +44,8 @@ ${opts}
   }
 
   const sectionCards = normalSections
-    .map((section) => {
-      const fieldElements = section.fields
-        .map((f) => renderField(f))
-        .join('\n')
+    .map(section => {
+      const fieldElements = section.fields.map(f => renderField(f)).join('\n')
       return `      <div className="${D.card} p-6">
         <div className="mb-6">
           <h2 className="${D.cardTitle}">${section.title}</h2>
@@ -64,10 +62,8 @@ ${fieldElements}
     .join('\n\n')
 
   const dangerCards = dangerSections
-    .map((section) => {
-      const fieldElements = section.fields
-        .map((f) => renderField(f))
-        .join('\n')
+    .map(section => {
+      const fieldElements = section.fields.map(f => renderField(f)).join('\n')
       return `      <div className="${D.card} border-destructive/50 p-6">
         <div className="mb-6">
           <h2 className="${D.cardTitle} text-destructive">${section.title}</h2>

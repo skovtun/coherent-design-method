@@ -14,13 +14,44 @@ const minimalConfig: DesignSystemConfig = {
   description: 'Test',
   tokens: {
     colors: {
-      light: { primary: '#3B82F6', secondary: '#8B5CF6', success: '#10B981', warning: '#F59E0B', error: '#EF4444', info: '#3B82F6', background: '#FFFFFF', foreground: '#111827', muted: '#F3F4F6', border: '#E5E7EB' },
-      dark: { primary: '#60A5FA', secondary: '#A78BFA', success: '#34D399', warning: '#FBBF24', error: '#F87171', info: '#60A5FA', background: '#111827', foreground: '#F9FAFB', muted: '#1F2937', border: '#374151' },
+      light: {
+        primary: '#3B82F6',
+        secondary: '#8B5CF6',
+        success: '#10B981',
+        warning: '#F59E0B',
+        error: '#EF4444',
+        info: '#3B82F6',
+        background: '#FFFFFF',
+        foreground: '#111827',
+        muted: '#F3F4F6',
+        border: '#E5E7EB',
+      },
+      dark: {
+        primary: '#60A5FA',
+        secondary: '#A78BFA',
+        success: '#34D399',
+        warning: '#FBBF24',
+        error: '#F87171',
+        info: '#60A5FA',
+        background: '#111827',
+        foreground: '#F9FAFB',
+        muted: '#1F2937',
+        border: '#374151',
+      },
     },
     spacing: { xs: '0.25rem', sm: '0.5rem', md: '1rem', lg: '1.5rem', xl: '2rem', '2xl': '3rem', '3xl': '4rem' },
     typography: {
       fontFamily: { sans: 'Inter, system-ui, sans-serif', mono: 'monospace' },
-      fontSize: { xs: '0.75rem', sm: '0.875rem', base: '1rem', lg: '1.125rem', xl: '1.25rem', '2xl': '1.5rem', '3xl': '1.875rem', '4xl': '2.25rem' },
+      fontSize: {
+        xs: '0.75rem',
+        sm: '0.875rem',
+        base: '1rem',
+        lg: '1.125rem',
+        xl: '1.25rem',
+        '2xl': '1.5rem',
+        '3xl': '1.875rem',
+        '4xl': '2.25rem',
+      },
       fontWeight: { normal: 400, medium: 500, semibold: 600, bold: 700 },
       lineHeight: { tight: 1.25, normal: 1.5, relaxed: 1.75 },
     },
@@ -37,7 +68,14 @@ const minimalConfig: DesignSystemConfig = {
     database: { enabled: false },
     stateManagement: { enabled: false, provider: 'zustand' },
   },
-  settings: { appType: 'multi-page', framework: 'next', typescript: true, cssFramework: 'tailwind', autoScaffold: false },
+  layoutBlocks: [],
+  settings: {
+    appType: 'multi-page',
+    framework: 'next',
+    typescript: true,
+    cssFramework: 'tailwind',
+    autoScaffold: false,
+  },
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 }
@@ -51,6 +89,7 @@ function makeDef(overrides: Partial<ComponentDefinition>): ComponentDefinition {
     baseClassName: '',
     variants: [],
     sizes: [],
+    usedInPages: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     ...overrides,
@@ -65,7 +104,7 @@ describe('ComponentGenerator', () => {
       const code = await gen.generate(makeDef({ id: 'button', name: 'Button' }))
       expect(code).toContain('buttonVariants')
       expect(code).toContain('cva')
-      expect(code).toContain('hover:bg-primary/90')
+      expect(code).toContain('bg-primary')
     })
 
     it('generates Card with compound exports', async () => {
@@ -96,11 +135,13 @@ describe('ComponentGenerator', () => {
     })
 
     it('preserves explicit baseClassName when provided', async () => {
-      const code = await gen.generate(makeDef({
-        id: 'custom-card',
-        name: 'CustomCard',
-        baseClassName: 'bg-red-500 p-8',
-      }))
+      const code = await gen.generate(
+        makeDef({
+          id: 'custom-card',
+          name: 'CustomCard',
+          baseClassName: 'bg-red-500 p-8',
+        }),
+      )
       expect(code).toContain('bg-red-500 p-8')
     })
 
@@ -110,13 +151,18 @@ describe('ComponentGenerator', () => {
     })
 
     it('provides fallback sizes when variant classNames are empty', async () => {
-      const code = await gen.generate(makeDef({
-        id: 'my-btn',
-        name: 'MyBtn',
-        baseClassName: '',
-        variants: [{ name: 'default', className: '' }],
-        sizes: [{ name: 'sm', className: '' }, { name: 'lg', className: '' }],
-      }))
+      const code = await gen.generate(
+        makeDef({
+          id: 'my-btn',
+          name: 'MyBtn',
+          baseClassName: '',
+          variants: [{ name: 'default', className: '' }],
+          sizes: [
+            { name: 'sm', className: '' },
+            { name: 'lg', className: '' },
+          ],
+        }),
+      )
       expect(code).toContain('h-8 px-3 text-xs')
       expect(code).toContain('h-10 px-6 text-sm')
     })

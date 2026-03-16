@@ -6,7 +6,10 @@ export function onboardingTemplate(content: OnboardingContent, options: Template
   const { pageName } = options
 
   const stepBars = steps
-    .map((_, i) => '        <div key={i} className={`flex-1 h-2 rounded-full ${i <= step ? \'bg-primary\' : \'bg-muted\'}`} />')
+    .map(
+      (_, _i) =>
+        "        <div key={_i} className={`flex-1 h-2 rounded-full ${_i <= step ? 'bg-primary' : 'bg-muted'}`} />",
+    )
     .join('\n')
 
   const stepContent = steps
@@ -18,14 +21,14 @@ export function onboardingTemplate(content: OnboardingContent, options: Template
               <p className="${D.cardDesc} mt-1">${s.description}</p>
             </div>
             <div className="space-y-4">
-              ${(s.fields || []).map((f) => `<div className="${D.fieldGroup}"><Label htmlFor="${f.name}">${f.label}</Label><Input id="${f.name}" type="${f.type}" /></div>`).join('\n              ')}
+              ${(s.fields || []).map(f => `<div className="${D.fieldGroup}"><Label htmlFor="${f.name}">${f.label}</Label><Input id="${f.name}" type="${f.type}" /></div>`).join('\n              ')}
             </div>
             <div className="flex justify-between mt-6">
               <Button variant="outline" onClick={() => setStep(Math.max(0, step - 1))} disabled={step === 0}>Back</Button>
               <Button onClick={() => setStep(Math.min(${totalSteps - 1}, step + 1))}>${i === totalSteps - 1 ? 'Finish' : 'Next'}</Button>
             </div>
           </div>
-        )}`
+        )}`,
     )
     .join('\n')
 

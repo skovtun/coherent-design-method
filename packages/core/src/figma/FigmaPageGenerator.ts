@@ -19,10 +19,7 @@ export interface GeneratedPage {
 }
 
 /** Base component id → import path (without extension) and default export name(s). */
-const BASE_IMPORTS: Record<
-  string,
-  { path: string; names: string[] }
-> = {
+const BASE_IMPORTS: Record<string, { path: string; names: string[] }> = {
   button: { path: '@/components/ui/button', names: ['Button'] },
   card: { path: '@/components/ui/card', names: ['Card', 'CardHeader', 'CardTitle', 'CardContent', 'CardFooter'] },
   input: { path: '@/components/ui/input', names: ['Input'] },
@@ -46,16 +43,18 @@ export function getPageFilePath(route: string): string {
 function layoutToClassName(layout?: FigmaLayout | null): string {
   if (!layout || layout.layoutMode === 'NONE') return 'flex flex-col gap-4 p-4'
   const dir = layout.layoutMode === 'HORIZONTAL' ? 'flex-row' : 'flex-col'
-  const gap = layout.itemSpacing != null && layout.itemSpacing <= 8 ? 'gap-2' : layout.itemSpacing != null && layout.itemSpacing <= 16 ? 'gap-4' : 'gap-4'
+  const gap =
+    layout.itemSpacing != null && layout.itemSpacing <= 8
+      ? 'gap-2'
+      : layout.itemSpacing != null && layout.itemSpacing <= 16
+        ? 'gap-4'
+        : 'gap-4'
   return `flex ${dir} ${gap} p-4`
 }
 
 /** Escape for JSX text content (no raw < or >). */
 function escapeForJsxText(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 /**
@@ -98,11 +97,7 @@ function buildImports(componentIds: Set<string>, componentMap: FigmaComponentMap
 /**
  * Render a single node to JSX string (indented). Uses component map for instances.
  */
-function nodeToJsx(
-  node: FigmaNode,
-  componentMap: FigmaComponentMap,
-  indent: string
-): string {
+function nodeToJsx(node: FigmaNode, componentMap: FigmaComponentMap, indent: string): string {
   const nextIndent = indent + '  '
   const entry = node.componentId ? componentMap[node.componentId] : null
 
@@ -115,7 +110,7 @@ function nodeToJsx(
     if (baseId === 'badge') return `${indent}<Badge>${escapeForJsxText(node.name || '')}</Badge>`
     if (baseId === 'label') return `${indent}<Label>${escapeForJsxText(node.name || '')}</Label>`
     if (baseId === 'card') {
-      const childrenJsx = (node.children ?? []).map((c) => nodeToJsx(c, componentMap, nextIndent)).join('\n')
+      const childrenJsx = (node.children ?? []).map(c => nodeToJsx(c, componentMap, nextIndent)).join('\n')
       return `${indent}<Card>\n${childrenJsx || nextIndent + '<CardContent><p>Card</p></CardContent>'}\n${indent}</Card>`
     }
     const pascal = entry.baseId.charAt(0).toUpperCase() + entry.baseId.slice(1)
@@ -127,11 +122,12 @@ function nodeToJsx(
   }
 
   const children = node.children ?? []
-  const layout = node.layoutMode && node.layoutMode !== 'NONE'
-    ? node.layoutMode === 'HORIZONTAL'
-      ? 'flex flex-row gap-2'
-      : 'flex flex-col gap-2'
-    : ''
+  const layout =
+    node.layoutMode && node.layoutMode !== 'NONE'
+      ? node.layoutMode === 'HORIZONTAL'
+        ? 'flex flex-row gap-2'
+        : 'flex flex-col gap-2'
+      : ''
   const className = layout ? ` className="${layout}"` : ''
 
   if (node.type === 'TEXT' || node.characters) {
@@ -144,7 +140,7 @@ function nodeToJsx(
     return `${indent}<div${className}>${escapeForJsxText(node.name || '')}</div>`
   }
 
-  const childJsx = children.map((c) => nodeToJsx(c, componentMap, nextIndent)).join('\n')
+  const childJsx = children.map(c => nodeToJsx(c, componentMap, nextIndent)).join('\n')
   return `${indent}<div${className}>\n${childJsx}\n${indent}</div>`
 }
 
@@ -154,7 +150,7 @@ function nodeToJsx(
 export function generatePageFromFrame(
   page: FigmaPageData,
   componentMap: FigmaComponentMap,
-  options?: { pageTitle?: string }
+  options?: { pageTitle?: string },
 ): string {
   const componentIds = new Set<string>()
   for (const child of page.children ?? []) collectComponentIds(child, componentIds)
@@ -164,9 +160,7 @@ export function generatePageFromFrame(
   const safePageName = pageName.replace(/[^A-Za-z0-9]/g, '') || 'Page'
   const title = options?.pageTitle ?? pageName
 
-  const childrenJsx = (page.children ?? [])
-    .map((n) => nodeToJsx(n, componentMap, '      '))
-    .join('\n')
+  const childrenJsx = (page.children ?? []).map(n => nodeToJsx(n, componentMap, '      ')).join('\n')
 
   const imports =
     importLines.length > 0
@@ -194,9 +188,9 @@ ${childrenJsx || '      <p className="text-muted-foreground">Content</p>'}
 export function generatePagesFromFigma(
   pages: FigmaPageData[],
   componentMap: FigmaComponentMap,
-  options?: { pageTitle?: (page: FigmaPageData) => string }
+  options?: { pageTitle?: (page: FigmaPageData) => string },
 ): GeneratedPage[] {
-  return pages.map((page) => ({
+  return pages.map(page => ({
     route: page.route,
     filePath: getPageFilePath(page.route),
     content: generatePageFromFrame(page, componentMap, {

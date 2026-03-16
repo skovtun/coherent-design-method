@@ -8,20 +8,20 @@ export function galleryTemplate(content: GalleryContent, options: TemplateOption
   const categoryTabs =
     categories && categories.length > 0
       ? `      <div className="flex gap-2 flex-wrap mb-6">
-        ${categories.map((c) => `<Button key="${c}" variant="outline" size="sm">${c}</Button>`).join('\n        ')}
+        ${categories.map(c => `<Button key="${c}" variant="outline" size="sm">${c}</Button>`).join('\n        ')}
       </div>`
       : ''
 
   const imageCards = images
     .map(
-      (img) => `      <div className="${D.card} overflow-hidden">
+      img => `      <div className="${D.card} overflow-hidden">
         <div className="aspect-square bg-muted relative">
           <img src="${img.src || '/placeholder.svg'}" alt="${img.alt.replace(/"/g, '\\"')}" className="object-cover w-full h-full" />
         </div>
         <div className="p-3">
           <p className="${D.cardTitle}">${(img.title || img.alt).replace(/"/g, '\\"')}</p>
         </div>
-      </div>`
+      </div>`,
     )
     .join('\n\n')
 

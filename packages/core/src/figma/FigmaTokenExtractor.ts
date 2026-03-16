@@ -65,9 +65,7 @@ function colorStyleNameToTokenKey(name: string): keyof ColorToken | null {
  * Extract design tokens from Figma intermediate data.
  * Uses style names to map to Coherent semantic tokens; fills missing from defaults.
  */
-export function extractTokensFromFigma(
-  data: FigmaIntermediateData
-): FigmaTokenExtractionResult {
+export function extractTokensFromFigma(data: FigmaIntermediateData): FigmaTokenExtractionResult {
   const light: Partial<ColorToken> = {}
   const dark: Partial<ColorToken> = {}
 
@@ -77,7 +75,7 @@ export function extractTokensFromFigma(
     const hex = isRealColor(style.color)
       ? figmaRgbaToHex(style.color)
       : key === 'accent'
-        ? DEFAULT_LIGHT.accent ?? DEFAULT_LIGHT.muted
+        ? (DEFAULT_LIGHT.accent ?? DEFAULT_LIGHT.muted)
         : (DEFAULT_LIGHT as Record<string, string>)[key]
     if (hex) {
       light[key] = hex
@@ -97,8 +95,7 @@ export function extractTokensFromFigma(
     for (const ts of textStyles) {
       const n = normalizeName(ts.name)
       if (ts.fontSize != null) {
-        if (/^(h1|heading\s*1|display|title\s*large)$/.test(n))
-          fontSize['2xl'] = `${ts.fontSize}px`
+        if (/^(h1|heading\s*1|display|title\s*large)$/.test(n)) fontSize['2xl'] = `${ts.fontSize}px`
         else if (/^(h2|heading\s*2)$/.test(n)) fontSize['xl'] = `${ts.fontSize}px`
         else if (/^(body|paragraph|text)$/.test(n)) fontSize.base = `${ts.fontSize}px`
         else if (/^(small|caption)$/.test(n)) fontSize.sm = `${ts.fontSize}px`
@@ -139,9 +136,10 @@ export function extractTokensFromFigma(
  * Merge extracted tokens with default tokens to produce full DesignTokens.colors.
  * Used so buildCssVariables receives a full config.
  */
-export function mergeExtractedColorsWithDefaults(
-  extracted: FigmaTokenExtractionResult
-): { light: ColorToken; dark: ColorToken } {
+export function mergeExtractedColorsWithDefaults(extracted: FigmaTokenExtractionResult): {
+  light: ColorToken
+  dark: ColorToken
+} {
   const light = { ...DEFAULT_LIGHT, ...extracted.colors.light } as ColorToken
   const dark = { ...DEFAULT_DARK, ...extracted.colors.dark } as ColorToken
   return { light, dark }

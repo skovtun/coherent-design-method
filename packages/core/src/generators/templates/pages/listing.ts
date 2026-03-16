@@ -1,31 +1,21 @@
 import type { ListingContent, TemplateOptions } from './types.js'
 import { D, collectIcons, resolveIcon } from './_shared.js'
 
-export function listingTemplate(
-  content: ListingContent,
-  options: TemplateOptions
-): string {
+export function listingTemplate(content: ListingContent, options: TemplateOptions): string {
   const { title, description, items, filters, columns } = content
   const { pageName } = options
 
   const isClient = !!(filters && filters.length > 0)
 
-  const icons = collectIcons(items.map((i) => i.icon))
+  const icons = collectIcons(items.map(i => i.icon))
   const iconImport = `import { ${icons.join(', ')} } from 'lucide-react'`
 
-  const gridCols =
-    columns === 2
-      ? D.grid2
-      : columns === 4
-        ? 'grid gap-5 md:grid-cols-2 lg:grid-cols-4'
-        : D.grid3
+  const gridCols = columns === 2 ? D.grid2 : columns === 4 ? 'grid gap-5 md:grid-cols-2 lg:grid-cols-4' : D.grid3
 
   const itemCards = items
-    .map((item) => {
+    .map(item => {
       const icon = resolveIcon(item.icon) || icons[0]
-      const badgeHtml = item.badge
-        ? `\n              <Badge variant="secondary">${item.badge}</Badge>`
-        : ''
+      const badgeHtml = item.badge ? `\n              <Badge variant="secondary">${item.badge}</Badge>` : ''
       return `          <div className="${D.card} p-6">
             <div className="flex items-center justify-between mb-3">
               <h3 className="${D.cardTitle}">${item.title}</h3>${badgeHtml}

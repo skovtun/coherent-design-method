@@ -1,6 +1,6 @@
 /**
  * Page Generator
- * 
+ *
  * Generates Next.js App Router and React SPA pages with proper component imports.
  */
 
@@ -31,10 +31,7 @@ export class PageGenerator {
    * - Add proper spacing and typography
    * - Include accessibility attributes (aria-labels)
    */
-  async generate(
-    def: PageDefinition,
-    appType: 'multi-page' | 'spa' = 'multi-page'
-  ): Promise<string> {
+  async generate(def: PageDefinition, appType: 'multi-page' | 'spa' = 'multi-page'): Promise<string> {
     if (appType === 'multi-page') {
       return this.generateNextJSPage(def)
     } else {
@@ -74,20 +71,27 @@ ${sections}
     }
 
     // Server component: metadata allowed, no "use client"
-    const metadata = this.generateMetadata(def)
     return `import { Metadata } from 'next'
 ${imports}
 
 export const metadata: Metadata = {
   title: '${this.escapeString(def.title)}',
-  description: '${this.escapeString(def.description)}',${def.ogImage ? `
+  description: '${this.escapeString(def.description)}',${
+    def.ogImage
+      ? `
   openGraph: {
     images: ['${def.ogImage}'],
-  },` : ''}${def.noIndex ? `
+  },`
+      : ''
+  }${
+    def.noIndex
+      ? `
   robots: {
     index: false,
     follow: false,
-  },` : ''}
+  },`
+      : ''
+  }
 }
 
 export default function ${pageName}Page() {
@@ -146,22 +150,30 @@ export default function ${pageName}Page() {
     metaDescription.setAttribute('content', '${this.escapeString(def.description)}')
 
     // Update Open Graph image if provided
-    ${def.ogImage ? `let ogImage = document.querySelector('meta[property="og:image"]')
+    ${
+      def.ogImage
+        ? `let ogImage = document.querySelector('meta[property="og:image"]')
     if (!ogImage) {
       ogImage = document.createElement('meta')
       ogImage.setAttribute('property', 'og:image')
       document.head.appendChild(ogImage)
     }
-    ogImage.setAttribute('content', '${def.ogImage}')` : ''}
+    ogImage.setAttribute('content', '${def.ogImage}')`
+        : ''
+    }
 
     // No-index if specified
-    ${def.noIndex ? `let robots = document.querySelector('meta[name="robots"]')
+    ${
+      def.noIndex
+        ? `let robots = document.querySelector('meta[name="robots"]')
     if (!robots) {
       robots = document.createElement('meta')
       robots.setAttribute('name', 'robots')
       document.head.appendChild(robots)
     }
-    robots.setAttribute('content', 'noindex, nofollow')` : ''}
+    robots.setAttribute('content', 'noindex, nofollow')`
+        : ''
+    }
   }, [])
 
   return (
@@ -195,9 +207,7 @@ ${sections}
         const componentName = component.name
         // Use kebab-case for file names (shadcn convention)
         const fileName = this.toKebabCase(componentName)
-        imports.push(
-          `import { ${componentName} } from '@/components/ui/${fileName}'`
-        )
+        imports.push(`import { ${componentName} } from '@/components/ui/${fileName}'`)
       }
     })
 
@@ -210,7 +220,7 @@ ${sections}
   private hasFormFields(page: PageDefinition): boolean {
     return page.sections.some(
       section =>
-        section.props?.fields && Array.isArray(section.props.fields) && (section.props.fields as unknown[]).length > 0
+        section.props?.fields && Array.isArray(section.props.fields) && (section.props.fields as unknown[]).length > 0,
     )
   }
 
@@ -250,10 +260,7 @@ ${sections}
    */
   private generateFormState(page: PageDefinition): string {
     const keys = this.getFormStateKeys(page)
-    const initialState =
-      keys.length > 0
-        ? keys.map(k => `${k}: ''`).join(', ')
-        : "name: '', email: '', message: ''"
+    const initialState = keys.length > 0 ? keys.map(k => `${k}: ''`).join(', ') : "name: '', email: '', message: ''"
     return `const [formData, setFormData] = useState({
     ${initialState},
   })
@@ -284,8 +291,7 @@ ${sections}
   private generateSections(def: PageDefinition): string {
     const sortedSections = [...def.sections].sort((a, b) => a.order - b.order)
     const availableComponents = this.config.components
-    const sectionClassName =
-      'rounded-lg border border-border bg-card p-6 shadow-sm mb-6 last:mb-0'
+    const sectionClassName = 'rounded-lg border border-border bg-card p-6 shadow-sm mb-6 last:mb-0'
 
     return sortedSections
       .map((section, index) => {
@@ -302,10 +308,7 @@ ${sections}
    * Generate section content with smart component rendering.
    * Button: children for text. Input/Textarea: correct props. Card: children.
    */
-  private generateSection(
-    section: PageSection,
-    availableComponents: ComponentDefinition[]
-  ): string {
+  private generateSection(section: PageSection, availableComponents: ComponentDefinition[]): string {
     const props = section.props || {}
 
     // Form section with multiple fields (e.g. contact form)
@@ -343,10 +346,7 @@ ${sections}
   /**
    * Render a single field in a form (input, textarea, button) with state bindings
    */
-  private renderFieldComponent(
-    component: ComponentDefinition,
-    field: Record<string, unknown>
-  ): string {
+  private renderFieldComponent(component: ComponentDefinition, field: Record<string, unknown>): string {
     const componentName = component.name
     const stateKey = this.getFieldStateKey(component.id, field)
 
@@ -385,10 +385,7 @@ ${sections}
   /**
    * Render section with one primary component (smart Button/Input/Textarea/Card)
    */
-  private renderSectionComponent(
-    component: ComponentDefinition,
-    section: PageSection
-  ): string {
+  private renderSectionComponent(component: ComponentDefinition, section: PageSection): string {
     const name = component.name
     const props = section.props || {}
 
@@ -466,11 +463,11 @@ ${sections}
    */
   private getContainerClass(layout: PageLayout): string {
     const layoutClasses: Record<PageLayout, string> = {
-      'centered': 'max-w-4xl mx-auto px-4 py-8',
+      centered: 'max-w-4xl mx-auto px-4 py-8',
       'sidebar-left': 'flex min-h-screen',
       'sidebar-right': 'flex flex-row-reverse min-h-screen',
       'full-width': 'w-full',
-      'grid': 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6',
+      grid: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6',
     }
     return layoutClasses[layout] || 'container mx-auto px-4 py-8'
   }
@@ -478,10 +475,7 @@ ${sections}
   /**
    * Generate layout code (for root layout)
    */
-  async generateLayout(
-    layout: PageLayout,
-    appType: 'multi-page' | 'spa' = 'multi-page'
-  ): Promise<string> {
+  async generateLayout(layout: PageLayout, appType: 'multi-page' | 'spa' = 'multi-page'): Promise<string> {
     if (appType === 'multi-page') {
       return this.generateNextJSLayout(layout)
     } else {
@@ -492,7 +486,7 @@ ${sections}
   /**
    * Generate Next.js App Router root layout
    */
-  private generateNextJSLayout(layout: PageLayout): string {
+  private generateNextJSLayout(_layout: PageLayout): string {
     const cssVars = buildCssVariables(this.config)
     const navEnabled = this.config.navigation?.enabled
     const navRendered = navEnabled ? '<AppNav />' : ''
@@ -558,16 +552,27 @@ ${navEnabled ? `        ${navRendered}\n        ` : ''}<div className="flex-1 fl
       return ''
     }
 
-    const authRoutes = new Set(['/login', '/signin', '/sign-in', '/signup', '/sign-up', '/register', '/forgot-password', '/reset-password'])
+    const authRoutes = new Set([
+      '/login',
+      '/signin',
+      '/sign-in',
+      '/signup',
+      '/sign-up',
+      '/register',
+      '/forgot-password',
+      '/reset-password',
+    ])
     const authCheck = [...authRoutes].map(r => `pathname === '${r}'`).join(' || ')
 
-    const visibleItems = this.config.navigation.items.filter(item => !authRoutes.has(item.route))
+    const visibleItems = this.config.navigation.items.filter(
+      item => !authRoutes.has(item.route) && !item.route.includes('['),
+    )
     const hasMultipleItems = visibleItems.length > 1
 
     const items = visibleItems
       .map(
         item =>
-          `<Link href="${item.route}" className={\`text-sm font-medium px-3 py-2 rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring \${pathname === "${item.route}" ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}\`}>${item.label}</Link>`
+          `<Link href="${item.route}" className={\`text-sm font-medium px-3 py-2 rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring \${pathname === "${item.route}" ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}\`}>${item.label}</Link>`,
       )
       .join('\n        ')
 
@@ -575,7 +580,8 @@ ${navEnabled ? `        ${navRendered}\n        ` : ''}<div className="flex-1 fl
       ? `<div className="flex items-center gap-1">\n        ${items}\n        </div>`
       : ''
 
-    const COHERENT_LOGO_PATH = 'M10 4C10.5523 4 11 4.44772 11 5V13H19C19.5523 13 20 13.4477 20 14V20.4287C19.9999 22.401 18.401 23.9999 16.4287 24H3.57129C1.59895 23.9999 7.5245e-05 22.401 0 20.4287V7.57129C7.53742e-05 5.59895 1.59895 4.00008 3.57129 4H10ZM2 20.4287C2.00008 21.2965 2.70352 21.9999 3.57129 22H9V15H2V20.4287ZM11 22H16.4287C17.2965 21.9999 17.9999 21.2965 18 20.4287V15H11V22ZM3.57129 6C2.70352 6.00008 2.00008 6.70352 2 7.57129V13H9V6H3.57129ZM20.5 0C22.433 0 24 1.567 24 3.5V9.90039C23.9998 10.5076 23.5076 10.9998 22.9004 11H14.0996C13.4924 10.9998 13.0002 10.5076 13 9.90039V1.09961C13.0002 0.492409 13.4924 0.000211011 14.0996 0H20.5ZM15 9H22V3.5C22 2.67157 21.3284 2 20.5 2H15V9Z'
+    const COHERENT_LOGO_PATH =
+      'M10 4C10.5523 4 11 4.44772 11 5V13H19C19.5523 13 20 13.4477 20 14V20.4287C19.9999 22.401 18.401 23.9999 16.4287 24H3.57129C1.59895 23.9999 7.5245e-05 22.401 0 20.4287V7.57129C7.53742e-05 5.59895 1.59895 4.00008 3.57129 4H10ZM2 20.4287C2.00008 21.2965 2.70352 21.9999 3.57129 22H9V15H2V20.4287ZM11 22H16.4287C17.2965 21.9999 17.9999 21.2965 18 20.4287V15H11V22ZM3.57129 6C2.70352 6.00008 2.00008 6.70352 2 7.57129V13H9V6H3.57129ZM20.5 0C22.433 0 24 1.567 24 3.5V9.90039C23.9998 10.5076 23.5076 10.9998 22.9004 11H14.0996C13.4924 10.9998 13.0002 10.5076 13 9.90039V1.09961C13.0002 0.492409 13.4924 0.000211011 14.0996 0H20.5ZM15 9H22V3.5C22 2.67157 21.3284 2 20.5 2H15V9Z'
 
     return `'use client'
 import Link from 'next/link'
@@ -641,23 +647,25 @@ export function AppNav() {
   return (
     <Fragment>
       {!hasSharedHeader && (
-      <nav className="sticky top-0 z-50 flex h-14 shrink-0 items-center justify-between border-b px-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex items-center gap-6">
-          <Link href="/" className="flex items-center gap-2.5 text-sm font-semibold text-foreground hover:text-foreground/90 transition-colors shrink-0">
-            <CoherentLogo size={20} className="text-primary" />
-            <span>Coherent Design Method</span>
-          </Link>
-          ${navItemsBlock}
-        </div>
-        <div className="flex items-center gap-1">
-          <ThemeToggle />
-          <Link
-            href="/design-system"
-            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-          >
-            <CoherentLogo size={16} />
-            Design System
-          </Link>
+      <nav className="sticky top-0 z-50 shrink-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-6">
+            <Link href="/" className="flex items-center gap-2.5 text-sm font-semibold text-foreground hover:text-foreground/90 transition-colors shrink-0">
+              <CoherentLogo size={20} className="text-primary" />
+              <span>Coherent Design Method</span>
+            </Link>
+            ${navItemsBlock}
+          </div>
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <Link
+              href="/design-system"
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+            >
+              <CoherentLogo size={16} />
+              Design System
+            </Link>
+          </div>
         </div>
       </nav>
       )}
@@ -678,10 +686,8 @@ export function AppNav() {
   /**
    * Generate React SPA root layout
    */
-  private generateReactSPALayout(layout: PageLayout): string {
-    const navigation = this.config.navigation?.enabled
-      ? this.generateNavigation('react-router')
-      : ''
+  private generateReactSPALayout(_layout: PageLayout): string {
+    const navigation = this.config.navigation?.enabled ? this.generateNavigation('react-router') : ''
 
     return `import { Outlet } from 'react-router-dom'
 import './globals.css'
@@ -720,8 +726,8 @@ ${navigation ? `      ${navigation}\n` : ''}      <Outlet />
       navType === 'header'
         ? 'flex items-center gap-4 p-4 border-b'
         : navType === 'sidebar'
-        ? 'flex flex-col gap-2 p-4 border-r min-h-screen'
-        : 'flex items-center gap-4 p-4'
+          ? 'flex flex-col gap-2 p-4 border-r min-h-screen'
+          : 'flex items-center gap-4 p-4'
 
     return `<nav className="${navClassName}">
 ${items}
@@ -742,20 +748,14 @@ ${items}
    * Convert PascalCase to kebab-case
    */
   private toKebabCase(str: string): string {
-    return str
-      .replace(/([a-z])([A-Z])/g, '$1-$2')
-      .toLowerCase()
+    return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()
   }
 
   /**
    * Escape string for use in template literals
    */
   private escapeString(str: string): string {
-    return str
-      .replace(/\\/g, '\\\\')
-      .replace(/'/g, "\\'")
-      .replace(/"/g, '\\"')
-      .replace(/\n/g, '\\n')
+    return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n')
   }
 
   /**

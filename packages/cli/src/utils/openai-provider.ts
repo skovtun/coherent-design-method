@@ -1,6 +1,6 @@
 /**
  * OpenAI API Provider
- * 
+ *
  * Implementation of AIProviderInterface for OpenAI/ChatGPT.
  * Supports automatic detection from Cursor and other IDE environments.
  */
@@ -9,7 +9,7 @@
 // We'll use dynamic import in createAIProvider instead
 import type { DiscoveryResult, DesignSystemConfig } from '@getcoherent/core'
 import { validateConfig } from '@getcoherent/core'
-import type { AIProviderInterface } from './ai-provider.js'
+import type { AIProviderInterface, ParseModificationOutput } from './ai-provider.js'
 
 export class OpenAIClient implements AIProviderInterface {
   private client: any
@@ -17,13 +17,10 @@ export class OpenAIClient implements AIProviderInterface {
 
   constructor(apiKey: string, model?: string, OpenAIModule?: any) {
     if (!OpenAIModule) {
-      throw new Error(
-        'OpenAI package not installed. Install it with:\n' +
-        '  npm install openai'
-      )
+      throw new Error('OpenAI package not installed. Install it with:\n' + '  npm install openai')
     }
-    this.client = new OpenAIModule({ apiKey })
-    this.defaultModel = model || 'gpt-4-turbo-preview' // or 'gpt-4o' when available
+    this.client = new OpenAIModule({ apiKey, maxRetries: 1 })
+    this.defaultModel = model || process.env.OPENAI_MODEL || 'gpt-4o'
   }
 
   /**
@@ -31,12 +28,10 @@ export class OpenAIClient implements AIProviderInterface {
    */
   static async create(apiKey: string, model?: string): Promise<OpenAIClient> {
     // Dynamic import for ESM
+    // @ts-ignore openai is an optional peer dependency
     const OpenAI = await import('openai').catch(() => null)
     if (!OpenAI) {
-      throw new Error(
-        'OpenAI package not installed. Install it with:\n' +
-        '  npm install openai'
-      )
+      throw new Error('OpenAI package not installed. Install it with:\n' + '  npm install openai')
     }
     return new OpenAIClient(apiKey, model, OpenAI.default || OpenAI)
   }
@@ -79,8 +74,7 @@ export class OpenAIClient implements AIProviderInterface {
       // Check if it's an OpenAI API error
       if (error?.status || error?.message?.includes('OpenAI')) {
         throw new Error(
-          `OpenAI API error (${error.status}): ${error.message}\n` +
-          'Please check your API key and try again.'
+          `OpenAI API error (${error.status}): ${error.message}\n` + 'Please check your API key and try again.',
         )
       }
       if (error instanceof Error) {
@@ -93,7 +87,7 @@ export class OpenAIClient implements AIProviderInterface {
   /**
    * Parse modification request from natural language
    */
-  async parseModification(prompt: string): Promise<any[]> {
+  async parseModification(prompt: string): Promise<ParseModificationOutput> {
     try {
       const response = await this.client.chat.completions.create({
         model: this.defaultModel,
@@ -134,16 +128,18 @@ CRITICAL: All string values in JSON must be on one line. Escape double quotes in
       if (!Array.isArray(requests)) {
         throw new Error('Expected array of ModificationRequest objects')
       }
-      const uxRecommendations =
-        Array.isArray(parsed) ? undefined : (typeof parsed.uxRecommendations === 'string' && parsed.uxRecommendations.trim() ? parsed.uxRecommendations.trim() : undefined)
+      const uxRecommendations = Array.isArray(parsed)
+        ? undefined
+        : typeof parsed.uxRecommendations === 'string' && parsed.uxRecommendations.trim()
+          ? parsed.uxRecommendations.trim()
+          : undefined
       return { requests, uxRecommendations }
     } catch (error: any) {
       if (error?.code === 'RESPONSE_TRUNCATED') throw error
       // Check if it's an OpenAI API error
       if (error?.status || error?.message?.includes('OpenAI')) {
         throw new Error(
-          `OpenAI API error (${error.status}): ${error.message}\n` +
-          'Please check your API key and try again.'
+          `OpenAI API error (${error.status}): ${error.message}\n` + 'Please check your API key and try again.',
         )
       }
       if (error instanceof Error) {
@@ -173,10 +169,11 @@ CRITICAL: All string values in JSON must be on one line. Escape double quotes in
    * Build prompt for config generation
    */
   private buildConfigPrompt(discovery: DiscoveryResult): string {
-    const featuresList = Object.entries(discovery.features)
-      .filter(([_, enabled]) => enabled)
-      .map(([name]) => name)
-      .join(', ') || 'none'
+    const featuresList =
+      Object.entries(discovery.features)
+        .filter(([_, enabled]) => enabled)
+        .map(([name]) => name)
+        .join(', ') || 'none'
 
     return `Generate a complete DesignSystemConfig JSON for the following project:
 
@@ -225,7 +222,7 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
    */
   private extractJSON(text: string): string {
     let jsonText = text.trim()
-    
+
     // Remove markdown code blocks if present
     if (jsonText.startsWith('```')) {
       const lines = jsonText.split('\n')
@@ -242,18 +239,13 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
   /**
    * Edit shared component code by instruction (Epic 2).
    */
-  async editSharedComponentCode(
-    currentCode: string,
-    instruction: string,
-    componentName: string
-  ): Promise<string> {
+  async editSharedComponentCode(currentCode: string, instruction: string, componentName: string): Promise<string> {
     const response = await this.client.chat.completions.create({
       model: this.defaultModel,
       messages: [
         {
           role: 'system',
-          content:
-            'Return only the raw TSX code, no markdown fences, no explanation.',
+          content: 'Return only the raw TSX code, no markdown fences, no explanation.',
         },
         {
           role: 'user',
@@ -276,7 +268,10 @@ Rules: Preserve "use client" if present. Use Tailwind and shadcn/ui patterns. Re
     })
     const content = response.choices[0]?.message?.content
     if (!content) throw new Error('Empty response from OpenAI')
-    return content.trim().replace(/^```(?:tsx?|jsx?)\s*/i, '').replace(/\s*```$/i, '')
+    return content
+      .trim()
+      .replace(/^```(?:tsx?|jsx?)\s*/i, '')
+      .replace(/\s*```$/i, '')
   }
 
   /**
@@ -286,7 +281,7 @@ Rules: Preserve "use client" if present. Use Tailwind and shadcn/ui patterns. Re
     currentCode: string,
     instruction: string,
     pageName: string,
-    designConstraints?: string
+    designConstraints?: string,
   ): Promise<string> {
     const constraintBlock = designConstraints
       ? `\nDesign constraints (follow unless user explicitly overrides):\n${designConstraints}\n`
@@ -325,7 +320,10 @@ CRITICAL RULES:
     })
     const content = response.choices[0]?.message?.content
     if (!content) throw new Error('Empty response from OpenAI')
-    return content.trim().replace(/^```(?:tsx?|jsx?)\s*/i, '').replace(/\s*```$/i, '')
+    return content
+      .trim()
+      .replace(/^```(?:tsx?|jsx?)\s*/i, '')
+      .replace(/\s*```$/i, '')
   }
 
   /**
@@ -335,9 +333,9 @@ CRITICAL RULES:
     pageCode: string,
     sharedComponentCode: string,
     sharedComponentName: string,
-    blockHint?: string
+    blockHint?: string,
   ): Promise<string> {
-    const kebab = sharedComponentName.replace(/([A-Z])/g, (m) => '-' + m.toLowerCase()).replace(/^-/, '')
+    const kebab = sharedComponentName.replace(/([A-Z])/g, m => '-' + m.toLowerCase()).replace(/^-/, '')
     const hint = blockHint ? ` Identify the block that corresponds to: "${blockHint}".` : ''
     const response = await this.client.chat.completions.create({
       model: this.defaultModel,
@@ -372,14 +370,13 @@ Tasks:
     })
     const content = response.choices[0]?.message?.content
     if (!content) throw new Error('Empty response from OpenAI')
-    return content.trim().replace(/^```(?:tsx?|jsx?)\s*/i, '').replace(/\s*```$/i, '')
+    return content
+      .trim()
+      .replace(/^```(?:tsx?|jsx?)\s*/i, '')
+      .replace(/\s*```$/i, '')
   }
 
-  async extractBlockAsComponent(
-    pageCode: string,
-    blockHint: string,
-    componentName: string
-  ): Promise<string> {
+  async extractBlockAsComponent(pageCode: string, blockHint: string, componentName: string): Promise<string> {
     const response = await this.client.chat.completions.create({
       model: this.defaultModel,
       messages: [
@@ -404,6 +401,9 @@ Block to extract: "${blockHint}". Create component named ${componentName}. Expor
     })
     const content = response.choices[0]?.message?.content
     if (!content) throw new Error('Empty response from OpenAI')
-    return content.trim().replace(/^```(?:tsx?|jsx?)\s*/i, '').replace(/\s*```$/i, '')
+    return content
+      .trim()
+      .replace(/^```(?:tsx?|jsx?)\s*/i, '')
+      .replace(/\s*```$/i, '')
   }
 }

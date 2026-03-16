@@ -68,7 +68,7 @@ describe('FigmaParser', () => {
     expect(data.fileName).toBe('Test File')
     expect(data.fileKey).toBe('fileKey123')
     expect(data.pages.length).toBeGreaterThanOrEqual(1)
-    expect(data.pages.some((p) => p.route === '' || p.name === 'Home')).toBe(true)
+    expect(data.pages.some(p => p.route === '' || p.name === 'Home')).toBe(true)
     expect(data.components.length).toBe(2)
     expect(data.colorStyles.length).toBe(2)
     expect(data.textStyles.length).toBe(1)
@@ -112,8 +112,8 @@ describe('FigmaComponentNormalizer', () => {
   it('normalizeFigmaComponents splits base vs shared', () => {
     const data = parseFigmaFileResponse(MOCK_FIGMA_RAW, 'key')
     const result = normalizeFigmaComponents(data)
-    const baseEntries = result.entries.filter((e) => e.kind === 'base')
-    const sharedEntries = result.entries.filter((e) => e.kind === 'shared')
+    const baseEntries = result.entries.filter(e => e.kind === 'base')
+    const sharedEntries = result.entries.filter(e => e.kind === 'shared')
     expect(baseEntries.length + sharedEntries.length).toBe(data.components.length)
     expect(result.figmaToCoherent.size).toBe(data.components.length)
   })
@@ -145,7 +145,10 @@ describe('FigmaPageGenerator', () => {
   it('generatePageFromFrame produces valid page TSX with metadata', () => {
     const data = parseFigmaFileResponse(MOCK_FIGMA_RAW, 'key')
     const page = data.pages[0]
-    const componentMap: Record<string, { kind: 'base'; baseId: string } | { kind: 'shared'; cid: string; name: string; file: string }> = {}
+    const componentMap: Record<
+      string,
+      { kind: 'base'; baseId: string } | { kind: 'shared'; cid: string; name: string; file: string }
+    > = {}
     if (data.components.length > 0) {
       componentMap[data.components[0].id] = { kind: 'base', baseId: 'button' }
     }
@@ -160,6 +163,6 @@ describe('FigmaPageGenerator', () => {
     const data = parseFigmaFileResponse(MOCK_FIGMA_RAW, 'key')
     const generated = generatePagesFromFigma(data.pages, {})
     expect(generated.length).toBe(data.pages.length)
-    expect(generated.every((p) => p.filePath.endsWith('page.tsx'))).toBe(true)
+    expect(generated.every(p => p.filePath.endsWith('page.tsx'))).toBe(true)
   })
 })

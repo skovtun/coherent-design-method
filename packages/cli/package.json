@@ -40,19 +40,20 @@
     "test": "vitest"
   },
   "dependencies": {
-    "@getcoherent/core": "workspace:*",
     "@anthropic-ai/sdk": "^0.32.0",
+    "@getcoherent/core": "workspace:*",
     "chalk": "^5.3.0",
+    "chokidar": "^4.0.1",
     "commander": "^11.1.0",
     "dotenv": "^16.4.5",
     "open": "^10.1.0",
     "ora": "^7.0.1",
     "prompts": "^2.4.2",
-    "zod": "^3.22.4",
-    "chokidar": "^4.0.1"
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
+    "@types/prompts": "^2.4.9",
     "tsup": "^8.0.1",
     "typescript": "^5.3.3"
   }

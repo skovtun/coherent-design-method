@@ -9,7 +9,9 @@
     "dev": "pnpm --filter '@getcoherent/*' dev",
     "typecheck": "pnpm --filter '@getcoherent/*' typecheck",
     "test": "pnpm --filter '@getcoherent/*' test",
-    "lint": "pnpm --filter '@getcoherent/*' lint",
+    "lint": "eslint packages/*/src/",
+    "format": "prettier --write 'packages/*/src/**/*.{ts,tsx}'",
+    "format:check": "prettier --check 'packages/*/src/**/*.{ts,tsx}'",
     "test:quality": "bash packages/cli/tests/quality-smoke.sh"
   },
   "keywords": [

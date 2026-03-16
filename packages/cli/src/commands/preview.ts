@@ -11,7 +11,7 @@ import { spawn, ChildProcess } from 'child_process'
 import { existsSync, rmSync, readFileSync, writeFileSync } from 'fs'
 import { resolve, join } from 'path'
 import { readdir } from 'fs/promises'
-import { findConfig, exitNotCoherent } from '../utils/find-config.js'
+import { findConfig, exitNotCoherent, warnIfVolatile } from '../utils/find-config.js'
 import { needsGlobalsFix, fixGlobalsCss } from '../utils/fix-globals-css.js'
 import { DesignSystemManager, ComponentGenerator } from '@getcoherent/core'
 import {
@@ -42,13 +42,13 @@ function runInstall(projectRoot: string): Promise<boolean> {
   // Use --legacy-peer-deps for npm to handle peer dependency conflicts
   const args = pm === 'pnpm' ? ['install'] : ['install', '--legacy-peer-deps']
 
-  return new Promise((resolvePromise) => {
+  return new Promise(resolvePromise => {
     const child = spawn(command, args, {
       cwd: projectRoot,
       stdio: 'inherit',
       shell: true,
     })
-    child.on('close', (code) => {
+    child.on('close', code => {
       resolvePromise(code === 0)
     })
     child.on('error', () => {
@@ -63,15 +63,15 @@ function runInstall(projectRoot: string): Promise<boolean> {
 function checkProjectInitialized(projectRoot: string): boolean {
   const configPath = resolve(projectRoot, 'design-system.config.ts')
   const packageJsonPath = resolve(projectRoot, 'package.json')
-  
+
   if (!existsSync(configPath)) {
     return false
   }
-  
+
   if (!existsSync(packageJsonPath)) {
     return false
   }
-  
+
   return true
 }
 
@@ -146,7 +146,10 @@ async function fixMissingComponentExports(projectRoot: string): Promise<void> {
     const importRe = /import\s*\{([^}]+)\}\s*from\s*['"]@\/components\/ui\/([^'"]+)['"]/g
     let m
     while ((m = importRe.exec(content)) !== null) {
-      const names = m[1].split(',').map(s => s.trim()).filter(Boolean)
+      const names = m[1]
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
       const componentId = m[2]
       if (!neededExports.has(componentId)) neededExports.set(componentId, new Set())
       for (const name of names) neededExports.get(componentId)!.add(name)
@@ -158,7 +161,9 @@ async function fixMissingComponentExports(projectRoot: string): Promise<void> {
   try {
     const mgr = new DesignSystemManager(configPath)
     config = mgr.getConfig()
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   const generator = new ComponentGenerator(config || { components: [], pages: [], tokens: {} })
 
   for (const [componentId, needed] of neededExports) {
@@ -173,7 +178,9 @@ async function fixMissingComponentExports(projectRoot: string): Promise<void> {
         const newContent = await generator.generate(def)
         writeFileSync(componentFile, newContent, 'utf-8')
         console.log(chalk.dim(`   ✔ Created missing ${componentId}.tsx`))
-      } catch { /* best-effort */ }
+      } catch {
+        /* best-effort */
+      }
       continue
     }
 
@@ -183,7 +190,18 @@ async function fixMissingComponentExports(projectRoot: string): Promise<void> {
     let em
     while ((em = exportRe.exec(content)) !== null) {
       if (em[1]) existingExports.add(em[1])
-      if (em[2]) em[2].split(',').map(s => s.trim().split(/\s+as\s+/).pop()!).filter(Boolean).forEach(n => existingExports.add(n))
+      if (em[2])
+        em[2]
+          .split(',')
+          .map(
+            s =>
+              s
+                .trim()
+                .split(/\s+as\s+/)
+                .pop()!,
+          )
+          .filter(Boolean)
+          .forEach(n => existingExports.add(n))
     }
 
     const missing = [...needed].filter(n => !existingExports.has(n))
@@ -211,7 +229,8 @@ async function backfillPageAnalysis(projectRoot: string): Promise<void> {
     for (const page of config.pages) {
       if ((page as any).pageAnalysis) continue
       const route = page.route || '/'
-      const isAuth = route.includes('login') || route.includes('register') || route.includes('signup') || route.includes('sign-up')
+      const isAuth =
+        route.includes('login') || route.includes('register') || route.includes('signup') || route.includes('sign-up')
       let filePath: string
       if (route === '/') {
         filePath = join(projectRoot, 'app', 'page.tsx')
@@ -230,7 +249,9 @@ async function backfillPageAnalysis(projectRoot: string): Promise<void> {
       mgr.updateConfig(config)
       await mgr.save()
     }
-  } catch { /* best-effort */ }
+  } catch {
+    /* best-effort */
+  }
 }
 
 /** Extract package name from "Module not found: Can't resolve 'pkg'" message. */
@@ -258,7 +279,9 @@ async function autoInstallShadcnComponent(componentId: string, projectRoot: stri
     try {
       const mgr = new DesignSystemManager(configPath)
       config = mgr.getConfig()
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     const generator = new ComponentGenerator(config || { components: [], pages: [], tokens: {} })
     const code = await generator.generate(def)
     const uiDir = join(projectRoot, 'components', 'ui')
@@ -304,7 +327,10 @@ function launchWithMonitoring(projectRoot: string, restarts: number): Promise<vo
     server.stdout?.on('data', (data: Buffer) => {
       const output = data.toString()
       process.stdout.write(output)
-      if (!serverReady && (output.includes('Local:') || output.includes('Ready in') || output.includes('localhost:3000'))) {
+      if (
+        !serverReady &&
+        (output.includes('Local:') || output.includes('Ready in') || output.includes('localhost:3000'))
+      ) {
         serverReady = true
         const urlMatch = output.match(/https?:\/\/[^\s]+/)
         const url = urlMatch ? urlMatch[0] : 'http://localhost:3000'
@@ -327,12 +353,14 @@ function launchWithMonitoring(projectRoot: string, restarts: number): Promise<vo
         if (shadcnId) {
           console.log(chalk.yellow(`\n⚠ Missing component detected: ${shadcnId}`))
           console.log(chalk.cyan('  Auto-installing...'))
-          autoInstallShadcnComponent(shadcnId, projectRoot).then((ok) => {
+          autoInstallShadcnComponent(shadcnId, projectRoot).then(ok => {
             if (ok) {
               console.log(chalk.green(`  ✔ Generated ${shadcnId}.tsx. Restarting...`))
               intentionalRestart = true
               server.kill('SIGTERM')
-              launchWithMonitoring(projectRoot, restarts + 1).then(resolvePromise).catch(rejectPromise)
+              launchWithMonitoring(projectRoot, restarts + 1)
+                .then(resolvePromise)
+                .catch(rejectPromise)
             }
           })
         } else {
@@ -340,12 +368,14 @@ function launchWithMonitoring(projectRoot: string, restarts: number): Promise<vo
           if (pkg) {
             console.log(chalk.yellow(`\n⚠ Missing package detected: ${pkg}`))
             console.log(chalk.cyan('  Auto-installing...'))
-            installPackages(projectRoot, [pkg]).then((ok) => {
+            installPackages(projectRoot, [pkg]).then(ok => {
               if (ok) {
                 console.log(chalk.green(`  ✔ Installed ${pkg}. Restarting...`))
                 intentionalRestart = true
                 server.kill('SIGTERM')
-                launchWithMonitoring(projectRoot, restarts + 1).then(resolvePromise).catch(rejectPromise)
+                launchWithMonitoring(projectRoot, restarts + 1)
+                  .then(resolvePromise)
+                  .catch(rejectPromise)
               }
             })
           }
@@ -358,7 +388,7 @@ function launchWithMonitoring(projectRoot: string, restarts: number): Promise<vo
       }
     })
 
-    server.on('exit', (code) => {
+    server.on('exit', code => {
       if (intentionalRestart) return
       if (code !== 0 && code !== null) {
         console.log(chalk.red(`\n❌ Dev server exited with code ${code}`))
@@ -369,7 +399,7 @@ function launchWithMonitoring(projectRoot: string, restarts: number): Promise<vo
       process.exit(code ?? 0)
     })
 
-    server.on('error', (err) => {
+    server.on('error', err => {
       if (!intentionalRestart) rejectPromise(err)
     })
 
@@ -410,15 +440,11 @@ function startDevServer(projectRoot: string): ChildProcess {
   // Use npm or pnpm based on what's available
   const hasPnpm = existsSync(resolve(projectRoot, 'pnpm-lock.yaml'))
   const hasNpm = existsSync(resolve(projectRoot, 'package-lock.json'))
-  
+
   // Use Turbopack to avoid webpack CSS parsing bug (SyntaxError 51:12 in globals.css)
   // pnpm uses 'pnpm dev --turbo', npm uses 'npm run dev -- --turbo'
   const command = hasPnpm ? 'pnpm' : hasNpm ? 'npm' : 'npx'
-  const args = hasPnpm
-    ? ['dev', '--turbo']
-    : hasNpm
-      ? ['run', 'dev', '--', '--turbo']
-      : ['next', 'dev', '--turbo']
+  const args = hasPnpm ? ['dev', '--turbo'] : hasNpm ? ['run', 'dev', '--', '--turbo'] : ['next', 'dev', '--turbo']
 
   const child = spawn(command, args, {
     cwd: projectRoot,
@@ -434,14 +460,15 @@ function startDevServer(projectRoot: string): ChildProcess {
  */
 export async function previewCommand() {
   const spinner = ora('Checking project setup...').start()
-  
+
   // Find project (searches up directory tree)
   const project = findConfig()
   if (!project) {
     spinner.fail('Not a Coherent project')
     exitNotCoherent()
   }
-  
+
+  warnIfVolatile(project.root)
   const projectRoot = project.root
 
   try {
@@ -499,14 +526,13 @@ export async function previewCommand() {
     // Step 3: Start dev server with error monitoring and health check
     console.log(chalk.blue('\n🚀 Starting Next.js dev server...\n'))
     await launchWithMonitoring(projectRoot, 0)
-
   } catch (error) {
     spinner.fail('Failed to start dev server')
     if (error instanceof Error) {
       console.error(chalk.red(`\n❌ ${error.message}`))
-      
+
       if (error.message.includes('package.json')) {
-        console.log(chalk.yellow('\n💡 Tip: Make sure you\'re in a Coherent project directory.'))
+        console.log(chalk.yellow("\n💡 Tip: Make sure you're in a Coherent project directory."))
         console.log(chalk.dim('   Run "coherent init" to create a new project.'))
       }
     } else {

@@ -5,7 +5,7 @@
 
 import chalk from 'chalk'
 import ora from 'ora'
-import { writeFile, mkdir, readFile } from 'fs/promises'
+import { writeFile, mkdir } from 'fs/promises'
 import { resolve, join, dirname } from 'path'
 import { existsSync } from 'fs'
 import {
@@ -59,13 +59,18 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 /** Convert Figma page route to kebab id. */
 function routeToId(route: string): string {
   const r = (route || '').trim()
-  return r === '' ? 'home' : r.replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'page'
+  return r === ''
+    ? 'home'
+    : r
+        .replace(/[^a-z0-9-]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '') || 'page'
 }
 
 /** Build PageDefinition[] from Figma pages. */
 function figmaPagesToPageDefinitions(pages: FigmaPageData[]): PageDefinition[] {
   const now = new Date().toISOString()
-  return pages.map((p, i) => ({
+  return pages.map((p, _i) => ({
     id: routeToId(p.route),
     name: p.name?.trim() || p.route || 'Page',
     route: p.route === '' ? '/' : `/${p.route}`,
@@ -74,6 +79,7 @@ function figmaPagesToPageDefinitions(pages: FigmaPageData[]): PageDefinition[] {
     title: p.name?.trim() || (p.route === '' ? 'Home' : p.route),
     description: 'Generated from Figma',
     requiresAuth: false,
+    noIndex: false,
     createdAt: now,
     updatedAt: now,
   }))
@@ -83,7 +89,7 @@ function figmaPagesToPageDefinitions(pages: FigmaPageData[]): PageDefinition[] {
 function buildFigmaImportConfig(
   mergedConfig: DesignSystemConfig,
   pages: PageDefinition[],
-  fileName: string
+  fileName: string,
 ): DesignSystemConfig {
   const now = new Date().toISOString()
   const navItems = pages.map((p, i) => ({
@@ -110,7 +116,11 @@ function buildFigmaImportConfig(
   })
 }
 
-export function createImportCommand(): { command: string; description: string; subcommands: Array<{ name: string; description: string; action: (args: unknown, opts: unknown) => Promise<void> }> } {
+export function createImportCommand(): {
+  command: string
+  description: string
+  subcommands: Array<{ name: string; description: string; action: (args: unknown, opts: unknown) => Promise<void> }>
+} {
   return {
     command: 'import',
     description: 'Import design from Figma (or other sources)',
@@ -118,7 +128,7 @@ export function createImportCommand(): { command: string; description: string; s
       {
         name: 'figma',
         description: 'Import a Figma file (fetch structure, then extract tokens/components/pages)',
-        action: importFigmaAction,
+        action: importFigmaAction as (args: unknown, opts: unknown) => Promise<void>,
       },
     ],
   }
@@ -126,7 +136,7 @@ export function createImportCommand(): { command: string; description: string; s
 
 async function importFigmaAction(
   urlOrKey: string,
-  opts: { token?: string; pages?: boolean; dryRun?: boolean }
+  opts: { token?: string; pages?: boolean; dryRun?: boolean },
 ): Promise<void> {
   if (typeof urlOrKey !== 'string' || !urlOrKey.trim()) {
     console.error(chalk.red('\n❌ Figma URL or file key is required.\n'))
@@ -158,7 +168,11 @@ async function importFigmaAction(
   const projectRoot = project?.root ?? process.cwd()
 
   const spinner = ora()
-  const client = new FigmaClient(token, { onProgress: (msg) => { spinner.text = msg } })
+  const client = new FigmaClient(token, {
+    onProgress: msg => {
+      spinner.text = msg
+    },
+  })
 
   const stats = {
     filesWritten: [] as string[],
@@ -244,12 +258,23 @@ async function importFigmaAction(
       }
     }
 
-    const componentMapObj: Record<string, { kind: 'base'; baseId: string } | { kind: 'shared'; cid: string; name: string; file: string }> = {}
+    const componentMapObj: Record<
+      string,
+      { kind: 'base'; baseId: string } | { kind: 'shared'; cid: string; name: string; file: string }
+    > = {}
     normResult.figmaToCoherent.forEach((v, k) => {
-      componentMapObj[k] = v.kind === 'base' ? { kind: 'base', baseId: v.baseId } : { kind: 'shared', cid: v.cid, name: v.name, file: v.file }
+      componentMapObj[k] =
+        v.kind === 'base'
+          ? { kind: 'base', baseId: v.baseId }
+          : { kind: 'shared', cid: v.cid, name: v.name, file: v.file }
     })
     if (dryRun) stats.filesWritten.push(FIGMA_COMPONENT_MAP_FILENAME)
-    else await writeFile(resolve(projectRoot, FIGMA_COMPONENT_MAP_FILENAME), JSON.stringify(componentMapObj, null, 2), 'utf-8')
+    else
+      await writeFile(
+        resolve(projectRoot, FIGMA_COMPONENT_MAP_FILENAME),
+        JSON.stringify(componentMapObj, null, 2),
+        'utf-8',
+      )
     spinner.succeed('Components normalized, shared components registered')
 
     let generatedPages: { route: string; filePath: string; content: string }[] = []
@@ -261,7 +286,7 @@ async function importFigmaAction(
           await write(page.filePath, page.content)
         }
       } else {
-        generatedPages.forEach((p) => stats.filesWritten.push(p.filePath))
+        generatedPages.forEach(p => stats.filesWritten.push(p.filePath))
       }
       stats.pagesGenerated = generatedPages.length
       spinner.succeed(`Generated ${generatedPages.length} page(s)`)
@@ -288,12 +313,16 @@ async function importFigmaAction(
         })
         await dsm.save()
       } else {
-        await writeFile(configPath, `/**
+        await writeFile(
+          configPath,
+          `/**
  * Design System Configuration
  * Generated by Coherent Figma import. Edit as needed.
  */
 export const config = ${JSON.stringify(fullConfig, null, 2)} as const
-`, 'utf-8')
+`,
+          'utf-8',
+        )
         stats.filesWritten.push(DESIGN_SYSTEM_CONFIG_PATH)
       }
       stats.configUpdated = true
@@ -349,7 +378,7 @@ function printReport(
     layoutIntegrated: boolean
     dsFilesWritten: number
   },
-  opts: { dryRun: boolean; generatePages: boolean; fileName: string }
+  opts: { dryRun: boolean; generatePages: boolean; fileName: string },
 ): void {
   const { dryRun, generatePages, fileName } = opts
   console.log('')
@@ -364,16 +393,20 @@ function printReport(
   console.log(chalk.blue(`   File: ${fileName}`))
   console.log(chalk.blue(`   Color styles: ${stats.colorStyles}`))
   console.log(chalk.blue(`   Text styles: ${stats.textStyles}`))
-  console.log(chalk.blue(`   Components: ${stats.componentsTotal} (${stats.baseCount} → base, ${stats.sharedCount} → shared)`))
+  console.log(
+    chalk.blue(`   Components: ${stats.componentsTotal} (${stats.baseCount} → base, ${stats.sharedCount} → shared)`),
+  )
   console.log(chalk.blue(`   Pages: ${stats.pagesGenerated}${!generatePages ? ' (skipped by --no-pages)' : ''}`))
   console.log(chalk.blue(`   design-system.config: ${stats.configUpdated ? 'updated' : '—'}`))
   console.log(chalk.blue(`   Layout (Header/Footer): ${stats.layoutIntegrated ? 'integrated' : '—'}`))
   console.log(chalk.blue(`   DS viewer files: ${stats.dsFilesWritten}`))
-  console.log(chalk.blue(`   Total files ${dryRun ? 'that would be written' : 'written'}: ${stats.filesWritten.length}`))
+  console.log(
+    chalk.blue(`   Total files ${dryRun ? 'that would be written' : 'written'}: ${stats.filesWritten.length}`),
+  )
   console.log('')
   if (stats.filesWritten.length > 0 && stats.filesWritten.length <= 30) {
     console.log(chalk.dim('  Files:'))
-    stats.filesWritten.forEach((f) => console.log(chalk.dim(`    ${f}`)))
+    stats.filesWritten.forEach(f => console.log(chalk.dim(`    ${f}`)))
     console.log('')
   }
 }

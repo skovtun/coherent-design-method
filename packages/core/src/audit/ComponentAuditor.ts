@@ -8,7 +8,7 @@
 import { readFile, readdir } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
-import type { SharedComponentsManifest, SharedComponentEntry } from '../types/shared-components-manifest.js'
+import type { SharedComponentsManifest } from '../types/shared-components-manifest.js'
 import { loadManifest } from '../managers/SharedComponentsRegistry.js'
 
 const SIGNATURE_TOKEN_MIN_LEN = 3
@@ -50,8 +50,8 @@ function extractSignature(code: string, maxChars: number = SIGNATURE_SNIPPET_LEN
   // className values: split by spaces and take significant parts
   const classMatches = snippet.matchAll(/className=["'`]([^"'`]+)["'`]/g)
   for (const m of classMatches) {
-    const parts = m[1].split(/\s+/).filter((p) => p.length >= SIGNATURE_TOKEN_MIN_LEN)
-    parts.forEach((p) => tokens.add(p))
+    const parts = m[1].split(/\s+/).filter(p => p.length >= SIGNATURE_TOKEN_MIN_LEN)
+    parts.forEach(p => tokens.add(p))
   }
   return tokens
 }
@@ -92,7 +92,7 @@ function fileImportsShared(fileContent: string, sharedFile: string): boolean {
  */
 function auditSharedUsage(
   manifest: SharedComponentsManifest,
-  fileContents: Map<string, string>
+  fileContents: Map<string, string>,
 ): Map<string, { actualImports: string[]; usedInMismatch: boolean }> {
   const results = new Map<string, { actualImports: string[]; usedInMismatch: boolean }>()
   for (const e of manifest.shared) {
@@ -102,8 +102,7 @@ function auditSharedUsage(
     }
     const usedInSet = new Set(e.usedIn)
     const actualSet = new Set(actualImports)
-    const usedInMismatch =
-      usedInSet.size !== actualSet.size || [...usedInSet].some((p) => !actualSet.has(p))
+    const usedInMismatch = usedInSet.size !== actualSet.size || [...usedInSet].some(p => !actualSet.has(p))
     results.set(e.id, { actualImports, usedInMismatch })
   }
   return results
@@ -127,10 +126,10 @@ function findInlineDuplicates(
   manifest: SharedComponentsManifest,
   projectRoot: string,
   sharedSignatures: Map<string, Set<string>>,
-  fileContents: Map<string, string>
+  fileContents: Map<string, string>,
 ): Map<string, Array<{ file: string; matchPercent: number }>> {
   const duplicates = new Map<string, Array<{ file: string; matchPercent: number }>>()
-  const sectionOrWidget = manifest.shared.filter((e) => e.type === 'section' || e.type === 'widget')
+  const sectionOrWidget = manifest.shared.filter(e => e.type === 'section' || e.type === 'widget')
   for (const e of sectionOrWidget) {
     const sig = sharedSignatures.get(e.id)
     if (!sig || sig.size < 5) continue
@@ -217,17 +216,15 @@ export async function runAudit(projectRoot: string): Promise<AuditResult> {
         return m ? `/${m[1]}` : path
       }
       message = `used on ${usage.actualImports.length} page(s), but:`
-      dupes.forEach((d) => {
+      dupes.forEach(d => {
         suggestions.push(
-          `→ ${d.file} has similar inline code (${d.matchPercent}% match). Consider: coherent chat "link ... on ${route(d.file)} to ${e.id}"`
+          `→ ${d.file} has similar inline code (${d.matchPercent}% match). Consider: coherent chat "link ... on ${route(d.file)} to ${e.id}"`,
         )
       })
     } else {
       consistent++
-      const viaLayout = e.type === 'layout' && usage.actualImports.some((p) => p === 'app/layout.tsx')
-      message = viaLayout
-        ? 'used on all pages via layout.tsx'
-        : `used on ${usage.actualImports.length} page(s)`
+      const viaLayout = e.type === 'layout' && usage.actualImports.some(p => p === 'app/layout.tsx')
+      message = viaLayout ? 'used on all pages via layout.tsx' : `used on ${usage.actualImports.length} page(s)`
     }
 
     shared.push({

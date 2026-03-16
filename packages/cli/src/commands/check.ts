@@ -17,7 +17,7 @@ import { resolve } from 'path'
 import { readdirSync, readFileSync, statSync, existsSync } from 'fs'
 import { validatePageQuality, formatIssues } from '../utils/quality-validator.js'
 import { findConfig, exitNotCoherent } from '../utils/find-config.js'
-import { loadManifest, runAudit } from '@getcoherent/core'
+import { loadManifest } from '@getcoherent/core'
 import {
   findPagesImporting,
   isUsedInLayout,
@@ -81,7 +81,9 @@ function findTsxFiles(dir: string): string[] {
         results.push(full)
       }
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return results
 }
 
@@ -108,8 +110,13 @@ export async function checkCommand(opts: CheckOptions = {}) {
     const { DesignSystemManager } = await import('@getcoherent/core')
     const dsm = new DesignSystemManager(project.configPath)
     await dsm.load()
-    validRoutes = dsm.getConfig().pages.map((p: any) => p.route).filter(Boolean)
-  } catch { /* no config */ }
+    validRoutes = dsm
+      .getConfig()
+      .pages.map((p: any) => p.route)
+      .filter(Boolean)
+  } catch {
+    /* no config */
+  }
 
   // ─── Section 1: Page Quality ────────────────────────────────────────
   if (!skipPages) {
@@ -120,8 +127,12 @@ export async function checkCommand(opts: CheckOptions = {}) {
     if (!opts.json) console.log(chalk.cyan('\n  📄 Pages') + chalk.dim(` (${files.length} scanned)\n`))
 
     const autoFixableTypes = new Set([
-      'RAW_COLOR', 'NATIVE_BUTTON', 'NATIVE_CHECKBOX', 'NATIVE_INPUT',
-      'NATIVE_SELECT', 'NATIVE_TABLE',
+      'RAW_COLOR',
+      'NATIVE_BUTTON',
+      'NATIVE_CHECKBOX',
+      'NATIVE_INPUT',
+      'NATIVE_SELECT',
+      'NATIVE_TABLE',
     ])
 
     for (const file of files) {
@@ -129,8 +140,11 @@ export async function checkCommand(opts: CheckOptions = {}) {
       const relativePath = file.replace(projectRoot + '/', '')
       const baseName = file.split('/').pop() || ''
       const isAuthPage = relativePath.includes('(auth)')
-      const isNonPageFile = baseName === 'layout.tsx' || baseName === 'AppNav.tsx'
-        || baseName === 'not-found.tsx' || baseName === 'ShowWhenNotAuthRoute.tsx'
+      const isNonPageFile =
+        baseName === 'layout.tsx' ||
+        baseName === 'AppNav.tsx' ||
+        baseName === 'not-found.tsx' ||
+        baseName === 'ShowWhenNotAuthRoute.tsx'
       const isHomePage = relativePath === 'app/page.tsx'
       const suppressH1 = isNonPageFile || isAuthPage
 
@@ -185,7 +199,13 @@ export async function checkCommand(opts: CheckOptions = {}) {
         while ((match = linkHrefRe.exec(lines[i])) !== null) {
           result.links.total++
           const target = match[1]
-          if (target === '/' || target.startsWith('/design-system') || target.startsWith('/api') || target.startsWith('/#')) continue
+          if (
+            target === '/' ||
+            target.startsWith('/design-system') ||
+            target.startsWith('/api') ||
+            target.startsWith('/#')
+          )
+            continue
           if (!routeSet.has(target)) {
             result.links.broken.push({ file: relativePath, line: i + 1, href: target })
           }
@@ -214,7 +234,9 @@ export async function checkCommand(opts: CheckOptions = {}) {
           }
         }
       }
-    } catch { /* no manifest */ }
+    } catch {
+      /* no manifest */
+    }
   }
 
   // ─── Section 2: Shared Components ───────────────────────────────────
@@ -227,17 +249,17 @@ export async function checkCommand(opts: CheckOptions = {}) {
       }
 
       let consistent = 0
-      let orphaned = 0
+      let _orphaned = 0
       let unused = 0
-      let staleUsedIn = 0
-      let nameMismatch = 0
+      let _staleUsedIn = 0
+      let _nameMismatch = 0
 
       for (const entry of manifest.shared) {
         const filePath = resolve(projectRoot, entry.file)
         const fileExists = existsSync(filePath)
 
         if (!fileExists) {
-          orphaned++
+          _orphaned++
           if (!opts.json) {
             console.log(chalk.red(`  ❌ ${entry.id} (${entry.name}) — file missing: ${entry.file}`))
             console.log(chalk.dim(`     Fix: coherent fix  or  coherent sync`))
@@ -250,13 +272,19 @@ export async function checkCommand(opts: CheckOptions = {}) {
           const code = readFileSync(filePath, 'utf-8')
           const actualExports = extractExportedComponentNames(code)
           if (actualExports.length > 0 && !actualExports.includes(entry.name)) {
-            nameMismatch++
+            _nameMismatch++
             if (!opts.json) {
-              console.log(chalk.yellow(`  ⚠ ${entry.id} — manifest name "${entry.name}" doesn't match export "${actualExports[0]}"`))
+              console.log(
+                chalk.yellow(
+                  `  ⚠ ${entry.id} — manifest name "${entry.name}" doesn't match export "${actualExports[0]}"`,
+                ),
+              )
               console.log(chalk.dim(`     Fix: coherent sync`))
             }
           }
-        } catch { /* skip */ }
+        } catch {
+          /* skip */
+        }
 
         // Check actual usage
         const actualUsedIn = findPagesImporting(projectRoot, entry.name, entry.file)
@@ -266,9 +294,9 @@ export async function checkCommand(opts: CheckOptions = {}) {
         // Check stale usedIn
         const manifestUsedIn = entry.usedIn || []
         const fullActual = inLayout ? [...new Set([...actualUsedIn, 'app/layout.tsx'])] : actualUsedIn
-        const isStale = manifestUsedIn.length !== fullActual.length ||
-          !manifestUsedIn.every(p => fullActual.includes(p))
-        if (isStale) staleUsedIn++
+        const isStale =
+          manifestUsedIn.length !== fullActual.length || !manifestUsedIn.every(p => fullActual.includes(p))
+        if (isStale) _staleUsedIn++
 
         if (totalUsage === 0) {
           unused++
@@ -278,9 +306,7 @@ export async function checkCommand(opts: CheckOptions = {}) {
           }
         } else {
           consistent++
-          const usageDesc = inLayout
-            ? `layout + ${actualUsedIn.length} page(s)`
-            : `${actualUsedIn.length} page(s)`
+          const usageDesc = inLayout ? `layout + ${actualUsedIn.length} page(s)` : `${actualUsedIn.length} page(s)`
           if (!opts.json) {
             const staleNote = isStale ? chalk.yellow(' [usedIn stale]') : ''
             console.log(chalk.green(`  ✔ ${entry.id} (${entry.name})`) + chalk.dim(` — ${usageDesc}`) + staleNote)
@@ -304,7 +330,11 @@ export async function checkCommand(opts: CheckOptions = {}) {
         console.log(chalk.cyan(`\n  🔍 Inline duplicates:`))
         for (const dup of inlineDupes) {
           console.log(chalk.yellow(`  ⚠ ${dup.pageFile}`) + chalk.dim(` has inline ${dup.componentName}`))
-          console.log(chalk.dim(`     Use shared: import { ${dup.componentName} } from "@/${dup.sharedFile.replace('.tsx', '')}"`))
+          console.log(
+            chalk.dim(
+              `     Use shared: import { ${dup.componentName} } from "@/${dup.sharedFile.replace('.tsx', '')}"`,
+            ),
+          )
         }
       }
 
@@ -314,12 +344,17 @@ export async function checkCommand(opts: CheckOptions = {}) {
         unused,
         withInlineDuplicates: inlineDupes.length,
         entries: manifest.shared.map(e => ({
-          id: e.id, name: e.name, type: e.type,
+          id: e.id,
+          name: e.name,
+          type: e.type,
           status: existsSync(resolve(projectRoot, e.file)) ? 'ok' : 'unused',
-          message: '', suggestions: undefined,
+          message: '',
+          suggestions: undefined,
         })),
       }
-    } catch { /* no manifest */ }
+    } catch {
+      /* no manifest */
+    }
   }
 
   // ─── Summary ────────────────────────────────────────────────────────

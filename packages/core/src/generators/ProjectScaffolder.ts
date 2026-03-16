@@ -1,6 +1,6 @@
 /**
  * Project Scaffolder
- * 
+ *
  * Creates complete Next.js 15 project structure with components, pages, and configuration.
  */
 
@@ -104,12 +104,7 @@ export class ProjectScaffolder {
    * Create directory structure
    */
   private async createDirectories(): Promise<void> {
-    const dirs = [
-      'app',
-      'components',
-      'lib',
-      'public',
-    ]
+    const dirs = ['app', 'components', 'lib', 'public']
 
     for (const dir of dirs) {
       const fullPath = join(this.projectRoot, dir)
@@ -382,10 +377,7 @@ export function cn(...inputs: ClassValue[]) {
 
     for (const page of this.config.pages) {
       const isRoot = page.route === '/' || page.route === ''
-      const code =
-        isRoot && homePageContent
-          ? homePageContent
-          : await this.pageGenerator.generate(page, appType)
+      const code = isRoot && homePageContent ? homePageContent : await this.pageGenerator.generate(page, appType)
       const routePath = this.getPagePath(page.route)
       const filePath = isRoot ? 'app/page.tsx' : `app/${routePath}/page.tsx`
       await this.writeFile(filePath, code)
@@ -408,7 +400,9 @@ export function cn(...inputs: ClassValue[]) {
   }
 
   private async generateDefaultPages(): Promise<void> {
-    await this.writeFile('app/not-found.tsx', `import Link from 'next/link'
+    await this.writeFile(
+      'app/not-found.tsx',
+      `import Link from 'next/link'
 
 export default function NotFound() {
   return (
@@ -424,9 +418,12 @@ export default function NotFound() {
     </main>
   )
 }
-`)
+`,
+    )
 
-    await this.writeFile('app/loading.tsx', `export default function Loading() {
+    await this.writeFile(
+      'app/loading.tsx',
+      `export default function Loading() {
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
       <div className="space-y-4 w-full max-w-md px-4">
@@ -441,9 +438,12 @@ export default function NotFound() {
     </div>
   )
 }
-`)
+`,
+    )
 
-    await this.writeFile('app/error.tsx', `'use client'
+    await this.writeFile(
+      'app/error.tsx',
+      `'use client'
 
 export default function ErrorPage({
   error,
@@ -467,11 +467,13 @@ export default function ErrorPage({
     </main>
   )
 }
-`)
+`,
+    )
   }
 
   private async generateFavicon(): Promise<void> {
-    const logoPath = 'M10 4C10.5523 4 11 4.44772 11 5V13H19C19.5523 13 20 13.4477 20 14V20.4287C19.9999 22.401 18.401 23.9999 16.4287 24H3.57129C1.59895 23.9999 7.5245e-05 22.401 0 20.4287V7.57129C7.53742e-05 5.59895 1.59895 4.00008 3.57129 4H10ZM2 20.4287C2.00008 21.2965 2.70352 21.9999 3.57129 22H9V15H2V20.4287ZM11 22H16.4287C17.2965 21.9999 17.9999 21.2965 18 20.4287V15H11V22ZM3.57129 6C2.70352 6.00008 2.00008 6.70352 2 7.57129V13H9V6H3.57129ZM20.5 0C22.433 0 24 1.567 24 3.5V9.90039C23.9998 10.5076 23.5076 10.9998 22.9004 11H14.0996C13.4924 10.9998 13.0002 10.5076 13 9.90039V1.09961C13.0002 0.492409 13.4924 0.000211011 14.0996 0H20.5ZM15 9H22V3.5C22 2.67157 21.3284 2 20.5 2H15V9Z'
+    const logoPath =
+      'M10 4C10.5523 4 11 4.44772 11 5V13H19C19.5523 13 20 13.4477 20 14V20.4287C19.9999 22.401 18.401 23.9999 16.4287 24H3.57129C1.59895 23.9999 7.5245e-05 22.401 0 20.4287V7.57129C7.53742e-05 5.59895 1.59895 4.00008 3.57129 4H10ZM2 20.4287C2.00008 21.2965 2.70352 21.9999 3.57129 22H9V15H2V20.4287ZM11 22H16.4287C17.2965 21.9999 17.9999 21.2965 18 20.4287V15H11V22ZM3.57129 6C2.70352 6.00008 2.00008 6.70352 2 7.57129V13H9V6H3.57129ZM20.5 0C22.433 0 24 1.567 24 3.5V9.90039C23.9998 10.5076 23.5076 10.9998 22.9004 11H14.0996C13.4924 10.9998 13.0002 10.5076 13 9.90039V1.09961C13.0002 0.492409 13.4924 0.000211011 14.0996 0H20.5ZM15 9H22V3.5C22 2.67157 21.3284 2 20.5 2H15V9Z'
 
     const logoSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
   <path d="${logoPath}" fill="#FFA500"/>
@@ -574,9 +576,7 @@ This project was generated with [Coherent Design Method](https://github.com/skov
    * Convert PascalCase to kebab-case
    */
   private toKebabCase(str: string): string {
-    return str
-      .replace(/([a-z])([A-Z])/g, '$1-$2')
-      .toLowerCase()
+    return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()
   }
 
   /**
@@ -589,8 +589,8 @@ This project was generated with [Coherent Design Method](https://github.com/skov
         '*.css': 'tailwindcss',
       },
       'tailwindCSS.experimental.classRegex': [
-        ['cn\\(([^)]*)\\)', "(?:'|\\\"|\\`)([^\\\"'\\`]*)(?:'|\\\"|\\`)"],
-        ['cva\\(([^)]*)\\)', "[\"'\\`]([^\"'\\`]*).*?[\"'\\`]"],
+        ['cn\\(([^)]*)\\)', '(?:\'|\\"|\\`)([^\\"\'\\`]*)(?:\'|\\"|\\`)'],
+        ['cva\\(([^)]*)\\)', '["\'\\`]([^"\'\\`]*).*?["\'\\`]'],
       ],
       'editor.quickSuggestions': {
         strings: true,
@@ -876,7 +876,7 @@ Recommendations are added here when you use \`coherent chat\` and the AI suggest
   private async writeFile(relativePath: string, content: string): Promise<void> {
     const fullPath = join(this.projectRoot, relativePath)
     const dir = dirname(fullPath)
-    
+
     if (!existsSync(dir)) {
       await mkdir(dir, { recursive: true })
     }

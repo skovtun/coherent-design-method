@@ -31,7 +31,10 @@ export type FigmaNormalizedEntry =
 export interface FigmaNormalizationResult {
   entries: FigmaNormalizedEntry[]
   /** figmaId → baseId for base; figmaId → cid for shared (set after creating shared component). */
-  figmaToCoherent: Map<string, { kind: 'base'; baseId: FigmaBaseId } | { kind: 'shared'; cid: string; name: string; file: string }>
+  figmaToCoherent: Map<
+    string,
+    { kind: 'base'; baseId: FigmaBaseId } | { kind: 'shared'; cid: string; name: string; file: string }
+  >
 }
 
 function normalizeName(name: string): string {
@@ -59,29 +62,30 @@ export function figmaComponentNameToBaseId(name: string): FigmaBaseId | null {
 
 /** PascalCase for component name; safe for TSX. */
 function toPascalCase(name: string): string {
-  return name
-    .trim()
-    .replace(/(?:^|\s|[-_])(\w)/g, (_, c) => c.toUpperCase())
-    .replace(/[^A-Za-z0-9]/g, '') || 'Block'
+  return (
+    name
+      .trim()
+      .replace(/(?:^|\s|[-_])(\w)/g, (_, c) => c.toUpperCase())
+      .replace(/[^A-Za-z0-9]/g, '') || 'Block'
+  )
 }
 
 /** Kebab-case file name for shared component. */
 function toSharedFileName(name: string): string {
-  return toPascalCase(name)
-    .replace(/([a-z])([A-Z])/g, '$1-$2')
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, '')
-    .replace(/^-+|-+$/g, '') || 'block'
+  return (
+    toPascalCase(name)
+      .replace(/([a-z])([A-Z])/g, '$1-$2')
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/^-+|-+$/g, '') || 'block'
+  )
 }
 
 /**
  * Generate valid TSX for a shared component from Figma.
  * Uses Tailwind; layout from FigmaLayout or default flex. Normalizes to Coherent patterns (no pixel-perfect).
  */
-export function generateSharedComponentTsx(
-  displayName: string,
-  layout?: FigmaLayout | null
-): string {
+export function generateSharedComponentTsx(displayName: string, layout?: FigmaLayout | null): string {
   const name = toPascalCase(displayName)
   const isVertical = layout?.layoutMode !== 'HORIZONTAL'
   const gapClass = layout?.itemSpacing != null && layout.itemSpacing <= 8 ? 'gap-2' : 'gap-4'
@@ -103,9 +107,7 @@ export function ${name}() {
 /**
  * Normalize all Figma components: map to base or shared with suggested TSX.
  */
-export function normalizeFigmaComponents(
-  data: FigmaIntermediateData
-): FigmaNormalizationResult {
+export function normalizeFigmaComponents(data: FigmaIntermediateData): FigmaNormalizationResult {
   const entries: FigmaNormalizedEntry[] = []
   const figmaToCoherent = new Map<
     string,
@@ -156,7 +158,7 @@ export function setSharedMapping(
   figmaId: string,
   cid: string,
   name: string,
-  file: string
+  file: string,
 ): void {
   const cur = result.figmaToCoherent.get(figmaId)
   if (cur?.kind === 'shared') {

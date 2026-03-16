@@ -7,14 +7,14 @@ export function blogTemplate(content: BlogContent, options: TemplateOptions): st
 
   const cards = posts
     .map(
-      (p) => `      <div className="${D.card} p-6 hover:border-border/30 transition-colors">
+      p => `      <div className="${D.card} p-6 hover:border-border/30 transition-colors">
         <h3 className="${D.cardTitle} mb-1">${p.title}</h3>
         <p className="${D.mutedXs} mb-3">${p.date} · ${p.author}</p>
         <p className="${D.muted} line-clamp-3">${p.excerpt}</p>
         <div className="mt-4">
           <Button variant="outline" size="sm">Read more</Button>
         </div>
-      </div>`
+      </div>`,
     )
     .join('\n\n')
 

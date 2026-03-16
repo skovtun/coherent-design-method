@@ -1,25 +1,19 @@
 import type { ContactContent, TemplateOptions } from './types.js'
 import { D, collectIcons, resolveIcon } from './_shared.js'
 
-export function contactTemplate(
-  content: ContactContent,
-  options: TemplateOptions
-): string {
+export function contactTemplate(content: ContactContent, options: TemplateOptions): string {
   const { title, description, fields, submitLabel, contactInfo } = content
   const { pageName } = options
 
-  const icons = collectIcons((contactInfo || []).map((c) => c.icon))
-  const iconImport =
-    contactInfo && contactInfo.length > 0
-      ? `import { ${icons.join(', ')} } from 'lucide-react'`
-      : ''
+  const icons = collectIcons((contactInfo || []).map(c => c.icon))
+  const iconImport = contactInfo && contactInfo.length > 0 ? `import { ${icons.join(', ')} } from 'lucide-react'` : ''
 
   const stateFields = fields
-    .map((f) => `  const [${f.name}, set${f.name.charAt(0).toUpperCase() + f.name.slice(1)}] = useState('')`)
+    .map(f => `  const [${f.name}, set${f.name.charAt(0).toUpperCase() + f.name.slice(1)}] = useState('')`)
     .join('\n')
 
   const formFields = fields
-    .map((f) => {
+    .map(f => {
       if (f.type === 'textarea') {
         return `            <div className="${D.fieldGroup}">
               <Label htmlFor="${f.name}">${f.label}</Label>
@@ -50,7 +44,7 @@ export function contactTemplate(
   let contactInfoSection = ''
   if (contactInfo && contactInfo.length > 0) {
     const items = contactInfo
-      .map((c) => {
+      .map(c => {
         const icon = resolveIcon(c.icon) || icons[0]
         return `          <div className="flex items-start gap-3">
             <div className="${D.featureIconWrap}">
@@ -83,7 +77,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-${fields.some((f) => f.type === 'textarea') ? "import { Textarea } from '@/components/ui/textarea'" : ''}
+${fields.some(f => f.type === 'textarea') ? "import { Textarea } from '@/components/ui/textarea'" : ''}
 ${iconImport}
 
 export default function ${pageName}() {

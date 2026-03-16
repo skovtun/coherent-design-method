@@ -204,7 +204,7 @@ function checkMissingCssVars(projectRoot: string): string[] {
 
   try {
     const content = readFileSync(globalsPath, 'utf-8')
-    return EXPECTED_CSS_VARS.filter((v) => !content.includes(v))
+    return EXPECTED_CSS_VARS.filter(v => !content.includes(v))
   } catch {
     return []
   }
@@ -247,12 +247,7 @@ function patchGlobalsCss(projectRoot: string, missingVars: string[]) {
 
   const lightSectionEnd = content.indexOf('}')
   if (lightSectionEnd > 0) {
-    content =
-      content.slice(0, lightSectionEnd) +
-      '\n' +
-      injection +
-      '\n' +
-      content.slice(lightSectionEnd)
+    content = content.slice(0, lightSectionEnd) + '\n' + injection + '\n' + content.slice(lightSectionEnd)
 
     writeFileSync(globalsPath, content, 'utf-8')
   }

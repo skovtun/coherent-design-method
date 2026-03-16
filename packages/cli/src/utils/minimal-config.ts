@@ -1,6 +1,6 @@
 /**
  * Minimal Design System Configuration
- * 
+ *
  * Creates a basic, production-ready design system config
  * that can be customized later via coherent chat.
  */
@@ -10,7 +10,7 @@ import { CLI_VERSION, FRAMEWORK_VERSIONS } from '@getcoherent/core'
 
 export function createMinimalConfig(): DesignSystemConfig {
   const now = new Date().toISOString()
-  
+
   return {
     version: '1.0.0',
     coherentVersion: CLI_VERSION,
@@ -21,7 +21,7 @@ export function createMinimalConfig(): DesignSystemConfig {
     },
     name: 'My App',
     description: 'Built with Coherent Design Method',
-    
+
     tokens: {
       colors: {
         light: {
@@ -96,12 +96,12 @@ export function createMinimalConfig(): DesignSystemConfig {
         full: '9999px',
       },
     },
-    
+
     theme: {
-      defaultMode: 'dark',
+      defaultMode: 'light',
       allowModeToggle: true,
     },
-    
+
     components: [
       {
         id: 'button',
@@ -110,16 +110,33 @@ export function createMinimalConfig(): DesignSystemConfig {
         source: 'custom',
         baseClassName: 'inline-flex items-center justify-center rounded-md font-medium transition-colors',
         variants: [
-          { name: 'default', className: 'bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2' },
-          { name: 'secondary', className: 'bg-secondary text-secondary-foreground hover:bg-secondary/80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2' },
-          { name: 'outline', className: 'border border-input bg-background hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2' },
-          { name: 'destructive', className: 'bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2' },
+          {
+            name: 'default',
+            className:
+              'bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          },
+          {
+            name: 'secondary',
+            className:
+              'bg-secondary text-secondary-foreground hover:bg-secondary/80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          },
+          {
+            name: 'outline',
+            className:
+              'border border-input bg-background hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          },
+          {
+            name: 'destructive',
+            className:
+              'bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          },
         ],
         sizes: [
           { name: 'sm', className: 'h-8 px-3 text-xs' },
           { name: 'md', className: 'h-9 px-4 text-sm' },
           { name: 'lg', className: 'h-10 px-6 text-base' },
         ],
+        usedInPages: [],
         createdAt: now,
         updatedAt: now,
       },
@@ -131,6 +148,7 @@ export function createMinimalConfig(): DesignSystemConfig {
         baseClassName: 'rounded-lg border bg-card text-card-foreground shadow-sm',
         variants: [],
         sizes: [],
+        usedInPages: [],
         createdAt: now,
         updatedAt: now,
       },
@@ -142,10 +160,13 @@ export function createMinimalConfig(): DesignSystemConfig {
         baseClassName: '',
         variants: [],
         sizes: [],
+        usedInPages: [],
         createdAt: now,
         updatedAt: now,
       },
     ],
+
+    layoutBlocks: [],
 
     pages: [
       {
@@ -162,7 +183,7 @@ export function createMinimalConfig(): DesignSystemConfig {
         updatedAt: now,
       },
     ],
-    
+
     navigation: {
       enabled: true,
       type: 'header',
@@ -175,7 +196,7 @@ export function createMinimalConfig(): DesignSystemConfig {
         },
       ],
     },
-    
+
     features: {
       authentication: {
         enabled: false,
@@ -195,7 +216,7 @@ export function createMinimalConfig(): DesignSystemConfig {
         provider: 'zustand',
       },
     },
-    
+
     settings: {
       appType: 'multi-page',
       framework: 'next',
@@ -203,7 +224,7 @@ export function createMinimalConfig(): DesignSystemConfig {
       cssFramework: 'tailwind',
       autoScaffold: false,
     },
-    
+
     createdAt: now,
     updatedAt: now,
   }

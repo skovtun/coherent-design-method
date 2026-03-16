@@ -20,9 +20,9 @@ register them: coherent components shared add <Name> --type layout|section|widge
   }
   const order = { layout: 0, section: 1, widget: 2 }
   const sorted = [...manifest.shared].sort(
-    (a, b) => order[a.type as keyof typeof order] - order[b.type as keyof typeof order] || a.name.localeCompare(b.name)
+    (a, b) => order[a.type as keyof typeof order] - order[b.type as keyof typeof order] || a.name.localeCompare(b.name),
   )
-  const lines = sorted.map((entry) => {
+  const lines = sorted.map(entry => {
     const usedIn =
       entry.usedIn.length === 0
         ? '(not used yet)'
@@ -54,7 +54,7 @@ Use semantic classes: bg-background, text-foreground, bg-primary, text-muted-for
   const radiusObj = t.radius
   const radiusStr =
     typeof radiusObj === 'object' && radiusObj && 'md' in radiusObj
-      ? (radiusObj as { md?: string }).md ?? '0.5rem'
+      ? ((radiusObj as { md?: string }).md ?? '0.5rem')
       : typeof radiusObj === 'string'
         ? radiusObj
         : '0.5rem'

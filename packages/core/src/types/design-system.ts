@@ -1,9 +1,9 @@
 /**
  * Design System Configuration Types
- * 
+ *
  * This is the core type system for the entire Coherent project.
  * The DesignSystemConfig is the single source of truth for all UI generation.
- * 
+ *
  * Philosophy:
  * - Config is machine-readable (not human prose like PRD)
  * - Changes to config cascade automatically through all components/pages
@@ -24,12 +24,15 @@ import { z } from 'zod'
 export const ColorTokenSchema = z.object({
   primary: z.string().regex(/^#[0-9A-F]{6}$/i, 'Must be valid hex color'),
   secondary: z.string().regex(/^#[0-9A-F]{6}$/i),
-  accent: z.string().regex(/^#[0-9A-F]{6}$/i).optional(),
+  accent: z
+    .string()
+    .regex(/^#[0-9A-F]{6}$/i)
+    .optional(),
   success: z.string().regex(/^#[0-9A-F]{6}$/i),
   warning: z.string().regex(/^#[0-9A-F]{6}$/i),
   error: z.string().regex(/^#[0-9A-F]{6}$/i),
   info: z.string().regex(/^#[0-9A-F]{6}$/i),
-  
+
   // Neutral palette (generated from base or explicit)
   background: z.string().regex(/^#[0-9A-F]{6}$/i),
   foreground: z.string().regex(/^#[0-9A-F]{6}$/i),
@@ -43,13 +46,13 @@ export type ColorToken = z.infer<typeof ColorTokenSchema>
  * Spacing scale (8pt grid system)
  */
 export const SpacingTokenSchema = z.object({
-  xs: z.string().default('0.25rem'),  // 4px
-  sm: z.string().default('0.5rem'),   // 8px
-  md: z.string().default('1rem'),     // 16px
-  lg: z.string().default('1.5rem'),   // 24px
-  xl: z.string().default('2rem'),     // 32px
-  '2xl': z.string().default('3rem'),  // 48px
-  '3xl': z.string().default('4rem'),  // 64px
+  xs: z.string().default('0.25rem'), // 4px
+  sm: z.string().default('0.5rem'), // 8px
+  md: z.string().default('1rem'), // 16px
+  lg: z.string().default('1.5rem'), // 24px
+  xl: z.string().default('2rem'), // 32px
+  '2xl': z.string().default('3rem'), // 48px
+  '3xl': z.string().default('4rem'), // 64px
 })
 
 export type SpacingToken = z.infer<typeof SpacingTokenSchema>
@@ -62,25 +65,25 @@ export const TypographyTokenSchema = z.object({
     sans: z.string().default('Inter, system-ui, sans-serif'),
     mono: z.string().default('JetBrains Mono, monospace'),
   }),
-  
+
   fontSize: z.object({
-    xs: z.string().default('0.75rem'),    // 12px
-    sm: z.string().default('0.875rem'),   // 14px
-    base: z.string().default('1rem'),     // 16px
-    lg: z.string().default('1.125rem'),   // 18px
-    xl: z.string().default('1.25rem'),    // 20px
-    '2xl': z.string().default('1.5rem'),  // 24px
-    '3xl': z.string().default('1.875rem'),// 30px
+    xs: z.string().default('0.75rem'), // 12px
+    sm: z.string().default('0.875rem'), // 14px
+    base: z.string().default('1rem'), // 16px
+    lg: z.string().default('1.125rem'), // 18px
+    xl: z.string().default('1.25rem'), // 20px
+    '2xl': z.string().default('1.5rem'), // 24px
+    '3xl': z.string().default('1.875rem'), // 30px
     '4xl': z.string().default('2.25rem'), // 36px
   }),
-  
+
   fontWeight: z.object({
     normal: z.number().default(400),
     medium: z.number().default(500),
     semibold: z.number().default(600),
     bold: z.number().default(700),
   }),
-  
+
   lineHeight: z.object({
     tight: z.number().default(1.25),
     normal: z.number().default(1.5),
@@ -153,35 +156,27 @@ export const ComponentDefinitionSchema = z.object({
   // Identity
   id: z.string().regex(/^[a-z][a-z0-9-]*$/, 'Must be kebab-case'),
   name: z.string(), // PascalCase (e.g., "Button", "InputField")
-  category: z.enum([
-    'form',
-    'layout',
-    'navigation',
-    'feedback',
-    'data-display',
-    'overlay',
-    'typography',
-  ]),
-  
+  category: z.enum(['form', 'layout', 'navigation', 'feedback', 'data-display', 'overlay', 'typography']),
+
   // Source
   source: z.enum(['shadcn', 'custom']),
   shadcnComponent: z.string().optional(), // e.g., "button" if source is shadcn
-  
+
   // Styling
   baseClassName: z.string(), // Base Tailwind classes
   variants: z.array(ComponentVariantSchema).default([]),
   sizes: z.array(ComponentSizeSchema).default([]),
-  
+
   // Props
   defaultProps: z.record(z.any()).optional(),
-  
+
   // Accessibility
   ariaLabel: z.string().optional(),
   ariaDescribedBy: z.string().optional(),
-  
+
   // Usage tracking (for dependency management)
   usedInPages: z.array(z.string()).default([]),
-  
+
   // Metadata
   description: z.string().optional(),
   createdAt: z.string().datetime(),
@@ -241,11 +236,11 @@ export type LayoutBlockDefinition = z.infer<typeof LayoutBlockDefinitionSchema>
  * Page layout type
  */
 export const PageLayoutSchema = z.enum([
-  'centered',      // Single centered column
-  'sidebar-left',  // Sidebar on left, content on right
+  'centered', // Single centered column
+  'sidebar-left', // Sidebar on left, content on right
   'sidebar-right', // Content on left, sidebar on right
-  'full-width',    // No constraints
-  'grid',          // CSS Grid layout
+  'full-width', // No constraints
+  'grid', // CSS Grid layout
 ])
 
 export type PageLayout = z.infer<typeof PageLayoutSchema>
@@ -256,26 +251,43 @@ export type PageLayout = z.infer<typeof PageLayoutSchema>
 /**
  * Structured analysis of a generated page's code (extracted post-generation, no AI call).
  */
-export const PageAnalysisSchema = z.object({
-  sections: z.array(z.object({
-    name: z.string(),
-    order: z.number(),
-  })).optional(),
-  componentUsage: z.record(z.string(), z.number()).optional(),
-  iconCount: z.number().optional(),
-  layoutPattern: z.string().optional(),
-  hasForm: z.boolean().optional(),
-  analyzedAt: z.string().optional(),
-}).optional()
+export const PageAnalysisSchema = z
+  .object({
+    sections: z
+      .array(
+        z.object({
+          name: z.string(),
+          order: z.number(),
+        }),
+      )
+      .optional(),
+    componentUsage: z.record(z.string(), z.number()).optional(),
+    iconCount: z.number().optional(),
+    layoutPattern: z.string().optional(),
+    hasForm: z.boolean().optional(),
+    analyzedAt: z.string().optional(),
+  })
+  .optional()
 
 export type PageAnalysis = z.infer<typeof PageAnalysisSchema>
 
 export const PageDefinitionSchema = z.object({
   // Identity
-  id: z.string().regex(/^[a-z][a-z0-9-]*$/, 'Must be kebab-case'),
+  id: z
+    .string()
+    .transform(s =>
+      s
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, ''),
+    )
+    .pipe(z.string().regex(/^[a-z][a-z0-9-]*$/, 'Must be kebab-case')),
   name: z.string(),
-  route: z.string().regex(/^\/[a-z0-9-/]*$/, 'Must start with /'),
-  
+  route: z
+    .string()
+    .transform(r => (r.startsWith('/') ? r : `/${r}`))
+    .pipe(z.string().regex(/^\/[a-z0-9\-/[\]]*$/, 'Must be a valid route (e.g. /page, /products/[id])')),
+
   // Layout
   layout: PageLayoutSchema,
   sections: z.array(PageSectionSchema).default([]),
@@ -291,15 +303,15 @@ export const PageDefinitionSchema = z.object({
   // Metadata
   title: z.string(), // <title> tag
   description: z.string(), // <meta name="description">
-  
+
   // Authentication
   requiresAuth: z.boolean().default(false),
   allowedRoles: z.array(z.string()).optional(),
-  
+
   // SEO
   ogImage: z.string().url().optional(),
   noIndex: z.boolean().default(false),
-  
+
   // Timestamps
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
@@ -331,10 +343,12 @@ export const NavigationSchema = z.object({
   enabled: z.boolean().default(true),
   type: z.enum(['header', 'sidebar', 'both']).default('header'),
   items: z.array(NavigationItemSchema),
-  logo: z.object({
-    text: z.string().optional(),
-    image: z.string().optional(),
-  }).optional(),
+  logo: z
+    .object({
+      text: z.string().optional(),
+      image: z.string().optional(),
+    })
+    .optional(),
 })
 
 export type Navigation = z.infer<typeof NavigationSchema>
@@ -352,22 +366,22 @@ export const FeaturesSchema = z.object({
     provider: z.enum(['next-auth', 'clerk', 'supabase', 'custom']).optional(),
     strategies: z.array(z.enum(['email', 'google', 'github', 'magic-link'])).default([]),
   }),
-  
+
   payments: z.object({
     enabled: z.boolean().default(false),
     provider: z.enum(['stripe', 'paddle', 'lemonsqueezy']).optional(),
   }),
-  
+
   analytics: z.object({
     enabled: z.boolean().default(false),
     provider: z.enum(['google-analytics', 'plausible', 'posthog']).optional(),
   }),
-  
+
   database: z.object({
     enabled: z.boolean().default(false),
     provider: z.enum(['prisma', 'drizzle', 'supabase']).optional(),
   }),
-  
+
   stateManagement: z.object({
     enabled: z.boolean().default(false),
     provider: z.enum(['zustand', 'redux', 'jotai']).default('zustand'),
@@ -388,62 +402,64 @@ export const DesignSystemConfigSchema = z.object({
   // Metadata
   version: z.string().default('1.0.0'),
   coherentVersion: z.string().optional(), // CLI version that created this project
-  frameworkVersions: z.object({
-    next: z.string(),
-    react: z.string(),
-    tailwind: z.string(),
-  }).optional(), // Framework versions used when project was created
+  frameworkVersions: z
+    .object({
+      next: z.string(),
+      react: z.string(),
+      tailwind: z.string(),
+    })
+    .optional(), // Framework versions used when project was created
   name: z.string(),
   description: z.string(),
-  
+
   // Design tokens
   tokens: DesignTokensSchema,
-  
+
   // Theme preferences
   theme: z.object({
     defaultMode: z.enum(['light', 'dark', 'system']).default('dark'),
     allowModeToggle: z.boolean().default(true),
   }),
-  
+
   // Components registry
   components: z.array(ComponentDefinitionSchema),
-  
+
   /** Reusable layout blocks (header, footer, etc.) shared across pages. Referenced by id in page.layoutBlockIds. */
   layoutBlocks: z.array(LayoutBlockDefinitionSchema).optional().default([]),
-  
+
   // Pages
   pages: z.array(PageDefinitionSchema),
-  
+
   // Navigation
   navigation: NavigationSchema.optional(),
-  
+
   // Features
   features: FeaturesSchema,
-  
+
   // Global settings
   settings: z.object({
     // Application type
     appType: z.enum(['multi-page', 'spa']).default('multi-page'),
-    
+
     // Framework
     framework: z.enum(['next', 'react-spa']).default('next'),
-    
+
     // Router (for SPA)
     router: z.enum(['react-router', 'tanstack-router']).optional(),
-    
+
     // TypeScript
     typescript: z.boolean().default(true),
-    
+
     // Styling
     cssFramework: z.enum(['tailwind', 'css-modules']).default('tailwind'),
-    
+
     // Deployment
     deployTarget: z.enum(['vercel', 'netlify', 'cloudflare', 'self-hosted']).optional(),
 
     // Auto-scaffold linked pages (e.g. login → signup, forgot-password)
     autoScaffold: z.boolean().default(false),
   }),
-  
+
   // Timestamps
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
@@ -577,20 +593,14 @@ export function pageRouteExists(config: DesignSystemConfig, route: string): bool
 /**
  * Get component by ID
  */
-export function getComponent(
-  config: DesignSystemConfig, 
-  componentId: string
-): ComponentDefinition | undefined {
+export function getComponent(config: DesignSystemConfig, componentId: string): ComponentDefinition | undefined {
   return config.components.find(c => c.id === componentId)
 }
 
 /**
  * Get page by route
  */
-export function getPage(
-  config: DesignSystemConfig, 
-  route: string
-): PageDefinition | undefined {
+export function getPage(config: DesignSystemConfig, route: string): PageDefinition | undefined {
   return config.pages.find(p => p.route === route)
 }
 
@@ -605,7 +615,7 @@ export const EXAMPLE_MULTIPAGE_CONFIG: DesignSystemConfig = {
   version: '1.0.0',
   name: 'My Multi-page App',
   description: 'A beautiful multi-page application',
-  
+
   tokens: {
     colors: {
       light: {
@@ -678,12 +688,12 @@ export const EXAMPLE_MULTIPAGE_CONFIG: DesignSystemConfig = {
       full: '9999px',
     },
   },
-  
+
   theme: {
     defaultMode: 'dark',
     allowModeToggle: true,
   },
-  
+
   components: [],
   layoutBlocks: [],
   pages: [],
@@ -693,7 +703,7 @@ export const EXAMPLE_MULTIPAGE_CONFIG: DesignSystemConfig = {
     type: 'header',
     items: [],
   },
-  
+
   features: {
     authentication: { enabled: false, strategies: [] },
     payments: { enabled: false },
@@ -701,7 +711,7 @@ export const EXAMPLE_MULTIPAGE_CONFIG: DesignSystemConfig = {
     database: { enabled: false },
     stateManagement: { enabled: false, provider: 'zustand' },
   },
-  
+
   settings: {
     appType: 'multi-page',
     framework: 'next',
@@ -709,7 +719,7 @@ export const EXAMPLE_MULTIPAGE_CONFIG: DesignSystemConfig = {
     cssFramework: 'tailwind',
     autoScaffold: false,
   },
-  
+
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 }

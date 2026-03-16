@@ -27,13 +27,11 @@ export interface WriteDsFilesOptions {
 export async function writeDesignSystemFiles(
   projectRoot: string,
   config: DesignSystemConfig,
-  options?: WriteDsFilesOptions
+  options?: WriteDsFilesOptions,
 ): Promise<string[]> {
   const generator = new DesignSystemGenerator(config)
   const files = generator.generateStructure()
-  const toWrite = options?.sharedOnly
-    ? new Map([...files].filter(([path]) => SHARED_DS_KEYS.includes(path)))
-    : files
+  const toWrite = options?.sharedOnly ? new Map([...files].filter(([path]) => SHARED_DS_KEYS.includes(path))) : files
   const written: string[] = []
   for (const [relativePath, content] of toWrite) {
     const fullPath = join(projectRoot, relativePath)

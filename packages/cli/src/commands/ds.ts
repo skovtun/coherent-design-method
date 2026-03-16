@@ -9,13 +9,13 @@ import { DesignSystemManager } from '@getcoherent/core'
 import { writeDesignSystemFiles } from '../utils/ds-files.js'
 
 export async function dsRegenerateCommand() {
-  const project = findConfig()
-  if (!project) {
-    exitNotCoherent()
-  }
-
-  const spinner = ora('Loading config and regenerating Design System pages...').start()
   try {
+    const project = findConfig()
+    if (!project) {
+      exitNotCoherent()
+    }
+
+    const spinner = ora('Loading config and regenerating Design System pages...').start()
     const dsm = new DesignSystemManager(project.configPath)
     await dsm.load()
     const config = dsm.getConfig()
@@ -23,9 +23,8 @@ export async function dsRegenerateCommand() {
     spinner.succeed(`Regenerated ${written.length} Design System file(s)`)
     console.log(chalk.gray('   app/design-system/* and app/api/design-system/*\n'))
     console.log(chalk.cyan('   Open /design-system in the app to view.\n'))
-  } catch (err) {
-    spinner.fail('Failed to regenerate')
-    console.error(err instanceof Error ? err.message : err)
+  } catch (error) {
+    console.error(chalk.red('❌ Command failed:'), error instanceof Error ? error.message : 'Unknown error')
     process.exit(1)
   }
 }

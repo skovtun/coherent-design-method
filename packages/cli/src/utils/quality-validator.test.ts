@@ -44,46 +44,72 @@ describe('validatePageQuality', () => {
 })
 
 describe('autoFixCode', () => {
-  it('replaces text-base with text-sm in className', () => {
+  it('replaces text-base with text-sm in className', async () => {
     const code = `<p className="text-base leading-relaxed">Text</p>`
-    const { code: fixed, fixes } = autoFixCode(code)
+    const { code: fixed, fixes } = await autoFixCode(code)
     expect(fixed).toContain('text-sm')
     expect(fixed).not.toContain('text-base')
     expect(fixes).toContain('text-base → text-sm')
   })
 
-  it('removes large text from CardTitle', () => {
+  it('removes large text from CardTitle', async () => {
     const code = `<CardTitle className="text-lg font-bold">Title</CardTitle>`
-    const { code: fixed, fixes } = autoFixCode(code)
+    const { code: fixed, fixes } = await autoFixCode(code)
     expect(fixed).not.toContain('text-lg')
     expect(fixes.some(f => f.includes('CardTitle'))).toBe(true)
   })
 
-  it('replaces heavy shadow with shadow-sm', () => {
+  it('replaces heavy shadow with shadow-sm', async () => {
     const code = `<div className="shadow-lg rounded-md">Card</div>`
-    const { code: fixed, fixes } = autoFixCode(code)
+    const { code: fixed, fixes } = await autoFixCode(code)
     expect(fixed).toContain('shadow-sm')
     expect(fixed).not.toContain('shadow-lg')
     expect(fixes).toContain('heavy shadow → shadow-sm')
   })
 
-  it('adds use client when hooks are detected', () => {
+  it('adds use client when hooks are detected', async () => {
     const code = `import { useState } from 'react'\nexport default function Page() { const [x, setX] = useState(0); return <div>{x}</div> }`
-    const { code: fixed, fixes } = autoFixCode(code)
+    const { code: fixed, fixes } = await autoFixCode(code)
     expect(fixed.trimStart().startsWith("'use client'")).toBe(true)
     expect(fixes.some(f => f.includes('use client'))).toBe(true)
   })
 
-  it('does NOT add duplicate use client', () => {
+  it('does NOT add duplicate use client', async () => {
     const code = `'use client'\nimport { useState } from 'react'\nexport default function Page() { const [x, setX] = useState(0); return <div>{x}</div> }`
-    const { code: fixed } = autoFixCode(code)
+    const { code: fixed } = await autoFixCode(code)
     const count = (fixed.match(/'use client'/g) || []).length
     expect(count).toBe(1)
   })
 
-  it('cleans up double spaces in className', () => {
+  it('cleans up double spaces in className', async () => {
     const code = `<div className="text-sm  leading-relaxed  font-bold">X</div>`
-    const { code: fixed } = autoFixCode(code)
+    const { code: fixed } = await autoFixCode(code)
     expect(fixed).not.toContain('  ')
+  })
+
+  it('fixes &lt;= in JS code (HTML entity in comparison)', async () => {
+    const code = `'use client'\nfunction filter(x: number) { return x &lt;= 200 }`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('x <= 200')
+    expect(fixed).not.toContain('&lt;')
+    expect(fixes.some(f => f.includes('syntax'))).toBe(true)
+  })
+
+  it('fixes &lt; in JS code (budget < 200 pattern)', async () => {
+    const code = `'use client'\nconst ok = budget &lt; 200`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('budget < 200')
+  })
+
+  it('fixes &amp;&amp; in JS code', async () => {
+    const code = `'use client'\nconst ok = a &amp;&amp; b`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('a && b')
+  })
+
+  it('fixes &gt;= in JS code', async () => {
+    const code = `'use client'\nconst ok = budget &gt;= 200`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('budget >= 200')
   })
 })

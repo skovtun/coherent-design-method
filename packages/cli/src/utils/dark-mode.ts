@@ -7,11 +7,7 @@
 import { readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
-import {
-  generateSharedComponent,
-  loadManifest,
-  integrateSharedLayoutIntoRootLayout,
-} from '@getcoherent/core'
+import { generateSharedComponent, loadManifest, integrateSharedLayoutIntoRootLayout } from '@getcoherent/core'
 
 const THEME_TOGGLE_CODE = `'use client'
 
@@ -68,7 +64,7 @@ export async function setDefaultLightTheme(projectRoot: string): Promise<boolean
  */
 export async function ensureThemeToggle(projectRoot: string): Promise<{ created: boolean; id: string }> {
   const manifest = await loadManifest(projectRoot)
-  const existing = manifest.shared.find((e) => e.name === 'ThemeToggle' || e.name.toLowerCase().includes('themetoggle'))
+  const existing = manifest.shared.find(e => e.name === 'ThemeToggle' || e.name.toLowerCase().includes('themetoggle'))
   if (existing) {
     await integrateSharedLayoutIntoRootLayout(projectRoot)
     return { created: false, id: existing.id }

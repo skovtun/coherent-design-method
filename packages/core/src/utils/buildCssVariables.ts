@@ -29,12 +29,8 @@ function blendColors(hex1: string, hex2: string, ratio: number): string {
 export function buildCssVariables(config: DesignSystemConfig): string {
   const light = config.tokens.colors.light
   const dark = config.tokens.colors.dark
-  const accentVars = light.accent
-    ? `  --accent: ${light.accent};\n  --accent-foreground: ${light.foreground};\n`
-    : ''
-  const accentDarkVars = dark.accent
-    ? `  --accent: ${dark.accent};\n  --accent-foreground: ${dark.foreground};\n`
-    : ''
+  const accentVars = light.accent ? `  --accent: ${light.accent};\n  --accent-foreground: ${light.foreground};\n` : ''
+  const accentDarkVars = dark.accent ? `  --accent: ${dark.accent};\n  --accent-foreground: ${dark.foreground};\n` : ''
   return `:root {
   --background: ${light.background};
   --foreground: ${light.foreground};

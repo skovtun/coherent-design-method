@@ -5,9 +5,9 @@
  * Used by: sync, check, fix, file-watcher, chat (pre-generation).
  */
 
-import { existsSync, readFileSync, readdirSync, statSync } from 'fs'
+import { existsSync, readFileSync, readdirSync } from 'fs'
 import { join, relative } from 'path'
-import type { SharedComponentsManifest, SharedComponentEntry } from '@getcoherent/core'
+import type { SharedComponentsManifest } from '@getcoherent/core'
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -64,39 +64,29 @@ export function arraysEqual(a: string[], b: string[]): boolean {
  * Find all page.tsx files that import a given component name.
  * Returns relative paths like "app/page.tsx", "app/about/page.tsx".
  */
-export function findPagesImporting(
-  projectRoot: string,
-  componentName: string,
-  componentFile: string
-): string[] {
+export function findPagesImporting(projectRoot: string, componentName: string, componentFile: string): string[] {
   const results: string[] = []
   const appDir = join(projectRoot, 'app')
   if (!existsSync(appDir)) return results
 
-  const pageFiles = collectFiles(appDir, (name) =>
-    name === 'page.tsx' || name === 'page.jsx'
-  )
+  const pageFiles = collectFiles(appDir, name => name === 'page.tsx' || name === 'page.jsx')
 
-  const componentImportPath = componentFile
-    .replace(/\.tsx$/, '')
-    .replace(/\.jsx$/, '')
+  const componentImportPath = componentFile.replace(/\.tsx$/, '').replace(/\.jsx$/, '')
 
   for (const absPath of pageFiles) {
     if (absPath.includes('design-system')) continue
     try {
       const code = readFileSync(absPath, 'utf-8')
-      const hasNamedImport = new RegExp(
-        `import\\s+\\{[^}]*\\b${componentName}\\b[^}]*\\}\\s+from\\s+['"]`
-      ).test(code)
-      const hasDefaultImport = new RegExp(
-        `import\\s+${componentName}\\s+from\\s+['"]`
-      ).test(code)
+      const hasNamedImport = new RegExp(`import\\s+\\{[^}]*\\b${componentName}\\b[^}]*\\}\\s+from\\s+['"]`).test(code)
+      const hasDefaultImport = new RegExp(`import\\s+${componentName}\\s+from\\s+['"]`).test(code)
       const hasPathImport = code.includes(`@/${componentImportPath}`)
 
       if (hasNamedImport || hasDefaultImport || hasPathImport) {
         results.push(relative(projectRoot, absPath))
       }
-    } catch { /* skip unreadable */ }
+    } catch {
+      /* skip unreadable */
+    }
   }
 
   return results
@@ -121,7 +111,7 @@ export function isUsedInLayout(projectRoot: string, componentName: string): bool
  */
 export function findUnregisteredComponents(
   projectRoot: string,
-  manifest: SharedComponentsManifest
+  manifest: SharedComponentsManifest,
 ): UnregisteredComponent[] {
   const results: UnregisteredComponent[] = []
   const componentsDir = join(projectRoot, 'components')
@@ -130,9 +120,11 @@ export function findUnregisteredComponents(
   const registeredFiles = new Set(manifest.shared.map(s => s.file))
   const registeredNames = new Set(manifest.shared.map(s => s.name))
 
-  const files = collectFiles(componentsDir, (name) =>
-    (name.endsWith('.tsx') || name.endsWith('.jsx')) && !name.startsWith('.')
-  , ['ui', 'node_modules'])
+  const files = collectFiles(
+    componentsDir,
+    name => (name.endsWith('.tsx') || name.endsWith('.jsx')) && !name.startsWith('.'),
+    ['ui', 'node_modules'],
+  )
 
   for (const absPath of files) {
     const relFile = relative(projectRoot, absPath)
@@ -146,7 +138,9 @@ export function findUnregisteredComponents(
         const usedIn = findPagesImporting(projectRoot, name, relFile)
         results.push({ name, file: relFile, type, usedIn })
       }
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   }
 
   return results
@@ -156,34 +150,32 @@ export function findUnregisteredComponents(
  * Find pages that define a function/const with the same name as a shared component
  * without importing the shared version.
  */
-export function findInlineDuplicates(
-  projectRoot: string,
-  manifest: SharedComponentsManifest
-): InlineDuplicate[] {
+export function findInlineDuplicates(projectRoot: string, manifest: SharedComponentsManifest): InlineDuplicate[] {
   const results: InlineDuplicate[] = []
   const appDir = join(projectRoot, 'app')
   if (!existsSync(appDir)) return results
 
-  const pageFiles = collectFiles(appDir, (name) =>
-    name === 'page.tsx' || name === 'page.jsx'
-  )
+  const pageFiles = collectFiles(appDir, name => name === 'page.tsx' || name === 'page.jsx')
 
   for (const absPath of pageFiles) {
     if (absPath.includes('design-system')) continue
     let code: string
-    try { code = readFileSync(absPath, 'utf-8') } catch { continue }
+    try {
+      code = readFileSync(absPath, 'utf-8')
+    } catch {
+      continue
+    }
     const relPath = relative(projectRoot, absPath)
 
     for (const shared of manifest.shared) {
       const importPath = shared.file.replace(/\.tsx$/, '').replace(/\.jsx$/, '')
-      const isImported = code.includes(`@/${importPath}`) ||
+      const isImported =
+        code.includes(`@/${importPath}`) ||
         code.includes(`from './${importPath}'`) ||
         code.includes(`from "../${importPath}"`)
       if (isImported) continue
 
-      const hasInline = new RegExp(
-        `(?:function|const)\\s+${shared.name}\\s*[=(]`
-      ).test(code)
+      const hasInline = new RegExp(`(?:function|const)\\s+${shared.name}\\s*[=(]`).test(code)
 
       if (hasInline) {
         results.push({
@@ -202,16 +194,15 @@ export function findInlineDuplicates(
 /**
  * Find a component file by export name (for detecting moved files).
  */
-export function findComponentFileByExportName(
-  projectRoot: string,
-  componentName: string
-): string | null {
+export function findComponentFileByExportName(projectRoot: string, componentName: string): string | null {
   const componentsDir = join(projectRoot, 'components')
   if (!existsSync(componentsDir)) return null
 
-  const files = collectFiles(componentsDir, (name) =>
-    (name.endsWith('.tsx') || name.endsWith('.jsx')) && !name.startsWith('.')
-  , ['ui', 'node_modules'])
+  const files = collectFiles(
+    componentsDir,
+    name => (name.endsWith('.tsx') || name.endsWith('.jsx')) && !name.startsWith('.'),
+    ['ui', 'node_modules'],
+  )
 
   for (const absPath of files) {
     try {
@@ -220,7 +211,9 @@ export function findComponentFileByExportName(
       if (exports.includes(componentName)) {
         return relative(projectRoot, absPath)
       }
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   }
 
   return null
@@ -232,7 +225,7 @@ export function findComponentFileByExportName(
  */
 export function removeOrphanedEntries(
   projectRoot: string,
-  manifest: SharedComponentsManifest
+  manifest: SharedComponentsManifest,
 ): { manifest: SharedComponentsManifest; removed: Array<{ id: string; name: string }> } {
   const removed: Array<{ id: string; name: string }> = []
   const valid = manifest.shared.filter(entry => {
@@ -253,7 +246,7 @@ export function removeOrphanedEntries(
  */
 export function reconcileComponents(
   projectRoot: string,
-  manifest: SharedComponentsManifest
+  manifest: SharedComponentsManifest,
 ): { manifest: SharedComponentsManifest; result: ReconcileResult } {
   const result: ReconcileResult = {
     removed: [],
@@ -262,7 +255,7 @@ export function reconcileComponents(
     warnings: [],
   }
 
-  let m = { ...manifest, shared: [...manifest.shared], nextId: manifest.nextId }
+  const m = { ...manifest, shared: [...manifest.shared], nextId: manifest.nextId }
 
   // ── Pass 1: Validate existing entries ──
 
@@ -284,7 +277,11 @@ export function reconcileComponents(
 
     // 2. Read file and check export name
     let code: string
-    try { code = readFileSync(join(projectRoot, entry.file), 'utf-8') } catch { return true }
+    try {
+      code = readFileSync(join(projectRoot, entry.file), 'utf-8')
+    } catch {
+      return true
+    }
 
     const actualExports = extractExportedComponentNames(code)
     if (actualExports.length > 0 && !actualExports.includes(entry.name)) {
@@ -296,9 +293,7 @@ export function reconcileComponents(
     // 3. Recalculate usedIn
     const actualUsedIn = findPagesImporting(projectRoot, entry.name, entry.file)
     const inLayout = isUsedInLayout(projectRoot, entry.name)
-    const fullUsedIn = inLayout
-      ? [...new Set([...actualUsedIn, 'app/layout.tsx'])]
-      : actualUsedIn
+    const fullUsedIn = inLayout ? [...new Set([...actualUsedIn, 'app/layout.tsx'])] : actualUsedIn
 
     if (!arraysEqual(fullUsedIn, entry.usedIn || [])) {
       result.updated.push({
@@ -376,15 +371,15 @@ export function reconcileComponents(
 
 // ── File collection helper ───────────────────────────────────────
 
-function collectFiles(
-  dir: string,
-  filter: (name: string) => boolean,
-  skipDirs: string[] = []
-): string[] {
+function collectFiles(dir: string, filter: (name: string) => boolean, skipDirs: string[] = []): string[] {
   const results: string[] = []
   function walk(d: string) {
     let entries
-    try { entries = readdirSync(d, { withFileTypes: true }) } catch { return }
+    try {
+      entries = readdirSync(d, { withFileTypes: true })
+    } catch {
+      return
+    }
     for (const e of entries) {
       const full = join(d, e.name)
       if (e.isDirectory()) {

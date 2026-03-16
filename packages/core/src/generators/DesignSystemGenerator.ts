@@ -15,10 +15,7 @@ import {
 } from './templates/design-system/index.js'
 import { DESIGN_SYSTEM_CONFIG_API } from './templates/api/design-system-config.js'
 import { DESIGN_SYSTEM_CHANGES_API } from './templates/api/design-system-changes.js'
-import {
-  SHARED_COMPONENTS_API,
-  SHARED_COMPONENT_DETAIL_API,
-} from './templates/api/shared-components-api.js'
+import { SHARED_COMPONENTS_API, SHARED_COMPONENT_DETAIL_API } from './templates/api/shared-components-api.js'
 
 export class DesignSystemGenerator {
   constructor(private config: DesignSystemConfig) {}
@@ -406,7 +403,7 @@ export default function ComponentsIndexPage() {
           ${v.name}
         </${component.name}>
         <code className="text-xs text-muted-foreground">variant="${v.name}"</code>
-      </div>`
+      </div>`,
             )
             .join('\n          ')
         : `<div className="text-sm text-muted-foreground">No variants</div>`
@@ -420,7 +417,7 @@ export default function ComponentsIndexPage() {
           ${s.name}
         </${component.name}>
         <code className="text-xs text-muted-foreground">size="${s.name}"</code>
-      </div>`
+      </div>`,
             )
             .join('\n          ')
         : `<div className="text-sm text-muted-foreground">No sizes</div>`
@@ -481,13 +478,8 @@ export default function ComponentsIndexPage() {
 
   private generatePropsTable(component: ComponentDefinition): string {
     const variantType =
-      component.variants.length > 0
-        ? component.variants.map(v => `"${v.name}"`).join(' | ')
-        : 'string'
-    const sizeType =
-      component.sizes.length > 0
-        ? component.sizes.map(s => `"${s.name}"`).join(' | ')
-        : 'string'
+      component.variants.length > 0 ? component.variants.map(v => `"${v.name}"`).join(' | ') : 'string'
+    const sizeType = component.sizes.length > 0 ? component.sizes.map(s => `"${s.name}"`).join(' | ') : 'string'
     const defaultVariant = component.variants[0]?.name ?? 'default'
     const defaultSize = component.sizes[0]?.name ?? 'md'
 
@@ -503,7 +495,7 @@ export default function ComponentsIndexPage() {
         <td className="p-3 font-mono">${prop.name}</td>
         <td className="p-3 font-mono text-xs">${prop.type}</td>
         <td className="p-3 font-mono text-xs">${prop.default}</td>
-      </tr>`
+      </tr>`,
       )
       .join('\n              ')
   }
@@ -555,33 +547,35 @@ export default function TokensPage() {
     const lines: string[] = []
     lines.push("'use client'")
     lines.push("import { useEffect, useState } from 'react'")
-    lines.push("")
-    lines.push("export default function ColorsPage() {")
-    lines.push("  const [tokens, setTokens] = useState<{ colors?: { light?: Record<string, string>; dark?: Record<string, string> } } | null>(null)")
-    lines.push("  const [loading, setLoading] = useState(true)")
-    lines.push("")
-    lines.push("  useEffect(() => {")
+    lines.push('')
+    lines.push('export default function ColorsPage() {')
+    lines.push(
+      '  const [tokens, setTokens] = useState<{ colors?: { light?: Record<string, string>; dark?: Record<string, string> } } | null>(null)',
+    )
+    lines.push('  const [loading, setLoading] = useState(true)')
+    lines.push('')
+    lines.push('  useEffect(() => {')
     lines.push("    fetch('/api/design-system/config')")
-    lines.push("      .then((res) => res.json())")
-    lines.push("      .then((data) => { setTokens(data.tokens ?? null); setLoading(false) })")
-    lines.push("      .catch(() => { setTokens(null); setLoading(false) })")
-    lines.push("  }, [])")
-    lines.push("")
-    lines.push("  if (loading) {")
-    lines.push("    return (")
+    lines.push('      .then((res) => res.json())')
+    lines.push('      .then((data) => { setTokens(data.tokens ?? null); setLoading(false) })')
+    lines.push('      .catch(() => { setTokens(null); setLoading(false) })')
+    lines.push('  }, [])')
+    lines.push('')
+    lines.push('  if (loading) {')
+    lines.push('    return (')
     lines.push('      <div className="space-y-8">')
     lines.push('        <h1 className="text-4xl font-bold tracking-tight">Color Tokens</h1>')
     lines.push('        <p className="text-muted-foreground">Loading...</p>')
-    lines.push("      </div>")
-    lines.push("    )")
-    lines.push("  }")
-    lines.push("")
-    lines.push("  const light = tokens?.colors?.light ?? {}")
-    lines.push("  const dark = tokens?.colors?.dark ?? {}")
-    lines.push("  const keys = Array.from(new Set([...Object.keys(light), ...Object.keys(dark)]))")
-    lines.push("  const toCssVar = (key: string) => `--${key}`")
-    lines.push("")
-    lines.push("  return (")
+    lines.push('      </div>')
+    lines.push('    )')
+    lines.push('  }')
+    lines.push('')
+    lines.push('  const light = tokens?.colors?.light ?? {}')
+    lines.push('  const dark = tokens?.colors?.dark ?? {}')
+    lines.push('  const keys = Array.from(new Set([...Object.keys(light), ...Object.keys(dark)]))')
+    lines.push('  const toCssVar = (key: string) => `--${key}`')
+    lines.push('')
+    lines.push('  return (')
     lines.push('    <div className="space-y-8">')
     lines.push('      <h1 className="text-4xl font-bold tracking-tight">Color Tokens</h1>')
     lines.push('      <p className="text-muted-foreground">Design system color variables (light and dark themes).</p>')
@@ -589,311 +583,317 @@ export default function TokensPage() {
     lines.push('        <div className="space-y-4">')
     lines.push('          <h2 className="text-xl font-semibold">Light Theme</h2>')
     lines.push('          <div className="rounded-lg border p-4 space-y-3">')
-    lines.push("            {keys.length === 0 ? (")
+    lines.push('            {keys.length === 0 ? (')
     lines.push('              <p className="text-sm text-muted-foreground">No color tokens</p>')
-    lines.push("            ) : (")
-    lines.push("              keys.map((key) => {")
-    lines.push("                const value = light[key]")
-    lines.push("                if (!value) return null")
-    lines.push("                return (")
+    lines.push('            ) : (')
+    lines.push('              keys.map((key) => {')
+    lines.push('                const value = light[key]')
+    lines.push('                if (!value) return null')
+    lines.push('                return (')
     lines.push('                  <div key={`light-${key}`} className="flex items-center gap-4">')
-    lines.push("                    <div")
+    lines.push('                    <div')
     lines.push('                      className="h-10 w-10 shrink-0 rounded-md border"')
-    lines.push("                      style={{ backgroundColor: value }}")
-    lines.push("                    />")
+    lines.push('                      style={{ backgroundColor: value }}')
+    lines.push('                    />')
     lines.push('                    <div className="min-w-0 flex-1">')
     lines.push('                      <div className="font-medium capitalize">{key}</div>')
-    lines.push('                      <div className="text-xs text-muted-foreground font-mono">{value} · var({toCssVar(key)})</div>')
-    lines.push("                    </div>")
-    lines.push("                  </div>")
-    lines.push("                )")
-    lines.push("              })")
-    lines.push("            )}")
-    lines.push("          </div>")
-    lines.push("        </div>")
+    lines.push(
+      '                      <div className="text-xs text-muted-foreground font-mono">{value} · var({toCssVar(key)})</div>',
+    )
+    lines.push('                    </div>')
+    lines.push('                  </div>')
+    lines.push('                )')
+    lines.push('              })')
+    lines.push('            )}')
+    lines.push('          </div>')
+    lines.push('        </div>')
     lines.push('        <div className="space-y-4">')
     lines.push('          <h2 className="text-xl font-semibold">Dark Theme</h2>')
     lines.push('          <div className="dark rounded-lg border border-border p-4 space-y-3 bg-background">')
-    lines.push("            {keys.length === 0 ? (")
+    lines.push('            {keys.length === 0 ? (')
     lines.push('              <p className="text-sm text-muted-foreground">No color tokens</p>')
-    lines.push("            ) : (")
-    lines.push("              keys.map((key) => {")
-    lines.push("                const value = dark[key]")
-    lines.push("                if (!value) return null")
-    lines.push("                return (")
+    lines.push('            ) : (')
+    lines.push('              keys.map((key) => {')
+    lines.push('                const value = dark[key]')
+    lines.push('                if (!value) return null')
+    lines.push('                return (')
     lines.push('                  <div key={`dark-${key}`} className="flex items-center gap-4">')
-    lines.push("                    <div")
+    lines.push('                    <div')
     lines.push('                      className="h-10 w-10 shrink-0 rounded-md border border-border"')
-    lines.push("                      style={{ backgroundColor: value }}")
-    lines.push("                    />")
+    lines.push('                      style={{ backgroundColor: value }}')
+    lines.push('                    />')
     lines.push('                    <div className="min-w-0 flex-1">')
     lines.push('                      <div className="font-medium capitalize text-foreground">{key}</div>')
     lines.push('                      <div className="text-xs text-muted-foreground font-mono">{value}</div>')
-    lines.push("                    </div>")
-    lines.push("                  </div>")
-    lines.push("                )")
-    lines.push("              })")
-    lines.push("            )}")
-    lines.push("          </div>")
-    lines.push("        </div>")
-    lines.push("      </div>")
-    lines.push("    </div>")
-    lines.push("  )")
-    lines.push("}")
-    return lines.join("\n")
+    lines.push('                    </div>')
+    lines.push('                  </div>')
+    lines.push('                )')
+    lines.push('              })')
+    lines.push('            )}')
+    lines.push('          </div>')
+    lines.push('        </div>')
+    lines.push('      </div>')
+    lines.push('    </div>')
+    lines.push('  )')
+    lines.push('}')
+    return lines.join('\n')
   }
 
   private generateTypographyPage(): string {
     const lines: string[] = []
     lines.push("'use client'")
     lines.push("import { useEffect, useState } from 'react'")
-    lines.push("")
-    lines.push("export default function TypographyPage() {")
-    lines.push("  const [tokens, setTokens] = useState<any>(null)")
-    lines.push("  const [loading, setLoading] = useState(true)")
-    lines.push("")
-    lines.push("  useEffect(() => {")
+    lines.push('')
+    lines.push('export default function TypographyPage() {')
+    lines.push('  const [tokens, setTokens] = useState<any>(null)')
+    lines.push('  const [loading, setLoading] = useState(true)')
+    lines.push('')
+    lines.push('  useEffect(() => {')
     lines.push("    fetch('/api/design-system/config')")
-    lines.push("      .then((res) => res.json())")
-    lines.push("      .then((data) => { setTokens(data.tokens ?? null); setLoading(false) })")
-    lines.push("      .catch(() => { setTokens(null); setLoading(false) })")
-    lines.push("  }, [])")
-    lines.push("")
-    lines.push("  if (loading) {")
-    lines.push("    return (")
+    lines.push('      .then((res) => res.json())')
+    lines.push('      .then((data) => { setTokens(data.tokens ?? null); setLoading(false) })')
+    lines.push('      .catch(() => { setTokens(null); setLoading(false) })')
+    lines.push('  }, [])')
+    lines.push('')
+    lines.push('  if (loading) {')
+    lines.push('    return (')
     lines.push('      <div className="space-y-8">')
     lines.push('        <h1 className="text-4xl font-bold tracking-tight">Typography</h1>')
     lines.push('        <p className="text-muted-foreground">Loading...</p>')
-    lines.push("      </div>")
-    lines.push("    )")
-    lines.push("  }")
-    lines.push("")
-    lines.push("  const typography = tokens?.typography ?? {}")
-    lines.push("  const fontFamily = typography.fontFamily ?? {}")
-    lines.push("  const fontSize = typography.fontSize ?? {}")
-    lines.push("  const fontWeight = typography.fontWeight ?? {}")
-    lines.push("  const lineHeight = typography.lineHeight ?? {}")
-    lines.push("")
-    lines.push("  const remToPx = (rem: string) => {")
-    lines.push("    const val = parseFloat(rem)")
-    lines.push("    return isNaN(val) ? rem : `${val * 16}px`")
-    lines.push("  }")
-    lines.push("")
-    lines.push("  return (")
+    lines.push('      </div>')
+    lines.push('    )')
+    lines.push('  }')
+    lines.push('')
+    lines.push('  const typography = tokens?.typography ?? {}')
+    lines.push('  const fontFamily = typography.fontFamily ?? {}')
+    lines.push('  const fontSize = typography.fontSize ?? {}')
+    lines.push('  const fontWeight = typography.fontWeight ?? {}')
+    lines.push('  const lineHeight = typography.lineHeight ?? {}')
+    lines.push('')
+    lines.push('  const remToPx = (rem: string) => {')
+    lines.push('    const val = parseFloat(rem)')
+    lines.push('    return isNaN(val) ? rem : `${val * 16}px`')
+    lines.push('  }')
+    lines.push('')
+    lines.push('  return (')
     lines.push('    <div className="space-y-10">')
     lines.push('      <h1 className="text-4xl font-bold tracking-tight">Typography</h1>')
     lines.push('      <p className="text-muted-foreground">Font families, sizes, weights, and line heights.</p>')
-    lines.push("")
+    lines.push('')
     lines.push('      <div className="space-y-4">')
     lines.push('        <h2 className="text-2xl font-semibold">Font Families</h2>')
     lines.push('        <div className="rounded-lg border p-6 space-y-6">')
-    lines.push("          {Object.entries(fontFamily).map(([name, value]) => (")
+    lines.push('          {Object.entries(fontFamily).map(([name, value]) => (')
     lines.push('            <div key={name} className="space-y-2">')
     lines.push('              <div className="text-sm font-medium capitalize">{name}</div>')
     lines.push('              <div className="text-xs text-muted-foreground font-mono">{value as string}</div>')
-    lines.push('              <div className="text-lg" style={{ fontFamily: value as string }}>The quick brown fox jumps over the lazy dog</div>')
-    lines.push("            </div>")
-    lines.push("          ))}")
-    lines.push("        </div>")
-    lines.push("      </div>")
+    lines.push(
+      '              <div className="text-lg" style={{ fontFamily: value as string }}>The quick brown fox jumps over the lazy dog</div>',
+    )
+    lines.push('            </div>')
+    lines.push('          ))}')
+    lines.push('        </div>')
+    lines.push('      </div>')
     lines.push('      <div className="space-y-4">')
     lines.push('        <h2 className="text-2xl font-semibold">Font Sizes</h2>')
     lines.push('        <div className="rounded-lg border p-6 space-y-6">')
-    lines.push("          {Object.entries(fontSize).map(([name, value]) => (")
+    lines.push('          {Object.entries(fontSize).map(([name, value]) => (')
     lines.push('            <div key={name} className="space-y-1">')
     lines.push('              <div className="flex items-baseline gap-2">')
     lines.push('                <span className="text-sm font-medium">{name}</span>')
-    lines.push('                <span className="text-xs text-muted-foreground font-mono">{value as string} ({remToPx(value as string)})</span>')
-    lines.push("              </div>")
-    lines.push('              <div style={{ fontSize: value as string }}>The quick brown fox jumps over the lazy dog</div>')
-    lines.push("            </div>")
-    lines.push("          ))}")
-    lines.push("        </div>")
-    lines.push("      </div>")
+    lines.push(
+      '                <span className="text-xs text-muted-foreground font-mono">{value as string} ({remToPx(value as string)})</span>',
+    )
+    lines.push('              </div>')
+    lines.push(
+      '              <div style={{ fontSize: value as string }}>The quick brown fox jumps over the lazy dog</div>',
+    )
+    lines.push('            </div>')
+    lines.push('          ))}')
+    lines.push('        </div>')
+    lines.push('      </div>')
     lines.push('      <div className="space-y-4">')
     lines.push('        <h2 className="text-2xl font-semibold">Font Weights</h2>')
     lines.push('        <div className="rounded-lg border p-6">')
     lines.push('          <div className="flex flex-wrap gap-8">')
-    lines.push("            {Object.entries(fontWeight).map(([name, value]) => (")
+    lines.push('            {Object.entries(fontWeight).map(([name, value]) => (')
     lines.push('              <div key={name} className="space-y-1 text-center">')
     lines.push('                <div className="text-2xl" style={{ fontWeight: value as number }}>Aa</div>')
     lines.push('                <div className="text-xs font-medium">{name}</div>')
     lines.push('                <div className="text-xs text-muted-foreground">{String(value)}</div>')
-    lines.push("              </div>")
-    lines.push("            ))}")
-    lines.push("          </div>")
-    lines.push("        </div>")
-    lines.push("      </div>")
+    lines.push('              </div>')
+    lines.push('            ))}')
+    lines.push('          </div>')
+    lines.push('        </div>')
+    lines.push('      </div>')
     lines.push('      <div className="space-y-4">')
     lines.push('        <h2 className="text-2xl font-semibold">Line Heights</h2>')
     lines.push('        <div className="rounded-lg border p-6 space-y-6">')
-    lines.push("          {Object.entries(lineHeight).map(([name, value]) => (")
+    lines.push('          {Object.entries(lineHeight).map(([name, value]) => (')
     lines.push('            <div key={name} className="space-y-1">')
     lines.push('              <div className="text-sm font-medium">{name} ({String(value)})</div>')
-    lines.push('              <div className="text-sm bg-muted/50 p-3 rounded max-w-md" style={{ lineHeight: value as number }}>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.</div>')
-    lines.push("            </div>")
-    lines.push("          ))}")
-    lines.push("        </div>")
-    lines.push("      </div>")
-    lines.push("    </div>")
-    lines.push("  )")
-    lines.push("}")
-    return lines.join("\n")
+    lines.push(
+      '              <div className="text-sm bg-muted/50 p-3 rounded max-w-md" style={{ lineHeight: value as number }}>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.</div>',
+    )
+    lines.push('            </div>')
+    lines.push('          ))}')
+    lines.push('        </div>')
+    lines.push('      </div>')
+    lines.push('    </div>')
+    lines.push('  )')
+    lines.push('}')
+    return lines.join('\n')
   }
 
   private generateSpacingPage(): string {
     const lines: string[] = []
     lines.push("'use client'")
     lines.push("import { useEffect, useState } from 'react'")
-    lines.push("")
-    lines.push("export default function SpacingPage() {")
-    lines.push("  const [tokens, setTokens] = useState<any>(null)")
-    lines.push("  const [loading, setLoading] = useState(true)")
-    lines.push("")
-    lines.push("  useEffect(() => {")
+    lines.push('')
+    lines.push('export default function SpacingPage() {')
+    lines.push('  const [tokens, setTokens] = useState<any>(null)')
+    lines.push('  const [loading, setLoading] = useState(true)')
+    lines.push('')
+    lines.push('  useEffect(() => {')
     lines.push("    fetch('/api/design-system/config')")
-    lines.push("      .then((res) => res.json())")
-    lines.push("      .then((data) => { setTokens(data.tokens ?? null); setLoading(false) })")
-    lines.push("      .catch(() => { setTokens(null); setLoading(false) })")
-    lines.push("  }, [])")
-    lines.push("")
-    lines.push("  if (loading) {")
-    lines.push("    return (")
+    lines.push('      .then((res) => res.json())')
+    lines.push('      .then((data) => { setTokens(data.tokens ?? null); setLoading(false) })')
+    lines.push('      .catch(() => { setTokens(null); setLoading(false) })')
+    lines.push('  }, [])')
+    lines.push('')
+    lines.push('  if (loading) {')
+    lines.push('    return (')
     lines.push('      <div className="space-y-8">')
     lines.push('        <h1 className="text-4xl font-bold tracking-tight">Spacing & Radius</h1>')
     lines.push('        <p className="text-muted-foreground">Loading...</p>')
-    lines.push("      </div>")
-    lines.push("    )")
-    lines.push("  }")
-    lines.push("")
-    lines.push("  const spacing = tokens?.spacing ?? {}")
-    lines.push("  const radius = tokens?.radius ?? {}")
-    lines.push("")
-    lines.push("  return (")
+    lines.push('      </div>')
+    lines.push('    )')
+    lines.push('  }')
+    lines.push('')
+    lines.push('  const spacing = tokens?.spacing ?? {}')
+    lines.push('  const radius = tokens?.radius ?? {}')
+    lines.push('')
+    lines.push('  return (')
     lines.push('    <div className="space-y-10">')
     lines.push('      <h1 className="text-4xl font-bold tracking-tight">Spacing & Radius</h1>')
     lines.push('      <p className="text-muted-foreground">Spacing scale and border radius tokens.</p>')
     lines.push('      <div className="space-y-4">')
     lines.push('        <h2 className="text-2xl font-semibold">Spacing Scale</h2>')
     lines.push('        <div className="rounded-lg border p-6 space-y-4">')
-    lines.push("          {Object.keys(spacing).length === 0 ? (")
+    lines.push('          {Object.keys(spacing).length === 0 ? (')
     lines.push('            <p className="text-sm text-muted-foreground">No spacing tokens</p>')
-    lines.push("          ) : (")
-    lines.push("            Object.entries(spacing).map(([name, value]) => (")
+    lines.push('          ) : (')
+    lines.push('            Object.entries(spacing).map(([name, value]) => (')
     lines.push('              <div key={name} className="flex items-center gap-4">')
     lines.push('                <div className="w-12 text-sm font-mono font-medium text-right">{name}</div>')
     lines.push('                <div className="w-24 text-xs text-muted-foreground font-mono">{value as string}</div>')
-    lines.push("                <div")
+    lines.push('                <div')
     lines.push('                  className="h-6 rounded bg-primary/70"')
-    lines.push("                  style={{ width: value as string }}")
-    lines.push("                />")
-    lines.push("              </div>")
-    lines.push("            ))")
-    lines.push("          )}")
-    lines.push("        </div>")
-    lines.push("      </div>")
+    lines.push('                  style={{ width: value as string }}')
+    lines.push('                />')
+    lines.push('              </div>')
+    lines.push('            ))')
+    lines.push('          )}')
+    lines.push('        </div>')
+    lines.push('      </div>')
     lines.push('      <div className="space-y-4">')
     lines.push('        <h2 className="text-2xl font-semibold">Border Radius</h2>')
     lines.push('        <div className="rounded-lg border p-6">')
-    lines.push("          {Object.keys(radius).length === 0 ? (")
+    lines.push('          {Object.keys(radius).length === 0 ? (')
     lines.push('            <p className="text-sm text-muted-foreground">No radius tokens</p>')
-    lines.push("          ) : (")
+    lines.push('          ) : (')
     lines.push('            <div className="flex flex-wrap gap-6">')
-    lines.push("              {Object.entries(radius).map(([name, value]) => (")
+    lines.push('              {Object.entries(radius).map(([name, value]) => (')
     lines.push('                <div key={name} className="flex flex-col items-center gap-2">')
-    lines.push("                  <div")
+    lines.push('                  <div')
     lines.push('                    className="h-16 w-16 border-2 border-primary/70 bg-primary/10"')
-    lines.push("                    style={{ borderRadius: value as string }}")
-    lines.push("                  />")
+    lines.push('                    style={{ borderRadius: value as string }}')
+    lines.push('                  />')
     lines.push('                  <div className="text-xs font-medium">{name}</div>')
     lines.push('                  <div className="text-xs text-muted-foreground font-mono">{value as string}</div>')
-    lines.push("                </div>")
-    lines.push("              ))}")
-    lines.push("            </div>")
-    lines.push("          )}")
-    lines.push("        </div>")
-    lines.push("      </div>")
-    lines.push("    </div>")
-    lines.push("  )")
-    lines.push("}")
-    return lines.join("\n")
+    lines.push('                </div>')
+    lines.push('              ))}')
+    lines.push('            </div>')
+    lines.push('          )}')
+    lines.push('        </div>')
+    lines.push('      </div>')
+    lines.push('    </div>')
+    lines.push('  )')
+    lines.push('}')
+    return lines.join('\n')
   }
 
   private generateSitemapPage(): string {
-    const pages = this.config.pages || []
-    const pageItems = pages.map(p => {
-      const route = p.route || '/' + p.id
-      const name = p.name || p.id
-      const analysis = (p as any).pageAnalysis
-      const sections = analysis?.sections ? JSON.stringify(analysis.sections.map((s: any) => s.name)) : '[]'
-      const compUsage = analysis?.componentUsage ? JSON.stringify(analysis.componentUsage) : '{}'
-      const iconCount = analysis?.iconCount ?? 0
-      const layout = analysis?.layoutPattern ? JSON.stringify(analysis.layoutPattern) : 'null'
-      const hasForm = analysis?.hasForm ?? false
-      return `{ name: ${JSON.stringify(name)}, route: ${JSON.stringify(route)}, sections: ${sections}, componentUsage: ${compUsage}, iconCount: ${iconCount}, layoutPattern: ${layout}, hasForm: ${hasForm} }`
-    })
+    return `import { readFileSync } from 'fs'
+import { join } from 'path'
+import Link from 'next/link'
 
-    const lines: string[] = []
-    lines.push("'use client'")
-    lines.push("")
-    lines.push("import Link from 'next/link'")
-    lines.push("")
-    lines.push("interface PageInfo {")
-    lines.push("  name: string")
-    lines.push("  route: string")
-    lines.push("  sections: string[]")
-    lines.push("  componentUsage: Record<string, number>")
-    lines.push("  iconCount: number")
-    lines.push("  layoutPattern: string | null")
-    lines.push("  hasForm: boolean")
-    lines.push("}")
-    lines.push("")
-    lines.push("const PAGES: PageInfo[] = [")
-    lines.push("  " + pageItems.join(",\n  "))
-    lines.push("]")
-    lines.push("")
-    lines.push("export default function SitemapPage() {")
-    lines.push("  return (")
-    lines.push('    <div className="space-y-8">')
-    lines.push("      <div>")
-    lines.push('        <h1 className="text-3xl font-bold tracking-tight">Sitemap</h1>')
-    lines.push('        <p className="text-muted-foreground mt-1">All pages, sections, and component usage</p>')
-    lines.push("      </div>")
-    lines.push('      <div className="space-y-4">')
-    lines.push("        {PAGES.map((page) => (")
-    lines.push('          <div key={page.route} className="rounded-xl border p-4 space-y-3">')
-    lines.push('            <div className="flex items-center gap-3">')
-    lines.push('              <Link href={page.route} className="font-semibold text-sm hover:text-primary transition-colors">')
-    lines.push("                {page.name}")
-    lines.push("              </Link>")
-    lines.push('              <span className="text-xs text-muted-foreground font-mono">{page.route}</span>')
-    lines.push('              {page.layoutPattern && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{page.layoutPattern}</span>}')
-    lines.push('              {page.hasForm && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">form</span>}')
-    lines.push("            </div>")
-    lines.push("            {page.sections.length > 0 && (")
-    lines.push('              <div className="flex flex-wrap gap-1.5">')
-    lines.push("                {page.sections.map((s) => (")
-    lines.push('                  <span key={s} className="text-[11px] px-2 py-0.5 rounded-full border text-muted-foreground">{s}</span>')
-    lines.push("                ))}")
-    lines.push("              </div>")
-    lines.push("            )}")
-    lines.push("            {Object.keys(page.componentUsage).length > 0 && (")
-    lines.push('              <div className="flex flex-wrap gap-1.5">')
-    lines.push("                {Object.entries(page.componentUsage).filter(([,c]) => c > 0).map(([name, count]) => (")
-    lines.push('                  <span key={name} className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">')
-    lines.push('                    {name}<span className="text-[10px] text-muted-foreground/60 ml-0.5">×{count as number}</span>')
-    lines.push("                  </span>")
-    lines.push("                ))}")
-    lines.push('                {page.iconCount > 0 && <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Icons ×{page.iconCount}</span>}')
-    lines.push("              </div>")
-    lines.push("            )}")
-    lines.push("          </div>")
-    lines.push("        ))}")
-    lines.push("      </div>")
-    lines.push("    </div>")
-    lines.push("  )")
-    lines.push("}")
+function loadPages() {
+  try {
+    const raw = readFileSync(join(process.cwd(), 'design-system.config.ts'), 'utf-8')
+    const jsonMatch = raw.match(/export\\s+const\\s+config\\s*=\\s*/)
+    const jsonStart = jsonMatch ? raw.indexOf('{', raw.indexOf(jsonMatch[0])) : -1
+    if (jsonStart === -1) return []
+    let jsonStr = raw.slice(jsonStart)
+    jsonStr = jsonStr.replace(/\\}\\s*as\\s+const\\s*;?\\s*$/, '}')
+    const json = JSON.parse(jsonStr)
+    return (json.pages || []).map((p: any) => ({
+      name: p.name || p.id,
+      route: p.route || '/' + p.id,
+      sections: p.pageAnalysis?.sections?.map((s: any) => s.name) || [],
+      componentUsage: p.pageAnalysis?.componentUsage || {},
+      iconCount: p.pageAnalysis?.iconCount ?? 0,
+      layoutPattern: p.pageAnalysis?.layoutPattern || null,
+      hasForm: p.pageAnalysis?.hasForm ?? false,
+    }))
+  } catch {
+    return []
+  }
+}
 
-    return lines.join("\n")
+export default function SitemapPage() {
+  const pages = loadPages()
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Sitemap</h1>
+        <p className="text-muted-foreground mt-1">All pages, sections, and component usage</p>
+      </div>
+      <div className="space-y-4">
+        {pages.map((page: any) => (
+          <div key={page.route} className="rounded-xl border p-4 space-y-3">
+            <div className="flex items-center gap-3">
+              <Link href={page.route} className="font-semibold text-sm hover:text-primary transition-colors">
+                {page.name}
+              </Link>
+              <span className="text-xs text-muted-foreground font-mono">{page.route}</span>
+              {page.layoutPattern && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{page.layoutPattern}</span>}
+              {page.hasForm && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">form</span>}
+            </div>
+            {page.sections.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {page.sections.map((s: string) => (
+                  <span key={s} className="text-[11px] px-2 py-0.5 rounded-full border text-muted-foreground">{s}</span>
+                ))}
+              </div>
+            )}
+            {Object.keys(page.componentUsage).length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(page.componentUsage).filter(([,c]) => (c as number) > 0).map(([name, count]) => (
+                  <span key={name} className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                    {name}<span className="text-[10px] text-muted-foreground/60 ml-0.5">{String.fromCharCode(215)}{count as number}</span>
+                  </span>
+                ))}
+                {page.iconCount > 0 && <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Icons {String.fromCharCode(215)}{page.iconCount}</span>}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+`
   }
 }

@@ -9,7 +9,8 @@ import type { PageAnalysis } from '@getcoherent/core'
 
 const FORM_COMPONENTS = new Set(['Input', 'Textarea', 'Label', 'Select', 'Checkbox', 'Switch'])
 
-const VISUAL_WORDS = /\b(grid lines?|glow|radial|gradient|blur|shadow|overlay|animation|particles?|dots?|vertical|horizontal|decorat|behind|background|divider|spacer|wrapper|container|inner|outer|absolute|relative|translate|opacity|z-index|transition)\b/i
+const VISUAL_WORDS =
+  /\b(grid lines?|glow|radial|gradient|blur|shadow|overlay|animation|particles?|dots?|vertical|horizontal|decorat|behind|background|divider|spacer|wrapper|container|inner|outer|absolute|relative|translate|opacity|z-index|transition)\b/i
 
 /**
  * Analyze generated page code and return structured metadata.
@@ -37,7 +38,7 @@ function extractSections(code: string): Array<{ name: string; order: number }> {
   while ((m = commentRe.exec(code)) !== null) {
     const raw = m[1].trim()
     const name = raw
-      .replace(/[─━—–]+/g, '')  // strip decorative dashes (em-dash, horizontal lines)
+      .replace(/[─━—–]+/g, '') // strip decorative dashes (em-dash, horizontal lines)
       .replace(/\s*section\s*$/i, '')
       .replace(/^section\s*:\s*/i, '')
       .trim()
@@ -73,7 +74,10 @@ function extractComponentUsage(code: string): Record<string, number> {
 
   let m
   while ((m = importRe.exec(code)) !== null) {
-    const names = m[1].split(',').map(s => s.trim()).filter(Boolean)
+    const names = m[1]
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
     importedComponents.push(...names)
   }
 
@@ -89,7 +93,10 @@ function extractComponentUsage(code: string): Record<string, number> {
 function extractIconCount(code: string): number {
   const m = code.match(/import\s*\{([^}]+)\}\s*from\s*['"]lucide-react['"]/)
   if (!m) return 0
-  return m[1].split(',').map(s => s.trim()).filter(Boolean).length
+  return m[1]
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean).length
 }
 
 function inferLayoutPattern(code: string): string {
@@ -116,11 +123,7 @@ function detectFormUsage(code: string): boolean {
 /**
  * Build a concise one-line summary of page analysis for AI prompts.
  */
-export function summarizePageAnalysis(
-  pageName: string,
-  route: string,
-  analysis: NonNullable<PageAnalysis>
-): string {
+export function summarizePageAnalysis(pageName: string, route: string, analysis: NonNullable<PageAnalysis>): string {
   const parts: string[] = [`${pageName} (${route})`]
 
   if (analysis.sections && analysis.sections.length > 0) {

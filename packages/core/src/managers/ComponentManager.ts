@@ -1,6 +1,6 @@
 /**
  * Component Manager
- * 
+ *
  * Handles component CRUD operations, registry, and reuse logic.
  * Prevents duplicate components and tracks usage.
  */
@@ -13,11 +13,7 @@ import type {
   ModificationResult,
   ComponentDependency,
 } from '../types/design-system.js'
-import {
-  validateConfig,
-  getComponent,
-  componentExists,
-} from '../types/design-system.js'
+import { validateConfig, getComponent } from '../types/design-system.js'
 
 export class ComponentManager {
   private config: DesignSystemConfig
@@ -104,10 +100,7 @@ export class ComponentManager {
   /**
    * Update existing component
    */
-  async update(
-    id: string,
-    changes: Partial<ComponentDefinition>
-  ): Promise<ModificationResult> {
+  async update(id: string, changes: Partial<ComponentDefinition>): Promise<ModificationResult> {
     const component = this.read(id)
     if (!component) {
       return {
@@ -122,7 +115,7 @@ export class ComponentManager {
     const classNameWarnings: string[] = []
     if (component.usedInPages.length > 0 && changes.baseClassName) {
       classNameWarnings.push(
-        `baseClassName changed on component used in ${component.usedInPages.length} page(s): ${component.usedInPages.join(', ')}`
+        `baseClassName changed on component used in ${component.usedInPages.length} page(s): ${component.usedInPages.join(', ')}`,
       )
     }
 
@@ -159,17 +152,12 @@ export class ComponentManager {
 
     const allWarnings = [
       ...classNameWarnings,
-      ...(affectedPages.length > 0
-        ? [`This change affects ${affectedPages.length} page(s)`]
-        : []),
+      ...(affectedPages.length > 0 ? [`This change affects ${affectedPages.length} page(s)`] : []),
     ]
 
     return {
       success: true,
-      modified: [
-        `component:${id}`,
-        ...affectedPages.map(page => `page:${page}`),
-      ],
+      modified: [`component:${id}`, ...affectedPages.map(page => `page:${page}`)],
       config: this.config,
       message: `Updated component ${updated.name} (${id})`,
       warnings: allWarnings.length > 0 ? allWarnings : undefined,
@@ -197,10 +185,7 @@ export class ComponentManager {
         modified: [],
         config: this.config,
         message: `Cannot delete component used in ${component.usedInPages.length} page(s)`,
-        warnings: [
-          'Remove component from all pages before deleting',
-          `Used in: ${component.usedInPages.join(', ')}`,
-        ],
+        warnings: ['Remove component from all pages before deleting', `Used in: ${component.usedInPages.join(', ')}`],
       }
     }
 
@@ -236,9 +221,7 @@ export class ComponentManager {
     // Filter by name (case-insensitive partial match)
     if (criteria.name) {
       const nameLower = criteria.name.toLowerCase()
-      results = results.filter(c =>
-        c.name.toLowerCase().includes(nameLower)
-      )
+      results = results.filter(c => c.name.toLowerCase().includes(nameLower))
     }
 
     // Filter by category
@@ -253,30 +236,22 @@ export class ComponentManager {
 
     // Filter by shadcn component
     if (criteria.shadcnComponent) {
-      results = results.filter(
-        c => c.shadcnComponent === criteria.shadcnComponent
-      )
+      results = results.filter(c => c.shadcnComponent === criteria.shadcnComponent)
     }
 
     // Filter by usage in page
     if (criteria.usedInPage) {
-      results = results.filter(c =>
-        c.usedInPages.includes(criteria.usedInPage!)
-      )
+      results = results.filter(c => c.usedInPages.includes(criteria.usedInPage!))
     }
 
     // Filter by variant
     if (criteria.hasVariant) {
-      results = results.filter(c =>
-        c.variants.some(v => v.name === criteria.hasVariant)
-      )
+      results = results.filter(c => c.variants.some(v => v.name === criteria.hasVariant))
     }
 
     // Filter by size
     if (criteria.hasSize) {
-      results = results.filter(c =>
-        c.sizes.some(s => s.name === criteria.hasSize)
-      )
+      results = results.filter(c => c.sizes.some(s => s.name === criteria.hasSize))
     }
 
     return results
@@ -341,9 +316,7 @@ export class ComponentManager {
       component.updatedAt = new Date().toISOString()
 
       // Update in config
-      const configIndex = this.config.components.findIndex(
-        c => c.id === componentId
-      )
+      const configIndex = this.config.components.findIndex(c => c.id === componentId)
       if (configIndex !== -1) {
         this.config.components[configIndex] = component
         this.componentRegistry.set(componentId, component)
@@ -377,10 +350,7 @@ export class ComponentManager {
 
     for (const existing of this.componentRegistry.values()) {
       // Same name (case-insensitive)
-      if (
-        existing.name.toLowerCase() === def.name.toLowerCase() &&
-        existing.id !== def.id
-      ) {
+      if (existing.name.toLowerCase() === def.name.toLowerCase() && existing.id !== def.id) {
         const reason = `same name: ${existing.name} === ${def.name}`
         if (this.DEBUG) console.log(`[DEBUG] findSimilar: ${def.id} similar to ${existing.id} - ${reason}`)
         similar.push(existing)
@@ -419,7 +389,7 @@ export class ComponentManager {
 
     if (this.DEBUG && similar.length > 0) {
       console.log(
-        `[DEBUG] findSimilar result for ${def.id}: found ${similar.length} similar: ${similar.map(c => c.id).join(', ')}`
+        `[DEBUG] findSimilar result for ${def.id}: found ${similar.length} similar: ${similar.map(c => c.id).join(', ')}`,
       )
     }
 
@@ -429,10 +399,7 @@ export class ComponentManager {
   /**
    * Check if two class names are similar (simple heuristic)
    */
-  private isSimilarClassName(
-    className1: string,
-    className2: string
-  ): boolean {
+  private isSimilarClassName(className1: string, className2: string): boolean {
     const classes1 = className1.split(' ').sort()
     const classes2 = className2.split(' ').sort()
 
@@ -446,15 +413,10 @@ export class ComponentManager {
   /**
    * Check if component should be reused instead of creating new
    */
-  shouldReuseComponent(
-    requested: ComponentSpec,
-    existing: ComponentDefinition
-  ): boolean {
+  shouldReuseComponent(requested: ComponentSpec, existing: ComponentDefinition): boolean {
     // Must match name (case-insensitive)
     if (requested.name) {
-      if (
-        existing.name.toLowerCase() !== requested.name.toLowerCase()
-      ) {
+      if (existing.name.toLowerCase() !== requested.name.toLowerCase()) {
         return false
       }
     }
@@ -470,19 +432,14 @@ export class ComponentManager {
     }
 
     // Must match shadcn component if specified
-    if (
-      requested.shadcnComponent &&
-      existing.shadcnComponent !== requested.shadcnComponent
-    ) {
+    if (requested.shadcnComponent && existing.shadcnComponent !== requested.shadcnComponent) {
       return false
     }
 
     // Check if existing component has required variants
     if (requested.requiredVariants) {
       const existingVariantNames = existing.variants.map(v => v.name)
-      const hasAllVariants = requested.requiredVariants.every(v =>
-        existingVariantNames.includes(v)
-      )
+      const hasAllVariants = requested.requiredVariants.every(v => existingVariantNames.includes(v))
       if (!hasAllVariants) {
         return false
       }
@@ -495,9 +452,7 @@ export class ComponentManager {
       const isValidSize = (s: string): s is 'xs' | 'sm' | 'md' | 'lg' | 'xl' => {
         return ['xs', 'sm', 'md', 'lg', 'xl'].includes(s as 'xs' | 'sm' | 'md' | 'lg' | 'xl')
       }
-      const hasAllSizes = requested.requiredSizes.every(s =>
-        isValidSize(s) && existingSizeNames.includes(s)
-      )
+      const hasAllSizes = requested.requiredSizes.every(s => isValidSize(s) && existingSizeNames.includes(s))
       if (!hasAllSizes) {
         return false
       }
@@ -505,12 +460,7 @@ export class ComponentManager {
 
     // If baseClassName is specified, check similarity
     if (requested.baseClassName) {
-      if (
-        !this.isSimilarClassName(
-          existing.baseClassName,
-          requested.baseClassName
-        )
-      ) {
+      if (!this.isSimilarClassName(existing.baseClassName, requested.baseClassName)) {
         return false
       }
     }
@@ -534,9 +484,7 @@ export class ComponentManager {
     // If no exact match, try partial match (name only)
     if (requested.name) {
       const requestedName = requested.name.toLowerCase()
-      const nameMatch = candidates.find(
-        c => c.name.toLowerCase() === requestedName
-      )
+      const nameMatch = candidates.find(c => c.name.toLowerCase() === requestedName)
       if (nameMatch) {
         return nameMatch
       }
@@ -544,9 +492,7 @@ export class ComponentManager {
 
     // If no name match, try category match
     if (requested.category) {
-      const categoryMatch = candidates.find(
-        c => c.category === requested.category
-      )
+      const categoryMatch = candidates.find(c => c.category === requested.category)
       if (categoryMatch) {
         return categoryMatch
       }

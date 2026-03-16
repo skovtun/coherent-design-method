@@ -4,6 +4,7 @@ import { homedir } from 'os'
 import chalk from 'chalk'
 import { CLI_VERSION } from '@getcoherent/core'
 
+const DEBUG = process.env.COHERENT_DEBUG === '1'
 const PACKAGE_NAME = '@getcoherent/cli'
 const CACHE_DIR = join(homedir(), '.coherent')
 const CACHE_FILE = join(CACHE_DIR, 'update-check.json')
@@ -19,7 +20,8 @@ function readCache(): CacheData | null {
     if (!existsSync(CACHE_FILE)) return null
     const raw = readFileSync(CACHE_FILE, 'utf-8')
     return JSON.parse(raw) as CacheData
-  } catch {
+  } catch (e) {
+    if (DEBUG) console.error('Failed to read update cache:', e)
     return null
   }
 }
@@ -28,8 +30,8 @@ function writeCache(data: CacheData): void {
   try {
     if (!existsSync(CACHE_DIR)) mkdirSync(CACHE_DIR, { recursive: true })
     writeFileSync(CACHE_FILE, JSON.stringify(data), 'utf-8')
-  } catch {
-    // Non-critical — silently ignore
+  } catch (e) {
+    if (DEBUG) console.error('Failed to write update cache:', e)
   }
 }
 
@@ -44,7 +46,8 @@ async function fetchLatestVersion(): Promise<string | null> {
     if (!res.ok) return null
     const data = (await res.json()) as { version?: string }
     return data.version ?? null
-  } catch {
+  } catch (e) {
+    if (DEBUG) console.error('Failed to fetch latest version:', e)
     return null
   }
 }
@@ -83,14 +86,14 @@ export async function checkForUpdates(): Promise<void> {
     if (isNewer(latest, CLI_VERSION)) {
       printUpdateNotice(latest)
     }
-  } catch {
-    // Never block CLI startup
+  } catch (e) {
+    if (DEBUG) console.error('Update check failed:', e)
   }
 }
 
 function printUpdateNotice(latest: string): void {
   console.log(
     chalk.yellow(`\n  ⬆  Update available: v${CLI_VERSION} → v${latest}`) +
-    chalk.dim(`\n     Run: npm update -g ${PACKAGE_NAME}\n`)
+      chalk.dim(`\n     Run: npm update -g ${PACKAGE_NAME}\n`),
   )
 }

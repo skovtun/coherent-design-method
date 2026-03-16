@@ -1,15 +1,11 @@
 /**
  * Component Generator
- * 
+ *
  * Generates React/TypeScript component code from component definitions.
  * Follows shadcn/ui patterns with variants, sizes, and design tokens.
  */
 
-import type {
-  ComponentDefinition,
-  DesignSystemConfig,
-  DesignTokens,
-} from '../types/design-system.js'
+import type { ComponentDefinition, DesignSystemConfig, DesignTokens } from '../types/design-system.js'
 
 export class ComponentGenerator {
   private config: DesignSystemConfig
@@ -994,7 +990,8 @@ export { Select, SelectTrigger, SelectValue, SelectContent, SelectItem }
       'alert-dialog': 'fixed inset-0 z-50 flex items-center justify-center',
       popover: 'z-50 rounded-md border bg-popover p-4 text-popover-foreground shadow-md',
       'dropdown-menu': 'z-50 min-w-[8rem] rounded-md border bg-popover p-1 text-popover-foreground shadow-md',
-      toggle: 'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-muted hover:text-muted-foreground data-[state=on]:bg-accent data-[state=on]:text-accent-foreground',
+      toggle:
+        'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-muted hover:text-muted-foreground data-[state=on]:bg-accent data-[state=on]:text-accent-foreground',
     }
     return fallbacks[def.id] || 'rounded-md border bg-background p-4 text-sm transition-colors'
   }
@@ -1059,11 +1056,11 @@ ${component}
     const baseClassName = this.getFallbackBaseClassName(def)
     const variants = def.variants.map(v => ({
       ...v,
-      className: (v.className && v.className.trim()) ? v.className : this.getFallbackVariantClassName(def, v.name),
+      className: v.className && v.className.trim() ? v.className : this.getFallbackVariantClassName(def, v.name),
     }))
     const sizes = def.sizes.map(s => ({
       ...s,
-      className: (s.className && s.className.trim()) ? s.className : this.getFallbackSizeClassName(def, s.name),
+      className: s.className && s.className.trim() ? s.className : this.getFallbackSizeClassName(def, s.name),
     }))
     return { ...def, baseClassName, variants, sizes }
   }
@@ -1325,7 +1322,7 @@ ${componentName}.displayName = '${componentName}'`
   /**
    * Apply design tokens to className string
    */
-  private applyTokens(className: string, tokens: DesignTokens): string {
+  private applyTokens(className: string, _tokens: DesignTokens): string {
     // Replace token references with actual values
     // For now, tokens are already in Tailwind format (e.g., bg-primary)
     // In future, could expand to replace custom tokens
@@ -1392,12 +1389,7 @@ ${componentName}.displayName = '${componentName}'`
    */
   private isFormElement(def: ComponentDefinition): boolean {
     const name = def.name.toLowerCase()
-    return (
-      name.includes('input') ||
-      name.includes('button') ||
-      name.includes('select') ||
-      name.includes('textarea')
-    )
+    return name.includes('input') || name.includes('button') || name.includes('select') || name.includes('textarea')
   }
 
   /**

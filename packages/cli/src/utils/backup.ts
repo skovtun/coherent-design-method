@@ -1,142 +1,198 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, rmSync, copyFileSync, statSync } from 'fs'
-import { join, dirname } from 'path'
+/**
+ * Auto-backup utility for Coherent projects.
+ *
+ * Saves snapshots of critical project files after each successful `coherent chat` run.
+ * Keeps a rolling window of recent backups to enable recovery from data loss.
+ */
 
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, rmSync, statSync } from 'fs'
+import { join, relative, dirname } from 'path'
+import chalk from 'chalk'
+
+const DEBUG = process.env.COHERENT_DEBUG === '1'
 const BACKUP_DIR = '.coherent/backups'
+const MAX_BACKUPS = 5
+const CRITICAL_FILES = [
+  'design-system.config.ts',
+  'package.json',
+  'tsconfig.json',
+  'tailwind.config.ts',
+  'postcss.config.mjs',
+]
+const CRITICAL_DIRS = ['app', 'components']
 
-function findFiles(dir: string, suffix: string): string[] {
-  if (!existsSync(dir)) return []
-  const results: string[] = []
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const full = join(dir, entry.name)
+/**
+ * Create a backup of critical project files.
+ */
+export function createBackup(projectRoot: string): string | null {
+  try {
+    const backupBase = join(projectRoot, BACKUP_DIR)
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    const backupPath = join(backupBase, timestamp)
+    mkdirSync(backupPath, { recursive: true })
+
+    let fileCount = 0
+
+    for (const file of CRITICAL_FILES) {
+      const src = join(projectRoot, file)
+      if (existsSync(src)) {
+        const dest = join(backupPath, file)
+        mkdirSync(dirname(dest), { recursive: true })
+        writeFileSync(dest, readFileSync(src))
+        fileCount++
+      }
+    }
+
+    for (const dir of CRITICAL_DIRS) {
+      const srcDir = join(projectRoot, dir)
+      if (!existsSync(srcDir)) continue
+      backupDirectory(srcDir, projectRoot, backupPath)
+      fileCount += countFiles(srcDir)
+    }
+
+    // Write metadata
+    writeFileSync(
+      join(backupPath, '.backup-meta.json'),
+      JSON.stringify(
+        {
+          timestamp: new Date().toISOString(),
+          files: fileCount,
+        },
+        null,
+        2,
+      ),
+    )
+
+    pruneOldBackups(backupBase)
+
+    return backupPath
+  } catch (e) {
+    if (DEBUG) console.error('Failed to create backup:', e)
+    return null
+  }
+}
+
+function backupDirectory(srcDir: string, projectRoot: string, backupPath: string): void {
+  const entries = readdirSync(srcDir, { withFileTypes: true })
+  for (const entry of entries) {
+    if (entry.name === 'node_modules' || entry.name === '.next' || entry.name === '.git') continue
+    const fullPath = join(srcDir, entry.name)
+    const relPath = relative(projectRoot, fullPath)
+    const destPath = join(backupPath, relPath)
+
     if (entry.isDirectory()) {
-      results.push(...findFiles(full, suffix))
-    } else if (entry.name.endsWith(suffix)) {
-      results.push(full)
+      mkdirSync(destPath, { recursive: true })
+      backupDirectory(fullPath, projectRoot, backupPath)
+    } else if (entry.isFile()) {
+      mkdirSync(dirname(destPath), { recursive: true })
+      writeFileSync(destPath, readFileSync(fullPath))
     }
   }
-  return results
-}
-const MAX_BACKUPS = 10
-
-interface BackupManifest {
-  timestamp: string
-  message: string
-  files: string[]
 }
 
-function getBackupRoot(projectRoot: string): string {
-  return join(projectRoot, BACKUP_DIR)
+function countFiles(dir: string): number {
+  let count = 0
+  try {
+    const entries = readdirSync(dir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (entry.name === 'node_modules' || entry.name === '.next') continue
+      const fullPath = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        count += countFiles(fullPath)
+      } else if (entry.isFile()) {
+        count++
+      }
+    }
+  } catch (e) {
+    if (DEBUG) console.error('Failed to count files in', dir, e)
+  }
+  return count
+}
+
+function pruneOldBackups(backupBase: string): void {
+  try {
+    const entries = readdirSync(backupBase)
+      .filter(e => e !== '.gitkeep' && !e.startsWith('.'))
+      .map(name => ({ name, time: statSync(join(backupBase, name)).mtimeMs }))
+      .sort((a, b) => b.time - a.time)
+
+    for (const old of entries.slice(MAX_BACKUPS)) {
+      rmSync(join(backupBase, old.name), { recursive: true, force: true })
+    }
+  } catch (e) {
+    if (DEBUG) console.error('Failed to prune old backups:', e)
+  }
 }
 
 /**
- * Create a backup of all page files, layout, and config before modification.
- * Returns the backup id (timestamp-based directory name).
+ * List available backups for the project.
  */
-export function createBackup(projectRoot: string, message: string): string {
-  const backupRoot = getBackupRoot(projectRoot)
-  const id = new Date().toISOString().replace(/[:.]/g, '-')
-  const backupDir = join(backupRoot, id)
-  mkdirSync(backupDir, { recursive: true })
+export function listBackups(projectRoot: string): Array<{ name: string; timestamp: string; files: number }> {
+  const backupBase = join(projectRoot, BACKUP_DIR)
+  if (!existsSync(backupBase)) return []
 
-  const filesToBackup = [
-    'design-system.config.ts',
-    'app/layout.tsx',
-    ...findFiles(join(projectRoot, 'app'), 'page.tsx').map(f => f.slice(projectRoot.length + 1)),
-    ...findFiles(join(projectRoot, 'components', 'shared'), '.tsx').map(f => f.slice(projectRoot.length + 1)),
-  ]
-
-  const backedUp: string[] = []
-  for (const relPath of filesToBackup) {
-    const src = join(projectRoot, relPath)
-    if (!existsSync(src)) continue
-    const dest = join(backupDir, relPath)
-    mkdirSync(dirname(dest), { recursive: true })
-    copyFileSync(src, dest)
-    backedUp.push(relPath)
+  try {
+    return readdirSync(backupBase)
+      .filter(e => !e.startsWith('.'))
+      .map(name => {
+        const metaPath = join(backupBase, name, '.backup-meta.json')
+        let meta = { timestamp: name, files: 0 }
+        if (existsSync(metaPath)) {
+          try {
+            meta = JSON.parse(readFileSync(metaPath, 'utf-8'))
+          } catch (e) {
+            if (DEBUG) console.error('Bad backup meta:', metaPath, e)
+          }
+        }
+        return { name, timestamp: meta.timestamp, files: meta.files }
+      })
+      .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+  } catch (e) {
+    if (DEBUG) console.error('Failed to list backups:', e)
+    return []
   }
-
-  const manifest: BackupManifest = {
-    timestamp: new Date().toISOString(),
-    message,
-    files: backedUp,
-  }
-  writeFileSync(join(backupDir, 'manifest.json'), JSON.stringify(manifest, null, 2))
-
-  pruneOldBackups(backupRoot)
-  return id
 }
 
 /**
- * Restore the most recent backup (or a specific backup by id).
- * Returns the manifest of the restored backup, or null if none found.
+ * Restore a backup to the project root.
  */
-export function restoreBackup(projectRoot: string, backupId?: string): BackupManifest | null {
-  const backupRoot = getBackupRoot(projectRoot)
-  if (!existsSync(backupRoot)) return null
+export function restoreBackup(projectRoot: string, backupName: string): boolean {
+  const backupPath = join(projectRoot, BACKUP_DIR, backupName)
+  if (!existsSync(backupPath)) return false
 
-  const id = backupId || getLatestBackupId(backupRoot)
-  if (!id) return null
-
-  const backupDir = join(backupRoot, id)
-  const manifestPath = join(backupDir, 'manifest.json')
-  if (!existsSync(manifestPath)) return null
-
-  const manifest: BackupManifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
-
-  for (const relPath of manifest.files) {
-    const src = join(backupDir, relPath)
-    const dest = join(projectRoot, relPath)
-    if (!existsSync(src)) continue
-    mkdirSync(dirname(dest), { recursive: true })
-    copyFileSync(src, dest)
+  try {
+    restoreDirectory(backupPath, backupPath, projectRoot)
+    return true
+  } catch (e) {
+    if (DEBUG) console.error('Failed to restore backup:', backupName, e)
+    return false
   }
-
-  return manifest
 }
 
-/**
- * List available backups (newest first).
- */
-export function listBackups(projectRoot: string): Array<{ id: string; manifest: BackupManifest }> {
-  const backupRoot = getBackupRoot(projectRoot)
-  if (!existsSync(backupRoot)) return []
+function restoreDirectory(currentDir: string, backupRoot: string, projectRoot: string): void {
+  const entries = readdirSync(currentDir, { withFileTypes: true })
+  for (const entry of entries) {
+    if (entry.name === '.backup-meta.json') continue
+    const fullPath = join(currentDir, entry.name)
+    const relPath = relative(backupRoot, fullPath)
+    const destPath = join(projectRoot, relPath)
 
-  const dirs = readdirSync(backupRoot, { withFileTypes: true })
-    .filter(d => d.isDirectory())
-    .map(d => d.name)
-    .sort()
-    .reverse()
-
-  const results: Array<{ id: string; manifest: BackupManifest }> = []
-  for (const id of dirs) {
-    const manifestPath = join(backupRoot, id, 'manifest.json')
-    if (!existsSync(manifestPath)) continue
-    try {
-      const manifest: BackupManifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
-      results.push({ id, manifest })
-    } catch {
-      // skip corrupted
+    if (entry.isDirectory()) {
+      mkdirSync(destPath, { recursive: true })
+      restoreDirectory(fullPath, backupRoot, projectRoot)
+    } else if (entry.isFile()) {
+      mkdirSync(dirname(destPath), { recursive: true })
+      writeFileSync(destPath, readFileSync(fullPath))
     }
   }
-  return results
 }
 
-function getLatestBackupId(backupRoot: string): string | undefined {
-  const dirs = readdirSync(backupRoot, { withFileTypes: true })
-    .filter(d => d.isDirectory())
-    .map(d => d.name)
-    .sort()
-  return dirs[dirs.length - 1]
-}
-
-function pruneOldBackups(backupRoot: string): void {
-  const dirs = readdirSync(backupRoot, { withFileTypes: true })
-    .filter(d => d.isDirectory())
-    .map(d => d.name)
-    .sort()
-
-  while (dirs.length > MAX_BACKUPS) {
-    const oldest = dirs.shift()!
-    rmSync(join(backupRoot, oldest), { recursive: true, force: true })
+/**
+ * Print backup info after creation.
+ */
+export function logBackupCreated(backupPath: string | null): void {
+  if (backupPath) {
+    const name = backupPath.split('/').pop()
+    console.log(chalk.dim(`  💾 Backup saved: .coherent/backups/${name}`))
   }
 }

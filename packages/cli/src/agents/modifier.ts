@@ -6,17 +6,19 @@
  */
 
 import chalk from 'chalk'
-import type {
-  DesignSystemConfig,
-  ModificationRequest,
-  ComponentDefinition,
-  ComponentSpec,
-} from '@getcoherent/core'
+import type { DesignSystemConfig, ModificationRequest, ComponentSpec } from '@getcoherent/core'
 import { ComponentManager } from '@getcoherent/core'
 import { createAIProvider, type AIProvider } from '../utils/ai-provider.js'
 import { expandPageRequest } from './page-templates.js'
 import { listShadcnComponents } from '../utils/shadcn-installer.js'
-import { CORE_CONSTRAINTS, DESIGN_QUALITY, INTERACTION_PATTERNS, selectContextualRules } from './design-constraints.js'
+import {
+  DESIGN_THINKING,
+  CORE_CONSTRAINTS,
+  DESIGN_QUALITY,
+  VISUAL_DEPTH,
+  INTERACTION_PATTERNS,
+  selectContextualRules,
+} from './design-constraints.js'
 
 export interface ModificationContext {
   config: DesignSystemConfig
@@ -40,7 +42,7 @@ export async function parseModification(
   message: string,
   context: ModificationContext,
   provider: AIProvider = 'auto',
-  options?: ParseModificationOptions
+  options?: ParseModificationOptions,
 ): Promise<ParseModificationResult> {
   const ai = await createAIProvider(provider)
 
@@ -48,7 +50,7 @@ export async function parseModification(
     const prompt = buildPlanOnlyPrompt(message, context.config)
     const raw = await ai.parseModification(prompt)
     const requestsArray = Array.isArray(raw) ? raw : (raw?.requests ?? [])
-    return { requests: requestsArray, uxRecommendations: undefined }
+    return { requests: requestsArray as ModificationRequest[], uxRecommendations: undefined }
   }
 
   const componentRegistry = buildComponentRegistry(context.componentManager)
@@ -69,19 +71,20 @@ export async function parseModification(
     }
   }
 
-  const prompt = buildModificationPrompt(
-    enhancedMessage,
-    context.config,
-    componentRegistry,
-    { isExpandedPageRequest, sharedComponentsSummary: options?.sharedComponentsSummary }
-  )
+  const prompt = buildModificationPrompt(enhancedMessage, context.config, componentRegistry, {
+    isExpandedPageRequest,
+    sharedComponentsSummary: options?.sharedComponentsSummary,
+  })
 
   const raw = await ai.parseModification(prompt)
   const requestsArray = Array.isArray(raw) ? raw : (raw?.requests ?? [])
-  const uxRecommendations =
-    Array.isArray(raw) ? undefined : (raw?.uxRecommendations && String(raw.uxRecommendations).trim() ? String(raw.uxRecommendations) : undefined)
+  const uxRecommendations = Array.isArray(raw)
+    ? undefined
+    : raw?.uxRecommendations && String(raw.uxRecommendations).trim()
+      ? String(raw.uxRecommendations)
+      : undefined
 
-  const requests = await checkComponentReuse(requestsArray, context.componentManager)
+  const requests = await checkComponentReuse(requestsArray as ModificationRequest[], context.componentManager)
   return { requests, uxRecommendations }
 }
 
@@ -90,25 +93,25 @@ export async function parseModification(
  */
 function buildComponentRegistry(componentManager: ComponentManager): string {
   const components = componentManager.getAllComponents()
-  
+
   if (components.length === 0) {
     return 'No components in registry yet.'
   }
 
-  const registry = components.map(comp => {
-    const variants = comp.variants.map(v => v.name).join(', ')
-    const sizes = comp.sizes.map(s => s.name).join(', ')
-    const usedIn = comp.usedInPages.length > 0 
-      ? `Used in: ${comp.usedInPages.join(', ')}`
-      : 'Not used yet'
+  const registry = components
+    .map(comp => {
+      const variants = comp.variants.map(v => v.name).join(', ')
+      const sizes = comp.sizes.map(s => s.name).join(', ')
+      const usedIn = comp.usedInPages.length > 0 ? `Used in: ${comp.usedInPages.join(', ')}` : 'Not used yet'
 
-    return `- ${comp.name} (id: ${comp.id})
+      return `- ${comp.name} (id: ${comp.id})
   Category: ${comp.category}
   Source: ${comp.source}${comp.shadcnComponent ? ` (${comp.shadcnComponent})` : ''}
   Variants: ${variants || 'none'}
   Sizes: ${sizes || 'none'}
   ${usedIn}`
-  }).join('\n')
+    })
+    .join('\n')
 
   return `Available components:\n${registry}`
 }
@@ -135,7 +138,14 @@ Rules:
 - Use kebab-case for id and route
 - Route must start with /
 - Keep response under 500 tokens
-- Do NOT include pageCode, sections, or any other fields`
+- Do NOT include pageCode, sections, or any other fields
+- Include ALL pages the user explicitly requested
+- ALSO include logically related pages that a real app would need. For example:
+  * If there is a catalog/listing page, add a detail page (e.g. /products → /products/[id])
+  * If there is login, also add registration and forgot-password (and vice versa)
+  * If there is a dashboard, consider adding settings and/or profile pages
+  * If there is a blog/news listing, add an article/post detail page
+  * Think about what pages users would naturally navigate to from the requested pages`
 }
 
 /**
@@ -145,7 +155,7 @@ function buildModificationPrompt(
   message: string,
   config: DesignSystemConfig,
   componentRegistry: string,
-  options?: { isExpandedPageRequest?: boolean; sharedComponentsSummary?: string }
+  options?: { isExpandedPageRequest?: boolean; sharedComponentsSummary?: string },
 ): string {
   const now = new Date().toISOString()
   const expandedHint =
@@ -171,14 +181,20 @@ For editing an existing shared component use type "modify-layout-block" with tar
     : ''
   const availableShadcn = listShadcnComponents()
 
+  const designThinking = DESIGN_THINKING
   const coreRules = CORE_CONSTRAINTS
   const designQuality = DESIGN_QUALITY
+  const visualDepth = VISUAL_DEPTH
   const contextualRules = selectContextualRules(message)
   const interactionPatterns = INTERACTION_PATTERNS
 
-  return `You are a design system modifier. Parse the user's natural language request into structured modification requests.
+  return `You are a design-forward UI architect. Your goal is to create interfaces that are not just functional, but visually distinctive and memorable — while staying within shadcn/ui and Tailwind CSS.
+
+Parse the user's natural language request into structured modification requests.
+${designThinking}
 ${coreRules}
 ${designQuality}
+${visualDepth}
 ${contextualRules}
 ${interactionPatterns}
 ${expandedHint}
@@ -384,7 +400,7 @@ Legacy: returning only a JSON array of requests is still accepted.`
  */
 async function checkComponentReuse(
   requests: ModificationRequest[],
-  componentManager: ComponentManager
+  componentManager: ComponentManager,
 ): Promise<ModificationRequest[]> {
   const enhanced: ModificationRequest[] = []
 
@@ -458,4 +474,3 @@ function extractComponentSpec(changes: Record<string, any>): ComponentSpec {
     requiredSizes: changes.sizes?.map((s: any) => s.name),
   }
 }
-

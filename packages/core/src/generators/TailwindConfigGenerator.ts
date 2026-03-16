@@ -1,6 +1,6 @@
 /**
  * Tailwind Config Generator
- * 
+ *
  * Generates Tailwind CSS configuration from design tokens.
  */
 

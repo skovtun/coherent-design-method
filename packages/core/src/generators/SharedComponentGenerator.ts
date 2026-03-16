@@ -25,7 +25,7 @@ export function toSharedFileName(name: string): string {
 /** Resolve unique display name: if "Header" exists, return "Header2" (or "Header3" etc). */
 export function resolveUniqueName(manifest: SharedComponentsManifest, name: string): string {
   const base = name.trim()
-  const existingNames = new Set(manifest.shared.map((e) => e.name))
+  const existingNames = new Set(manifest.shared.map(e => e.name))
   if (!existingNames.has(base)) return base
   let n = 2
   while (existingNames.has(`${base}${n}`)) n++
@@ -74,8 +74,7 @@ function getDefaultTemplate(componentName: string, type: SharedComponentType, na
   const safeName = componentName.replace(/[^a-zA-Z0-9]/g, '') || 'Block'
   const lower = name.toLowerCase()
   if (lower.includes('footer')) return FOOTER_PLACEHOLDER(safeName)
-  if (type === 'layout' || lower.includes('header') || lower.includes('nav'))
-    return LAYOUT_PLACEHOLDER(safeName)
+  if (type === 'layout' || lower.includes('header') || lower.includes('nav')) return LAYOUT_PLACEHOLDER(safeName)
   return SECTION_PLACEHOLDER(safeName)
 }
 
@@ -101,7 +100,7 @@ export interface GenerateSharedComponentResult {
  */
 export async function generateSharedComponent(
   projectRoot: string,
-  input: GenerateSharedComponentInput
+  input: GenerateSharedComponentInput,
 ): Promise<GenerateSharedComponentResult> {
   const manifest = await loadManifest(projectRoot)
   const uniqueName = resolveUniqueName(manifest, input.name)
@@ -132,7 +131,7 @@ export async function generateSharedComponent(
  */
 export async function findSharedComponentByIdOrName(
   projectRoot: string,
-  idOrName: string
+  idOrName: string,
 ): Promise<{ id: string; name: string; file: string } | null> {
   const manifest = await loadManifest(projectRoot)
   const entry = findInManifest(manifest, idOrName)

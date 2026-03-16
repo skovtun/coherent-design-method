@@ -54,13 +54,6 @@ export function compareSemver(a: string, b: string): -1 | 0 | 1 {
  * Return migrations that need to run for a project at `projectVersion`
  * to reach `targetVersion`.
  */
-export function getPendingMigrations(
-  projectVersion: string,
-  targetVersion: string
-): Migration[] {
-  return MIGRATIONS.filter(
-    (m) =>
-      compareSemver(m.to, projectVersion) > 0 &&
-      compareSemver(m.to, targetVersion) <= 0
-  )
+export function getPendingMigrations(projectVersion: string, targetVersion: string): Migration[] {
+  return MIGRATIONS.filter(m => compareSemver(m.to, projectVersion) > 0 && compareSemver(m.to, targetVersion) <= 0)
 }

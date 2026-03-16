@@ -35,7 +35,9 @@ const program = new Command()
 
 program
   .name('coherent')
-  .description('Coherent Design Method — AI-powered design system generator\nby Sergei Kovtun · https://www.linkedin.com/in/sergeikovtun/')
+  .description(
+    'Coherent Design Method — AI-powered design system generator\nby Sergei Kovtun · https://www.linkedin.com/in/sergeikovtun/',
+  )
   .version(CLI_VERSION)
 
 // ─── Core workflow commands ─────────────────────────────────────────
@@ -57,10 +59,7 @@ program
   .option('-i, --interactive', 'Interactive chat mode')
   .action(chatCommand)
 
-program
-  .command('preview')
-  .description('Launch dev server for preview')
-  .action(previewCommand)
+program.command('preview').description('Launch dev server for preview').action(previewCommand)
 
 program
   .command('check')
@@ -68,7 +67,7 @@ program
   .option('--json', 'Output as JSON')
   .option('--pages', 'Only check pages')
   .option('--shared', 'Only check shared components')
-  .action((opts) => checkCommand(opts))
+  .action(opts => checkCommand(opts))
 
 program
   .command('fix')
@@ -76,7 +75,7 @@ program
   .option('--dry-run', 'Show what would be fixed without writing')
   .option('--no-cache', 'Skip cache clearing')
   .option('--no-quality', 'Skip quality auto-fixes')
-  .action((opts) => fixCommand(opts))
+  .action(opts => fixCommand(opts))
 
 program
   .command('export')
@@ -84,7 +83,7 @@ program
   .option('--output <dir>', 'Output directory', './export')
   .option('--no-build', 'Skip running next build in output')
   .option('--keep-ds', 'Keep Design System viewer and config in export')
-  .action((opts) => exportCommand(opts))
+  .action(opts => exportCommand(opts))
 
 program
   .command('sync')
@@ -93,26 +92,23 @@ program
   .option('--tokens', 'Only extract and update tokens')
   .option('--components', 'Only detect and register components')
   .option('--patterns', 'Only extract style patterns')
-  .action((opts) => syncCommand(opts))
+  .action(opts => syncCommand(opts))
 
 // ─── Maintenance commands ───────────────────────────────────────────
 
-program
-  .command('rules')
-  .description('Regenerate .cursorrules and CLAUDE.md')
-  .action(rulesCommand)
+program.command('rules').description('Regenerate .cursorrules and CLAUDE.md').action(rulesCommand)
 
 program
   .command('update')
   .description('Apply platform updates to project')
   .option('--patch-globals', 'Auto-add missing CSS variables to globals.css')
-  .action((opts) => updateCommand(opts))
+  .action(opts => updateCommand(opts))
 
 program
   .command('undo')
   .description('Restore project to state before last coherent chat')
   .option('--list', 'List available backups')
-  .action((opts) => undoCommand(opts))
+  .action(opts => undoCommand(opts))
 
 // ─── Advanced commands (hidden from main help) ──────────────────────
 
@@ -122,44 +118,51 @@ program.addCommand(componentsCmd)
 
 const importCmd = new Command('import').description('Import design from Figma or other sources')
 const importSpec = createImportCommand()
-importSpec.subcommands.forEach((sub) => {
+importSpec.subcommands.forEach(sub => {
   const subCmd = importCmd.command(sub.name).description(sub.description)
   if (sub.name === 'figma') {
     subCmd.argument('<url-or-key>', 'Figma file URL or file key')
     subCmd.option('--token <token>', 'Figma personal access token')
     subCmd.option('--no-pages', 'Skip generating app/**/page.tsx from frames')
     subCmd.option('--dry-run', 'Do not write files; report what would be done')
-    subCmd.action((urlOrKey: string, opts: { token?: string; pages?: boolean; dryRun?: boolean }) => sub.action(urlOrKey, opts))
+    subCmd.action((urlOrKey: string, opts: { token?: string; pages?: boolean; dryRun?: boolean }) =>
+      sub.action(urlOrKey, opts),
+    )
   }
 })
 program.addCommand(importCmd)
 
 const dsCmd = new Command('ds').description('Design System viewer pages')
-dsCmd.command('regenerate').description('Regenerate all Design System pages from current config').action(dsRegenerateCommand)
+dsCmd
+  .command('regenerate')
+  .description('Regenerate all Design System pages from current config')
+  .action(dsRegenerateCommand)
 program.addCommand(dsCmd)
 
-program
-  .command('status')
-  .description('Show current project status')
-  .action(statusCommand)
+program.command('status').description('Show current project status').action(statusCommand)
 
-program
-  .command('regenerate-docs')
-  .description('Regenerate documentation pages')
-  .action(regenerateDocsCommand)
+program.command('regenerate-docs').description('Regenerate documentation pages').action(regenerateDocsCommand)
 
 // ─── Deprecated aliases (hidden from help, still work) ──────────────
 
 function hidden(cmd: Command): Command {
-  (cmd as any)._hidden = true
+  ;(cmd as any)._hidden = true
   return cmd
 }
 
 hidden(program.command('repair').description('Use: coherent fix').action(repairCommand))
 hidden(program.command('doctor').description('Use: coherent fix').action(doctorCommand))
 hidden(program.command('validate').description('Use: coherent check').action(validateCommand))
-hidden(program.command('audit').description('Use: coherent check').option('--json', '').action((opts: { json?: boolean }) => auditCommand(opts)))
+hidden(
+  program
+    .command('audit')
+    .description('Use: coherent check')
+    .option('--json', '')
+    .action((opts: { json?: boolean }) => auditCommand(opts)),
+)
 
 program.parse()
 
-checkForUpdates().catch(() => {})
+checkForUpdates().catch(e => {
+  if (process.env.COHERENT_DEBUG === '1') console.error('Update check failed:', e)
+})

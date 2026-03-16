@@ -22,7 +22,6 @@ import {
   isUsedInLayout,
   findUnregisteredComponents,
   findComponentFileByExportName,
-  inferComponentType as inferCompType,
   arraysEqual,
 } from '../utils/component-integrity.js'
 import {
@@ -44,6 +43,7 @@ import {
   fixUnescapedLtInJsx,
 } from '../utils/self-heal.js'
 import { validatePageQuality, formatIssues, autoFixCode } from '../utils/quality-validator.js'
+import { toKebabCase } from '../utils/strings.js'
 
 export interface FixOptions {
   dryRun?: boolean
@@ -64,10 +64,6 @@ function extractComponentIdsFromCode(code: string): Set<string> {
   return ids
 }
 
-function toKebabCase(str: string): string {
-  return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()
-}
-
 function listTsxFiles(dir: string): string[] {
   const files: string[] = []
   try {
@@ -80,7 +76,9 @@ function listTsxFiles(dir: string): string[] {
         files.push(full)
       }
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return files
 }
 
@@ -198,7 +196,9 @@ export async function fixCommand(opts: FixOptions = {}) {
               installed++
             }
           } catch (err) {
-            console.log(chalk.yellow(`  ⚠ Failed to install ${componentId}: ${err instanceof Error ? err.message : 'unknown'}`))
+            console.log(
+              chalk.yellow(`  ⚠ Failed to install ${componentId}: ${err instanceof Error ? err.message : 'unknown'}`),
+            )
           }
         }
         if (installed > 0) {
@@ -215,7 +215,9 @@ export async function fixCommand(opts: FixOptions = {}) {
   let syntaxFixed = 0
   for (const file of userTsxFiles) {
     const content = readFileSync(file, 'utf-8')
-    const fixed = fixUnescapedLtInJsx(fixEscapedClosingQuotes(sanitizeMetadataStrings(ensureUseClientIfNeeded(content))))
+    const fixed = fixUnescapedLtInJsx(
+      fixEscapedClosingQuotes(sanitizeMetadataStrings(ensureUseClientIfNeeded(content))),
+    )
     if (fixed !== content) {
       if (!dryRun) writeFileSync(file, fixed, 'utf-8')
       syntaxFixed++
@@ -233,7 +235,7 @@ export async function fixCommand(opts: FixOptions = {}) {
     const qualityFixDetails: string[] = []
     for (const file of userTsxFiles) {
       const content = readFileSync(file, 'utf-8')
-      const { code: autoFixed, fixes: fileFixes } = autoFixCode(content)
+      const { code: autoFixed, fixes: fileFixes } = await autoFixCode(content)
       if (autoFixed !== content) {
         if (!dryRun) writeFileSync(file, autoFixed, 'utf-8')
         qualityFixCount++
@@ -258,8 +260,11 @@ export async function fixCommand(opts: FixOptions = {}) {
     const relativePath = file.replace(projectRoot + '/', '')
     const baseName = file.split('/').pop() || ''
     const isAuthPage = relativePath.includes('(auth)')
-    const isNonPageFile = baseName === 'layout.tsx' || baseName === 'AppNav.tsx'
-      || baseName === 'not-found.tsx' || baseName === 'ShowWhenNotAuthRoute.tsx'
+    const isNonPageFile =
+      baseName === 'layout.tsx' ||
+      baseName === 'AppNav.tsx' ||
+      baseName === 'not-found.tsx' ||
+      baseName === 'ShowWhenNotAuthRoute.tsx'
     const isHomePage = relativePath === 'app/page.tsx'
     const isDesignSystem = relativePath.includes('design-system')
     if (isDesignSystem) continue
@@ -317,9 +322,7 @@ export async function fixCommand(opts: FixOptions = {}) {
     for (const entry of manifest.shared) {
       const actualUsedIn = findPagesImporting(project.root, entry.name, entry.file)
       const inLayout = isUsedInLayout(project.root, entry.name)
-      const fullActual = inLayout
-        ? [...new Set([...actualUsedIn, 'app/layout.tsx'])]
-        : actualUsedIn
+      const fullActual = inLayout ? [...new Set([...actualUsedIn, 'app/layout.tsx'])] : actualUsedIn
 
       if (!arraysEqual(fullActual, entry.usedIn || [])) {
         entry.usedIn = fullActual
@@ -365,7 +368,9 @@ export async function fixCommand(opts: FixOptions = {}) {
         remaining.push(`${entry.id} (${entry.name}) — unused. Remove: coherent components shared remove ${entry.id}`)
       }
     }
-  } catch { /* no manifest */ }
+  } catch {
+    /* no manifest */
+  }
 
   // ─── Output summary ────────────────────────────────────────────────
 

@@ -18,30 +18,39 @@ import { DesignSystemManager } from '@getcoherent/core'
 import { ProjectScaffolder } from '@getcoherent/core'
 
 export async function regenerateDocsCommand() {
-  const project = findConfig()
-
-  if (!project) {
-    console.log(chalk.yellow('⚠️  Not in a Coherent project\n'))
-    console.log('Run this command from a project root that has design-system.config.ts')
-    console.log(chalk.white('  $ coherent init   # in an empty folder first\n'))
-    process.exit(1)
-  }
-
-  const spinner = ora('Regenerating documentation pages...').start()
-
   try {
-    const manager = new DesignSystemManager(project.configPath)
-    await manager.load()
-    const config = manager.getConfig()
+    const project = findConfig()
 
-    const scaffolder = new ProjectScaffolder(config, project.root)
-    await scaffolder.generateDocsPages()
+    if (!project) {
+      console.log(chalk.yellow('⚠️  Not in a Coherent project\n'))
+      console.log('Run this command from a project root that has design-system.config.ts')
+      console.log(chalk.white('  $ coherent init   # in an empty folder first\n'))
+      process.exit(1)
+    }
 
-    spinner.succeed('Documentation pages updated')
-    console.log(chalk.gray('\nUpdated: app/design-system/docs/ (layout, page, components, tokens, for-designers, recommendations)\n'))
-  } catch (err) {
-    spinner.fail('Failed to regenerate docs')
-    console.error(chalk.red(err instanceof Error ? err.message : String(err)))
+    const spinner = ora('Regenerating documentation pages...').start()
+
+    try {
+      const manager = new DesignSystemManager(project.configPath)
+      await manager.load()
+      const config = manager.getConfig()
+
+      const scaffolder = new ProjectScaffolder(config, project.root)
+      await scaffolder.generateDocsPages()
+
+      spinner.succeed('Documentation pages updated')
+      console.log(
+        chalk.gray(
+          '\nUpdated: app/design-system/docs/ (layout, page, components, tokens, for-designers, recommendations)\n',
+        ),
+      )
+    } catch (err) {
+      spinner.fail('Failed to regenerate docs')
+      console.error(chalk.red(err instanceof Error ? err.message : String(err)))
+      process.exit(1)
+    }
+  } catch (error) {
+    console.error(chalk.red('❌ Command failed:'), error instanceof Error ? error.message : 'Unknown error')
     process.exit(1)
   }
 }

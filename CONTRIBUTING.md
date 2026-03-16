@@ -5,7 +5,7 @@ Thank you for your interest in contributing! This guide will help you get set up
 ## Prerequisites
 
 - **Node.js** 20 or later ([download](https://nodejs.org/))
-- **pnpm** 8 or later (`npm install -g pnpm`)
+- **pnpm** 10 or later (`npm install -g pnpm`)
 - **Git**
 
 ## Development Setup

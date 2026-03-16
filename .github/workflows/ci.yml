@@ -25,7 +25,23 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Build
         run: pnpm build
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm --filter '@getcoherent/*' typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Security audit
+        run: pnpm audit --audit-level=high
+        continue-on-error: true

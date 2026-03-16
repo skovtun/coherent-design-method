@@ -1,6 +1,6 @@
 /**
  * Claude API Wrapper
- * 
+ *
  * Utility for interacting with Anthropic Claude API.
  * Handles authentication, error handling, and structured output.
  */
@@ -8,7 +8,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { DiscoveryResult, DesignSystemConfig } from '@getcoherent/core'
 import { validateConfig } from '@getcoherent/core'
-import type { AIProviderInterface } from './ai-provider.js'
+import type { AIProviderInterface, ParseModificationOutput } from './ai-provider.js'
 
 export class ClaudeClient implements AIProviderInterface {
   private client: Anthropic
@@ -19,11 +19,11 @@ export class ClaudeClient implements AIProviderInterface {
     if (!key) {
       throw new Error(
         'ANTHROPIC_API_KEY not found in environment.\n' +
-        'Please set it in your .env file or export it:\n' +
-        '  export ANTHROPIC_API_KEY=your_key_here'
+          'Please set it in your .env file or export it:\n' +
+          '  export ANTHROPIC_API_KEY=your_key_here',
       )
     }
-    this.client = new Anthropic({ apiKey: key })
+    this.client = new Anthropic({ apiKey: key, maxRetries: 1 })
     // Support model via environment variable or parameter, default to latest
     this.defaultModel = model || process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514'
   }
@@ -68,18 +68,17 @@ export class ClaudeClient implements AIProviderInterface {
     } catch (error) {
       if (error instanceof Anthropic.APIError) {
         // Handle model not found error
-        if (error.status === 404 && error.error?.type === 'not_found_error') {
+        if (error.status === 404 && (error.error as any)?.type === 'not_found_error') {
           throw new Error(
             `❌ Model not found: ${this.defaultModel}\n\n` +
-            'The specified Claude model is not available.\n' +
-            'Try setting a different model:\n' +
-            '  export CLAUDE_MODEL=claude-sonnet-4-20250514\n' +
-            'Or use the default model by removing CLAUDE_MODEL from your environment.'
+              'The specified Claude model is not available.\n' +
+              'Try setting a different model:\n' +
+              '  export CLAUDE_MODEL=claude-sonnet-4-20250514\n' +
+              'Or use the default model by removing CLAUDE_MODEL from your environment.',
           )
         }
         throw new Error(
-          `Claude API error (${error.status}): ${error.message}\n` +
-          'Please check your API key and try again.'
+          `Claude API error (${error.status}): ${error.message}\n` + 'Please check your API key and try again.',
         )
       }
       if (error instanceof Error) {
@@ -93,10 +92,11 @@ export class ClaudeClient implements AIProviderInterface {
    * Build prompt for config generation
    */
   private buildConfigPrompt(discovery: DiscoveryResult): string {
-    const featuresList = Object.entries(discovery.features)
-      .filter(([_, enabled]) => enabled)
-      .map(([name]) => name)
-      .join(', ') || 'none'
+    const featuresList =
+      Object.entries(discovery.features)
+        .filter(([_, enabled]) => enabled)
+        .map(([name]) => name)
+        .join(', ') || 'none'
 
     return `Generate a complete DesignSystemConfig JSON for the following project:
 
@@ -146,7 +146,7 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
   private extractJSON(text: string): string {
     // Remove markdown code blocks if present
     let jsonText = text.trim()
-    
+
     // Remove ```json or ``` markers
     if (jsonText.startsWith('```')) {
       const lines = jsonText.split('\n')
@@ -186,7 +186,7 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
   /**
    * Parse modification request from natural language
    */
-  async parseModification(prompt: string): Promise<any[]> {
+  async parseModification(prompt: string): Promise<ParseModificationOutput> {
     try {
       const response = await this.client.messages.create({
         model: this.defaultModel,
@@ -239,18 +239,17 @@ CRITICAL: All string values in JSON must be on one line. Escape double quotes in
       }
       if (error instanceof Anthropic.APIError) {
         // Handle model not found error
-        if (error.status === 404 && error.error?.type === 'not_found_error') {
+        if (error.status === 404 && (error.error as any)?.type === 'not_found_error') {
           throw new Error(
             `❌ Model not found: ${this.defaultModel}\n\n` +
-            'The specified Claude model is not available.\n' +
-            'Try setting a different model:\n' +
-            '  export CLAUDE_MODEL=claude-sonnet-4-20250514\n' +
-            'Or use the default model by removing CLAUDE_MODEL from your environment.'
+              'The specified Claude model is not available.\n' +
+              'Try setting a different model:\n' +
+              '  export CLAUDE_MODEL=claude-sonnet-4-20250514\n' +
+              'Or use the default model by removing CLAUDE_MODEL from your environment.',
           )
         }
         throw new Error(
-          `Claude API error (${error.status}): ${error.message}\n` +
-          'Please check your API key and try again.'
+          `Claude API error (${error.status}): ${error.message}\n` + 'Please check your API key and try again.',
         )
       }
       if (error instanceof Error) {
@@ -263,11 +262,7 @@ CRITICAL: All string values in JSON must be on one line. Escape double quotes in
   /**
    * Edit shared component code by instruction (Epic 2).
    */
-  async editSharedComponentCode(
-    currentCode: string,
-    instruction: string,
-    componentName: string
-  ): Promise<string> {
+  async editSharedComponentCode(currentCode: string, instruction: string, componentName: string): Promise<string> {
     const response = await this.client.messages.create({
       model: this.defaultModel,
       max_tokens: 8192,
@@ -292,7 +287,10 @@ Rules: Preserve "use client" if present. Use Tailwind and shadcn/ui patterns. Re
     })
     const content = response.content[0]
     if (content.type !== 'text') throw new Error('Unexpected response type')
-    return content.text.trim().replace(/^```(?:tsx?|jsx?)\s*/i, '').replace(/\s*```$/i, '')
+    return content.text
+      .trim()
+      .replace(/^```(?:tsx?|jsx?)\s*/i, '')
+      .replace(/\s*```$/i, '')
   }
 
   /**
@@ -302,7 +300,7 @@ Rules: Preserve "use client" if present. Use Tailwind and shadcn/ui patterns. Re
     currentCode: string,
     instruction: string,
     pageName: string,
-    designConstraints?: string
+    designConstraints?: string,
   ): Promise<string> {
     const constraintBlock = designConstraints
       ? `\nDesign constraints (follow unless user explicitly overrides):\n${designConstraints}\n`
@@ -337,7 +335,10 @@ CRITICAL RULES:
     })
     const content = response.content[0]
     if (content.type !== 'text') throw new Error('Unexpected response type')
-    return content.text.trim().replace(/^```(?:tsx?|jsx?)\s*/i, '').replace(/\s*```$/i, '')
+    return content.text
+      .trim()
+      .replace(/^```(?:tsx?|jsx?)\s*/i, '')
+      .replace(/\s*```$/i, '')
   }
 
   /**
@@ -347,7 +348,7 @@ CRITICAL RULES:
     pageCode: string,
     sharedComponentCode: string,
     sharedComponentName: string,
-    blockHint?: string
+    blockHint?: string,
   ): Promise<string> {
     const hint = blockHint ? ` Identify the block that corresponds to: "${blockHint}".` : ''
     const response = await this.client.messages.create({
@@ -370,7 +371,7 @@ ${sharedComponentCode}
 
 Tasks:
 1.${hint} Find the inline block that matches or is similar to the shared component (e.g. same structure: hero, CTA, card section).
-2. Add an import at the top: import { ${sharedComponentName} } from '@/components/shared/${sharedComponentName.replace(/([A-Z])/g, (m) => '-' + m.toLowerCase()).replace(/^-/, '')}'
+2. Add an import at the top: import { ${sharedComponentName} } from '@/components/shared/${sharedComponentName.replace(/([A-Z])/g, m => '-' + m.toLowerCase()).replace(/^-/, '')}'
    (Use kebab-case file name: HeroSection → hero-section, PricingCard → pricing-card.)
 3. Replace the inline block with <${sharedComponentName} /> (or with props if the shared component accepts them and the page needs different values).
 4. Return the COMPLETE updated page code. Preserve "use client" if present. No markdown fence, no explanation.`,
@@ -380,17 +381,16 @@ Tasks:
     })
     const content = response.content[0]
     if (content.type !== 'text') throw new Error('Unexpected response type')
-    return content.text.trim().replace(/^```(?:tsx?|jsx?)\s*/i, '').replace(/\s*```$/i, '')
+    return content.text
+      .trim()
+      .replace(/^```(?:tsx?|jsx?)\s*/i, '')
+      .replace(/\s*```$/i, '')
   }
 
   /**
    * Story 2.11 B2: Extract a block from page code as a standalone React component.
    */
-  async extractBlockAsComponent(
-    pageCode: string,
-    blockHint: string,
-    componentName: string
-  ): Promise<string> {
+  async extractBlockAsComponent(pageCode: string, blockHint: string, componentName: string): Promise<string> {
     const response = await this.client.messages.create({
       model: this.defaultModel,
       max_tokens: 4096,
@@ -418,7 +418,9 @@ Requirements:
     })
     const content = response.content[0]
     if (content.type !== 'text') throw new Error('Unexpected response type')
-    return content.text.trim().replace(/^```(?:tsx?|jsx?)\s*/i, '').replace(/\s*```$/i, '')
+    return content.text
+      .trim()
+      .replace(/^```(?:tsx?|jsx?)\s*/i, '')
+      .replace(/\s*```$/i, '')
   }
 }
-

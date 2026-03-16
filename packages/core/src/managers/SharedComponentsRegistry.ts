@@ -12,11 +12,7 @@ import type {
   SharedComponentEntry,
   SharedComponentType,
 } from '../types/shared-components-manifest.js'
-import {
-  SharedComponentsManifestSchema,
-  formatCid,
-  parseCid,
-} from '../types/shared-components-manifest.js'
+import { SharedComponentsManifestSchema, formatCid, parseCid } from '../types/shared-components-manifest.js'
 
 export const MANIFEST_FILENAME = 'coherent.components.json'
 
@@ -43,10 +39,7 @@ export async function loadManifest(projectRoot: string): Promise<SharedComponent
 /**
  * Save manifest to project root.
  */
-export async function saveManifest(
-  projectRoot: string,
-  manifest: SharedComponentsManifest
-): Promise<void> {
+export async function saveManifest(projectRoot: string, manifest: SharedComponentsManifest): Promise<void> {
   const path = getManifestPath(projectRoot)
   await writeFile(path, JSON.stringify(manifest, null, 2), 'utf-8')
 }
@@ -56,13 +49,13 @@ export async function saveManifest(
  */
 export function findSharedComponent(
   manifest: SharedComponentsManifest,
-  idOrName: string
+  idOrName: string,
 ): SharedComponentEntry | undefined {
-  const byId = manifest.shared.find((e) => e.id === idOrName)
+  const byId = manifest.shared.find(e => e.id === idOrName)
   if (byId) return byId
   const upper = idOrName.toUpperCase()
   if (upper.startsWith('CID-')) return byId
-  return manifest.shared.find((e) => e.name.toLowerCase() === idOrName.toLowerCase())
+  return manifest.shared.find(e => e.name.toLowerCase() === idOrName.toLowerCase())
 }
 
 /**
@@ -89,7 +82,7 @@ export interface CreateSharedComponentInput {
  */
 export function createEntry(
   manifest: SharedComponentsManifest,
-  input: CreateSharedComponentInput
+  input: CreateSharedComponentInput,
 ): { entry: SharedComponentEntry; nextManifest: SharedComponentsManifest } {
   const id = formatCid(manifest.nextId)
   const now = new Date().toISOString()
@@ -115,9 +108,9 @@ export function createEntry(
 export function updateUsedIn(
   manifest: SharedComponentsManifest,
   id: string,
-  usedIn: string[]
+  usedIn: string[],
 ): SharedComponentsManifest {
-  const index = manifest.shared.findIndex((e) => e.id === id)
+  const index = manifest.shared.findIndex(e => e.id === id)
   if (index === -1) return manifest
   const next = [...manifest.shared]
   next[index] = { ...next[index], usedIn }
@@ -130,9 +123,9 @@ export function updateUsedIn(
 export function updateEntry(
   manifest: SharedComponentsManifest,
   id: string,
-  partial: Partial<Omit<SharedComponentEntry, 'id'>>
+  partial: Partial<Omit<SharedComponentEntry, 'id'>>,
 ): SharedComponentsManifest {
-  const index = manifest.shared.findIndex((e) => e.id === id)
+  const index = manifest.shared.findIndex(e => e.id === id)
   if (index === -1) return manifest
   const next = [...manifest.shared]
   next[index] = { ...next[index], ...partial }
@@ -142,20 +135,11 @@ export function updateEntry(
 /**
  * Remove an entry by ID. Returns updated manifest.
  */
-export function removeEntry(
-  manifest: SharedComponentsManifest,
-  id: string
-): SharedComponentsManifest {
+export function removeEntry(manifest: SharedComponentsManifest, id: string): SharedComponentsManifest {
   return {
     ...manifest,
-    shared: manifest.shared.filter((e) => e.id !== id),
+    shared: manifest.shared.filter(e => e.id !== id),
   }
 }
 
-export {
-  formatCid,
-  parseCid,
-  type SharedComponentsManifest,
-  type SharedComponentEntry,
-  type SharedComponentType,
-}
+export { formatCid, parseCid, type SharedComponentsManifest, type SharedComponentEntry, type SharedComponentType }

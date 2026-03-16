@@ -5,10 +5,7 @@
  * detailed section descriptions for full-featured pages.
  */
 
-export const PAGE_TEMPLATES: Record<
-  string,
-  { description: string; sections: string[]; components: string[] }
-> = {
+export const PAGE_TEMPLATES: Record<string, { description: string; sections: string[]; components: string[] }> = {
   dashboard: {
     description: 'Dashboard page with KPI stats grid and recent activity',
     sections: [
@@ -28,7 +25,17 @@ export const PAGE_TEMPLATES: Record<
       'CardFooter: text "Don\'t have an account?" with a Sign up link. All text is text-sm text-muted-foreground.',
       'This page uses "use client" (has useState for form state). Do NOT include export const metadata.',
     ],
-    components: ['Card', 'CardHeader', 'CardTitle', 'CardDescription', 'CardContent', 'CardFooter', 'Button', 'Input', 'Label'],
+    components: [
+      'Card',
+      'CardHeader',
+      'CardTitle',
+      'CardDescription',
+      'CardContent',
+      'CardFooter',
+      'Button',
+      'Input',
+      'Label',
+    ],
   },
 
   pricing: {
@@ -88,7 +95,17 @@ export const PAGE_TEMPLATES: Record<
       'Sections in flex flex-col gap-6: Profile Card (name, email inputs), Notifications Card (toggle checkboxes), Danger Zone Card (destructive button to delete account). Each Card with CardHeader(CardTitle text-sm font-medium + CardDescription text-sm text-muted-foreground) and CardContent with form fields.',
       'This page uses "use client" (has useState). Do NOT include export const metadata.',
     ],
-    components: ['Card', 'CardHeader', 'CardTitle', 'CardDescription', 'CardContent', 'Button', 'Input', 'Label', 'Checkbox'],
+    components: [
+      'Card',
+      'CardHeader',
+      'CardTitle',
+      'CardDescription',
+      'CardContent',
+      'Button',
+      'Input',
+      'Label',
+      'Checkbox',
+    ],
   },
 
   blog: {
@@ -103,14 +120,35 @@ export const PAGE_TEMPLATES: Record<
     sections: [
       'Avatar section, name and email. Personal info form (Label + Input). Connected accounts section (optional). Recent activity list. Two-column layout on desktop (md:grid-cols-2).',
     ],
-    components: ['Card', 'CardHeader', 'CardTitle', 'CardDescription', 'CardContent', 'Button', 'Input', 'Label', 'Avatar', 'AvatarFallback'],
+    components: [
+      'Card',
+      'CardHeader',
+      'CardTitle',
+      'CardDescription',
+      'CardContent',
+      'Button',
+      'Input',
+      'Label',
+      'Avatar',
+      'AvatarFallback',
+    ],
   },
   onboarding: {
     description: 'Onboarding or wizard (multi-step form)',
     sections: [
       'Progress indicator (step N of M). One Card per step with CardHeader (title + description), CardContent (form fields), CardFooter (Back / Next or Finish). Use "use client" and useState for step.',
     ],
-    components: ['Card', 'CardHeader', 'CardTitle', 'CardDescription', 'CardContent', 'CardFooter', 'Button', 'Input', 'Label'],
+    components: [
+      'Card',
+      'CardHeader',
+      'CardTitle',
+      'CardDescription',
+      'CardContent',
+      'CardFooter',
+      'Button',
+      'Input',
+      'Label',
+    ],
   },
   gallery: {
     description: 'Gallery or portfolio (image grid)',
@@ -137,7 +175,13 @@ export const PAGE_TEMPLATES: Record<
 
 /** Auth route path segments (no leading slash). Used for (auth) route group. */
 const AUTH_ROUTE_SEGMENTS = new Set([
-  'login', 'signin', 'sign-up', 'signup', 'register', 'forgot-password', 'reset-password',
+  'login',
+  'signin',
+  'sign-up',
+  'signup',
+  'register',
+  'forgot-password',
+  'reset-password',
 ])
 
 /**

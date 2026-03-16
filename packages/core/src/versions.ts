@@ -1,6 +1,6 @@
 /**
  * Framework Versions
- * 
+ *
  * Centralized version management for all dependencies.
  * Ensures consistent versions across generated projects.
  */

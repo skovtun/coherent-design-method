@@ -1,6 +1,6 @@
 /**
  * Coherent Core - Main export
- * 
+ *
  * This package contains the core design system engine:
  * - DesignSystemManager
  * - ComponentManager
@@ -23,11 +23,26 @@ export * from './generators/SharedComponentGenerator'
 export * from './generators/SharedLayoutIntegration'
 export * from './generators/ProjectScaffolder'
 export { getTemplateForPageType, getSupportedPageTypes } from './generators/templates/pages/index'
-export type { TemplateOptions, DashboardContent, PricingContent, ListingContent, ContactContent, SettingsContent, LandingContent, BlogContent, ProfileContent, OnboardingContent, GalleryContent, FaqContent, ChangelogContent, PageContent } from './generators/templates/pages/index'
+export type {
+  TemplateOptions,
+  DashboardContent,
+  PricingContent,
+  ListingContent,
+  ContactContent,
+  SettingsContent,
+  LandingContent,
+  BlogContent,
+  ProfileContent,
+  OnboardingContent,
+  GalleryContent,
+  FaqContent,
+  ChangelogContent,
+  PageContent,
+} from './generators/templates/pages/index'
 export * from './types/figma'
 export * from './figma'
 export * from './validators/schema'
 export * from './versions'
 export * from './utils/buildCssVariables'
+export * from './utils/atomicWrite'
 export * from './audit'
-

@@ -1,6 +1,6 @@
 /**
  * Design System Manager
- * 
+ *
  * Main orchestrator for design system operations.
  * All modifications flow through this class.
  */
@@ -13,10 +13,8 @@ import type {
   ComponentDependency,
 } from '../types/design-system.js'
 import { validateConfig, getComponent, componentExists } from '../types/design-system.js'
-import { readFile, writeFile } from 'fs/promises'
-import { dirname } from 'path'
-import { existsSync } from 'fs'
-import { mkdir } from 'fs/promises'
+import { readFile } from 'fs/promises'
+import { atomicWriteFile } from '../utils/atomicWrite.js'
 
 export class DesignSystemManager {
   private config: DesignSystemConfig | null = null
@@ -33,20 +31,13 @@ export class DesignSystemManager {
   async load(): Promise<void> {
     try {
       const fileContent = await readFile(this.configPath, 'utf-8')
-      
-      // Extract config from TypeScript file
-      // File format: export const config: DesignSystemConfig = { ... }
-      const configMatch = fileContent.match(/export const config[^=]*=\s*({[\s\S]*})/m)
-      if (!configMatch) {
-        throw new Error('Invalid config file format. Expected: export const config = { ... }')
-      }
 
-      const configJson = configMatch[1]
+      const configJson = extractConfigObject(fileContent)
       const config = JSON.parse(configJson)
-      
+
       // Validate with Zod
       this.config = validateConfig(config)
-      
+
       // Load component registry
       this.loadComponentRegistry()
     } catch (error) {
@@ -75,13 +66,7 @@ export class DesignSystemManager {
 
 export const config = ${JSON.stringify(this.config, null, 2)} as const
 `
-      // Ensure directory exists
-      const dir = dirname(this.configPath)
-      if (!existsSync(dir)) {
-        await mkdir(dir, { recursive: true })
-      }
-      
-      await writeFile(this.configPath, fileContent, 'utf-8')
+      await atomicWriteFile(this.configPath, fileContent)
     } catch (error) {
       if (error instanceof Error) {
         throw new Error(`Failed to save config to ${this.configPath}: ${error.message}`)
@@ -120,7 +105,7 @@ export const config = ${JSON.stringify(this.config, null, 2)} as const
       // Update token in config
       const pathParts = path.split('.')
       let current: any = this.config.tokens
-      
+
       for (let i = 0; i < pathParts.length - 1; i++) {
         const part = pathParts[i]
         if (!(part in current)) {
@@ -128,7 +113,7 @@ export const config = ${JSON.stringify(this.config, null, 2)} as const
         }
         current = current[part]
       }
-      
+
       const lastPart = pathParts[pathParts.length - 1]
       const oldValue = current[lastPart]
       current[lastPart] = value
@@ -169,9 +154,10 @@ export const config = ${JSON.stringify(this.config, null, 2)} as const
         ],
         config: this.config,
         message: `Updated token ${path} from ${oldValue} to ${value}`,
-        warnings: affectedComponents.length > 0
-          ? [`This change affects ${affectedComponents.length} components and ${affectedPages.length} pages`]
-          : undefined,
+        warnings:
+          affectedComponents.length > 0
+            ? [`This change affects ${affectedComponents.length} components and ${affectedPages.length} pages`]
+            : undefined,
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -400,4 +386,50 @@ export const config = ${JSON.stringify(this.config, null, 2)} as const
   async reload(): Promise<void> {
     await this.load()
   }
+}
+
+/**
+ * Extract the config object from a TypeScript source file using balanced-brace matching.
+ * More robust than a greedy regex — correctly handles nested objects and trailing content.
+ */
+export function extractConfigObject(source: string): string {
+  const marker = source.match(/export\s+const\s+config[^=]*=\s*/)
+  if (!marker || marker.index === undefined) {
+    throw new Error('Invalid config file format. Expected: export const config = { ... }')
+  }
+
+  const startSearch = marker.index + marker[0].length
+  const openBrace = source.indexOf('{', startSearch)
+  if (openBrace === -1) {
+    throw new Error('Invalid config file format: no opening brace found after config =')
+  }
+
+  let depth = 0
+  let inString = false
+  let escape = false
+  for (let i = openBrace; i < source.length; i++) {
+    const ch = source[i]
+    if (escape) {
+      escape = false
+      continue
+    }
+    if (ch === '\\' && inString) {
+      escape = true
+      continue
+    }
+    if (ch === '"' && !escape) {
+      inString = !inString
+      continue
+    }
+    if (inString) continue
+    if (ch === '{') depth++
+    else if (ch === '}') {
+      depth--
+      if (depth === 0) {
+        return source.slice(openBrace, i + 1)
+      }
+    }
+  }
+
+  throw new Error('Invalid config file format: unbalanced braces')
 }

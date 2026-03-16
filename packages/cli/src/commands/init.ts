@@ -4,8 +4,7 @@
  * Initializes a new Coherent project with minimal configuration.
  * If the current folder has no Next.js (no package.json with next), runs create-next-app
  * non-interactively (--yes), then adds the Coherent layer (design-system config, pages, docs).
- * Pinned to Next 15.2 (create-next-app@15.2.4): Next 16 + Tailwind v4 are incompatible with Coherent
- * (tailwind.config, globals.css with @tailwind directives expect Tailwind v3).
+ * Supports both Tailwind v3 and v4 — auto-detects and generates compatible configs.
  */
 
 import chalk from 'chalk'
@@ -14,6 +13,7 @@ import prompts from 'prompts'
 import { existsSync, readFileSync, mkdirSync, rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { execSync } from 'child_process'
+import { warnIfVolatile } from '../utils/find-config.js'
 import { writeFile } from '../utils/files.js'
 import { fileExistsAsync } from '../utils/files.js'
 import type { DesignSystemConfig } from '@getcoherent/core'
@@ -25,8 +25,10 @@ import { COHERENT_REQUIRED_PACKAGES } from '../utils/self-heal.js'
 import { getWelcomeMarkdown, generateWelcomeComponent } from '../utils/welcome-content.js'
 import { setupApiKey, hasApiKey } from '../utils/api-key-setup.js'
 import { writeCursorRules } from '../utils/cursor-rules.js'
+import { isTailwindV4, generateV4GlobalsCss } from '../utils/tailwind-version.js'
 import { generateClaudeCodeFiles } from '../utils/claude-code.js'
 import { cwd } from 'process'
+import { toKebabCase } from '../utils/strings.js'
 
 /** Whether current directory has a package.json with next (dependencies or devDependencies). */
 function hasNextInPackageJson(projectPath: string): boolean {
@@ -89,13 +91,6 @@ export function cn(...inputs: ClassValue[]) {
   if (!existsSync(componentsUiPath)) mkdirSync(componentsUiPath, { recursive: true })
 }
 
-/** Kebab-case component name for file name (e.g. Button -> button, Card -> card). */
-function toKebabCase(str: string): string {
-  return str
-    .replace(/([a-z])([A-Z])/g, '$1-$2')
-    .toLowerCase()
-}
-
 /**
  * Ensure registry component files exist (e.g. components/ui/button.tsx)
  * so pages that import from @/components/ui/button etc. resolve.
@@ -119,7 +114,7 @@ async function ensureRegistryComponents(config: DesignSystemConfig, projectPath:
 function generateConfigFile(config: DesignSystemConfig): string {
   // Format JSON with proper indentation
   const jsonString = JSON.stringify(config, null, 2)
-  
+
   return `/**
  * Design System Configuration
  * 
@@ -135,6 +130,12 @@ export async function initCommand(name?: string) {
   try {
     // Step 0: If name provided, create directory and cd into it
     if (name) {
+      if (name.includes('..') || name.startsWith('/') || name.startsWith('\\')) {
+        console.error(
+          chalk.red(`\n❌ Invalid project name: "${name}"\n   Name must not contain ".." or start with "/" or "\\".`),
+        )
+        process.exit(1)
+      }
       const targetDir = join(cwd(), name)
       if (!existsSync(targetDir)) {
         mkdirSync(targetDir, { recursive: true })
@@ -237,28 +238,24 @@ export async function initCommand(name?: string) {
         depsSpinner.succeed('Component dependencies installed')
       } catch {
         depsSpinner.fail('Failed to install component dependencies')
-        console.log(
-          chalk.yellow(`  Run manually: npm install ${COHERENT_REQUIRED_PACKAGES.join(' ')}`)
-        )
+        console.log(chalk.yellow(`  Run manually: npm install ${COHERENT_REQUIRED_PACKAGES.join(' ')}`))
       }
 
       // Ensure registry components exist (button, card) so @/components/card etc. resolve
       await ensureRegistryComponents(config, projectPath)
 
-      // Pin Tailwind v3 + PostCSS (create-next-app may install v4)
-      try {
-        execSync('npm install --legacy-peer-deps tailwindcss@3.4.17 postcss@8.4.49 autoprefixer@10.4.20', {
-          cwd: projectPath,
-          stdio: 'pipe',
-        })
-      } catch { /* best-effort — deps may already be v3 */ }
+      const usesV4 = isTailwindV4(projectPath)
 
-      // Overwrite globals.css, tailwind.config, and postcss.config with Coherent versions
-      await scaffolder.generateGlobalsCss()
-      await scaffolder.generateTailwindConfigTs()
+      if (usesV4) {
+        // Tailwind v4: keep v4 runtime & PostCSS plugin, write v4-compatible globals.css
+        const v4Css = generateV4GlobalsCss(config)
+        await writeFile(join(projectPath, 'app', 'globals.css'), v4Css)
+      } else {
+        // Tailwind v3: overwrite globals.css, tailwind.config, and postcss.config
+        await scaffolder.generateGlobalsCss()
+        await scaffolder.generateTailwindConfigTs()
 
-      // Ensure PostCSS config is correct for Tailwind v3
-      const postcssContent = `/** @type {import('postcss-load-config').Config} */
+        const postcssContent = `/** @type {import('postcss-load-config').Config} */
 const config = {
   plugins: {
     tailwindcss: {},
@@ -268,7 +265,8 @@ const config = {
 
 export default config
 `
-      await writeFile(join(projectPath, 'postcss.config.mjs'), postcssContent)
+        await writeFile(join(projectPath, 'postcss.config.mjs'), postcssContent)
+      }
 
       // Replace root layout with Coherent layout + AppNav (floating Design System button)
       await scaffolder.generateRootLayout()
@@ -301,9 +299,7 @@ export default config
         depsSpinner.succeed('Component dependencies installed')
       } catch {
         depsSpinner.fail('Failed to install component dependencies')
-        console.log(
-          chalk.yellow(`  Run manually: npm install ${COHERENT_REQUIRED_PACKAGES.join(' ')}`)
-        )
+        console.log(chalk.yellow(`  Run manually: npm install ${COHERENT_REQUIRED_PACKAGES.join(' ')}`))
       }
 
       await ensureRegistryComponents(config, projectPath)
@@ -335,11 +331,10 @@ export default config
     }
 
     // Step 4: Show professional success message
+    warnIfVolatile(projectPath)
     showSuccessMessage('.')
-    
   } catch (error) {
     console.error(chalk.red('\n❌ Error:'), error instanceof Error ? error.message : 'Unknown error')
     process.exit(1)
   }
 }
-

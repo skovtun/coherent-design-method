@@ -14,8 +14,15 @@ const SHADCN_COMPONENTS: Record<string, ComponentDefinition> = {
       'inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:pointer-events-none',
     variants: [
       { name: 'default', className: 'bg-primary text-primary-foreground shadow-sm hover:opacity-90 active:opacity-80' },
-      { name: 'secondary', className: 'bg-secondary text-secondary-foreground shadow-sm hover:opacity-90 active:opacity-80' },
-      { name: 'outline', className: 'border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground active:bg-accent' },
+      {
+        name: 'secondary',
+        className: 'bg-secondary text-secondary-foreground shadow-sm hover:opacity-90 active:opacity-80',
+      },
+      {
+        name: 'outline',
+        className:
+          'border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground active:bg-accent',
+      },
       { name: 'ghost', className: 'hover:bg-accent hover:text-accent-foreground active:bg-accent' },
       { name: 'destructive', className: 'bg-error text-white shadow-sm hover:opacity-90 active:opacity-80' },
       { name: 'link', className: 'text-primary underline-offset-4 hover:underline' },
@@ -96,7 +103,8 @@ const SHADCN_COMPONENTS: Record<string, ComponentDefinition> = {
     category: 'form',
     source: 'shadcn',
     shadcnComponent: 'select',
-    baseClassName: 'flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2',
+    baseClassName:
+      'flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2',
     variants: [{ name: 'default', className: '' }],
     sizes: [
       { name: 'sm', className: 'h-8 text-xs' },
@@ -212,7 +220,8 @@ const SHADCN_COMPONENTS: Record<string, ComponentDefinition> = {
     category: 'form',
     source: 'shadcn',
     shadcnComponent: 'switch',
-    baseClassName: 'peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors',
+    baseClassName:
+      'peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors',
     variants: [{ name: 'default', className: '' }],
     sizes: [
       { name: 'sm', className: 'h-5 w-9' },
@@ -508,7 +517,8 @@ const SHADCN_COMPONENTS: Record<string, ComponentDefinition> = {
     category: 'overlay',
     source: 'shadcn',
     shadcnComponent: 'tooltip',
-    baseClassName: 'z-50 overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md',
+    baseClassName:
+      'z-50 overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md',
     variants: [{ name: 'default', className: '' }],
     sizes: [{ name: 'md', className: '' }],
     usedInPages: [],
@@ -522,7 +532,8 @@ const SHADCN_COMPONENTS: Record<string, ComponentDefinition> = {
     category: 'overlay',
     source: 'shadcn',
     shadcnComponent: 'dropdown-menu',
-    baseClassName: 'z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md',
+    baseClassName:
+      'z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md',
     variants: [{ name: 'default', className: '' }],
     sizes: [
       { name: 'sm', className: 'min-w-[6rem]' },
@@ -540,7 +551,8 @@ const SHADCN_COMPONENTS: Record<string, ComponentDefinition> = {
     category: 'overlay',
     source: 'shadcn',
     shadcnComponent: 'context-menu',
-    baseClassName: 'z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md',
+    baseClassName:
+      'z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md',
     variants: [{ name: 'default', className: '' }],
     sizes: [{ name: 'md', className: '' }],
     usedInPages: [],
@@ -590,10 +602,14 @@ const SHADCN_COMPONENTS: Record<string, ComponentDefinition> = {
     category: 'feedback',
     source: 'shadcn',
     shadcnComponent: 'toast',
-    baseClassName: 'group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all',
+    baseClassName:
+      'group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all',
     variants: [
       { name: 'default', className: '' },
-      { name: 'destructive', className: 'destructive group border-destructive bg-destructive text-destructive-foreground' },
+      {
+        name: 'destructive',
+        className: 'destructive group border-destructive bg-destructive text-destructive-foreground',
+      },
     ],
     sizes: [{ name: 'md', className: '' }],
     usedInPages: [],
@@ -682,7 +698,8 @@ const SHADCN_COMPONENTS: Record<string, ComponentDefinition> = {
     category: 'form',
     source: 'shadcn',
     shadcnComponent: 'toggle',
-    baseClassName: 'inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors hover:bg-muted hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2',
+    baseClassName:
+      'inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors hover:bg-muted hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2',
     variants: [
       { name: 'default', className: '' },
       { name: 'outline', className: 'border border-input bg-transparent hover:bg-accent hover:text-accent-foreground' },
@@ -766,7 +783,8 @@ const SHADCN_COMPONENTS: Record<string, ComponentDefinition> = {
     category: 'feedback',
     source: 'shadcn',
     shadcnComponent: 'sonner',
-    baseClassName: 'group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all',
+    baseClassName:
+      'group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all',
     variants: [{ name: 'default', className: '' }],
     sizes: [{ name: 'md', className: '' }],
     usedInPages: [],
@@ -804,10 +822,7 @@ export function listShadcnComponents(): string[] {
 /**
  * Install component (returns definition; file generation is handled by ComponentGenerator)
  */
-export async function installShadcnComponent(
-  name: string,
-  projectRoot: string
-): Promise<ComponentDefinition | null> {
+export async function installShadcnComponent(name: string, _projectRoot: string): Promise<ComponentDefinition | null> {
   const component = getShadcnComponent(name)
 
   if (!component) {

@@ -1,6 +1,6 @@
 /**
  * Page Manager
- * 
+ *
  * Handles page composition, section management, navigation sync, and code generation.
  */
 
@@ -12,13 +12,7 @@ import type {
   Navigation,
   ModificationResult,
 } from '../types/design-system.js'
-import {
-  validateConfig,
-  getPage,
-  pageRouteExists,
-  componentExists,
-  getComponent,
-} from '../types/design-system.js'
+import { validateConfig, getPage, pageRouteExists, componentExists, getComponent } from '../types/design-system.js'
 import type { ComponentManager } from './ComponentManager.js'
 import { buildCssVariables } from '../utils/buildCssVariables.js'
 
@@ -111,10 +105,7 @@ export class PageManager {
   /**
    * Update existing page
    */
-  async update(
-    id: string,
-    changes: Partial<PageDefinition>
-  ): Promise<ModificationResult> {
+  async update(id: string, changes: Partial<PageDefinition>): Promise<ModificationResult> {
     const page = this.read(id)
     if (!page) {
       return {
@@ -226,9 +217,7 @@ export class PageManager {
 
     // Remove from navigation
     if (this.config.navigation?.enabled) {
-      this.config.navigation.items = this.config.navigation.items.filter(
-        item => item.route !== page.route
-      )
+      this.config.navigation.items = this.config.navigation.items.filter(item => item.route !== page.route)
     }
 
     // Validate
@@ -245,11 +234,7 @@ export class PageManager {
   /**
    * Add section to page
    */
-  async addSection(
-    pageId: string,
-    section: PageSection,
-    position?: number
-  ): Promise<ModificationResult> {
+  async addSection(pageId: string, section: PageSection, position?: number): Promise<ModificationResult> {
     const page = this.read(pageId)
     if (!page) {
       return {
@@ -304,10 +289,7 @@ export class PageManager {
   /**
    * Remove section from page
    */
-  async removeSection(
-    pageId: string,
-    sectionIndex: number
-  ): Promise<ModificationResult> {
+  async removeSection(pageId: string, sectionIndex: number): Promise<ModificationResult> {
     const page = this.read(pageId)
     if (!page) {
       return {
@@ -363,10 +345,7 @@ export class PageManager {
   /**
    * Reorder sections in page
    */
-  async reorderSections(
-    pageId: string,
-    order: number[]
-  ): Promise<ModificationResult> {
+  async reorderSections(pageId: string, order: number[]): Promise<ModificationResult> {
     const page = this.read(pageId)
     if (!page) {
       return {
@@ -447,9 +426,7 @@ export class PageManager {
     })
 
     // Remove navigation items for pages that no longer exist
-    navigation.items = navigation.items.filter(item =>
-      this.config.pages.some(page => page.route === item.route)
-    )
+    navigation.items = navigation.items.filter(item => this.config.pages.some(page => page.route === item.route))
 
     // Sort by order
     navigation.items.sort((a, b) => a.order - b.order)
@@ -467,10 +444,7 @@ export class PageManager {
   /**
    * Generate page code (Next.js App Router or React SPA)
    */
-  async generatePage(
-    def: PageDefinition,
-    appType: 'multi-page' | 'spa' = 'multi-page'
-  ): Promise<string> {
+  async generatePage(def: PageDefinition, appType: 'multi-page' | 'spa' = 'multi-page'): Promise<string> {
     if (appType === 'multi-page') {
       return this.generateNextJsPage(def)
     } else {
@@ -483,7 +457,7 @@ export class PageManager {
    */
   private generateNextJsPage(def: PageDefinition): string {
     const imports = this.generateImports(def)
-    const metadata = this.generateMetadata(def)
+    const _metadata = this.generateMetadata(def)
     const sections = this.generateSections(def)
     const containerClass = this.getContainerClass(def.layout)
 
@@ -538,10 +512,7 @@ ${sections}
   /**
    * Generate layout code
    */
-  async generateLayout(
-    layout: PageLayout,
-    appType: 'multi-page' | 'spa' = 'multi-page'
-  ): Promise<string> {
+  async generateLayout(layout: PageLayout, appType: 'multi-page' | 'spa' = 'multi-page'): Promise<string> {
     if (appType === 'multi-page') {
       return this.generateNextJsLayout(layout)
     } else {
@@ -553,9 +524,7 @@ ${sections}
    * Generate Next.js App Router layout
    */
   private generateNextJsLayout(layout: PageLayout): string {
-    const navigation = this.config.navigation?.enabled
-      ? this.generateNavigation()
-      : ''
+    const navigation = this.config.navigation?.enabled ? this.generateNavigation() : ''
     const bodyClass = this.getBodyClass(layout)
     const cssVars = buildCssVariables(this.config)
 
@@ -591,9 +560,7 @@ ${navigation ? `        ${navigation}\n` : ''}        {children}
    * Generate React SPA layout
    */
   private generateSPALayout(layout: PageLayout): string {
-    const navigation = this.config.navigation?.enabled
-      ? this.generateNavigation()
-      : ''
+    const navigation = this.config.navigation?.enabled ? this.generateNavigation() : ''
     const bodyClass = this.getBodyClass(layout)
 
     return `import { Outlet } from 'react-router-dom'
@@ -613,18 +580,14 @@ ${navigation ? `      ${navigation}\n` : ''}      <Outlet />
    * Generate imports for page components
    */
   private generateImports(def: PageDefinition): string {
-    const componentIds = new Set(
-      def.sections.map(section => section.componentId)
-    )
+    const componentIds = new Set(def.sections.map(section => section.componentId))
 
     const imports: string[] = []
     componentIds.forEach(componentId => {
       const component = getComponent(this.config, componentId)
       if (component) {
         const componentName = component.name
-        imports.push(
-          `import { ${componentName} } from '@/components/${componentName}'`
-        )
+        imports.push(`import { ${componentName} } from '@/components/${componentName}'`)
       }
     })
 
@@ -678,9 +641,7 @@ ${navigation ? `      ${navigation}\n` : ''}      <Outlet />
     }
 
     const items = this.config.navigation.items
-      .map(
-        item => `          <Link href="${item.route}">${item.label}</Link>`
-      )
+      .map(item => `          <Link href="${item.route}">${item.label}</Link>`)
       .join('\n')
 
     return `<nav className="navigation">
@@ -693,11 +654,11 @@ ${items}
    */
   private getContainerClass(layout: PageLayout): string {
     const layoutClasses: Record<PageLayout, string> = {
-      'centered': 'max-w-4xl mx-auto px-4',
+      centered: 'max-w-4xl mx-auto px-4',
       'sidebar-left': 'flex',
       'sidebar-right': 'flex flex-row-reverse',
       'full-width': 'w-full',
-      'grid': 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4',
+      grid: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4',
     }
     return layoutClasses[layout] || ''
   }
@@ -705,7 +666,7 @@ ${items}
   /**
    * Get body class based on layout type
    */
-  private getBodyClass(layout: PageLayout): string {
+  private getBodyClass(_layout: PageLayout): string {
     return 'min-h-screen bg-background text-foreground'
   }
 

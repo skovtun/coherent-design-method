@@ -1,10 +1,7 @@
 import type { PricingContent, TemplateOptions } from './types.js'
 import { D, collectIcons, resolveIcon } from './_shared.js'
 
-export function pricingTemplate(
-  content: PricingContent,
-  options: TemplateOptions
-): string {
+export function pricingTemplate(content: PricingContent, options: TemplateOptions): string {
   const { title, description, tiers, faq } = content
   const { pageName } = options
 
@@ -12,20 +9,18 @@ export function pricingTemplate(
   const iconImport = `import { ${icons.join(', ')} } from 'lucide-react'`
 
   const tierCards = tiers
-    .map((tier) => {
+    .map(tier => {
       const features = tier.features
         .map(
-          (f) =>
+          f =>
             `              <li className="flex items-center gap-2 ${D.body}">
                 <${resolveIcon('Check')} className="h-4 w-4 text-emerald-400 shrink-0" />
                 ${f}
-              </li>`
+              </li>`,
         )
         .join('\n')
 
-      const highlighted = tier.highlighted
-        ? ` ring-2 ring-primary`
-        : ''
+      const highlighted = tier.highlighted ? ` ring-2 ring-primary` : ''
 
       const badgeHtml = tier.highlighted
         ? `\n            <Badge variant="outline" className="ml-2">Popular</Badge>`
@@ -54,10 +49,10 @@ ${features}
   if (faq && faq.length > 0) {
     const items = faq
       .map(
-        (q) => `          <div className="space-y-2">
+        q => `          <div className="space-y-2">
             <h3 className="${D.body} font-medium">${q.question}</h3>
             <p className="${D.muted}">${q.answer}</p>
-          </div>`
+          </div>`,
       )
       .join('\n')
 

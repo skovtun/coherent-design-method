@@ -7,7 +7,7 @@ export function changelogTemplate(content: ChangelogContent, options: TemplateOp
 
   const versionBlocks = versions
     .map(
-      (v) => `      <div className="relative pl-6 border-l-2 border-border/20 pb-8 last:pb-0">
+      v => `      <div className="relative pl-6 border-l-2 border-border/20 pb-8 last:pb-0">
         <div className="absolute left-0 top-0 w-3 h-3 -translate-x-[7px] rounded-full bg-primary" />
         <div className="flex items-center gap-2 flex-wrap mb-2">
           <span className="${D.cardTitle}">${v.version}</span>
@@ -15,9 +15,9 @@ export function changelogTemplate(content: ChangelogContent, options: TemplateOp
           ${v.badge ? `<Badge variant="outline">${v.badge}</Badge>` : ''}
         </div>
         <ul className="space-y-1 ${D.muted}">
-          ${v.entries.map((e) => `          <li><span className="font-medium">${e.type}:</span> ${e.text.replace(/</g, '&lt;')}</li>`).join('\n          ')}
+          ${v.entries.map(e => `          <li><span className="font-medium">${e.type}:</span> ${e.text.replace(/</g, '&lt;')}</li>`).join('\n          ')}
         </ul>
-      </div>`
+      </div>`,
     )
     .join('\n\n')
 

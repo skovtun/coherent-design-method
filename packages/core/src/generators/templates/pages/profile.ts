@@ -7,10 +7,10 @@ export function profileTemplate(content: ProfileContent, options: TemplateOption
 
   const fieldRows = (fields || [])
     .map(
-      (f) => `            <div className="${D.listItem}">
+      f => `            <div className="${D.listItem}">
               <span className="${D.muted}">${f.label}</span>
               <span className="${D.body}">${f.value}</span>
-            </div>`
+            </div>`,
     )
     .join('\n')
 
@@ -21,7 +21,7 @@ export function profileTemplate(content: ProfileContent, options: TemplateOption
         <h2 className="${D.cardTitle} mb-1">Connected accounts</h2>
         <p className="${D.cardDesc} mb-4">Manage linked services</p>
         <div className="space-y-3">
-          ${connectedAccounts.map((a) => `          <div className="flex items-center justify-between"><span className="${D.body}">${a.name}</span><Button variant="outline" size="sm">${a.connected ? 'Disconnect' : 'Connect'}</Button></div>`).join('\n')}
+          ${connectedAccounts.map(a => `          <div className="flex items-center justify-between"><span className="${D.body}">${a.name}</span><Button variant="outline" size="sm">${a.connected ? 'Disconnect' : 'Connect'}</Button></div>`).join('\n')}
         </div>
       </div>`
       : ''
@@ -32,7 +32,7 @@ export function profileTemplate(content: ProfileContent, options: TemplateOption
       <div className="${D.card} p-6">
         <h2 className="${D.cardTitle} mb-4">Recent activity</h2>
         <ul className="space-y-0">
-          ${activity.map((a) => `            <li className="${D.listItem}"><span className="${D.body}">${a.title}</span><span className="${D.mutedXs}">${a.time}</span></li>`).join('\n')}
+          ${activity.map(a => `            <li className="${D.listItem}"><span className="${D.body}">${a.title}</span><span className="${D.mutedXs}">${a.time}</span></li>`).join('\n')}
         </ul>
       </div>`
       : ''

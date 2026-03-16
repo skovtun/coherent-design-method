@@ -1,10 +1,10 @@
 /**
  * File System Operations
- * 
+ *
  * Utilities for safe file operations with atomic writes and project-level locking.
  */
 
-import { readFile as fsReadFile, writeFile as fsWriteFile, mkdir, rename, unlink, copyFile } from 'fs/promises'
+import { readFile as fsReadFile, writeFile as fsWriteFile, mkdir, rename, unlink, copyFile, access } from 'fs/promises'
 import { dirname, join } from 'path'
 import { existsSync, writeFileSync, unlinkSync, readFileSync } from 'fs'
 import { randomBytes } from 'crypto'
@@ -33,7 +33,7 @@ export async function writeFile(path: string, content: string): Promise<void> {
     if (!existsSync(dir)) {
       await mkdir(dir, { recursive: true })
     }
-    
+
     const tmpPath = `${path}.${randomBytes(4).toString('hex')}.tmp`
     await fsWriteFile(tmpPath, content, 'utf-8')
     await rename(tmpPath, path)
@@ -56,7 +56,12 @@ export function fileExists(path: string): boolean {
  * Check if file exists (async version for consistency)
  */
 export async function fileExistsAsync(path: string): Promise<boolean> {
-  return existsSync(path)
+  try {
+    await access(path)
+    return true
+  } catch {
+    return false
+  }
 }
 
 // --- Project-level lock ---
@@ -81,7 +86,7 @@ export async function acquireProjectLock(projectRoot: string): Promise<() => voi
         try {
           process.kill(data.pid, 0)
           throw new Error(
-            `Another coherent process (PID ${data.pid}) is running. Wait for it to finish or remove ${LOCK_FILENAME}.`
+            `Another coherent process (PID ${data.pid}) is running. Wait for it to finish or remove ${LOCK_FILENAME}.`,
           )
         } catch (e) {
           if ((e as NodeJS.ErrnoException).code !== 'ESRCH') throw e
@@ -98,11 +103,21 @@ export async function acquireProjectLock(projectRoot: string): Promise<() => voi
   writeFileSync(lockPath, lockData, 'utf-8')
 
   const release = () => {
-    try { unlinkSync(lockPath) } catch { /* already removed */ }
+    try {
+      unlinkSync(lockPath)
+    } catch {
+      /* lock already removed — expected during cleanup */
+    }
   }
   process.on('exit', release)
-  process.on('SIGINT', () => { release(); process.exit(130) })
-  process.on('SIGTERM', () => { release(); process.exit(143) })
+  process.on('SIGINT', () => {
+    release()
+    process.exit(130)
+  })
+  process.on('SIGTERM', () => {
+    release()
+    process.exit(143)
+  })
 
   return release
 }
@@ -111,9 +126,7 @@ export async function acquireProjectLock(projectRoot: string): Promise<() => voi
  * Batch write: back up files, write all, and restore on failure.
  * Provides transactional semantics for multi-file operations.
  */
-export async function batchWriteFiles(
-  writes: Array<{ path: string; content: string }>
-): Promise<void> {
+export async function batchWriteFiles(writes: Array<{ path: string; content: string }>): Promise<void> {
   const backups: Array<{ path: string; backupPath: string }> = []
 
   try {
@@ -126,14 +139,25 @@ export async function batchWriteFiles(
       await writeFile(path, content)
     }
     for (const { backupPath } of backups) {
-      try { await unlink(backupPath) } catch { /* cleanup best-effort */ }
+      try {
+        await unlink(backupPath)
+      } catch {
+        /* cleanup best-effort */
+      }
     }
   } catch (error) {
     for (const { path, backupPath } of backups) {
-      try { await copyFile(backupPath, path) } catch { /* restore best-effort */ }
-      try { await unlink(backupPath) } catch { /* cleanup */ }
+      try {
+        await copyFile(backupPath, path)
+      } catch {
+        /* restore best-effort */
+      }
+      try {
+        await unlink(backupPath)
+      } catch {
+        /* cleanup */
+      }
     }
     throw error
   }
 }
-

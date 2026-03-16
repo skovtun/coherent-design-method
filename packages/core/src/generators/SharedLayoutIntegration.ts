@@ -18,24 +18,25 @@ function getImportPath(name: string): string {
 
 /** PascalCase for JSX (Header, Footer) */
 function toPascalCase(name: string): string {
-  return name
-    .replace(/[-_\s]+(.)?/g, (_, c) => (c ? c.toUpperCase() : ''))
-    .replace(/^(.)/, (_, c) => c.toUpperCase())
-    .replace(/[^a-zA-Z0-9]/g, '')
-  || 'Block'
+  return (
+    name
+      .replace(/[-_\s]+(.)?/g, (_, c) => (c ? c.toUpperCase() : ''))
+      .replace(/^(.)/, (_, c) => c.toUpperCase())
+      .replace(/[^a-zA-Z0-9]/g, '') || 'Block'
+  )
 }
 
 /**
  * Ensure app/layout.tsx imports and renders layout-type shared components.
  * - Layout components whose name contains "footer" are rendered after the content wrapper.
  * - Others are rendered before (right after body open, before AppNav).
- * 
+ *
  * NOTE: Call ensureAuthRouteGroup() after this to wrap Header/Footer
  * in ShowWhenNotAuthRoute (hides on /design-system/* and auth routes).
  */
 export async function integrateSharedLayoutIntoRootLayout(projectRoot: string): Promise<boolean> {
   const manifest = await loadManifest(projectRoot)
-  const layoutComponents = manifest.shared.filter((e) => e.type === 'layout')
+  const layoutComponents = manifest.shared.filter(e => e.type === 'layout')
   if (layoutComponents.length === 0) return false
 
   const layoutPath = join(projectRoot, LAYOUT_PATH)
@@ -58,9 +59,7 @@ export async function integrateSharedLayoutIntoRootLayout(projectRoot: string): 
   if (headers.length === 0 && footers.length === 0) return false
 
   // Add imports after globals.css import
-  const importLines = layoutComponents.map(
-    (e) => `import { ${toPascalCase(e.name)} } from '${getImportPath(e.name)}'`
-  )
+  const importLines = layoutComponents.map(e => `import { ${toPascalCase(e.name)} } from '${getImportPath(e.name)}'`)
   let result = content
   const globalsImport = "import './globals.css'"
   const globalsIdx = result.indexOf(globalsImport)

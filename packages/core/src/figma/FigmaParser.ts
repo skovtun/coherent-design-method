@@ -54,10 +54,7 @@ function nodeToLayout(node: FigmaNode): FigmaLayout | undefined {
 /**
  * Parse raw file response into our intermediate format.
  */
-export function parseFigmaFileResponse(
-  raw: unknown,
-  fileKey: string
-): FigmaIntermediateData {
+export function parseFigmaFileResponse(raw: unknown, fileKey: string): FigmaIntermediateData {
   const file = raw as FigmaFileResponse
   const fileName = file.name ?? 'Untitled'
   const document = file.document

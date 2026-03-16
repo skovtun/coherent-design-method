@@ -13,17 +13,26 @@ import chalk from 'chalk'
 import ora from 'ora'
 import { spawn } from 'child_process'
 import { existsSync, rmSync, readdirSync } from 'fs'
-import { resolve, join, relative, dirname } from 'path'
+import { resolve, join, dirname } from 'path'
 import { readdir, readFile, writeFile, mkdir, copyFile } from 'fs/promises'
 import { findConfig, exitNotCoherent } from '../utils/find-config.js'
 
 /** Files/dirs to skip entirely during copy */
 const COPY_EXCLUDE = new Set([
-  'node_modules', '.next', '.git', 'export', '.tmp-e2e',
-  '.cursorrules', 'CLAUDE.md', '.claude', '.coherent',
-  'design-system.config.ts', 'coherent.components.json',
+  'node_modules',
+  '.next',
+  '.git',
+  'export',
+  '.tmp-e2e',
+  '.cursorrules',
+  'CLAUDE.md',
+  '.claude',
+  '.coherent',
+  'design-system.config.ts',
+  'coherent.components.json',
   'recommendations.md',
-  '.env', '.env.local',
+  '.env',
+  '.env.local',
 ])
 
 async function copyDir(src: string, dest: string): Promise<void> {
@@ -49,8 +58,7 @@ export interface ExportOptions {
 }
 
 function checkProjectInitialized(projectRoot: string): boolean {
-  return existsSync(resolve(projectRoot, 'design-system.config.ts')) &&
-         existsSync(resolve(projectRoot, 'package.json'))
+  return existsSync(resolve(projectRoot, 'design-system.config.ts')) && existsSync(resolve(projectRoot, 'package.json'))
 }
 
 function getPackageManager(projectRoot: string): 'pnpm' | 'npm' | 'npx' {
@@ -67,7 +75,7 @@ async function patchNextConfigForExport(outRoot: string): Promise<void> {
     if (content.includes('ignoreDuringBuilds')) return
     content = content.replace(
       /(const\s+nextConfig\s*(?::\s*\w+)?\s*=\s*\{)/,
-      '$1\n  eslint: { ignoreDuringBuilds: true },\n  typescript: { ignoreBuildErrors: true },'
+      '$1\n  eslint: { ignoreDuringBuilds: true },\n  typescript: { ignoreBuildErrors: true },',
     )
     await writeFile(p, content, 'utf-8')
     return
@@ -80,8 +88,8 @@ async function buildProduction(projectRoot: string): Promise<void> {
   const args = pm === 'npx' ? ['next', 'build'] : ['run', 'build']
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { cwd: projectRoot, stdio: 'inherit', shell: true })
-    child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`Build failed with exit code ${code}`)))
-    child.on('error', (error) => reject(new Error(`Failed to start build: ${error.message}`)))
+    child.on('exit', code => (code === 0 ? resolve() : reject(new Error(`Build failed with exit code ${code}`))))
+    child.on('error', error => reject(new Error(`Failed to start build: ${error.message}`)))
   })
 }
 
@@ -113,14 +121,20 @@ async function ensureReadmeDeploySection(outRoot: string): Promise<void> {
     if (/##\s+Deploy\b/m.test(content)) return
     content = content.trimEnd() + DEPLOY_SECTION + '\n'
     await writeFile(readmePath, content)
-  } catch { /* non-critical */ }
+  } catch {
+    /* non-critical */
+  }
 }
 
 async function countPages(outRoot: string): Promise<number> {
   let n = 0
   async function walk(dir: string): Promise<void> {
     let entries
-    try { entries = await readdir(dir, { withFileTypes: true }) } catch { return }
+    try {
+      entries = await readdir(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
     for (const e of entries) {
       const full = join(dir, e.name)
       if (e.isFile() && e.name === 'page.tsx') n++
@@ -138,8 +152,10 @@ function countComponents(outRoot: string): number {
     const dir = join(outRoot, 'components', sub)
     if (!existsSync(dir)) continue
     try {
-      n += readdirSync(dir).filter((f) => f.endsWith('.tsx') || f.endsWith('.jsx')).length
-    } catch { /* ignore */ }
+      n += readdirSync(dir).filter(f => f.endsWith('.tsx') || f.endsWith('.jsx')).length
+    } catch {
+      /* ignore */
+    }
   }
   return n
 }
@@ -153,7 +169,10 @@ async function collectImportedPackages(dir: string, extensions: Set<string>): Pr
     const entries = await readdir(d, { withFileTypes: true })
     for (const e of entries) {
       const full = join(d, e.name)
-      if (e.isDirectory() && !e.name.startsWith('.') && e.name !== 'node_modules') { await walk(full); continue }
+      if (e.isDirectory() && !e.name.startsWith('.') && e.name !== 'node_modules') {
+        await walk(full)
+        continue
+      }
       if (!e.isFile()) continue
       const ext = e.name.replace(/^.*\./, '')
       if (!extensions.has(ext)) continue
@@ -176,18 +195,19 @@ async function findMissingDepsInExport(outRoot: string): Promise<string[]> {
   const pkgPath = join(outRoot, 'package.json')
   if (!existsSync(pkgPath)) return []
   let pkg: { dependencies?: Record<string, string>; devDependencies?: Record<string, string> }
-  try { pkg = JSON.parse(await readFile(pkgPath, 'utf-8')) } catch { return [] }
-  const inDeps = new Set<string>([
-    ...Object.keys(pkg.dependencies ?? {}),
-    ...Object.keys(pkg.devDependencies ?? {}),
-  ])
+  try {
+    pkg = JSON.parse(await readFile(pkgPath, 'utf-8'))
+  } catch {
+    return []
+  }
+  const inDeps = new Set<string>([...Object.keys(pkg.dependencies ?? {}), ...Object.keys(pkg.devDependencies ?? {})])
   const codeDirs = [join(outRoot, 'app'), join(outRoot, 'components')]
   const extensions = new Set(['ts', 'tsx', 'js', 'jsx'])
   const imported = new Set<string>()
   for (const dir of codeDirs) {
-    (await collectImportedPackages(dir, extensions)).forEach((p) => imported.add(p))
+    ;(await collectImportedPackages(dir, extensions)).forEach(p => imported.add(p))
   }
-  return [...imported].filter((p) => !inDeps.has(p)).sort()
+  return [...imported].filter(p => !inDeps.has(p)).sort()
 }
 
 /**
@@ -199,12 +219,18 @@ async function stripCoherentArtifacts(outputDir: string): Promise<string[]> {
   // DS overlay routes & API
   for (const p of ['app/design-system', 'app/api/design-system']) {
     const full = join(outputDir, p)
-    if (existsSync(full)) { rmSync(full, { recursive: true, force: true }); removed.push(p) }
+    if (existsSync(full)) {
+      rmSync(full, { recursive: true, force: true })
+      removed.push(p)
+    }
   }
 
   // AppNav.tsx — remove entirely (platform-only component)
   const appNavPath = join(outputDir, 'app', 'AppNav.tsx')
-  if (existsSync(appNavPath)) { rmSync(appNavPath, { force: true }); removed.push('app/AppNav.tsx') }
+  if (existsSync(appNavPath)) {
+    rmSync(appNavPath, { force: true })
+    removed.push('app/AppNav.tsx')
+  }
 
   // Clean layout.tsx — remove AppNav import and <AppNav /> usage
   const layoutPath = join(outputDir, 'app', 'layout.tsx')
@@ -222,7 +248,13 @@ async function stripCoherentArtifacts(outputDir: string): Promise<string[]> {
     guard = guard.replace(/['"],?\s*'\/design-system['"],?\s*/g, '')
     // If no auth routes remain, remove the file and unwrap in layout
     const pathsMatch = guard.match(/HIDDEN_PATHS\s*=\s*\[([^\]]*)\]/)
-    const remaining = pathsMatch ? pathsMatch[1].replace(/['"]/g, '').split(',').map(s => s.trim()).filter(Boolean) : []
+    const remaining = pathsMatch
+      ? pathsMatch[1]
+          .replace(/['"]/g, '')
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean)
+      : []
     if (remaining.length === 0) {
       rmSync(guardPath, { force: true })
       removed.push('app/ShowWhenNotAuthRoute.tsx')
@@ -240,13 +272,27 @@ async function stripCoherentArtifacts(outputDir: string): Promise<string[]> {
   }
 
   // Remove any remaining Coherent-specific files that slipped through
-  for (const name of ['coherent.components.json', 'design-system.config.ts', '.cursorrules', 'CLAUDE.md', '.env', '.env.local', 'recommendations.md']) {
+  for (const name of [
+    'coherent.components.json',
+    'design-system.config.ts',
+    '.cursorrules',
+    'CLAUDE.md',
+    '.env',
+    '.env.local',
+    'recommendations.md',
+  ]) {
     const full = join(outputDir, name)
-    if (existsSync(full)) { rmSync(full, { force: true }); removed.push(name) }
+    if (existsSync(full)) {
+      rmSync(full, { force: true })
+      removed.push(name)
+    }
   }
   for (const dir of ['.claude', '.coherent']) {
     const full = join(outputDir, dir)
-    if (existsSync(full)) { rmSync(full, { recursive: true, force: true }); removed.push(dir + '/') }
+    if (existsSync(full)) {
+      rmSync(full, { recursive: true, force: true })
+      removed.push(dir + '/')
+    }
   }
 
   return removed
@@ -292,11 +338,13 @@ export async function exportCommand(options: ExportOptions = {}) {
     // 3. Check for missing deps
     const missingDeps = await findMissingDepsInExport(outputDir)
     if (missingDeps.length > 0) {
-      console.log(chalk.yellow(
-        '\n⚠️  Warning: exported code imports packages not in package.json: ' +
-        missingDeps.join(', ') +
-        '\n   Add them to dependencies and run npm install in the export dir.\n'
-      ))
+      console.log(
+        chalk.yellow(
+          '\n⚠️  Warning: exported code imports packages not in package.json: ' +
+            missingDeps.join(', ') +
+            '\n   Add them to dependencies and run npm install in the export dir.\n',
+        ),
+      )
     }
 
     // 4. Install deps
@@ -305,7 +353,7 @@ export async function exportCommand(options: ExportOptions = {}) {
     const installCmd = pm === 'pnpm' ? 'pnpm' : 'npm'
     await new Promise<void>((res, rej) => {
       const child = spawn(installCmd, ['install'], { cwd: outputDir, stdio: 'inherit', shell: true })
-      child.on('exit', (c) => (c === 0 ? res() : rej(new Error('install failed'))))
+      child.on('exit', c => (c === 0 ? res() : rej(new Error('install failed'))))
       child.on('error', rej)
     })
     spinner.succeed('Dependencies installed')

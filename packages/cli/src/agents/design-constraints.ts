@@ -19,6 +19,30 @@
  */
 
 // ---------------------------------------------------------------------------
+// TIER 0 — DESIGN THINKING (always sent first, ~250 tokens)
+// Sets the creative mindset BEFORE any rules. Without this, AI plays it safe.
+// Inspired by Anthropic's frontend-design skill, adapted for deterministic output.
+// ---------------------------------------------------------------------------
+
+export const DESIGN_THINKING = `
+## DESIGN THINKING (answer internally BEFORE writing code)
+
+1. PURPOSE — What is this page's job? (inform / convert / navigate / manage / onboard)
+2. AUDIENCE — Who uses it? (developer / executive / consumer / admin)
+3. MOOD — What should the user FEEL? (confident, excited, calm, focused, impressed)
+4. FOCAL POINT — What ONE element draws the eye first on this page?
+5. RHYTHM — Where should the page breathe (spacious) vs feel dense (packed with data)?
+
+Then commit to:
+- One DOMINANT visual element per page (hero image, large metric, gradient header, feature grid)
+- One ACCENT technique per page (gradient text, colored icon containers, glass card, background pattern)
+- One moment of CONTRAST (large vs small, dense vs spacious, dark vs light section)
+
+DO NOT make every section look the same. Vary density, background treatment, and visual weight.
+Every page should have a clear visual hierarchy — if you squint, the structure should still be obvious.
+`
+
+// ---------------------------------------------------------------------------
 // TIER 1 — CORE (always sent, ~2000 tokens)
 // Foundational rules that affect EVERY page. Violation = broken UI.
 // ---------------------------------------------------------------------------
@@ -177,6 +201,45 @@ export const DESIGN_QUALITY = `
 - Text: text-foreground for primary, text-muted-foreground for secondary
 - NEVER hardcode dark colors (bg-gray-900) — always use semantic tokens
 - Cards and elevated elements: slightly lighter than background (bg-card or bg-zinc-900/50)
+`
+
+// ---------------------------------------------------------------------------
+// VISUAL DEPTH (always sent — the "permission to be beautiful" layer)
+// Without this, AI generates flat, safe UI. This unlocks visual richness.
+// ---------------------------------------------------------------------------
+
+export const VISUAL_DEPTH = `
+## VISUAL DEPTH TECHNIQUES (pick 1-3 per page based on context)
+
+### Gradient Techniques
+- Key phrase emphasis: bg-gradient-to-r from-foreground to-foreground/60 bg-clip-text text-transparent
+- Section background: bg-gradient-to-b from-background to-muted/30 (subtle, adds depth)
+- Accent glow: bg-gradient-to-r from-primary/10 via-transparent to-primary/5
+
+### Depth & Layering
+- Glass cards (landing/hero): bg-card/80 backdrop-blur-sm border-border/40
+- Floating accent blobs: absolute bg-primary/5 blur-3xl rounded-full -z-10 (behind content)
+- Elevated cards on hover: hover:-translate-y-0.5 hover:shadow-md transition-all duration-200
+- Section rhythm: alternate bg-background and bg-muted/5 between sections
+
+### Micro-interactions (hover/focus only)
+- Card hover lift: hover:-translate-y-0.5 transition-transform duration-200
+- Icon container glow: group-hover:bg-primary/15 transition-colors
+- Button shimmer: relative overflow-hidden + animated pseudo-element on hover
+- Link underline reveal: underline-offset-4 decoration-transparent hover:decoration-foreground transition-all
+
+### Context Budget (how many techniques to use)
+- Dashboard / Settings / Admin: 0-1 techniques. Clean, functional, fast to scan.
+- Landing / Marketing / Hero: 2-3 techniques. Impressive, memorable, worth scrolling.
+- Product pages (pricing, features, about): 1-2 techniques. Professional with selective wow.
+- Auth pages (login, signup): 0-1 techniques. Trustworthy, focused, minimal.
+
+### What Makes a Page Memorable
+Ask: "If someone sees this page for 3 seconds, what will they remember?"
+- A landing page → the hero gradient and headline
+- A dashboard → the bold stat numbers and clean data density
+- A pricing page → the highlighted tier standing out from the rest
+- A settings page → nothing flashy — that IS the correct answer
 `
 
 // ---------------------------------------------------------------------------
@@ -694,11 +757,13 @@ interface ContextualCategory {
 
 const CONTEXTUAL_CATEGORIES: ContextualCategory[] = [
   {
-    keywords: /form|input|login|signup|sign.?up|register|settings|profile|password|email|field|validation|upload|stepper|step|wizard|radio|tag.?input|multi.?select/i,
+    keywords:
+      /form|input|login|signup|sign.?up|register|settings|profile|password|email|field|validation|upload|stepper|step|wizard|radio|tag.?input|multi.?select/i,
     rules: RULES_FORMS,
   },
   {
-    keywords: /dashboard|table|list|stats|chart|data|analytics|metric|activity|timeline|report|pagination|paginate|search|filter|sort|empty.?state/i,
+    keywords:
+      /dashboard|table|list|stats|chart|data|analytics|metric|activity|timeline|report|pagination|paginate|search|filter|sort|empty.?state/i,
     rules: RULES_DATA_DISPLAY,
   },
   {
@@ -706,15 +771,18 @@ const CONTEXTUAL_CATEGORIES: ContextualCategory[] = [
     rules: RULES_NAVIGATION,
   },
   {
-    keywords: /modal|dialog|dropdown|sheet|popover|confirm|delete|toast|notification|alert|error|loading|skeleton|progress|overlay|command.?palette|drawer/i,
+    keywords:
+      /modal|dialog|dropdown|sheet|popover|confirm|delete|toast|notification|alert|error|loading|skeleton|progress|overlay|command.?palette|drawer/i,
     rules: RULES_OVERLAYS,
   },
   {
-    keywords: /modal|dialog|dropdown|sheet|popover|confirm|toast|notification|alert|error|loading|skeleton|progress|copy|clipboard/i,
+    keywords:
+      /modal|dialog|dropdown|sheet|popover|confirm|toast|notification|alert|error|loading|skeleton|progress|copy|clipboard/i,
     rules: RULES_FEEDBACK,
   },
   {
-    keywords: /landing|pricing|about|blog|testimonial|hero|feature|changelog|marketing|homepage|home.?page|price|plan|tier/i,
+    keywords:
+      /landing|pricing|about|blog|testimonial|hero|feature|changelog|marketing|homepage|home.?page|price|plan|tier/i,
     rules: RULES_CONTENT,
   },
   {
@@ -752,7 +820,10 @@ export function selectContextualRules(message: string): string {
 // Combines CORE + all contextual for callers that still use DESIGN_CONSTRAINTS.
 // ---------------------------------------------------------------------------
 
-export const DESIGN_CONSTRAINTS = `${CORE_CONSTRAINTS}
+export const DESIGN_CONSTRAINTS = `${DESIGN_THINKING}
+${CORE_CONSTRAINTS}
+${DESIGN_QUALITY}
+${VISUAL_DEPTH}
 ${RULES_FORMS}
 ${RULES_DATA_DISPLAY}
 ${RULES_NAVIGATION}

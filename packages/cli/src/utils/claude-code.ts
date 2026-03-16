@@ -16,11 +16,16 @@ function buildSharedComponentsListForClaude(manifest: SharedComponentsManifest):
   }
   const order = { layout: 0, section: 1, widget: 2 }
   const sorted = [...manifest.shared].sort(
-    (a, b) => order[a.type as keyof typeof order] - order[b.type as keyof typeof order] || a.name.localeCompare(b.name)
+    (a, b) => order[a.type as keyof typeof order] - order[b.type as keyof typeof order] || a.name.localeCompare(b.name),
   )
   return sorted
-    .map((e) => {
-      const used = e.usedIn.length === 0 ? '—' : e.usedIn.length === 1 && e.usedIn[0] === 'app/layout.tsx' ? 'layout' : e.usedIn.length + ' files'
+    .map(e => {
+      const used =
+        e.usedIn.length === 0
+          ? '—'
+          : e.usedIn.length === 1 && e.usedIn[0] === 'app/layout.tsx'
+            ? 'layout'
+            : e.usedIn.length + ' files'
       return `- ${e.id} ${e.name} (${e.type}) — ${e.file} — ${used}`
     })
     .join('\n')
@@ -452,7 +457,11 @@ const SETTINGS_JSON = `{
 }
 `
 
-export function writeClaudeMd(projectRoot: string, manifest: SharedComponentsManifest, config: DesignSystemConfig | null): void {
+export function writeClaudeMd(
+  projectRoot: string,
+  manifest: SharedComponentsManifest,
+  config: DesignSystemConfig | null,
+): void {
   const content = buildClaudeMdContent(manifest, config)
   const outPath = join(projectRoot, 'CLAUDE.md')
   writeFileSync(outPath, content, 'utf-8')
@@ -481,7 +490,9 @@ export function writeClaudeSettings(projectRoot: string): void {
   writeFileSync(join(dir, 'settings.json'), SETTINGS_JSON.trim(), 'utf-8')
 }
 
-async function loadManifestAndConfig(projectRoot: string): Promise<{ manifest: SharedComponentsManifest; config: DesignSystemConfig | null }> {
+async function loadManifestAndConfig(
+  projectRoot: string,
+): Promise<{ manifest: SharedComponentsManifest; config: DesignSystemConfig | null }> {
   let manifest: SharedComponentsManifest
   try {
     manifest = await loadManifest(projectRoot)
