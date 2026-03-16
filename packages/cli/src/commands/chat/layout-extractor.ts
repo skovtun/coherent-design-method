@@ -11,13 +11,20 @@ function findAllPageFiles(dir: string): string[] {
   try {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const full = join(dir, entry.name)
-      if (entry.isDirectory() && entry.name !== 'node_modules' && entry.name !== '.next' && entry.name !== 'design-system') {
+      if (
+        entry.isDirectory() &&
+        entry.name !== 'node_modules' &&
+        entry.name !== '.next' &&
+        entry.name !== 'design-system'
+      ) {
         results.push(...findAllPageFiles(full))
       } else if (entry.name === 'page.tsx' || entry.name === 'page.jsx') {
         results.push(full)
       }
     }
-  } catch { /* ignore permission errors */ }
+  } catch {
+    /* ignore permission errors */
+  }
   return results
 }
 
@@ -97,10 +104,7 @@ export async function extractAndShareLayoutComponents(
   await integrateSharedLayoutIntoRootLayout(projectRoot)
   await ensureAuthRouteGroup(projectRoot)
 
-  const allPageFiles = new Set([
-    ...generatedPageFiles,
-    ...findAllPageFiles(resolve(projectRoot, 'app')),
-  ])
+  const allPageFiles = new Set([...generatedPageFiles, ...findAllPageFiles(resolve(projectRoot, 'app'))])
   for (const file of allPageFiles) {
     try {
       let code = await readFile(file)
