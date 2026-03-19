@@ -26,7 +26,13 @@ import { isShadcnComponent, installShadcnComponent } from '../../utils/shadcn-in
 import { validatePageQuality, formatIssues, autoFixCode } from '../../utils/quality-validator.js'
 import { writeCursorRules } from '../../utils/cursor-rules.js'
 import { analyzePageCode } from '../../utils/page-analyzer.js'
-import { routeToFsPath, routeToRelPath, extractComponentIdsFromCode, warnInlineDuplicates, isMarketingRoute } from './utils.js'
+import {
+  routeToFsPath,
+  routeToRelPath,
+  extractComponentIdsFromCode,
+  warnInlineDuplicates,
+  isMarketingRoute,
+} from './utils.js'
 import { validateAndFixGeneratedCode, ensureComponentsInstalled, regenerateComponent } from './code-generator.js'
 import { extractBalancedTag } from './jsx-extractor.js'
 import {
@@ -512,7 +518,11 @@ export async function applyModification(
       if (!finalPageCode) {
         console.log(chalk.yellow(`\n⚠️  Page "${page.name || page.id}" has no generated code — it will appear empty.`))
         console.log(chalk.dim('   This usually means the AI did not produce pageCode for this page.'))
-        console.log(chalk.dim('   Try running: coherent chat "regenerate the ' + (page.name || page.id) + ' page with full content"'))
+        console.log(
+          chalk.dim(
+            '   Try running: coherent chat "regenerate the ' + (page.name || page.id) + ' page with full content"',
+          ),
+        )
       }
 
       const pageForConfig: PageDefinition = {

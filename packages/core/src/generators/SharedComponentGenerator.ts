@@ -106,9 +106,7 @@ export async function generateSharedComponent(
 ): Promise<GenerateSharedComponentResult> {
   const manifest = await loadManifest(projectRoot)
 
-  const existing = input.overwrite
-    ? manifest.shared.find(e => e.name === input.name)
-    : undefined
+  const existing = input.overwrite ? manifest.shared.find(e => e.name === input.name) : undefined
 
   if (existing) {
     const fullPath = join(projectRoot, existing.file)

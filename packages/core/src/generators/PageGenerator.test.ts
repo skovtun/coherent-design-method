@@ -167,9 +167,7 @@ describe('PageGenerator', () => {
     })
 
     it('renders items with children as dropdown', () => {
-      const config = makeConfig([
-        { route: '/dashboard', label: 'Dashboard' },
-      ])
+      const config = makeConfig([{ route: '/dashboard', label: 'Dashboard' }])
       ;(config.navigation!.items[0] as any).children = [
         { label: 'Overview', route: '/dashboard', order: 0 },
         { label: 'Analytics', route: '/analytics', order: 1 },
@@ -221,11 +219,14 @@ describe('PageGenerator', () => {
 
   describe('generateSharedSidebarCode', () => {
     it('generates a sidebar component with nav links', () => {
-      const config = makeConfig([
-        { route: '/dashboard', label: 'Dashboard' },
-        { route: '/projects', label: 'Projects' },
-        { route: '/settings', label: 'Settings' },
-      ], 'MyApp')
+      const config = makeConfig(
+        [
+          { route: '/dashboard', label: 'Dashboard' },
+          { route: '/projects', label: 'Projects' },
+          { route: '/settings', label: 'Settings' },
+        ],
+        'MyApp',
+      )
       const gen = new PageGenerator(config)
       const sidebar = gen.generateSharedSidebarCode()
       expect(sidebar).toContain("'use client'")
@@ -289,7 +290,7 @@ describe('PageGenerator', () => {
       const config = makeConfig([], 'Projector')
       const gen = new PageGenerator(config)
       const footer = gen.generateSharedFooterCode()
-      expect(footer).toContain("usePathname")
+      expect(footer).toContain('usePathname')
       expect(footer).toContain("pathname?.startsWith('/design-system')")
       expect(footer).toContain('return null')
     })

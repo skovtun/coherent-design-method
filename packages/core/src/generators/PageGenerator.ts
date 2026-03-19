@@ -884,24 +884,43 @@ export function Header() {
   generateSharedFooterCode(): string {
     const appName = this.escapeString(this.config.name)
     const navItems = this.config.navigation?.items || []
-    const authRoutes = new Set(['/login', '/signin', '/sign-in', '/signup', '/sign-up', '/register', '/forgot-password', '/reset-password'])
+    const authRoutes = new Set([
+      '/login',
+      '/signin',
+      '/sign-in',
+      '/signup',
+      '/sign-up',
+      '/register',
+      '/forgot-password',
+      '/reset-password',
+    ])
     const marketingRoutes = new Set(['/', '/landing', '/pricing', '/about', '/contact', '/blog', '/features'])
     const isSubRoute = (route: string) => route.replace(/^\//, '').split('/').length > 1
     const appLinks = navItems
-      .filter(item => !marketingRoutes.has(item.route) && !authRoutes.has(item.route) && !item.route.includes('[') && !isSubRoute(item.route))
+      .filter(
+        item =>
+          !marketingRoutes.has(item.route) &&
+          !authRoutes.has(item.route) &&
+          !item.route.includes('[') &&
+          !isSubRoute(item.route),
+      )
       .slice(0, 4)
 
-    const linkElements = appLinks.map(item =>
-      `            <Link href="${item.route}" className="text-sm text-muted-foreground hover:text-foreground transition-colors">${item.label}</Link>`
-    ).join('\n')
+    const linkElements = appLinks
+      .map(
+        item =>
+          `            <Link href="${item.route}" className="text-sm text-muted-foreground hover:text-foreground transition-colors">${item.label}</Link>`,
+      )
+      .join('\n')
 
-    const marketingLinks = navItems
-      .filter(item => marketingRoutes.has(item.route) && item.route !== '/')
-      .slice(0, 3)
+    const marketingLinks = navItems.filter(item => marketingRoutes.has(item.route) && item.route !== '/').slice(0, 3)
 
-    const marketingLinkElements = marketingLinks.map(item =>
-      `            <Link href="${item.route}" className="text-sm text-muted-foreground hover:text-foreground transition-colors">${item.label}</Link>`
-    ).join('\n')
+    const marketingLinkElements = marketingLinks
+      .map(
+        item =>
+          `            <Link href="${item.route}" className="text-sm text-muted-foreground hover:text-foreground transition-colors">${item.label}</Link>`,
+      )
+      .join('\n')
 
     const hasMarketingLinks = marketingLinks.length > 0
     const companyColumn = hasMarketingLinks
@@ -960,8 +979,14 @@ ${companyColumn}
   generateSharedSidebarCode(): string {
     const navItems = this.config.navigation?.items || []
     const authRoutes = new Set([
-      '/login', '/signin', '/sign-in', '/signup', '/sign-up',
-      '/register', '/forgot-password', '/reset-password',
+      '/login',
+      '/signin',
+      '/sign-in',
+      '/signup',
+      '/sign-up',
+      '/register',
+      '/forgot-password',
+      '/reset-password',
     ])
     const marketingRoutes = new Set(['/', '/landing', '/pricing', '/about', '/contact', '/blog', '/features'])
     const isSubRoute = (route: string) => route.replace(/^\//, '').split('/').length > 1

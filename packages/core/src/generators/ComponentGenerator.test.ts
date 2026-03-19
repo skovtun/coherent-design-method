@@ -106,7 +106,7 @@ describe('ComponentGenerator', () => {
       expect(code).toContain('cva')
       expect(code).toContain('bg-primary')
       expect(code).toContain('asChild')
-      expect(code).toContain("@radix-ui/react-slot")
+      expect(code).toContain('@radix-ui/react-slot')
       expect(code).toContain('Slot')
     })
 
