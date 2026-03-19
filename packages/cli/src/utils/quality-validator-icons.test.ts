@@ -21,6 +21,12 @@ vi.mock('module', () => ({
         AlertTriangle: () => null,
         Search: () => null,
         ChevronRight: () => null,
+        Badge: () => null,
+        ArrowRight: () => null,
+        Star: () => null,
+        Zap: () => null,
+        TrendingUp: () => null,
+        CheckCircle: () => null,
       }
     }
     throw new Error(`Cannot find module '${moduleId}'`)
@@ -102,6 +108,66 @@ export default function Page() {
     expect(fixed).toContain('AvatarImage')
     expect(fixed).toContain('AvatarFallback')
     expect(fixed).not.toContain('Circle')
+  })
+
+  it('does NOT replace UI components when AI puts them in lucide import (hallucination)', async () => {
+    const code = `import { ArrowRight, Star, Zap, Button, Card, CardHeader, CardTitle, CardContent } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+
+export default function Page() {
+  return (
+    <div>
+      <ArrowRight className="size-4" />
+      <Star className="size-4" />
+      <Card className="p-4">
+        <CardHeader >
+          <CardTitle >Title</CardTitle>
+        </CardHeader>
+        <CardContent >
+          <Button variant="outline">Click</Button>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('Button')
+    expect(fixed).toContain('Card')
+    expect(fixed).toContain('CardHeader')
+    expect(fixed).toContain('CardTitle')
+    expect(fixed).toContain('CardContent')
+    expect(fixed).not.toContain('import { Circle } from "@/components/ui/button"')
+    expect(fixed).not.toContain('import { Circle, Circle')
+    const lucideImport = fixed.match(/import\s*\{([^}]+)\}\s*from\s*["']lucide-react["']/)
+    expect(lucideImport).toBeTruthy()
+    expect(lucideImport![1]).not.toContain('Button')
+    expect(lucideImport![1]).not.toContain('Card')
+    expect(lucideImport![1]).toContain('ArrowRight')
+    expect(lucideImport![1]).toContain('Star')
+    expect(fixes.some(f => f.includes('conflicts with UI component') || f.includes('removed'))).toBe(true)
+  })
+
+  it('removes valid lucide name from lucide import when also imported from UI (Badge)', async () => {
+    const code = `import { Home, Badge } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+
+export default function Page() {
+  return (
+    <div>
+      <Home className="size-4" />
+      <Badge variant="outline">New</Badge>
+    </div>
+  )
+}`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('Badge')
+    const lucideImport = fixed.match(/import\s*\{([^}]+)\}\s*from\s*["']lucide-react["']/)
+    expect(lucideImport).toBeTruthy()
+    expect(lucideImport![1]).not.toContain('Badge')
+    expect(lucideImport![1]).toContain('Home')
+    expect(fixed).toContain('import { Badge } from "@/components/ui/badge"')
+    expect(fixes.some(f => f.includes('Badge') && f.includes('conflicts'))).toBe(true)
   })
 
   it('does not touch locally defined components', async () => {

@@ -60,6 +60,10 @@ const knownNames: Record<string, string> = {
   tooltip: 'Tooltip',
   'radio-group': 'RadioGroup',
   slider: 'Slider',
+  sheet: 'Sheet',
+  'dropdown-menu': 'DropdownMenu',
+  'context-menu': 'ContextMenu',
+  command: 'Command',
 }
 
 const descriptions: Record<string, string> = {
@@ -84,6 +88,10 @@ const descriptions: Record<string, string> = {
   tooltip: 'Contextual info on hover',
   'radio-group': 'Select one option from a set',
   slider: 'Select a value from a range',
+  sheet: 'Slide-out panel from the edge of the screen',
+  'dropdown-menu': 'Menu triggered by a button with a list of actions',
+  'context-menu': 'Right-click menu with contextual actions',
+  command: 'Command palette for searching and executing actions',
 }
 
 function displayName(component: any): string {
@@ -235,6 +243,147 @@ function SelectPreview({ size }: { size?: string }) {
   )
 }
 
+function SheetPreview({ side }: { side?: string }) {
+  const [open, setOpen] = useState(false)
+  const s = side || 'right'
+  const positionClasses: Record<string, string> = {
+    top: 'inset-x-0 top-0 border-b',
+    bottom: 'inset-x-0 bottom-0 border-t',
+    left: 'inset-y-0 left-0 h-full w-3/4 border-r sm:max-w-sm',
+    right: 'inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm',
+  }
+  return (
+    <>
+      <button onClick={() => setOpen(true)}
+        className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 h-9 text-sm font-medium hover:bg-muted transition-colors">
+        Open Sheet
+      </button>
+      {open && (
+        <div className="fixed inset-0 z-50" onClick={() => setOpen(false)}>
+          <div className="fixed inset-0 bg-black/80" />
+          <div className={cn('fixed z-50 gap-4 bg-background p-6 shadow-lg', positionClasses[s] || positionClasses.right)}
+            onClick={e => e.stopPropagation()}>
+            <div className="flex flex-col space-y-2 mb-4">
+              <h3 className="text-lg font-semibold">Sheet Panel</h3>
+              <p className="text-sm text-muted-foreground">This is a sheet sliding from the {s}.</p>
+            </div>
+            <button onClick={() => setOpen(false)}
+              className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100 transition-opacity">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+function DropdownMenuPreview({ size }: { size?: string }) {
+  const [open, setOpen] = useState(false)
+  const sizeClasses: Record<string, string> = {
+    sm: 'min-w-[6rem]',
+    md: 'min-w-[8rem]',
+    lg: 'min-w-[12rem]',
+  }
+  const s = size || 'md'
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen(!open)}
+        className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 h-9 text-sm font-medium hover:bg-muted transition-colors gap-1">
+        Actions {chevronSvg}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className={cn('absolute top-full left-0 z-50 mt-1 rounded-md border bg-popover text-popover-foreground p-1 shadow-md animate-in fade-in-0 zoom-in-95', sizeClasses[s] || sizeClasses.md)}>
+            <button onClick={() => setOpen(false)} className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+              Edit
+            </button>
+            <button onClick={() => setOpen(false)} className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              Duplicate
+            </button>
+            <div className="-mx-1 my-1 h-px bg-border" />
+            <button onClick={() => setOpen(false)} className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none text-destructive hover:bg-destructive/10 transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+              Delete
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function ContextMenuPreview() {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  return (
+    <div className="relative">
+      <div
+        onContextMenu={e => { e.preventDefault(); setPos({ x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY }) }}
+        className="flex items-center justify-center w-48 h-24 rounded-lg border-2 border-dashed border-muted-foreground/25 text-sm text-muted-foreground cursor-context-menu select-none hover:border-muted-foreground/40 transition-colors"
+      >
+        Right-click here
+      </div>
+      {pos && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setPos(null)} onContextMenu={e => { e.preventDefault(); setPos(null) }} />
+          <div style={{ position: 'absolute', top: pos.y, left: pos.x }} className="z-50 min-w-[8rem] rounded-md border bg-popover text-popover-foreground p-1 shadow-md animate-in fade-in-0 zoom-in-95">
+            <button onClick={() => setPos(null)} className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground transition-colors">View</button>
+            <button onClick={() => setPos(null)} className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground transition-colors">Edit</button>
+            <div className="-mx-1 my-1 h-px bg-border" />
+            <button onClick={() => setPos(null)} className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none text-destructive hover:bg-destructive/10 transition-colors">Delete</button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function CommandPreview() {
+  const [query, setQuery] = useState('')
+  const items = ['Dashboard', 'Projects', 'Team', 'Settings', 'Profile']
+  const filtered = items.filter(i => i.toLowerCase().includes(query.toLowerCase()))
+  return (
+    <div className="w-72 rounded-lg border bg-popover text-popover-foreground shadow-md">
+      <div className="flex items-center border-b px-3 h-10">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2 shrink-0 opacity-50"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Type a command\u2026" className="flex h-full w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground" />
+      </div>
+      <div className="p-1 max-h-48 overflow-y-auto">
+        {filtered.length === 0 ? (
+          <p className="py-4 text-center text-sm text-muted-foreground">No results found.</p>
+        ) : (
+          filtered.map(item => (
+            <button key={item} className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground transition-colors">{item}</button>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
+function TooltipPreview() {
+  const [show, setShow] = useState(false)
+  return (
+    <div className="relative inline-block">
+      <button
+        onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}
+        className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 h-9 text-sm font-medium hover:bg-muted transition-colors"
+      >
+        Hover me
+      </button>
+      {show && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground shadow-md animate-in fade-in-0 zoom-in-95">
+          Tooltip content
+          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px border-4 border-transparent border-t-primary" />
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Preview({ component, variant, size }: { component: any; variant?: string; size?: string }) {
   const id = component.id
 
@@ -345,6 +494,12 @@ function Preview({ component, variant, size }: { component: any; variant?: strin
     )
   }
 
+  if (id === 'sheet') return <SheetPreview side={variant} />
+  if (id === 'dropdown-menu') return <DropdownMenuPreview size={size} />
+  if (id === 'context-menu') return <ContextMenuPreview />
+  if (id === 'command') return <CommandPreview />
+  if (id === 'tooltip') return <TooltipPreview />
+
   const cls = resolveClasses(component, variant, size)
   if (cls) {
     return <div className={cn(cls)}>{displayName(component)}</div>
@@ -379,6 +534,10 @@ export default function ComponentShowcase({ component }: ComponentShowcaseProps)
     if (id === 'separator') return \`<\${n} />\`
     if (id === 'progress') return \`<\${n} value={60} />\`
     if (id === 'avatar') return \`<\${n}>\\n  <AvatarImage src="/avatar.png" />\\n  <AvatarFallback>AV</AvatarFallback>\\n</\${n}>\`
+    if (id === 'sheet') return \`<Sheet>\\n  <SheetTrigger asChild>\\n    <Button variant="outline">Open</Button>\\n  </SheetTrigger>\\n  <SheetContent>\\n    <SheetHeader>\\n      <SheetTitle>Title</SheetTitle>\\n      <SheetDescription>Description</SheetDescription>\\n    </SheetHeader>\\n  </SheetContent>\\n</Sheet>\`
+    if (id === 'dropdown-menu') return \`<DropdownMenu>\\n  <DropdownMenuTrigger asChild>\\n    <Button variant="outline">Open</Button>\\n  </DropdownMenuTrigger>\\n  <DropdownMenuContent>\\n    <DropdownMenuItem>Action</DropdownMenuItem>\\n  </DropdownMenuContent>\\n</DropdownMenu>\`
+    if (id === 'context-menu') return \`<ContextMenu>\\n  <ContextMenuTrigger>Right click</ContextMenuTrigger>\\n  <ContextMenuContent>\\n    <ContextMenuItem>Action</ContextMenuItem>\\n  </ContextMenuContent>\\n</ContextMenu>\`
+    if (id === 'command') return \`<Command>\\n  <CommandInput placeholder="Type a command..." />\\n  <CommandList>\\n    <CommandEmpty>No results.</CommandEmpty>\\n    <CommandGroup heading="Suggestions">\\n      <CommandItem>Calendar</CommandItem>\\n    </CommandGroup>\\n  </CommandList>\\n</Command>\`
     return \`<\${n} />\`
   })()
 

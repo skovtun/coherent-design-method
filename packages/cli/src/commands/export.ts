@@ -225,20 +225,30 @@ async function stripCoherentArtifacts(outputDir: string): Promise<string[]> {
     }
   }
 
-  // AppNav.tsx — remove entirely (platform-only component)
+  // AppNav.tsx — remove entirely (legacy platform-only component)
   const appNavPath = join(outputDir, 'app', 'AppNav.tsx')
   if (existsSync(appNavPath)) {
     rmSync(appNavPath, { force: true })
     removed.push('app/AppNav.tsx')
   }
 
-  // Clean layout.tsx — remove AppNav import and <AppNav /> usage
+  // Clean layout.tsx — remove AppNav import and <AppNav /> usage (legacy)
   const layoutPath = join(outputDir, 'app', 'layout.tsx')
   if (existsSync(layoutPath)) {
     let layout = await readFile(layoutPath, 'utf-8')
     layout = layout.replace(/import\s*\{?\s*AppNav\s*\}?\s*from\s*['"][^'"]+['"]\s*\n?/g, '')
     layout = layout.replace(/\s*<AppNav\s*\/?\s*>\s*/g, '\n')
     await writeFile(layoutPath, layout, 'utf-8')
+  }
+
+  // Clean shared Header — remove Design System FAB link (platform-only)
+  const sharedHeaderPath = join(outputDir, 'components', 'shared', 'header.tsx')
+  if (existsSync(sharedHeaderPath)) {
+    let header = await readFile(sharedHeaderPath, 'utf-8')
+    header = header.replace(/<Link\s[^>]*href="\/design-system"[^>]*>[\s\S]*?<\/Link>/g, '')
+    header = header.replace(/\n\s*<>\s*\n/, '\n')
+    header = header.replace(/\n\s*<\/>\s*\n/, '\n')
+    await writeFile(sharedHeaderPath, header, 'utf-8')
   }
 
   // Clean ShowWhenNotAuthRoute — remove /design-system from hidden paths

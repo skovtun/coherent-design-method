@@ -54,6 +54,7 @@ export class ComponentGenerator {
       'alert-dialog': () => this.generateFullAlertDialog(),
       'dropdown-menu': () => this.generateFullDropdownMenu(),
       accordion: () => this.generateFullAccordion(),
+      progress: () => this.generateProgress(),
     }
     return map[id] ?? null
   }
@@ -739,6 +740,7 @@ export { Switch }
 
   private generateButton(): string {
     return `import * as React from 'react'
+import { Slot } from '@radix-ui/react-slot'
 import { cn } from '@/lib/utils'
 import { cva, type VariantProps } from 'class-variance-authority'
 
@@ -770,16 +772,21 @@ const buttonVariants = cva(
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {}
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean
+}
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, ...props }, ref) => (
-    <button
-      ref={ref}
-      className={cn(buttonVariants({ variant, size }), className)}
-      {...props}
-    />
-  )
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : 'button'
+    return (
+      <Comp
+        ref={ref}
+        className={cn(buttonVariants({ variant, size }), className)}
+        {...props}
+      />
+    )
+  }
 )
 Button.displayName = 'Button'
 
@@ -873,7 +880,7 @@ import { cn } from '@/lib/utils'
 import { cva, type VariantProps } from 'class-variance-authority'
 
 const badgeVariants = cva(
-  'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+  'inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
   {
     variants: {
       variant: {
@@ -898,6 +905,32 @@ function Badge({ className, variant, ...props }: BadgeProps) {
 }
 
 export { Badge, badgeVariants }
+`
+  }
+
+  private generateProgress(): string {
+    return `import * as React from 'react'
+import { cn } from '@/lib/utils'
+
+export interface ProgressProps extends React.HTMLAttributes<HTMLDivElement> {
+  value?: number
+}
+
+export const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
+  ({ className, value = 0, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={cn('relative h-4 w-full overflow-hidden rounded-full bg-secondary', className)}
+      {...props}
+    >
+      <div
+        className="h-full w-full flex-1 bg-primary transition-all"
+        style={{ transform: \`translateX(-\${100 - (value || 0)}%)\` }}
+      />
+    </div>
+  ),
+)
+Progress.displayName = 'Progress'
 `
   }
 

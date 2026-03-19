@@ -289,13 +289,38 @@ Format:
   "pageCode": "import { Metadata } from 'next'\\n..."
 }
 
+LAYOUT CONTRACT (CRITICAL — prevents duplicate navigation and footer):
+- The app has a root layout (app/layout.tsx) that renders a shared Header and Footer.
+- Pages are rendered INSIDE this layout, between the Header and Footer.
+- NEVER include <header>, <nav>, or <footer> elements in pageCode. Also do NOT add a footer-like section at the bottom (no "© 2024", no site links, no logo + nav links at the bottom).
+- If the page needs sub-navigation (tabs, breadcrumbs, sidebar nav), use elements like <div role="tablist"> or <aside> — NOT <header>, <nav>, or <footer>.
+- Do NOT add any navigation bars, logo headers, site-wide menus, or site footers to pages. The layout provides all of these.
+
+PAGE WRAPPER (CRITICAL — the layout provides width/padding automatically):
+- App pages are rendered inside a route group layout that ALREADY provides: <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+- Your outermost element MUST be exactly: <div className="space-y-6">
+- FORBIDDEN on the outermost element: <main>, max-w-*, mx-auto, px-*, py-*, p-*, flex-1, min-h-*
+- FORBIDDEN anywhere: <div className="max-w-4xl mx-auto">, <div className="max-w-2xl mx-auto">, or any inner centering wrapper
+- The first child inside <div className="space-y-6"> should be the page header (h1 + description)
+- ALL app pages must follow this exact same structure so content aligns consistently across pages
+- Landing/marketing pages are an exception: they render outside the app layout and should use full-width <section> elements with inner "mx-auto max-w-6xl" for content.
+
+PAGE CONTENT (CRITICAL — prevents empty or duplicate pages):
+- Every page MUST have substantial content. NEVER generate a page with only metadata and an empty <main> element.
+- NEVER create an inline preview/demo of another page (e.g., embedding a "dashboard view" inside the landing page with a toggle). Each page should be its own route.
+- NEVER create a single-page app (SPA) that renders multiple views via useState. Each view must be a separate Next.js page with its own route.
+- The home page (route "/") should be a simple redirect using next/navigation redirect('/dashboard') — OR a standalone landing page. NEVER a multi-view SPA.
+- Landing pages should link to app pages via <Link href="/dashboard">, NOT via useState toggles that render inline content.
+
 pageCode rules (shadcn/ui blocks quality):
 - Full Next.js App Router page. Imports from '@/components/ui/...' for registry components.
 - Follow ALL design constraints above: text-sm base, semantic colors only, restricted spacing, weight-based hierarchy.
 - Stat card pattern: Card > CardHeader(flex flex-row items-center justify-between space-y-0 pb-2) > CardTitle(text-sm font-medium) + Icon(size-4 text-muted-foreground) ; CardContent > metric(text-2xl font-bold) + change(text-xs text-muted-foreground).
 - Login/form pattern: outer div(flex min-h-svh flex-col items-center justify-center p-6 md:p-10) > inner div(w-full max-w-sm) > Card with form.
-- Dashboard pattern: main(flex flex-1 flex-col gap-4 p-4 lg:p-6) > page header(h1 text-2xl font-bold tracking-tight + p text-sm text-muted-foreground) > stats grid(grid gap-4 md:grid-cols-2 lg:grid-cols-4) > content cards.
+- Dashboard pattern: div(space-y-6) > page header(h1 text-2xl font-bold tracking-tight + p text-sm text-muted-foreground) > stats grid(grid gap-4 md:grid-cols-2 lg:grid-cols-4) > content cards. No <main> wrapper — the layout provides it.
 - No placeholders: real contextual copy only. Use the EXACT text, language, and content from the user's request.
+- IMAGES: For avatar/profile photos, use https://i.pravatar.cc/150?u=<unique-seed> (e.g. ?u=sarah.johnson). For hero/product images, use https://picsum.photos/800/400?random=N. Use standard <img> tags with className, NOT Next.js <Image>. Always provide alt text.
+- BUTTON + LINK: The Button component supports asChild prop. To make a button that navigates, use <Button asChild><Link href="/path"><Plus className="size-4" /> Label</Link></Button>. Never nest <button> inside <Link> or vice versa without asChild.
 - Hover/focus on every interactive element (hover:bg-muted, focus-visible:ring-2 focus-visible:ring-ring).
 - LANGUAGE: Match the language of the user's request. English request → English page. Russian request → Russian page. Never switch languages.
 

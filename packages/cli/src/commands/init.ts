@@ -271,6 +271,12 @@ export default config
       // Replace root layout with Coherent layout + AppNav (floating Design System button)
       await scaffolder.generateRootLayout()
 
+      // Configure Next.js to allow external placeholder images (avatars, etc.)
+      await configureNextImages(projectPath)
+
+      // Create (app) route group layout for consistent page width
+      await createAppRouteGroupLayout(projectPath)
+
       // Overwrite app/page.tsx with Coherent welcome page (replace default Next.js page)
       const welcomeMarkdown = getWelcomeMarkdown()
       const homePageContent = generateWelcomeComponent(welcomeMarkdown)
@@ -303,6 +309,7 @@ export default config
       }
 
       await ensureRegistryComponents(config, projectPath)
+      await createAppRouteGroupLayout(projectPath)
 
       const designSystemSpinner = ora('Creating design system pages...').start()
       await scaffolder.generateDesignSystemPages()
@@ -337,4 +344,50 @@ export default config
     console.error(chalk.red('\n❌ Error:'), error instanceof Error ? error.message : 'Unknown error')
     process.exit(1)
   }
+}
+
+async function configureNextImages(projectPath: string): Promise<void> {
+  const tsPath = join(projectPath, 'next.config.ts')
+  const jsPath = join(projectPath, 'next.config.js')
+  const mjsPath = join(projectPath, 'next.config.mjs')
+
+  let configPath = ''
+  if (existsSync(tsPath)) configPath = tsPath
+  else if (existsSync(mjsPath)) configPath = mjsPath
+  else if (existsSync(jsPath)) configPath = jsPath
+  else return
+
+  const content = `import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "i.pravatar.cc" },
+      { protocol: "https", hostname: "images.unsplash.com" },
+      { protocol: "https", hostname: "picsum.photos" },
+    ],
+  },
+};
+
+export default nextConfig;
+`
+  await writeFile(configPath, content)
+}
+
+async function createAppRouteGroupLayout(projectPath: string): Promise<void> {
+  const dir = join(projectPath, 'app', '(app)')
+  mkdirSync(dir, { recursive: true })
+  const layoutCode = `export default function AppLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <main className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+      {children}
+    </main>
+  )
+}
+`
+  await writeFile(join(dir, 'layout.tsx'), layoutCode)
 }

@@ -53,7 +53,6 @@ export class PageGenerator {
     const hasForm = this.hasFormFields(def)
 
     if (hasForm) {
-      // Client component: no metadata allowed
       return `'use client'
 
 import { useState } from 'react'
@@ -62,15 +61,14 @@ ${imports}
 export default function ${pageName}Page() {
   ${this.generateFormState(def)}
   return (
-    <main className="${containerClass}">
+    <div className="${containerClass}">
 ${sections}
-    </main>
+    </div>
   )
 }
 `
     }
 
-    // Server component: metadata allowed, no "use client"
     return `import { Metadata } from 'next'
 ${imports}
 
@@ -96,9 +94,9 @@ export const metadata: Metadata = {
 
 export default function ${pageName}Page() {
   return (
-    <main className="${containerClass}">
+    <div className="${containerClass}">
 ${sections}
-    </main>
+    </div>
   )
 }
 `
@@ -463,21 +461,25 @@ ${sections}
    */
   private getContainerClass(layout: PageLayout): string {
     const layoutClasses: Record<PageLayout, string> = {
-      centered: 'max-w-4xl mx-auto px-4 py-8',
-      'sidebar-left': 'flex min-h-screen',
-      'sidebar-right': 'flex flex-row-reverse min-h-screen',
-      'full-width': 'w-full',
-      grid: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6',
+      centered: 'space-y-6',
+      'sidebar-left': 'flex gap-6',
+      'sidebar-right': 'flex flex-row-reverse gap-6',
+      'full-width': 'space-y-6',
+      grid: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6',
     }
-    return layoutClasses[layout] || 'container mx-auto px-4 py-8'
+    return layoutClasses[layout] || 'space-y-6'
   }
 
   /**
    * Generate layout code (for root layout)
    */
-  async generateLayout(layout: PageLayout, appType: 'multi-page' | 'spa' = 'multi-page'): Promise<string> {
+  async generateLayout(
+    layout: PageLayout,
+    appType: 'multi-page' | 'spa' = 'multi-page',
+    options?: { skipNav?: boolean },
+  ): Promise<string> {
     if (appType === 'multi-page') {
-      return this.generateNextJSLayout(layout)
+      return this.generateNextJSLayout(layout, options)
     } else {
       return this.generateReactSPALayout(layout)
     }
@@ -486,9 +488,9 @@ ${sections}
   /**
    * Generate Next.js App Router root layout
    */
-  private generateNextJSLayout(_layout: PageLayout): string {
+  private generateNextJSLayout(_layout: PageLayout, options?: { skipNav?: boolean }): string {
     const cssVars = buildCssVariables(this.config)
-    const navEnabled = this.config.navigation?.enabled
+    const navEnabled = this.config.navigation?.enabled && !options?.skipNav
     const navRendered = navEnabled ? '<AppNav />' : ''
     const isDark = this.config.theme?.defaultMode === 'dark'
     const htmlClass = isDark ? ' className="dark"' : ''
@@ -535,7 +537,7 @@ export default function RootLayout({
         <style dangerouslySetInnerHTML={{ __html: ${JSON.stringify(cssVars)} }} />
       </head>
       <body className="min-h-screen flex flex-col bg-background text-foreground antialiased">
-${navEnabled ? `        ${navRendered}\n        ` : ''}<div className="flex-1 flex flex-col">{children}</div>
+${navEnabled ? `        ${navRendered}\n        ` : ''}        <div className="flex-1 flex flex-col">{children}</div>
       </body>
     </html>
   )
@@ -671,6 +673,395 @@ export function AppNav() {
         Design System
       </Link>
     </Fragment>
+  )
+}
+`
+  }
+
+  /**
+   * Generate shared Header component code for components/shared/header.tsx.
+   * Contains navigation items, theme toggle, and Design System FAB.
+   */
+  generateSharedHeaderCode(): string {
+    const navItems = this.config.navigation?.items || []
+    const authRoutes = new Set([
+      '/login',
+      '/signin',
+      '/sign-in',
+      '/signup',
+      '/sign-up',
+      '/register',
+      '/forgot-password',
+      '/reset-password',
+    ])
+    const marketingRoutes = new Set(['/', '/landing', '/pricing', '/about', '/contact', '/blog', '/features'])
+    const isSubRoute = (route: string) => route.replace(/^\//, '').split('/').length > 1
+    const visibleItems = navItems.filter(
+      item =>
+        !marketingRoutes.has(item.route) &&
+        !authRoutes.has(item.route) &&
+        !item.route.includes('[') &&
+        !isSubRoute(item.route),
+    )
+
+    const grouped = new Map<string, typeof visibleItems>()
+    const ungrouped: typeof visibleItems = []
+    for (const item of visibleItems) {
+      if (item.group) {
+        const list = grouped.get(item.group) || []
+        list.push(item)
+        grouped.set(item.group, list)
+      } else if (item.children && item.children.length > 0) {
+        grouped.set(item.label, [item])
+      } else {
+        ungrouped.push(item)
+      }
+    }
+
+    const hasDropdowns = grouped.size > 0
+    const hasAuthItems = navItems.some(item => authRoutes.has(item.route))
+
+    const authItems = navItems.filter(item => authRoutes.has(item.route))
+    const signInItem = authItems.find(item => /sign.?in|login/i.test(item.label))
+    const signUpItem = authItems.find(item => /sign.?up|register/i.test(item.label))
+
+    const linkItems = ungrouped
+      .map(
+        item =>
+          `<Link href="${item.route}" className={\`text-sm font-medium px-3 py-2 rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring \${pathname === "${item.route}" ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}\`}>${item.label}</Link>`,
+      )
+      .join('\n            ')
+
+    const dropdownBlocks: string[] = []
+    for (const [groupName, items] of grouped) {
+      const parentItem = items.length === 1 && items[0].children ? items[0] : null
+      const childItems = parentItem ? parentItem.children! : items
+      const triggerLabel = parentItem ? parentItem.label : groupName
+
+      const menuItems = childItems
+        .map(
+          child =>
+            `                  <DropdownMenuItem asChild>
+                    <Link href="${child.route}" className="w-full">${child.label}</Link>
+                  </DropdownMenuItem>`,
+        )
+        .join('\n')
+
+      dropdownBlocks.push(`<DropdownMenu>
+              <DropdownMenuTrigger className="flex items-center gap-1 text-sm font-medium px-3 py-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                ${triggerLabel}
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+${menuItems}
+              </DropdownMenuContent>
+            </DropdownMenu>`)
+    }
+
+    const allNavElements = [linkItems, ...dropdownBlocks].filter(Boolean).join('\n            ')
+    const navItemsBlock = allNavElements ? `\n            ${allNavElements}\n            ` : ''
+
+    const authButtonsBlock =
+      hasAuthItems && (signInItem || signUpItem)
+        ? `${signInItem ? `\n            <Link href="${signInItem.route}" className="text-sm font-medium px-3 py-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">${signInItem.label}</Link>` : ''}${signUpItem ? `\n            <Link href="${signUpItem.route}" className="inline-flex items-center justify-center text-sm font-medium h-9 px-4 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">${signUpItem.label}</Link>` : ''}`
+        : ''
+
+    const dropdownImport = hasDropdowns
+      ? `\nimport { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'`
+      : ''
+
+    const appName = this.escapeString(this.config.name)
+
+    const mobileNavItems = [...ungrouped]
+    for (const [, items] of grouped) {
+      const parentItem = items.length === 1 && items[0].children ? items[0] : null
+      const childItems = parentItem ? parentItem.children! : items
+      mobileNavItems.push(...childItems)
+    }
+
+    const mobileLinks = mobileNavItems
+      .map(
+        item =>
+          `<Link href="${item.route}" onClick={() => setMobileOpen(false)} className={\`block text-sm font-medium px-3 py-2 rounded-md transition-colors \${pathname === "${item.route}" ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}\`}>${item.label}</Link>`,
+      )
+      .join('\n            ')
+
+    const mobileAuthBlock =
+      hasAuthItems && (signInItem || signUpItem)
+        ? `\n            <div className="border-t pt-3 mt-2 space-y-1">${signInItem ? `\n              <Link href="${signInItem.route}" onClick={() => setMobileOpen(false)} className="block text-sm font-medium px-3 py-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">${signInItem.label}</Link>` : ''}${signUpItem ? `\n              <Link href="${signUpItem.route}" onClick={() => setMobileOpen(false)} className="block text-sm font-medium px-3 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-center">${signUpItem.label}</Link>` : ''}\n            </div>`
+        : ''
+
+    return `'use client'
+
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'${dropdownImport}
+
+function ThemeToggle() {
+  const [dark, setDark] = useState(false)
+  useEffect(() => {
+    setDark(document.documentElement.classList.contains('dark'))
+  }, [])
+  const toggle = () => {
+    const next = !dark
+    setDark(next)
+    document.documentElement.classList.toggle('dark', next)
+  }
+  return (
+    <button
+      onClick={toggle}
+      className="flex items-center justify-center w-9 h-9 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+      title={dark ? 'Switch to light theme' : 'Switch to dark theme'}
+      aria-label="Toggle theme"
+    >
+      {dark ? (
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+      ) : (
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+      )}
+    </button>
+  )
+}
+
+export function Header() {
+  const pathname = usePathname()
+  const [mobileOpen, setMobileOpen] = useState(false)
+
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [pathname])
+
+  if (pathname?.startsWith('/design-system')) return null
+  return (
+    <>
+      <nav className="sticky top-0 z-50 shrink-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-6">
+            <Link href="/" className="flex items-center gap-2 text-sm font-semibold text-foreground hover:text-foreground/90 transition-colors shrink-0">
+              ${appName}
+            </Link>
+            <div className="hidden md:flex items-center gap-1">${navItemsBlock}</div>
+          </div>
+          <div className="flex items-center gap-1">${authButtonsBlock}
+            <ThemeToggle />
+            <button
+              onClick={() => setMobileOpen(!mobileOpen)}
+              className="flex md:hidden items-center justify-center w-9 h-9 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              aria-label="Toggle menu"
+            >
+              {mobileOpen ? (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+              )}
+            </button>
+          </div>
+        </div>
+        {mobileOpen && (
+          <div className="md:hidden border-t bg-background">
+            <div className="mx-auto max-w-7xl px-4 py-3 space-y-1">
+            ${mobileLinks}${mobileAuthBlock}
+            </div>
+          </div>
+        )}
+      </nav>
+      <Link
+        href="/design-system"
+        className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full border border-white/20 bg-black/60 backdrop-blur-md text-white px-4 py-2 text-xs shadow-sm hover:bg-black/80 transition-all"
+        title="Design System"
+      >
+        Design System
+      </Link>
+    </>
+  )
+}
+`
+  }
+
+  /**
+   * Generate shared Footer component code for components/shared/footer.tsx.
+   */
+  generateSharedFooterCode(): string {
+    const appName = this.escapeString(this.config.name)
+    const navItems = this.config.navigation?.items || []
+    const authRoutes = new Set(['/login', '/signin', '/sign-in', '/signup', '/sign-up', '/register', '/forgot-password', '/reset-password'])
+    const marketingRoutes = new Set(['/', '/landing', '/pricing', '/about', '/contact', '/blog', '/features'])
+    const isSubRoute = (route: string) => route.replace(/^\//, '').split('/').length > 1
+    const appLinks = navItems
+      .filter(item => !marketingRoutes.has(item.route) && !authRoutes.has(item.route) && !item.route.includes('[') && !isSubRoute(item.route))
+      .slice(0, 4)
+
+    const linkElements = appLinks.map(item =>
+      `            <Link href="${item.route}" className="text-sm text-muted-foreground hover:text-foreground transition-colors">${item.label}</Link>`
+    ).join('\n')
+
+    const marketingLinks = navItems
+      .filter(item => marketingRoutes.has(item.route) && item.route !== '/')
+      .slice(0, 3)
+
+    const marketingLinkElements = marketingLinks.map(item =>
+      `            <Link href="${item.route}" className="text-sm text-muted-foreground hover:text-foreground transition-colors">${item.label}</Link>`
+    ).join('\n')
+
+    const hasMarketingLinks = marketingLinks.length > 0
+    const companyColumn = hasMarketingLinks
+      ? `            <div className="flex flex-col space-y-3">
+              <p className="text-sm font-medium text-foreground">Company</p>
+${marketingLinkElements}
+            </div>`
+      : ''
+
+    return `'use client'
+
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+
+export function Footer() {
+  const pathname = usePathname()
+  if (pathname?.startsWith('/design-system')) return null
+  return (
+    <footer className="border-t bg-muted/30">
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-8 py-8 md:flex-row md:justify-between">
+          <div className="space-y-3">
+            <Link href="/" className="text-sm font-semibold text-foreground hover:text-foreground/90 transition-colors">
+              ${appName}
+            </Link>
+            <p className="text-sm text-muted-foreground max-w-xs">
+              Modern project management for teams of all sizes.
+            </p>
+          </div>
+          <div className="flex gap-12">
+            <div className="flex flex-col space-y-3">
+              <p className="text-sm font-medium text-foreground">Product</p>
+${linkElements}
+            </div>
+${companyColumn}
+          </div>
+        </div>
+        <div className="flex items-center justify-between border-t py-4 text-xs text-muted-foreground">
+          <p>{'\u00A9'} {new Date().getFullYear()} ${appName}. All rights reserved.</p>
+          <div className="flex gap-4">
+            <span>Privacy Policy</span>
+            <span>Terms of Service</span>
+          </div>
+        </div>
+      </div>
+    </footer>
+  )
+}
+`
+  }
+
+  /**
+   * Generate shared Sidebar component code for components/shared/sidebar.tsx.
+   * Used when navigation.type is 'sidebar' or 'both'.
+   */
+  generateSharedSidebarCode(): string {
+    const navItems = this.config.navigation?.items || []
+    const authRoutes = new Set([
+      '/login', '/signin', '/sign-in', '/signup', '/sign-up',
+      '/register', '/forgot-password', '/reset-password',
+    ])
+    const marketingRoutes = new Set(['/', '/landing', '/pricing', '/about', '/contact', '/blog', '/features'])
+    const isSubRoute = (route: string) => route.replace(/^\//, '').split('/').length > 1
+
+    const visibleItems = navItems.filter(
+      item =>
+        !marketingRoutes.has(item.route) &&
+        !authRoutes.has(item.route) &&
+        !item.route.includes('[') &&
+        !isSubRoute(item.route),
+    )
+
+    const grouped = new Map<string, typeof visibleItems>()
+    const ungrouped: typeof visibleItems = []
+    for (const item of visibleItems) {
+      if (item.group) {
+        const list = grouped.get(item.group) || []
+        list.push(item)
+        grouped.set(item.group, list)
+      } else {
+        ungrouped.push(item)
+      }
+    }
+
+    const linkItems = ungrouped
+      .map(
+        item =>
+          `          <Link
+            href="${item.route}"
+            className={\`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors \${pathname === "${item.route}" ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}\`}
+          >
+            ${item.label}
+          </Link>`,
+      )
+      .join('\n')
+
+    const groupBlocks: string[] = []
+    for (const [groupName, items] of grouped) {
+      const groupLinks = items
+        .map(
+          item =>
+            `              <Link
+                href="${item.route}"
+                className={\`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors \${pathname === "${item.route}" ? 'bg-muted text-foreground font-medium' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}\`}
+              >
+                ${item.label}
+              </Link>`,
+        )
+        .join('\n')
+
+      groupBlocks.push(`          <div className="space-y-1">
+            <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">${groupName}</p>
+${groupLinks}
+          </div>`)
+    }
+
+    const allSections = [linkItems, ...groupBlocks].filter(Boolean).join('\n')
+
+    const appName = this.escapeString(this.config.name)
+
+    return `'use client'
+
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { useState } from 'react'
+
+export function Sidebar() {
+  const pathname = usePathname()
+  const [collapsed, setCollapsed] = useState(false)
+
+  if (pathname?.startsWith('/design-system')) return null
+
+  return (
+    <aside className={\`shrink-0 border-r bg-muted/30 transition-all duration-200 \${collapsed ? 'w-16' : 'w-64'}\`}>
+      <div className="flex h-14 items-center justify-between border-b px-4">
+        {!collapsed && (
+          <Link href="/" className="text-sm font-semibold text-foreground truncate">
+            ${appName}
+          </Link>
+        )}
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="flex items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            {collapsed ? (
+              <><path d="m9 18 6-6-6-6"/></>
+            ) : (
+              <><path d="m15 18-6-6 6-6"/></>
+            )}
+          </svg>
+        </button>
+      </div>
+      {!collapsed && (
+        <nav className="flex flex-col gap-1 p-3">
+${allSections}
+        </nav>
+      )}
+    </aside>
   )
 }
 `

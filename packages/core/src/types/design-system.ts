@@ -324,17 +324,29 @@ export type PageDefinition = z.infer<typeof PageDefinitionSchema>
 // ============================================================================
 
 /**
- * Navigation item
+ * Navigation item — supports flat links and grouped dropdown menus.
+ * Items with the same `group` value are rendered as a DropdownMenu.
+ * Items with `children` render as a dropdown trigger with sub-items.
  */
-export const NavigationItemSchema = z.object({
+export const NavigationItemSchema: z.ZodType<NavigationItem> = z.object({
   label: z.string(),
   route: z.string(),
-  icon: z.string().optional(), // lucide-react icon name
+  icon: z.string().optional(),
   requiresAuth: z.boolean().default(false),
   order: z.number(),
+  group: z.string().optional(),
+  children: z.lazy(() => z.array(NavigationItemSchema)).optional(),
 })
 
-export type NavigationItem = z.infer<typeof NavigationItemSchema>
+export interface NavigationItem {
+  label: string
+  route: string
+  icon?: string
+  requiresAuth?: boolean
+  order: number
+  group?: string
+  children?: NavigationItem[]
+}
 
 /**
  * Navigation configuration

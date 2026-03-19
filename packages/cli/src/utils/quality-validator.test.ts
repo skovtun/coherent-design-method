@@ -112,4 +112,32 @@ describe('autoFixCode', () => {
     const { code: fixed } = await autoFixCode(code)
     expect(fixed).toContain('budget >= 200')
   })
+
+  it('replaces /api/placeholder/ URLs with picsum', async () => {
+    const code = `'use client'\nconst img = "/api/placeholder/40/40"`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('https://picsum.photos/40/40?random=')
+    expect(fixed).not.toContain('/api/placeholder/')
+    expect(fixes.some(f => f.includes('placeholder images'))).toBe(true)
+  })
+
+  it('replaces /placeholder-avatar-*.jpg with pravatar', async () => {
+    const code = `'use client'\nconst img = "/placeholder-avatar-1.jpg"`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('https://i.pravatar.cc/150?u=')
+    expect(fixed).not.toContain('/placeholder-avatar')
+  })
+
+  it('replaces via.placeholder.com URLs with picsum', async () => {
+    const code = `'use client'\nconst img = "https://via.placeholder.com/800x400"`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('https://picsum.photos/800/400?random=')
+  })
+
+  it('replaces /images/*.jpg with picsum', async () => {
+    const code = `'use client'\nconst img = "/images/hero-banner.jpg"`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('https://picsum.photos/800/400?random=')
+    expect(fixed).not.toContain('/images/hero-banner.jpg')
+  })
 })

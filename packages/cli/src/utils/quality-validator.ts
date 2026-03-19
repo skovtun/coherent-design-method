@@ -489,8 +489,8 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
   fixed = fixed.replace(/&lt;=/g, '<=')
   fixed = fixed.replace(/&gt;=/g, '>=')
   fixed = fixed.replace(/&amp;&amp;/g, '&&')
-  fixed = fixed.replace(/(\w)\s*&lt;\s*(\d)/g, '$1 < $2')
-  fixed = fixed.replace(/(\w)\s*&gt;\s*(\d)/g, '$1 > $2')
+  fixed = fixed.replace(/([\w)\]])\s*&lt;\s*([\w(])/g, '$1 < $2')
+  fixed = fixed.replace(/([\w)\]])\s*&gt;\s*([\w(])/g, '$1 > $2')
   if (fixed !== beforeEntityFix) {
     fixes.push('Fixed syntax issues')
   }
@@ -753,20 +753,42 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
     }
 
     if (lucideExports) {
+      // Collect names imported from NON-lucide sources
+      const nonLucideImports = new Set<string>()
+      for (const m of fixed.matchAll(/import\s*\{([^}]+)\}\s*from\s*["'](?!lucide-react)([^"']+)["']/g)) {
+        m[1]
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean)
+          .forEach(n => nonLucideImports.add(n))
+      }
+
       const iconNames = lucideImportMatch[1]
         .split(',')
         .map(s => s.trim())
         .filter(Boolean)
-      const invalid = iconNames.filter(name => !lucideExports!.has(name))
+
+      // Step 1: Remove names that conflict with non-lucide imports (even if valid lucide exports)
+      const duplicates = iconNames.filter(name => nonLucideImports.has(name))
+      let newImport = lucideImportMatch[1]
+      for (const dup of duplicates) {
+        newImport = newImport.replace(new RegExp(`\\b${dup}\\b,?\\s*`), '')
+        fixes.push(`removed ${dup} from lucide import (conflicts with UI component import)`)
+      }
+
+      // Step 2: Replace truly invalid lucide names (hallucinated icons not imported elsewhere)
+      const invalid = iconNames.filter(name => !lucideExports!.has(name) && !nonLucideImports.has(name))
       if (invalid.length > 0) {
         const fallback = 'Circle'
-        let newImport = lucideImportMatch[1]
         for (const bad of invalid) {
           const re = new RegExp(`\\b${bad}\\b`, 'g')
           newImport = newImport.replace(re, fallback)
           fixed = fixed.replace(re, fallback)
         }
-        // Deduplicate imports
+        fixes.push(`invalid lucide icons → ${fallback}: ${invalid.join(', ')}`)
+      }
+
+      if (duplicates.length > 0 || invalid.length > 0) {
         const importedNames = [
           ...new Set(
             newImport
@@ -777,7 +799,6 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
         ]
         const originalImportLine = lucideImportMatch[0]
         fixed = fixed.replace(originalImportLine, `import { ${importedNames.join(', ')} } from "lucide-react"`)
-        fixes.push(`invalid lucide icons → ${fallback}: ${invalid.join(', ')}`)
       }
     }
   }
@@ -851,6 +872,40 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
     const cleaned = inner.replace(/\s{2,}/g, ' ').trim()
     return `className="${cleaned}"`
   })
+
+  // Fix broken placeholder image URLs
+  let imgCounter = 1
+  const beforeImgFix = fixed
+
+  // /api/placeholder/W/H → picsum
+  fixed = fixed.replace(/["']\/api\/placeholder\/(\d+)\/(\d+)["']/g, (_m, w, h) => {
+    return `"https://picsum.photos/${w}/${h}?random=${imgCounter++}"`
+  })
+
+  // /placeholder-avatar-*.ext → pravatar
+  fixed = fixed.replace(/["']\/placeholder-avatar[^"']*["']/g, () => {
+    return `"https://i.pravatar.cc/150?u=user${imgCounter++}"`
+  })
+
+  // https://via.placeholder.com/WxH → picsum
+  fixed = fixed.replace(/["']https?:\/\/via\.placeholder\.com\/(\d+)x?(\d*)(?:\/[^"']*)?\/?["']/g, (_m, w, h) => {
+    const height = h || w
+    return `"https://picsum.photos/${w}/${height}?random=${imgCounter++}"`
+  })
+
+  // /images/*.jpg|png|webp (non-existent local paths) → picsum
+  fixed = fixed.replace(/["']\/images\/[^"']+\.(?:jpg|jpeg|png|webp|gif)["']/g, () => {
+    return `"https://picsum.photos/800/400?random=${imgCounter++}"`
+  })
+
+  // /placeholder.jpg|png or /placeholder-*.jpg|png → picsum
+  fixed = fixed.replace(/["']\/placeholder[^"']*\.(?:jpg|jpeg|png|webp)["']/g, () => {
+    return `"https://picsum.photos/800/400?random=${imgCounter++}"`
+  })
+
+  if (fixed !== beforeImgFix) {
+    fixes.push('placeholder images → working URLs (picsum/pravatar)')
+  }
 
   return { code: fixed, fixes }
 }

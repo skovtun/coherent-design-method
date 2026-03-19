@@ -27,10 +27,7 @@ export function generateWelcomeComponent(_markdown: string): string {
 import { useState } from 'react'
 import {
   ArrowRight,
-  Blocks,
   ClipboardCopy,
-  Eye,
-  Globe,
   LayoutDashboard,
   LogIn,
   Monitor,
@@ -38,7 +35,6 @@ import {
   Rocket,
   Settings,
   ShoppingBag,
-  Sparkles,
 } from 'lucide-react'
 
 export default function HomePage() {
@@ -349,47 +345,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t pt-8 pb-8 mt-auto">
-        <div className="flex flex-col items-center gap-5 px-4">
-          <div className="flex items-center gap-3">
-            <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shrink-0">
-              <Blocks className="size-4" />
-            </div>
-            <span className="text-sm font-semibold">Coherent Design Method</span>
-          </div>
-          <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
-            <a
-              href="https://getcoherent.design"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              getcoherent.design
-            </a>
-            <a href="https://github.com/skovtun/coherent-design-method" target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-              GitHub
-            </a>
-            <a href="#" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-              Terms of Use
-            </a>
-            <a href="#" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-              Privacy Policy
-            </a>
-          </nav>
-          <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()}{' '}
-            <a
-              href="https://www.linkedin.com/in/sergeikovtun/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline underline-offset-2 hover:text-foreground transition-colors"
-            >
-              Sergei Kovtun
-            </a>
-          </p>
-        </div>
-      </footer>
+      
     </div>
   )
 }

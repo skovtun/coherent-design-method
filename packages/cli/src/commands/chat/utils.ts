@@ -5,6 +5,13 @@ import { DesignSystemManager, loadManifest, type DesignSystemConfig } from '@get
 import { readFile } from '../../utils/files.js'
 import chalk from 'chalk'
 
+const MARKETING_ROUTES = new Set(['', 'landing', 'pricing', 'about', 'contact', 'blog', 'features'])
+
+export function isMarketingRoute(route: string): boolean {
+  const slug = route.replace(/^\//, '').split('/')[0] || ''
+  return MARKETING_ROUTES.has(slug)
+}
+
 export function routeToFsPath(projectRoot: string, route: string, isAuth: boolean): string {
   const slug = route.replace(/^\//, '')
   if (isAuth) {
@@ -13,7 +20,10 @@ export function routeToFsPath(projectRoot: string, route: string, isAuth: boolea
   if (!slug) {
     return resolve(projectRoot, 'app', 'page.tsx')
   }
-  return resolve(projectRoot, 'app', slug, 'page.tsx')
+  if (isMarketingRoute(route)) {
+    return resolve(projectRoot, 'app', slug, 'page.tsx')
+  }
+  return resolve(projectRoot, 'app', '(app)', slug, 'page.tsx')
 }
 
 export function routeToRelPath(route: string, isAuth: boolean): string {
@@ -24,7 +34,10 @@ export function routeToRelPath(route: string, isAuth: boolean): string {
   if (!slug) {
     return 'app/page.tsx'
   }
-  return `app/${slug}/page.tsx`
+  if (isMarketingRoute(route)) {
+    return `app/${slug}/page.tsx`
+  }
+  return `app/(app)/${slug}/page.tsx`
 }
 
 export function deduplicatePages(

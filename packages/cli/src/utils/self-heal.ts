@@ -13,6 +13,7 @@ export const COHERENT_REQUIRED_PACKAGES = [
   'class-variance-authority',
   'clsx',
   'tailwind-merge',
+  '@radix-ui/react-slot',
 ] as const
 
 const IMPORT_FROM_REGEX = /from\s+['"]([^'"]+)['"]/g

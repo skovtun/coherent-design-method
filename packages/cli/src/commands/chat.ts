@@ -42,7 +42,6 @@ import { extractInternalLinks, normalizeRequest, applyDefaults, AUTH_FLOW_PATTER
 import { splitGeneratePages } from './chat/split-generator.js'
 import { applyModification } from './chat/modification-handler.js'
 import { regenerateFiles } from './chat/code-generator.js'
-import { extractAndShareLayoutComponents } from './chat/layout-extractor.js'
 import { showPreview, getChangeDescription } from './chat/reporting.js'
 import { interactiveChat } from './chat/interactive.js'
 
@@ -528,26 +527,6 @@ export async function chatCommand(
     for (const request of normalizedRequests) {
       const result = await applyModification(request, dsm, cm, pm, projectRoot, provider, message)
       results.push(result)
-    }
-
-    // Extract shared layout components
-    const anyPageGenerated = normalizedRequests.some(
-      (req, i) => (req.type === 'add-page' || req.type === 'update-page') && results[i]?.success,
-    )
-    if (anyPageGenerated) {
-      const generatedPageFiles = normalizedRequests
-        .filter((req, i) => (req.type === 'add-page' || req.type === 'update-page') && results[i]?.success)
-        .map(req => {
-          const page = req.changes as PageDefinition & { route?: string }
-          const route = page.route || `/${page.id || 'page'}`
-          return routeToFsPath(projectRoot, route, isAuthRoute(route))
-        })
-        .filter(f => existsSync(f))
-      try {
-        await extractAndShareLayoutComponents(projectRoot, generatedPageFiles)
-      } catch (err) {
-        if (DEBUG) console.log(chalk.dim('Shared layout extraction failed:', err))
-      }
     }
 
     // Auto-scaffold linked pages

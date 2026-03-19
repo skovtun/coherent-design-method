@@ -26,8 +26,9 @@ import { isShadcnComponent, installShadcnComponent } from '../../utils/shadcn-in
 import { validatePageQuality, formatIssues, autoFixCode } from '../../utils/quality-validator.js'
 import { writeCursorRules } from '../../utils/cursor-rules.js'
 import { analyzePageCode } from '../../utils/page-analyzer.js'
-import { routeToFsPath, routeToRelPath, extractComponentIdsFromCode, warnInlineDuplicates } from './utils.js'
+import { routeToFsPath, routeToRelPath, extractComponentIdsFromCode, warnInlineDuplicates, isMarketingRoute } from './utils.js'
 import { validateAndFixGeneratedCode, ensureComponentsInstalled, regenerateComponent } from './code-generator.js'
+import { extractBalancedTag } from './jsx-extractor.js'
 import {
   printPostGenerationReport,
   printSharedComponentReport,
@@ -37,6 +38,112 @@ import {
 import { buildExistingPagesContext } from './split-generator.js'
 
 const DEBUG = process.env.COHERENT_DEBUG === '1'
+
+/**
+ * Strip inline <header>, <nav>, and <footer> elements from page code.
+ * Also strips div-based footers preceded by Footer comments in JSX.
+ * The root layout provides these via shared components — pages must not include them.
+ */
+function stripInlineLayoutElements(code: string): { code: string; stripped: string[] } {
+  let result = code
+  const stripped: string[] = []
+
+  const headerBlock = extractBalancedTag(result, 'header')
+  if (headerBlock) {
+    result = result.replace(headerBlock, '')
+    stripped.push('header')
+  }
+
+  const navBlock = extractBalancedTag(result, 'nav')
+  if (navBlock) {
+    result = result.replace(navBlock, '')
+    stripped.push('nav')
+  }
+
+  const footerBlock = extractBalancedTag(result, 'footer')
+  if (footerBlock) {
+    result = result.replace(footerBlock, '')
+    stripped.push('footer')
+  }
+
+  // Catch div-based footers preceded by {/* Footer */} comment
+  const commentFooterRe = /\s*\{\/\*\s*Footer\s*\*\/\}\s*\n/i
+  const commentMatch = result.match(commentFooterRe)
+  if (commentMatch && commentMatch.index != null) {
+    const afterComment = result.slice(commentMatch.index + commentMatch[0].length)
+    const divBlock = extractBalancedTag(afterComment, 'div')
+    if (divBlock) {
+      result = result.replace(commentMatch[0] + divBlock, '')
+      stripped.push('footer (div)')
+    }
+  }
+
+  if (stripped.length > 0) {
+    result = result.replace(/\n{3,}/g, '\n\n')
+  }
+  return { code: result, stripped }
+}
+
+const STANDARD_WRAPPER = 'mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6'
+
+const STANDARD_PAGE_WRAPPER = 'space-y-6'
+
+const HOME_REDIRECT_CODE = `import { redirect } from 'next/navigation'
+
+export default function Home() {
+  redirect('/dashboard')
+}
+`
+
+/**
+ * Detect if the AI generated a SPA-style home page (multiple inline views
+ * with useState toggling) and replace it with a simple redirect.
+ */
+function detectAndFixSpaHomePage(code: string, route: string): { code: string; fixed: boolean } {
+  if (route !== '/' && route !== '') return { code, fixed: false }
+  const hasMultipleRenders = (code.match(/const render\w+\s*=\s*\(\)/g) || []).length >= 2
+  const hasPageToggle = /useState\s*\(\s*['"](?:dashboard|home|page)/i.test(code)
+  const isMassive = code.split('\n').length > 200
+  if ((hasMultipleRenders && hasPageToggle) || (isMassive && hasPageToggle)) {
+    return { code: HOME_REDIRECT_CODE, fixed: true }
+  }
+  return { code, fixed: false }
+}
+
+/**
+ * Normalize the outermost wrapper in AI-generated page code.
+ * The (app) route group layout already provides max-w-7xl + padding,
+ * so the page content should use a simple <div className="space-y-6">.
+ *
+ * 1) Replace <main ...> with <div className="space-y-6">
+ * 2) Normalize the first <div className="..."> to use only "space-y-6"
+ *    (strip any padding, flex, max-w, mx-auto the AI added)
+ */
+function normalizePageWrapper(code: string): { code: string; fixed: boolean } {
+  let result = code
+  let fixed = false
+
+  // Step 1: Replace <main> with <div>
+  if (/<main\s+className="[^"]*">/.test(result)) {
+    result = result.replace(/<main\s+className="[^"]*">/g, `<div className="${STANDARD_PAGE_WRAPPER}">`)
+    result = result.replace(/<\/main>/g, '</div>')
+    fixed = true
+  }
+
+  // Step 2: Force the outermost <div className="..."> to use standard spacing.
+  // No pattern matching — always normalize to prevent AI variation.
+  const outerDivRe = /(return\s*\(\s*\n?\s*)<div\s+className="([^"]*)">/
+  const match = result.match(outerDivRe)
+  if (match) {
+    const cls = match[2]
+    if (cls !== STANDARD_PAGE_WRAPPER) {
+      result = result.replace(match[0], `${match[1]}<div className="${STANDARD_PAGE_WRAPPER}">`)
+      fixed = true
+    }
+  }
+
+  return { code: result, fixed }
+}
 
 export async function applyModification(
   request: ModificationRequest,
@@ -402,6 +509,12 @@ export async function applyModification(
         }
       }
 
+      if (!finalPageCode) {
+        console.log(chalk.yellow(`\n⚠️  Page "${page.name || page.id}" has no generated code — it will appear empty.`))
+        console.log(chalk.dim('   This usually means the AI did not produce pageCode for this page.'))
+        console.log(chalk.dim('   Try running: coherent chat "regenerate the ' + (page.name || page.id) + ' page with full content"'))
+      }
+
       const pageForConfig: PageDefinition = {
         ...page,
         sections: page.sections ?? [],
@@ -441,7 +554,22 @@ export async function applyModification(
           let codeToWrite = fixedCode
           const { code: autoFixed, fixes: autoFixes } = await autoFixCode(codeToWrite)
           codeToWrite = autoFixed
+          const { code: spaFixed, fixed: spaWasFixed } = detectAndFixSpaHomePage(codeToWrite, route)
+          if (spaWasFixed) {
+            codeToWrite = spaFixed
+            autoFixes.push('replaced SPA-style home page with redirect to /dashboard')
+          }
+          const { code: layoutStripped, stripped } = stripInlineLayoutElements(codeToWrite)
+          codeToWrite = layoutStripped
+          if (!isMarketingRoute(route)) {
+            const { code: normalized, fixed: wrapperFixed } = normalizePageWrapper(codeToWrite)
+            if (wrapperFixed) {
+              codeToWrite = normalized
+              autoFixes.push('normalized page wrapper to standard spacing')
+            }
+          }
           const allFixes = [...postFixes, ...autoFixes]
+          if (stripped.length > 0) allFixes.push(`stripped inline ${stripped.join(', ')} (layout owns these)`)
           if (allFixes.length > 0) {
             console.log(chalk.dim('  🔧 Post-generation fixes:'))
             allFixes.forEach(f => console.log(chalk.dim(`     ${f}`)))
@@ -612,7 +740,22 @@ export async function applyModification(
             let codeToWrite = fixedCode
             const { code: autoFixed, fixes: autoFixes } = await autoFixCode(codeToWrite)
             codeToWrite = autoFixed
+            const { code: spaFixed, fixed: spaWasFixed } = detectAndFixSpaHomePage(codeToWrite, route)
+            if (spaWasFixed) {
+              codeToWrite = spaFixed
+              autoFixes.push('replaced SPA-style home page with redirect to /dashboard')
+            }
+            const { code: layoutStripped, stripped } = stripInlineLayoutElements(codeToWrite)
+            codeToWrite = layoutStripped
+            if (!isMarketingRoute(route)) {
+              const { code: normalized, fixed: wrapperFixed } = normalizePageWrapper(codeToWrite)
+              if (wrapperFixed) {
+                codeToWrite = normalized
+                autoFixes.push('normalized page wrapper to standard spacing')
+              }
+            }
             const allFixes = [...postFixes, ...autoFixes]
+            if (stripped.length > 0) allFixes.push(`stripped inline ${stripped.join(', ')} (layout owns these)`)
             if (allFixes.length > 0) {
               console.log(chalk.dim('  🔧 Post-generation fixes:'))
               allFixes.forEach(f => console.log(chalk.dim(`     ${f}`)))

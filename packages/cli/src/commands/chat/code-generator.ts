@@ -13,8 +13,9 @@ import {
   type PageDefinition,
 } from '@getcoherent/core'
 import { isAuthRoute } from '../../agents/page-templates.js'
-import { integrateSharedLayoutIntoRootLayout } from '@getcoherent/core'
+import { integrateSharedLayoutIntoRootLayout, loadManifest, generateSharedComponent } from '@getcoherent/core'
 import { ensureAuthRouteGroup } from '../../utils/auth-route-group.js'
+import chalk from 'chalk'
 import { writeFile } from '../../utils/files.js'
 import { isShadcnComponent, installShadcnComponent } from '../../utils/shadcn-installer.js'
 import {
@@ -122,20 +123,111 @@ export async function regenerateLayout(config: DesignSystemConfig, projectRoot: 
   const layout = config.pages[0]?.layout || 'centered'
   const appType = config.settings.appType || 'multi-page'
   const generator = new PageGenerator(config)
-  const code = await generator.generateLayout(layout, appType)
-  const layoutPath = resolve(projectRoot, 'app', 'layout.tsx')
-  await writeFile(layoutPath, code)
-  if (config.navigation?.enabled && appType === 'multi-page') {
-    const appNavCode = generator.generateAppNav()
-    const appNavPath = resolve(projectRoot, 'app', 'AppNav.tsx')
-    await writeFile(appNavPath, appNavCode)
-  }
+
+  let manifest: Awaited<ReturnType<typeof loadManifest>> | null = null
   try {
-    await integrateSharedLayoutIntoRootLayout(projectRoot)
-    await ensureAuthRouteGroup(projectRoot)
+    manifest = await loadManifest(projectRoot)
   } catch {
     /* manifest may not exist yet */
   }
+  const hasSharedHeader = manifest?.shared.some(c => c.type === 'layout' && /header|nav/i.test(c.name)) ?? false
+  const hasSharedFooter = manifest?.shared.some(c => c.type === 'layout' && /footer/i.test(c.name)) ?? false
+
+  const code = await generator.generateLayout(layout, appType, { skipNav: true })
+  const layoutPath = resolve(projectRoot, 'app', 'layout.tsx')
+  await writeFile(layoutPath, code)
+
+  if (config.navigation?.enabled && appType === 'multi-page') {
+    const navType = config.navigation.type || 'header'
+
+    if (navType === 'header' || navType === 'both') {
+      const headerCode = generator.generateSharedHeaderCode()
+      await generateSharedComponent(projectRoot, {
+        name: 'Header',
+        type: 'layout',
+        code: headerCode,
+        description: 'Main site header with navigation and theme toggle',
+        usedIn: ['app/layout.tsx'],
+        overwrite: true,
+      })
+    }
+    if (!hasSharedFooter) {
+      const footerCode = generator.generateSharedFooterCode()
+      await generateSharedComponent(projectRoot, {
+        name: 'Footer',
+        type: 'layout',
+        code: footerCode,
+        description: 'Site footer',
+        usedIn: ['app/layout.tsx'],
+        overwrite: true,
+      })
+    }
+    if (navType === 'sidebar' || navType === 'both') {
+      const sidebarCode = generator.generateSharedSidebarCode()
+      await generateSharedComponent(projectRoot, {
+        name: 'Sidebar',
+        type: 'layout',
+        code: sidebarCode,
+        description: 'Vertical sidebar navigation with collapsible sections',
+        usedIn: ['app/(app)/layout.tsx'],
+        overwrite: true,
+      })
+    }
+  }
+
+  try {
+    await integrateSharedLayoutIntoRootLayout(projectRoot)
+    await ensureAuthRouteGroup(projectRoot)
+    await ensureAppRouteGroupLayout(projectRoot, config.navigation?.type)
+  } catch (err) {
+    if (process.env.COHERENT_DEBUG === '1') {
+      console.log(chalk.dim('Layout integration warning:', err))
+    }
+  }
+}
+
+async function ensureAppRouteGroupLayout(projectRoot: string, navType?: string): Promise<void> {
+  const layoutPath = resolve(projectRoot, 'app', '(app)', 'layout.tsx')
+  if (existsSync(layoutPath)) return
+  const { mkdir: mkdirAsync } = await import('fs/promises')
+  await mkdirAsync(resolve(projectRoot, 'app', '(app)'), { recursive: true })
+  const code = buildAppLayoutCode(navType)
+  await writeFile(layoutPath, code)
+}
+
+function buildAppLayoutCode(navType?: string): string {
+  const hasSidebar = navType === 'sidebar' || navType === 'both'
+  if (hasSidebar) {
+    return `import { Sidebar } from '@/components/shared/sidebar'
+
+export default function AppLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex min-h-[calc(100vh-3.5rem)]">
+      <Sidebar />
+      <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6">
+        {children}
+      </main>
+    </div>
+  )
+}
+`
+  }
+  return `export default function AppLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <main className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+      {children}
+    </main>
+  )
+}
+`
 }
 
 export async function regenerateFiles(

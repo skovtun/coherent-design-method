@@ -350,7 +350,7 @@ Run in terminal:
 ## Platform Overlay (DO NOT TOUCH)
 
 The following are dev-only platform features, excluded from production export:
-- Floating Design System button (in AppNav.tsx)
+- Floating Design System button (in shared Header component)
 - /design-system/* pages
 - /api/design-system/* routes
 - coherent.components.json

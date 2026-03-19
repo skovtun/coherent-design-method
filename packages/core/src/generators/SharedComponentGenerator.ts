@@ -86,6 +86,8 @@ export interface GenerateSharedComponentInput {
   description?: string
   /** Files that will use this component (e.g. ["app/layout.tsx"]). */
   usedIn?: string[]
+  /** If true, overwrite an existing component with the same name instead of creating a uniquely-named copy. */
+  overwrite?: boolean
 }
 
 export interface GenerateSharedComponentResult {
@@ -103,6 +105,20 @@ export async function generateSharedComponent(
   input: GenerateSharedComponentInput,
 ): Promise<GenerateSharedComponentResult> {
   const manifest = await loadManifest(projectRoot)
+
+  const existing = input.overwrite
+    ? manifest.shared.find(e => e.name === input.name)
+    : undefined
+
+  if (existing) {
+    const fullPath = join(projectRoot, existing.file)
+    const componentName = existing.name.replace(/[^a-zA-Z0-9]/g, '') || 'Block'
+    const code = input.code ?? getDefaultTemplate(componentName, input.type, existing.name)
+    await mkdir(dirname(fullPath), { recursive: true })
+    await writeFile(fullPath, code, 'utf-8')
+    return { id: existing.id, name: existing.name, file: existing.file }
+  }
+
   const uniqueName = resolveUniqueName(manifest, input.name)
   const fileName = toSharedFileName(uniqueName)
   const filePath = `components/shared/${fileName}.tsx`

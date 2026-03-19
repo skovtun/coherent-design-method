@@ -100,11 +100,14 @@ describe('ComponentGenerator', () => {
   const gen = new ComponentGenerator(minimalConfig)
 
   describe('dedicated generators', () => {
-    it('generates Button with cva variants', async () => {
+    it('generates Button with cva variants and asChild support', async () => {
       const code = await gen.generate(makeDef({ id: 'button', name: 'Button' }))
       expect(code).toContain('buttonVariants')
       expect(code).toContain('cva')
       expect(code).toContain('bg-primary')
+      expect(code).toContain('asChild')
+      expect(code).toContain("@radix-ui/react-slot")
+      expect(code).toContain('Slot')
     })
 
     it('generates Card with compound exports', async () => {
