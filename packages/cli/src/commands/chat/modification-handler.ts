@@ -570,10 +570,13 @@ export async function applyModification(
           let codeToWrite = fixedCode
           const { code: autoFixed, fixes: autoFixes } = await autoFixCode(codeToWrite)
           codeToWrite = autoFixed
-          const { code: spaFixed, fixed: spaWasFixed } = detectAndFixSpaHomePage(codeToWrite, route)
-          if (spaWasFixed) {
-            codeToWrite = spaFixed
-            autoFixes.push('replaced SPA-style home page with redirect to /dashboard')
+          const hasDashboardPage = dsm.getConfig().pages.some((p: any) => p.route === '/dashboard')
+          if (!hasDashboardPage) {
+            const { code: spaFixed, fixed: spaWasFixed } = detectAndFixSpaHomePage(codeToWrite, route)
+            if (spaWasFixed) {
+              codeToWrite = spaFixed
+              autoFixes.push('replaced SPA-style home page with redirect to /dashboard')
+            }
           }
           const { code: layoutStripped, stripped } = stripInlineLayoutElements(codeToWrite)
           codeToWrite = layoutStripped
@@ -773,10 +776,13 @@ export async function applyModification(
             let codeToWrite = fixedCode
             const { code: autoFixed, fixes: autoFixes } = await autoFixCode(codeToWrite)
             codeToWrite = autoFixed
-            const { code: spaFixed, fixed: spaWasFixed } = detectAndFixSpaHomePage(codeToWrite, route)
-            if (spaWasFixed) {
-              codeToWrite = spaFixed
-              autoFixes.push('replaced SPA-style home page with redirect to /dashboard')
+            const hasDashboardPage = dsm.getConfig().pages.some((p: any) => p.route === '/dashboard')
+            if (!hasDashboardPage) {
+              const { code: spaFixed, fixed: spaWasFixed } = detectAndFixSpaHomePage(codeToWrite, route)
+              if (spaWasFixed) {
+                codeToWrite = spaFixed
+                autoFixes.push('replaced SPA-style home page with redirect to /dashboard')
+              }
             }
             const { code: layoutStripped, stripped } = stripInlineLayoutElements(codeToWrite)
             codeToWrite = layoutStripped

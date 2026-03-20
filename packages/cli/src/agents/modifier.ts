@@ -318,7 +318,7 @@ PAGE CONTENT (CRITICAL — prevents empty or duplicate pages):
 - Every page MUST have substantial content. NEVER generate a page with only metadata and an empty <main> element.
 - NEVER create an inline preview/demo of another page (e.g., embedding a "dashboard view" inside the landing page with a toggle). Each page should be its own route.
 - NEVER create a single-page app (SPA) that renders multiple views via useState. Each view must be a separate Next.js page with its own route.
-- The home page (route "/") should be a simple redirect using next/navigation redirect('/dashboard') — OR a standalone landing page. NEVER a multi-view SPA.
+- The home page (route "/"): When BOTH "/" and "/dashboard" exist, "/" MUST be a full landing page with hero section, features, pricing, and CTA buttons linking to /login and /register — NOT a redirect. When "/" is the ONLY main page, it can be a redirect to /dashboard. NEVER a multi-view SPA.
 - Landing pages should link to app pages via <Link href="/dashboard">, NOT via useState toggles that render inline content.
 
 pageCode rules (shadcn/ui blocks quality):
