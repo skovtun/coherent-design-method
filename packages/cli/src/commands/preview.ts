@@ -23,6 +23,7 @@ import {
 } from '../utils/self-heal.js'
 import { startFileWatcher } from '../utils/file-watcher.js'
 import { getShadcnComponent } from '../utils/shadcn-installer.js'
+import { ShadcnProvider } from '../providers/shadcn-provider.js'
 import { analyzePageCode } from '../utils/page-analyzer.js'
 
 /**
@@ -269,25 +270,12 @@ function extractShadcnComponentFromModuleNotFound(msg: string): string | null {
   return m?.[1] ?? null
 }
 
-/** Auto-install a missing shadcn component file and restart if needed. */
+/** Auto-install a missing shadcn component file via provider. */
 async function autoInstallShadcnComponent(componentId: string, projectRoot: string): Promise<boolean> {
-  const def = getShadcnComponent(componentId)
-  if (!def) return false
+  const provider = new ShadcnProvider()
+  if (!provider.has(componentId)) return false
   try {
-    const configPath = join(projectRoot, 'design-system.config.ts')
-    let config: any = null
-    try {
-      const mgr = new DesignSystemManager(configPath)
-      config = mgr.getConfig()
-    } catch {
-      /* ignore */
-    }
-    const generator = new ComponentGenerator(config || { components: [], pages: [], tokens: {} })
-    const code = await generator.generate(def)
-    const uiDir = join(projectRoot, 'components', 'ui')
-    const { mkdirSync } = await import('fs')
-    mkdirSync(uiDir, { recursive: true })
-    writeFileSync(join(uiDir, `${componentId}.tsx`), code, 'utf-8')
+    await provider.install(componentId, projectRoot)
     return true
   } catch {
     return false

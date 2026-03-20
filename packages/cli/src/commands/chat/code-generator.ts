@@ -18,7 +18,8 @@ import { ensureAuthRouteGroup } from '../../utils/auth-route-group.js'
 import chalk from 'chalk'
 import { writeFile } from '../../utils/files.js'
 import { isManuallyEdited } from '../../utils/file-hashes.js'
-import { isShadcnComponent, installShadcnComponent } from '../../utils/shadcn-installer.js'
+import { getShadcnComponent } from '../../utils/shadcn-installer.js'
+import { ShadcnProvider } from '../../providers/shadcn-provider.js'
 import {
   sanitizeMetadataStrings,
   ensureUseClientIfNeeded,
@@ -60,6 +61,7 @@ export async function ensureComponentsInstalled(
 ): Promise<{ installed: string[] }> {
   const installed: string[] = []
   const ids = Array.from(componentIds)
+  const provider = new ShadcnProvider()
   for (const componentId of ids) {
     const isRegistered = !!cm.read(componentId)
     const fileName = componentId.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase() + '.tsx'
@@ -67,9 +69,10 @@ export async function ensureComponentsInstalled(
     const fileExists = existsSync(filePath)
 
     if (isRegistered && fileExists) continue
-    if (!isShadcnComponent(componentId)) continue
+    if (!provider.has(componentId)) continue
     try {
-      const shadcnDef = await installShadcnComponent(componentId, projectRoot)
+      await provider.install(componentId, projectRoot)
+      const shadcnDef = getShadcnComponent(componentId)
       if (shadcnDef) {
         if (!isRegistered) {
           const result = await cm.register(shadcnDef)

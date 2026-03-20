@@ -29,7 +29,8 @@ import { appendFile } from 'fs/promises'
 import { appendRecentChanges, type RecentChange } from '../utils/recent-changes.js'
 import { createBackup, logBackupCreated } from '../utils/backup.js'
 import { needsGlobalsFix, fixGlobalsCss } from '../utils/fix-globals-css.js'
-import { isShadcnComponent, installShadcnComponent } from '../utils/shadcn-installer.js'
+import { getShadcnComponent } from '../utils/shadcn-installer.js'
+import { ShadcnProvider } from '../providers/shadcn-provider.js'
 import {
   installPackages,
   getInstalledPackages,
@@ -442,16 +443,18 @@ export async function chatCommand(
     if (missingComponents.length > 0) {
       spinner.stop()
       console.log(chalk.cyan('\n🔍 Pre-flight check: Installing missing components...\n'))
+      const provider = new ShadcnProvider()
 
       for (const componentId of missingComponents) {
         if (DEBUG) {
           console.log(chalk.gray(`    [DEBUG] Trying to install: ${componentId}`))
-          console.log(chalk.gray(`    [DEBUG] isShadcnComponent(${componentId}): ${isShadcnComponent(componentId)}`))
+          console.log(chalk.gray(`    [DEBUG] provider.has(${componentId}): ${provider.has(componentId)}`))
         }
 
-        if (isShadcnComponent(componentId)) {
+        if (provider.has(componentId)) {
           try {
-            const shadcnDef = await installShadcnComponent(componentId, projectRoot)
+            await provider.install(componentId, projectRoot)
+            const shadcnDef = getShadcnComponent(componentId)
             if (DEBUG) console.log(chalk.gray(`    [DEBUG] shadcnDef for ${componentId}: ${shadcnDef ? 'OK' : 'NULL'}`))
 
             if (shadcnDef) {

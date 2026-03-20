@@ -416,6 +416,14 @@ export class ShadcnProvider implements ComponentProvider {
     }
   }
 
+  has(name: string): boolean {
+    return componentMetaMap.has(name)
+  }
+
+  listNames(): string[] {
+    return COMPONENT_REGISTRY.map(c => c.id)
+  }
+
   list(): ComponentMeta[] {
     return COMPONENT_REGISTRY
   }

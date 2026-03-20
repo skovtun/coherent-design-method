@@ -22,7 +22,8 @@ import { ensureAuthRouteGroup } from '../../utils/auth-route-group.js'
 import { createAIProvider } from '../../utils/ai-provider.js'
 import { readFile, writeFile } from '../../utils/files.js'
 import { CORE_CONSTRAINTS, DESIGN_QUALITY, selectContextualRules } from '../../agents/design-constraints.js'
-import { isShadcnComponent, installShadcnComponent } from '../../utils/shadcn-installer.js'
+import { getShadcnComponent } from '../../utils/shadcn-installer.js'
+import { ShadcnProvider } from '../../providers/shadcn-provider.js'
 import {
   validatePageQuality,
   formatIssues,
@@ -432,9 +433,11 @@ export async function applyModification(
     case 'add-component': {
       const componentData = request.changes as ComponentDefinition
 
-      if (componentData.source === 'shadcn' && isShadcnComponent(componentData.id)) {
+      const _provider = new ShadcnProvider()
+      if (componentData.source === 'shadcn' && _provider.has(componentData.id)) {
         try {
-          const shadcnDef = await installShadcnComponent(componentData.id, projectRoot)
+          await _provider.install(componentData.id, projectRoot)
+          const shadcnDef = getShadcnComponent(componentData.id)
           if (shadcnDef) {
             const mergedData: ComponentDefinition = {
               ...shadcnDef,

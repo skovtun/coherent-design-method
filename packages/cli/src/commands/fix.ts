@@ -33,7 +33,8 @@ import {
   saveManifest,
 } from '@getcoherent/core'
 import { writeFile } from '../utils/files.js'
-import { isShadcnComponent, installShadcnComponent } from '../utils/shadcn-installer.js'
+import { getShadcnComponent } from '../utils/shadcn-installer.js'
+import { ShadcnProvider } from '../providers/shadcn-provider.js'
 import {
   findMissingPackages,
   installPackages,
@@ -165,7 +166,8 @@ export async function fixCommand(opts: FixOptions = {}) {
       }
     }
 
-    const toInstall = [...new Set([...missingComponents, ...missingFiles])].filter(id => isShadcnComponent(id))
+    const provider = new ShadcnProvider()
+    const toInstall = [...new Set([...missingComponents, ...missingFiles])].filter(id => provider.has(id))
 
     if (toInstall.length > 0) {
       if (dryRun) {
@@ -175,7 +177,8 @@ export async function fixCommand(opts: FixOptions = {}) {
         let installed = 0
         for (const componentId of toInstall) {
           try {
-            const shadcnDef = await installShadcnComponent(componentId, projectRoot)
+            await provider.install(componentId, projectRoot)
+            const shadcnDef = getShadcnComponent(componentId)
             if (!shadcnDef) continue
             if (!cm.read(componentId)) {
               const result = await cm.register(shadcnDef)
