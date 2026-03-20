@@ -218,6 +218,7 @@ export function createMinimalConfig(): DesignSystemConfig {
     },
 
     settings: {
+      initialized: false,
       appType: 'multi-page',
       framework: 'next',
       typescript: true,

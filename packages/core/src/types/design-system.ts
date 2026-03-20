@@ -727,6 +727,7 @@ export const EXAMPLE_MULTIPAGE_CONFIG: DesignSystemConfig = {
   },
 
   settings: {
+    initialized: true,
     appType: 'multi-page',
     framework: 'next',
     typescript: true,
@@ -746,6 +747,7 @@ export const EXAMPLE_SPA_CONFIG: DesignSystemConfig = {
   name: 'My SPA',
   description: 'A beautiful single-page application',
   settings: {
+    initialized: true,
     appType: 'spa',
     framework: 'react-spa',
     router: 'react-router',
