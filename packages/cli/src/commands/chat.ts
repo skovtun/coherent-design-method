@@ -452,8 +452,7 @@ export async function chatCommand(
         if (isShadcnComponent(componentId)) {
           try {
             const shadcnDef = await installShadcnComponent(componentId, projectRoot)
-            if (DEBUG)
-              console.log(chalk.gray(`    [DEBUG] shadcnDef for ${componentId}: ${shadcnDef ? 'OK' : 'NULL'}`))
+            if (DEBUG) console.log(chalk.gray(`    [DEBUG] shadcnDef for ${componentId}: ${shadcnDef ? 'OK' : 'NULL'}`))
 
             if (shadcnDef) {
               if (DEBUG) console.log(chalk.gray(`    [DEBUG] Registering ${shadcnDef.id} (${shadcnDef.name})`))

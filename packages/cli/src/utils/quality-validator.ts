@@ -663,7 +663,8 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
     if (isInsideTerminalBlock(offset)) return fullMatch
 
     let result = classes
-    const accentColorRe = /\b(bg|text|border)-(emerald|blue|violet|indigo|purple|teal|cyan|sky|rose|amber|red|green|yellow|pink|orange|fuchsia|lime)-(\d+)\b/g
+    const accentColorRe =
+      /\b(bg|text|border)-(emerald|blue|violet|indigo|purple|teal|cyan|sky|rose|amber|red|green|yellow|pink|orange|fuchsia|lime)-(\d+)\b/g
     result = result.replace(accentColorRe, (m, prefix: string, color: string, shade: string) => {
       if (colorMap[m]) {
         hadColorFix = true
