@@ -130,3 +130,39 @@ Walk through every page to see the results:
 **Try the dark mode toggle** — notice how all pages adapt automatically thanks to semantic design tokens. No hardcoded colors means perfect dark mode support out of the box.
 
 [Screenshot: Dashboard in dark mode]
+
+---
+
+## Step 5: Refine the design
+
+The generated app looks good, but we want to make it our own. Let's change the color scheme and improve the landing page hero.
+
+~~~
+coherent chat "Change the color scheme to indigo primary, make the landing page hero more impactful with gradient background"
+~~~
+
+Design tokens cascade across all pages automatically. When you change the primary color from the default to indigo, every button, link, accent, and highlighted element updates — across every page, in both light and dark mode.
+
+[Screenshot: Landing page hero — before (default colors)]
+
+[Screenshot: Landing page hero — after (indigo + gradient)]
+
+[Screenshot: Design System Viewer — updated color tokens]
+
+---
+
+## Step 6: Edit a specific page
+
+Sometimes you want to refine just one page without touching the rest. The `--page` flag gives you precision control.
+
+Let's redesign the pricing section:
+
+~~~
+coherent chat --page "Pricing" "Redesign the pricing section: 3 tiers (Starter, Pro, Enterprise) as cards with a highlighted recommended plan, monthly/yearly toggle, feature comparison list below"
+~~~
+
+**Why `--page`?** Without the flag, Coherent might interpret your prompt as a request affecting multiple pages. The `--page` flag scopes the change to exactly the page you specify.
+
+[Screenshot: Pricing section — before]
+
+[Screenshot: Pricing section — after (3-tier cards with highlighted plan)]
