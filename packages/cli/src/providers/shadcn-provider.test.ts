@@ -172,6 +172,33 @@ describe('ShadcnProvider.getCssVariables()', () => {
   })
 })
 
+describe('ShadcnProvider integration', () => {
+  it('init + install + list flow works end-to-end', async () => {
+    const provider = new ShadcnProvider()
+    const tmpDir = mkdtempSync(path.join(tmpdir(), 'integration-'))
+
+    try {
+      await provider.init(tmpDir)
+      expect(existsSync(path.join(tmpDir, 'components.json'))).toBe(true)
+
+      const components = provider.list()
+      expect(components.length).toBeGreaterThan(10)
+
+      const api = provider.getComponentAPI('button')
+      expect(api).not.toBeNull()
+      expect(api!.subcomponents).toContain('Button')
+
+      expect(provider.has('button')).toBe(true)
+      expect(provider.has('nonexistent-widget')).toBe(false)
+
+      expect(provider.listNames()).toContain('button')
+      expect(provider.listNames()).toContain('sidebar')
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('ShadcnProvider.init()', () => {
   const provider = new ShadcnProvider()
   let tmpDir: string
