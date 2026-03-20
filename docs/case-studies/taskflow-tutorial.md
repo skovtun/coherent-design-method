@@ -322,3 +322,33 @@ npx vercel
 [Screenshot: coherent export output]
 
 [Screenshot: Exported project folder structure]
+
+---
+
+## What we built
+
+In ~30 minutes and 12 prompts, we created a complete SaaS application with:
+
+- **7 pages** — Landing, Dashboard, Projects, Tasks, Team, Settings, Login/Register
+- **Sidebar navigation** — detected automatically from the prompt
+- **Shared components** — StatsPanel (used on 3 pages), Header, Footer, Sidebar
+- **Design tokens** — indigo color scheme, consistent across light and dark mode
+- **Auth flow** — Login, Register, Forgot Password with centered layout
+- **Quality validation** — 97 design rules checked and auto-fixed
+- **Production export** — clean Next.js app, ready to deploy
+
+### The workflow
+
+1. **Describe** what you want in natural language
+2. **Preview** the result instantly
+3. **Iterate** — change colors, add pages, create components
+4. **Reuse** — shared components update everywhere
+5. **Undo** — try different approaches risk-free
+6. **Check** — validate quality automatically
+7. **Export** — deploy to production
+
+No CSS written. No component libraries researched. No design-to-code handoff. Just ideas → working app.
+
+---
+
+*Built with [Coherent Design Method](https://github.com/skovtun/coherent-design-method). Install with `npm install -g @getcoherent/cli`.*
