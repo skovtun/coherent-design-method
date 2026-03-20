@@ -362,6 +362,30 @@ export default function Page() {
     expect(fixed).not.toContain('bg-blue-600')
     expect(fixed).toContain('bg-primary')
   })
+
+  it('replaces raw colors with hover/focus state prefixes', async () => {
+    const code = `export default function Page() {
+  return <div className="hover:bg-orange-400 focus:text-amber-500 p-4">Test</div>
+}`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).not.toContain('hover:bg-orange-400')
+    expect(fixed).not.toContain('focus:text-amber-500')
+    expect(fixed).toContain('hover:bg-primary/20')
+    expect(fixed).toContain('focus:text-primary')
+  })
+
+  it('replaces ring and gradient raw colors', async () => {
+    const code = `export default function Page() {
+  return <div className="ring-indigo-500 from-blue-500 to-blue-200">Test</div>
+}`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).not.toContain('ring-indigo-500')
+    expect(fixed).not.toContain('from-blue-500')
+    expect(fixed).not.toContain('to-blue-200')
+    expect(fixed).toContain('ring-primary')
+    expect(fixed).toContain('from-primary')
+    expect(fixed).toContain('to-primary/20')
+  })
 })
 
 describe('autoFixCode — DOM nesting fix', () => {

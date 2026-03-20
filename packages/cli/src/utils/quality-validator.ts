@@ -6,7 +6,7 @@ export interface QualityIssue {
 }
 
 const RAW_COLOR_RE =
-  /(?:bg|text|border)-(gray|blue|red|green|yellow|purple|pink|indigo|orange|slate|zinc|stone|neutral|emerald|teal|cyan|sky|violet|fuchsia|rose|amber|lime)-\d+/g
+  /(?:(?:hover|focus|active|group-hover|focus-visible|focus-within):)?(?:bg|text|border|ring|outline|from|to|via)-(gray|blue|red|green|yellow|purple|pink|indigo|orange|slate|zinc|stone|neutral|emerald|teal|cyan|sky|violet|fuchsia|rose|amber|lime)-\d+/g
 const HEX_IN_CLASS_RE = /className="[^"]*#[0-9a-fA-F]{3,8}[^"]*"/g
 const TEXT_BASE_RE = /\btext-base\b/g
 const HEAVY_SHADOW_RE = /\bshadow-(md|lg|xl|2xl)\b/g
@@ -501,83 +501,90 @@ function replaceRawColors(classes: string, colorMap: Record<string, string>): { 
   let result = classes
 
   const accentColorRe =
-    /\b(bg|text|border)-(emerald|blue|violet|indigo|purple|teal|cyan|sky|rose|amber|red|green|yellow|pink|orange|fuchsia|lime)-(\d+)\b/g
-  result = result.replace(accentColorRe, (m, prefix: string, color: string, shade: string) => {
-    if (colorMap[m]) {
+    /\b((?:(?:hover|focus|active|group-hover|focus-visible|focus-within):)?)(bg|text|border|ring|outline|from|to|via)-(emerald|blue|violet|indigo|purple|teal|cyan|sky|rose|amber|red|green|yellow|pink|orange|fuchsia|lime)-(\d+)\b/g
+  result = result.replace(accentColorRe, (m, statePrefix: string, prefix: string, color: string, shade: string) => {
+    const bare = m.replace(statePrefix, '')
+    if (colorMap[bare]) {
       changed = true
-      return colorMap[m]
+      return statePrefix + colorMap[bare]
     }
     const n = parseInt(shade)
     const isDestructive = color === 'red'
     if (prefix === 'bg') {
       if (n >= 500 && n <= 700) {
         changed = true
-        return isDestructive ? 'bg-destructive' : 'bg-primary'
+        return statePrefix + (isDestructive ? 'bg-destructive' : 'bg-primary')
       }
       if (n >= 100 && n <= 200) {
         changed = true
-        return isDestructive ? 'bg-destructive/10' : 'bg-primary/10'
+        return statePrefix + (isDestructive ? 'bg-destructive/10' : 'bg-primary/10')
       }
       if (n >= 300 && n <= 400) {
         changed = true
-        return isDestructive ? 'bg-destructive/20' : 'bg-primary/20'
+        return statePrefix + (isDestructive ? 'bg-destructive/20' : 'bg-primary/20')
       }
       if (n >= 800) {
         changed = true
-        return 'bg-muted'
+        return statePrefix + 'bg-muted'
       }
     }
     if (prefix === 'text') {
       if (n >= 400 && n <= 600) {
         changed = true
-        return isDestructive ? 'text-destructive' : 'text-primary'
+        return statePrefix + (isDestructive ? 'text-destructive' : 'text-primary')
       }
       if (n >= 100 && n <= 300) {
         changed = true
-        return 'text-foreground'
+        return statePrefix + 'text-foreground'
       }
       if (n >= 700) {
         changed = true
-        return 'text-foreground'
+        return statePrefix + 'text-foreground'
       }
     }
-    if (prefix === 'border') {
+    if (prefix === 'border' || prefix === 'ring' || prefix === 'outline') {
       changed = true
-      return isDestructive ? 'border-destructive' : 'border-primary'
+      return statePrefix + (isDestructive ? `${prefix}-destructive` : `${prefix}-primary`)
+    }
+    if (prefix === 'from' || prefix === 'to' || prefix === 'via') {
+      changed = true
+      if (n >= 100 && n <= 300) return statePrefix + (isDestructive ? `${prefix}-destructive/20` : `${prefix}-primary/20`)
+      return statePrefix + (isDestructive ? `${prefix}-destructive` : `${prefix}-primary`)
     }
     return m
   })
 
-  const neutralColorRe = /\b(bg|text|border)-(zinc|slate|gray|neutral|stone)-(\d+)\b/g
-  result = result.replace(neutralColorRe, (m, prefix: string, _color: string, shade: string) => {
-    if (colorMap[m]) {
+  const neutralColorRe = /\b((?:(?:hover|focus|active|group-hover|focus-visible|focus-within):)?)(bg|text|border|ring|outline)-(zinc|slate|gray|neutral|stone)-(\d+)\b/g
+  result = result.replace(neutralColorRe, (m, statePrefix: string, prefix: string, _color: string, shade: string) => {
+    const bare = m.replace(statePrefix, '')
+    if (colorMap[bare]) {
       changed = true
-      return colorMap[m]
+      return statePrefix + colorMap[bare]
     }
     const n = parseInt(shade)
     if (prefix === 'bg') {
       if (n >= 800) {
         changed = true
-        return 'bg-background'
+        return statePrefix + 'bg-background'
       }
       if (n >= 100 && n <= 300) {
         changed = true
-        return 'bg-muted'
+        return statePrefix + 'bg-muted'
       }
     }
     if (prefix === 'text') {
       if (n >= 100 && n <= 300) {
         changed = true
-        return 'text-foreground'
+        return statePrefix + 'text-foreground'
       }
       if (n >= 400 && n <= 600) {
         changed = true
-        return 'text-muted-foreground'
+        return statePrefix + 'text-muted-foreground'
       }
     }
-    if (prefix === 'border') {
+    if (prefix === 'border' || prefix === 'ring' || prefix === 'outline') {
       changed = true
-      return 'border-border'
+      return statePrefix + `${prefix === 'border' ? 'border-border' : `${prefix}-ring`}`
     }
     return m
   })
