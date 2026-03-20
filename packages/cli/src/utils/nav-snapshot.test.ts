@@ -13,9 +13,7 @@ describe('nav-snapshot', () => {
   })
 
   it('detects change when a page is added', () => {
-    const before = takeNavSnapshot([
-      { label: 'Dashboard', href: '/dashboard' },
-    ])
+    const before = takeNavSnapshot([{ label: 'Dashboard', href: '/dashboard' }])
     const after = takeNavSnapshot([
       { label: 'Dashboard', href: '/dashboard' },
       { label: 'Projects', href: '/projects' },
@@ -28,19 +26,13 @@ describe('nav-snapshot', () => {
       { label: 'Dashboard', href: '/dashboard' },
       { label: 'Projects', href: '/projects' },
     ])
-    const after = takeNavSnapshot([
-      { label: 'Dashboard', href: '/dashboard' },
-    ])
+    const after = takeNavSnapshot([{ label: 'Dashboard', href: '/dashboard' }])
     expect(hasNavChanged(before, after)).toBe(true)
   })
 
   it('detects change when a label is renamed', () => {
-    const before = takeNavSnapshot([
-      { label: 'Dashboard', href: '/dashboard' },
-    ])
-    const after = takeNavSnapshot([
-      { label: 'Home', href: '/dashboard' },
-    ])
+    const before = takeNavSnapshot([{ label: 'Dashboard', href: '/dashboard' }])
+    const after = takeNavSnapshot([{ label: 'Home', href: '/dashboard' }])
     expect(hasNavChanged(before, after)).toBe(true)
   })
 

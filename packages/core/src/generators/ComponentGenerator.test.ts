@@ -70,6 +70,7 @@ const minimalConfig: DesignSystemConfig = {
   },
   layoutBlocks: [],
   settings: {
+    initialized: true,
     appType: 'multi-page',
     framework: 'next',
     typescript: true,
