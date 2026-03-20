@@ -367,8 +367,32 @@ function basicAPI(id: string, name: string, _category: Category): ComponentAPI {
 export class ShadcnProvider implements ComponentProvider {
   readonly id = 'shadcn'
 
-  async init(_projectRoot: string): Promise<void> {
-    // Implemented in Task 2.3
+  async init(projectRoot: string): Promise<void> {
+    const componentsJsonPath = path.join(projectRoot, 'components.json')
+    if (fsExistsSync(componentsJsonPath)) return
+
+    const componentsJson = {
+      $schema: 'https://ui.shadcn.com/schema.json',
+      style: 'new-york',
+      tailwind: {
+        config: 'tailwind.config.ts',
+        css: 'app/globals.css',
+        baseColor: 'neutral',
+        cssVariables: true,
+      },
+      rsc: true,
+      tsx: true,
+      aliases: {
+        components: '@/components',
+        utils: '@/lib/utils',
+        ui: '@/components/ui',
+        lib: '@/lib',
+        hooks: '@/hooks',
+      },
+    }
+
+    const { writeFileSync } = await import('node:fs')
+    writeFileSync(componentsJsonPath, JSON.stringify(componentsJson, null, 2) + '\n')
   }
 
   async install(name: string, projectRoot: string, deps: InstallDeps = defaultDeps): Promise<void> {

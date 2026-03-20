@@ -1,5 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ShadcnProvider } from './shadcn-provider.js'
+import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import * as path from 'node:path'
 
 describe('ShadcnProvider', () => {
   const provider = new ShadcnProvider()
@@ -124,5 +127,44 @@ describe('ShadcnProvider.install()', () => {
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('using bundled template'),
     )
+  })
+})
+
+describe('ShadcnProvider.init()', () => {
+  const provider = new ShadcnProvider()
+  let tmpDir: string
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(path.join(tmpdir(), 'shadcn-init-'))
+  })
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true })
+  })
+
+  it('creates components.json with correct structure', async () => {
+    await provider.init(tmpDir)
+
+    const jsonPath = path.join(tmpDir, 'components.json')
+    expect(existsSync(jsonPath)).toBe(true)
+
+    const content = JSON.parse(readFileSync(jsonPath, 'utf-8'))
+    expect(content.$schema).toBe('https://ui.shadcn.com/schema.json')
+    expect(content.style).toBe('new-york')
+    expect(content.rsc).toBe(true)
+    expect(content.tsx).toBe(true)
+    expect(content.aliases.ui).toBe('@/components/ui')
+    expect(content.aliases.utils).toBe('@/lib/utils')
+  })
+
+  it('does not overwrite existing components.json', async () => {
+    const jsonPath = path.join(tmpDir, 'components.json')
+    writeFileSync(jsonPath, JSON.stringify({ custom: true }))
+
+    await provider.init(tmpDir)
+
+    const content = JSON.parse(readFileSync(jsonPath, 'utf-8'))
+    expect(content.custom).toBe(true)
+    expect(content.$schema).toBeUndefined()
   })
 })
