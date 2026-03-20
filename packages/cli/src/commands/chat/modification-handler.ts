@@ -504,19 +504,24 @@ export async function applyModification(
       if (aiPageCode) {
         finalPageCode = aiPageCode
         if (DEBUG) console.log(chalk.dim(`  [pageCode] Using AI-generated pageCode (user content priority)`))
-      } else if (page.pageType && page.structuredContent) {
-        const templateFn = getTemplateForPageType(page.pageType)
-        if (templateFn) {
-          try {
-            const pageName = (page.name || 'Page').replace(/\s+/g, '')
-            const opts: TemplateOptions = {
-              route: page.route || `/${page.id || 'page'}`,
-              pageName,
+      } else {
+        const inferredType = page.pageType || inferPageType(page.route || '', page.name || '')
+        if (inferredType) {
+          const templateFn = getTemplateForPageType(inferredType)
+          if (templateFn) {
+            try {
+              const pageName = (page.name || 'Page').replace(/\s+/g, '')
+              const opts: TemplateOptions = {
+                route: page.route || `/${page.id || 'page'}`,
+                pageName,
+              }
+              const content = page.structuredContent || getDefaultContent(inferredType, page.name || pageName)
+              finalPageCode = templateFn(content, opts)
+              if (DEBUG)
+                console.log(chalk.dim(`  [template] Used "${inferredType}" template (inferred from route/name)`))
+            } catch {
+              if (DEBUG) console.log(chalk.dim(`  [template] Failed for "${inferredType}"`))
             }
-            finalPageCode = templateFn(page.structuredContent, opts)
-            if (DEBUG) console.log(chalk.dim(`  [template] Used "${page.pageType}" template (no pageCode provided)`))
-          } catch {
-            if (DEBUG) console.log(chalk.dim(`  [template] Failed for "${page.pageType}"`))
           }
         }
       }
@@ -901,4 +906,49 @@ export async function applyModification(
         modified: [],
       }
   }
+}
+
+function inferPageType(route: string, name: string): string | null {
+  const key = (route + ' ' + name).toLowerCase()
+  if (/\blogin\b|\bsign.?in\b/.test(key)) return 'login'
+  if (/\bregister\b|\bsign.?up\b/.test(key)) return 'register'
+  if (/\bdashboard\b/.test(key)) return 'dashboard'
+  if (/\bpric(e|ing)\b/.test(key)) return 'pricing'
+  if (/\bfaq\b/.test(key)) return 'faq'
+  if (/\bcontact\b/.test(key)) return 'contact'
+  if (/\bblog\b/.test(key)) return 'blog'
+  if (/\bchangelog\b/.test(key)) return 'changelog'
+  if (/\babout\b/.test(key)) return 'about'
+  if (/\bsetting/i.test(key)) return 'settings'
+  return null
+}
+
+function getDefaultContent(pageType: string, pageName: string): Record<string, unknown> {
+  const defaults: Record<string, Record<string, unknown>> = {
+    login: {
+      title: 'Welcome back',
+      description: 'Sign in to your account to continue',
+    },
+    register: {
+      title: 'Create an account',
+      description: 'Get started with your free account',
+    },
+    dashboard: {
+      title: 'Dashboard',
+      description: `Welcome to your ${pageName} dashboard`,
+    },
+    pricing: {
+      title: 'Pricing',
+      description: 'Choose the plan that works for you',
+    },
+    faq: {
+      title: 'Frequently Asked Questions',
+      description: 'Find answers to common questions',
+    },
+    contact: {
+      title: 'Contact Us',
+      description: 'Get in touch with our team',
+    },
+  }
+  return defaults[pageType] || { title: pageName, description: '' }
 }

@@ -924,10 +924,21 @@ export function Header() {
 
     const hasMarketingLinks = marketingLinks.length > 0
     const companyColumn = hasMarketingLinks
-      ? `            <div className="flex flex-col space-y-3">
-              <p className="text-sm font-medium text-foreground">Company</p>
+      ? `          <div className="flex flex-col space-y-3">
+            <p className="text-sm font-medium text-foreground">Company</p>
 ${marketingLinkElements}
-            </div>`
+          </div>`
+      : ''
+
+    const hasProductLinks = appLinks.length > 0
+    const colCount = 1 + (hasProductLinks ? 1 : 0) + (hasMarketingLinks ? 1 : 0)
+    const mdGridCols = `md:grid-cols-${colCount}`
+
+    const productColumn = hasProductLinks
+      ? `          <div className="flex flex-col space-y-3">
+            <p className="text-sm font-medium text-foreground">Product</p>
+${linkElements}
+          </div>`
       : ''
 
     return `'use client'
@@ -941,8 +952,8 @@ export function Footer() {
   return (
     <footer className="border-t bg-muted/30">
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 gap-8 py-10 md:grid-cols-4">
-          <div className="col-span-2 md:col-span-1">
+        <div className="grid grid-cols-1 gap-8 py-10 ${mdGridCols}">
+          <div>
             <Link href="/" className="text-sm font-semibold text-foreground hover:text-foreground/90 transition-colors">
               ${appName}
             </Link>
@@ -950,10 +961,7 @@ export function Footer() {
               Modern project management for teams of all sizes.
             </p>
           </div>
-          <div className="flex flex-col space-y-3">
-            <p className="text-sm font-medium text-foreground">Product</p>
-${linkElements}
-          </div>
+${productColumn}
 ${companyColumn}
         </div>
         <div className="flex items-center justify-between border-t py-6 text-xs text-muted-foreground">

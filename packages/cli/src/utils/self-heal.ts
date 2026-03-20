@@ -228,10 +228,12 @@ export function ensureUseClientIfNeeded(code: string): string {
 }
 
 /** Escape apostrophes in metadata title/description single-quoted strings.
- *  Also fixes AI-generated strings where \' at end-of-line escapes the closing quote. */
+ *  Also fixes AI-generated strings where \' escapes the closing quote. */
 export function sanitizeMetadataStrings(code: string): string {
-  // Step 1: fix \' at end-of-line in ALL property values (AI escapes closing quote → unterminated string)
-  let out = code.replace(/(:\s*'.+)\\'(\s*)$/gm, "$1'$2")
+  // Step 1a: fix \' before }, ], or , (AI escapes closing quote in object/array literals)
+  let out = code.replace(/\\'(\s*[}\],])/g, "'$1")
+  // Step 1b: fix \' at end-of-line (catch-all)
+  out = out.replace(/(:\s*'.+)\\'(\s*)$/gm, "$1'$2")
   // Step 2: escape internal apostrophes in metadata strings
   for (const key of ['description', 'title']) {
     const re = new RegExp(`\\b${key}:\\s*'((?:[^'\\\\]|'(?![,}]))*)'`, 'gs')
@@ -242,7 +244,9 @@ export function sanitizeMetadataStrings(code: string): string {
 
 /** Fix single-quoted strings where AI escapes the closing quote: 'text.\' → 'text.' */
 export function fixEscapedClosingQuotes(code: string): string {
-  return code.replace(/(:\s*'.+)\\'(\s*)$/gm, "$1'$2")
+  let out = code.replace(/\\'(\s*[}\],])/g, "'$1")
+  out = out.replace(/(:\s*'.+)\\'(\s*)$/gm, "$1'$2")
+  return out
 }
 
 /** Fix unescaped < in JSX text content (AI generates e.g. "<50ms" as literal text, invalid JSX).

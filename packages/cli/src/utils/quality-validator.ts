@@ -603,8 +603,10 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
   let fixed = code
 
   // Fix escaped closing quotes in single-quoted strings (AI outputs: 'text.\'' → unterminated)
-  // Line-by-line: ': value\' at end-of-line means AI escaped the closing quote
   const beforeQuoteFix = fixed
+  // Pattern 1: \' before }, ], or , (AI escaped closing quote in object/array literal)
+  fixed = fixed.replace(/\\'(\s*[}\],])/g, "'$1")
+  // Pattern 2: \' at end of line (original catch-all)
   fixed = fixed.replace(/(:\s*'.+)\\'(\s*)$/gm, "$1'$2")
   if (fixed !== beforeQuoteFix) {
     fixes.push('fixed escaped closing quotes in strings')
@@ -982,6 +984,28 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
         fixed = fixed.replace(origLine, `import { ${allNames.join(', ')} } from "lucide-react"`)
         fixes.push(`added missing lucide imports: ${missing.join(', ')}`)
       }
+    }
+  }
+
+  // Ensure lucide icons have shrink-0 to prevent flex containers from squishing them
+  const lucideNamesMatch = fixed.match(/import\s*\{([^}]+)\}\s*from\s*["']lucide-react["']/)
+  if (lucideNamesMatch) {
+    const lucideNames = new Set(
+      lucideNamesMatch[1]
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean),
+    )
+    const beforeShrinkFix = fixed
+    for (const iconName of lucideNames) {
+      const iconRe = new RegExp(`(<${iconName}\\s[^>]*className=")([^"]*)(")`, 'g')
+      fixed = fixed.replace(iconRe, (_m, pre: string, classes: string, post: string) => {
+        if (/\bshrink-0\b/.test(classes)) return _m
+        return `${pre}${classes} shrink-0${post}`
+      })
+    }
+    if (fixed !== beforeShrinkFix) {
+      fixes.push('added shrink-0 to icons')
     }
   }
 

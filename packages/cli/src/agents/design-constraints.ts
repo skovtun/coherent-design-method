@@ -97,6 +97,7 @@ LINKS & INTERACTIVE STATES (consistency is critical):
 
 ICONS:
 - Size: ALWAYS size-4 (16px). Color: ALWAYS text-muted-foreground. Import: ALWAYS from lucide-react.
+- ALWAYS add shrink-0 to icon className to prevent flex containers from squishing them.
 
 ANTI-PATTERNS (NEVER DO):
 - text-base as body text → use text-sm

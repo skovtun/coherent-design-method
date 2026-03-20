@@ -388,6 +388,36 @@ export default function Page() {
   })
 })
 
+describe('autoFixCode — escaped closing quotes', () => {
+  it('fixes escaped closing quote before }', async () => {
+    const code = `export default function Page() {
+  const tasks = [
+    { id: '1', description: 'Conduct user interviews and analyze current website analytics\\' },
+    { id: '2', description: 'Design wireframes\\' },
+  ]
+  return <div>{tasks.map(t => <p key={t.id}>{t.description}</p>)}</div>
+}`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain("analytics' }")
+    expect(fixed).toContain("wireframes' }")
+    expect(fixed).not.toContain("\\'")
+    expect(fixes).toContain('fixed escaped closing quotes in strings')
+  })
+
+  it('fixes escaped closing quote before ]', async () => {
+    const code = `const items = ['first\\', 'second\\']`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain("'first'")
+    expect(fixed).toContain("'second'")
+  })
+
+  it('preserves legitimate escaped apostrophes', async () => {
+    const code = `const s = 'it\\'s a test'`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain("\\'s a test")
+  })
+})
+
 describe('autoFixCode — DOM nesting fix', () => {
   it('adds asChild when Button is inside Link', async () => {
     const code = `import Link from 'next/link'

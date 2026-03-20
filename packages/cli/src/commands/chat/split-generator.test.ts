@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseNavTypeFromPlan } from './split-generator.js'
+import { parseNavTypeFromPlan, extractAppNameFromPrompt } from './split-generator.js'
 
 describe('parseNavTypeFromPlan', () => {
   it('extracts sidebar navType from plan response', () => {
@@ -39,5 +39,27 @@ describe('parseNavTypeFromPlan', () => {
       navigation: null,
     }
     expect(parseNavTypeFromPlan(planResult)).toBe('header')
+  })
+})
+
+describe('extractAppNameFromPrompt', () => {
+  it('extracts name from "called X"', () => {
+    expect(extractAppNameFromPrompt('Build a project management app called TaskFlow')).toBe('TaskFlow')
+  })
+
+  it('extracts name from quoted "called"', () => {
+    expect(extractAppNameFromPrompt('Create an app called "MyApp"')).toBe('MyApp')
+  })
+
+  it('extracts name from "build X app"', () => {
+    expect(extractAppNameFromPrompt('build TaskFlow app with dashboard')).toBe('TaskFlow')
+  })
+
+  it('returns null when no app name', () => {
+    expect(extractAppNameFromPrompt('add a login page and dashboard')).toBeNull()
+  })
+
+  it('skips generic words', () => {
+    expect(extractAppNameFromPrompt('build a new app with login')).toBeNull()
   })
 })

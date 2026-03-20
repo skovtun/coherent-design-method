@@ -132,6 +132,11 @@ export async function splitGeneratePages(
     spinner.text = 'AI plan failed — extracting pages from your request...'
   }
 
+  if (modCtx.config.name === 'My App') {
+    const nameFromPrompt = extractAppNameFromPrompt(message)
+    if (nameFromPrompt) modCtx.config.name = nameFromPrompt
+  }
+
   if (pageNames.length === 0) {
     pageNames = extractPageNamesFromMessage(message)
   }
@@ -284,4 +289,22 @@ export async function splitGeneratePages(
   const withCode = allRequests.filter(r => (r.changes as Record<string, unknown>)?.pageCode).length
   spinner.succeed(`Phase 4/4 — Generated ${allRequests.length} pages (${withCode} with full code)`)
   return allRequests
+}
+
+export function extractAppNameFromPrompt(prompt: string): string | null {
+  const patterns = [
+    /(?:called|named|app\s+name)\s+["']([^"']+)["']/i,
+    /(?:called|named|app\s+name)\s+(\S+)/i,
+    /\b(?:build|create|make)\s+(?:a\s+)?(\S+)\s+(?:app|platform|tool|dashboard|website|saas)/i,
+  ]
+  for (const re of patterns) {
+    const m = prompt.match(re)
+    if (m && m[1] && m[1].length >= 2 && m[1].length <= 30) {
+      const name = m[1].replace(/[.,;:!?]$/, '')
+      const skip = new Set(['a', 'an', 'the', 'my', 'our', 'new', 'full', 'complete', 'simple', 'modern', 'beautiful'])
+      if (skip.has(name.toLowerCase())) continue
+      return name.charAt(0).toUpperCase() + name.slice(1)
+    }
+  }
+  return null
 }
