@@ -411,6 +411,9 @@ export type Features = z.infer<typeof FeaturesSchema>
  * This is the single source of truth
  */
 export const DesignSystemConfigSchema = z.object({
+  // Component provider
+  provider: z.enum(['shadcn', 'custom']).default('shadcn'),
+
   // Metadata
   version: z.string().default('1.0.0'),
   coherentVersion: z.string().optional(), // CLI version that created this project
@@ -626,6 +629,7 @@ export function getPage(config: DesignSystemConfig, route: string): PageDefiniti
  * Example: Minimal valid config for Multi-page app
  */
 export const EXAMPLE_MULTIPAGE_CONFIG: DesignSystemConfig = {
+  provider: 'shadcn',
   version: '1.0.0',
   name: 'My Multi-page App',
   description: 'A beautiful multi-page application',

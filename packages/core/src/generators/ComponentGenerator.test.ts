@@ -7,6 +7,7 @@ import { ComponentGenerator } from './ComponentGenerator.js'
 import type { DesignSystemConfig, ComponentDefinition } from '../types/design-system.js'
 
 const minimalConfig: DesignSystemConfig = {
+  provider: 'shadcn',
   version: '1.0.0',
   coherentVersion: '0.1.0',
   frameworkVersions: { next: '15.2.4', react: '18.3.1', tailwind: '3.4.17' },
