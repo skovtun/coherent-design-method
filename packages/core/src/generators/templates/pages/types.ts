@@ -140,6 +140,15 @@ export interface FaqContent extends BasePageContent {
   }>
 }
 
+export interface LoginContent extends BasePageContent {
+  forgotPasswordRoute?: string
+  registerRoute?: string
+}
+
+export interface RegisterContent extends BasePageContent {
+  loginRoute?: string
+}
+
 export interface ChangelogContent extends BasePageContent {
   versions: Array<{
     version: string
@@ -170,3 +179,5 @@ export type PageContent =
   | { pageType: 'gallery'; content: GalleryContent }
   | { pageType: 'faq'; content: FaqContent }
   | { pageType: 'changelog'; content: ChangelogContent }
+  | { pageType: 'login'; content: LoginContent }
+  | { pageType: 'register'; content: RegisterContent }

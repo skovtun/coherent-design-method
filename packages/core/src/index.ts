@@ -37,6 +37,8 @@ export type {
   GalleryContent,
   FaqContent,
   ChangelogContent,
+  LoginContent,
+  RegisterContent,
   PageContent,
 } from './generators/templates/pages/index'
 export * from './types/figma'

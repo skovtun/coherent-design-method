@@ -10,6 +10,8 @@ import { onboardingTemplate } from './onboarding.js'
 import { galleryTemplate } from './gallery.js'
 import { faqTemplate } from './faq.js'
 import { changelogTemplate } from './changelog.js'
+import { loginTemplate } from './login.js'
+import { registerTemplate } from './register.js'
 import type { TemplateOptions } from './types.js'
 
 export type { TemplateOptions } from './types.js'
@@ -26,6 +28,8 @@ export type {
   GalleryContent,
   FaqContent,
   ChangelogContent,
+  LoginContent,
+  RegisterContent,
   PageContent,
 } from './types.js'
 
@@ -44,6 +48,8 @@ const TEMPLATE_REGISTRY: Record<string, TemplateFn> = {
   gallery: galleryTemplate,
   faq: faqTemplate,
   changelog: changelogTemplate,
+  login: loginTemplate,
+  register: registerTemplate,
 }
 
 export function getTemplateForPageType(pageType: string): TemplateFn | null {
