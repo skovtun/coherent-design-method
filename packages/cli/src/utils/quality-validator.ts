@@ -496,6 +496,98 @@ export function validatePageQuality(code: string, validRoutes?: string[]): Quali
   return issues
 }
 
+function replaceRawColors(
+  classes: string,
+  colorMap: Record<string, string>,
+): { result: string; changed: boolean } {
+  let changed = false
+  let result = classes
+
+  const accentColorRe =
+    /\b(bg|text|border)-(emerald|blue|violet|indigo|purple|teal|cyan|sky|rose|amber|red|green|yellow|pink|orange|fuchsia|lime)-(\d+)\b/g
+  result = result.replace(accentColorRe, (m, prefix: string, color: string, shade: string) => {
+    if (colorMap[m]) {
+      changed = true
+      return colorMap[m]
+    }
+    const n = parseInt(shade)
+    const isDestructive = color === 'red'
+    if (prefix === 'bg') {
+      if (n >= 500 && n <= 700) {
+        changed = true
+        return isDestructive ? 'bg-destructive' : 'bg-primary'
+      }
+      if (n >= 100 && n <= 200) {
+        changed = true
+        return isDestructive ? 'bg-destructive/10' : 'bg-primary/10'
+      }
+      if (n >= 300 && n <= 400) {
+        changed = true
+        return isDestructive ? 'bg-destructive/20' : 'bg-primary/20'
+      }
+      if (n >= 800) {
+        changed = true
+        return 'bg-muted'
+      }
+    }
+    if (prefix === 'text') {
+      if (n >= 400 && n <= 600) {
+        changed = true
+        return isDestructive ? 'text-destructive' : 'text-primary'
+      }
+      if (n >= 100 && n <= 300) {
+        changed = true
+        return 'text-foreground'
+      }
+      if (n >= 700) {
+        changed = true
+        return 'text-foreground'
+      }
+    }
+    if (prefix === 'border') {
+      changed = true
+      return isDestructive ? 'border-destructive' : 'border-primary'
+    }
+    return m
+  })
+
+  const neutralColorRe = /\b(bg|text|border)-(zinc|slate|gray|neutral|stone)-(\d+)\b/g
+  result = result.replace(neutralColorRe, (m, prefix: string, _color: string, shade: string) => {
+    if (colorMap[m]) {
+      changed = true
+      return colorMap[m]
+    }
+    const n = parseInt(shade)
+    if (prefix === 'bg') {
+      if (n >= 800) {
+        changed = true
+        return 'bg-background'
+      }
+      if (n >= 100 && n <= 300) {
+        changed = true
+        return 'bg-muted'
+      }
+    }
+    if (prefix === 'text') {
+      if (n >= 100 && n <= 300) {
+        changed = true
+        return 'text-foreground'
+      }
+      if (n >= 400 && n <= 600) {
+        changed = true
+        return 'text-muted-foreground'
+      }
+    }
+    if (prefix === 'border') {
+      changed = true
+      return 'border-border'
+    }
+    return m
+  })
+
+  return { result, changed }
+}
+
 /**
  * Auto-fix simple, safe issues in generated code.
  * Returns { code, fixes } where fixes lists what was changed.
@@ -691,91 +783,41 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
     if (isCodeContext(classes)) return fullMatch
     if (isInsideTerminalBlock(offset)) return fullMatch
 
-    let result = classes
-    const accentColorRe =
-      /\b(bg|text|border)-(emerald|blue|violet|indigo|purple|teal|cyan|sky|rose|amber|red|green|yellow|pink|orange|fuchsia|lime)-(\d+)\b/g
-    result = result.replace(accentColorRe, (m, prefix: string, color: string, shade: string) => {
-      if (colorMap[m]) {
-        hadColorFix = true
-        return colorMap[m]
-      }
-      const n = parseInt(shade)
-      const isDestructive = color === 'red'
-      if (prefix === 'bg') {
-        if (n >= 500 && n <= 700) {
-          hadColorFix = true
-          return isDestructive ? 'bg-destructive' : 'bg-primary'
-        }
-        if (n >= 100 && n <= 200) {
-          hadColorFix = true
-          return isDestructive ? 'bg-destructive/10' : 'bg-primary/10'
-        }
-        if (n >= 300 && n <= 400) {
-          hadColorFix = true
-          return isDestructive ? 'bg-destructive/20' : 'bg-primary/20'
-        }
-        if (n >= 800) {
-          hadColorFix = true
-          return 'bg-muted'
-        }
-      }
-      if (prefix === 'text') {
-        if (n >= 400 && n <= 600) {
-          hadColorFix = true
-          return isDestructive ? 'text-destructive' : 'text-primary'
-        }
-        if (n >= 100 && n <= 300) {
-          hadColorFix = true
-          return 'text-foreground'
-        }
-        if (n >= 700) {
-          hadColorFix = true
-          return 'text-foreground'
-        }
-      }
-      if (prefix === 'border') {
-        hadColorFix = true
-        return isDestructive ? 'border-destructive' : 'border-primary'
-      }
-      return m
-    })
-    const neutralColorRe = /\b(bg|text|border)-(zinc|slate|gray|neutral|stone)-(\d+)\b/g
-    result = result.replace(neutralColorRe, (m, prefix: string, _color: string, shade: string) => {
-      if (colorMap[m]) {
-        hadColorFix = true
-        return colorMap[m]
-      }
-      const n = parseInt(shade)
-      if (prefix === 'bg') {
-        if (n >= 800) {
-          hadColorFix = true
-          return 'bg-background'
-        }
-        if (n >= 100 && n <= 300) {
-          hadColorFix = true
-          return 'bg-muted'
-        }
-      }
-      if (prefix === 'text') {
-        if (n >= 100 && n <= 300) {
-          hadColorFix = true
-          return 'text-foreground'
-        }
-        if (n >= 400 && n <= 600) {
-          hadColorFix = true
-          return 'text-muted-foreground'
-        }
-      }
-      if (prefix === 'border') {
-        hadColorFix = true
-        return 'border-border'
-      }
-      return m
-    })
-
+    const { result, changed } = replaceRawColors(classes, colorMap)
+    if (changed) hadColorFix = true
     if (result !== classes) return `className="${result}"`
     return fullMatch
   })
+
+  // Replace colors in cn()/clsx()/cva() string arguments
+  fixed = fixed.replace(/(?:cn|clsx|cva)\(([^)]*)\)/g, (fullMatch, args: string) => {
+    const replaced = args.replace(/"([^"]*)"/g, (_qm, inner: string) => {
+      const { result, changed } = replaceRawColors(inner, colorMap)
+      if (changed) hadColorFix = true
+      return `"${result}"`
+    })
+    if (replaced !== args) return fullMatch.replace(args, replaced)
+    return fullMatch
+  })
+
+  // Replace colors in single-quoted className
+  fixed = fixed.replace(/className='([^']*)'/g, (fullMatch, classes: string, offset: number) => {
+    if (isCodeContext(classes)) return fullMatch
+    if (isInsideTerminalBlock(offset)) return fullMatch
+    const { result, changed } = replaceRawColors(classes, colorMap)
+    if (changed) hadColorFix = true
+    if (result !== classes) return `className='${result}'`
+    return fullMatch
+  })
+
+  // Replace colors in template literal className
+  fixed = fixed.replace(/className=\{`([^`]*)`\}/g, (fullMatch, inner: string) => {
+    const { result, changed } = replaceRawColors(inner, colorMap)
+    if (changed) hadColorFix = true
+    if (result !== inner) return `className={\`${result}\`}`
+    return fullMatch
+  })
+
   if (hadColorFix) fixes.push('raw colors → semantic tokens')
 
   // Replace native <select> with shadcn Select

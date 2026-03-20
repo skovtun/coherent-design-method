@@ -323,6 +323,46 @@ export default function Page() {
   })
 })
 
+describe('autoFixCode — RAW_COLOR in cn()/clsx()', () => {
+  it('replaces raw colors inside cn() calls', async () => {
+    const code = `import { cn } from '@/lib/utils'
+export default function Page() {
+  return <div className={cn("bg-emerald-500 p-4", active && "text-zinc-400")}>Test</div>
+}`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).not.toContain('bg-emerald-500')
+    expect(fixed).toContain('bg-primary')
+    expect(fixed).not.toContain('text-zinc-400')
+    expect(fixed).toContain('text-muted-foreground')
+    expect(fixes).toContain('raw colors → semantic tokens')
+  })
+
+  it('replaces raw colors inside clsx() calls', async () => {
+    const code = `import clsx from 'clsx'
+export default function Page() {
+  return <div className={clsx("text-amber-500")}>Test</div>
+}`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).not.toContain('text-amber-500')
+  })
+
+  it('replaces raw colors in single-quoted className', async () => {
+    const code = `export default function Page() {
+  return <div className='bg-red-500 text-white'>Test</div>
+}`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).not.toContain('bg-red-500')
+    expect(fixed).toContain('bg-destructive')
+  })
+
+  it('replaces raw colors in template literal className', async () => {
+    const code = 'export default function Page() {\n  return <div className={`bg-blue-600 ${active ? "p-4" : ""}`}>Test</div>\n}'
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).not.toContain('bg-blue-600')
+    expect(fixed).toContain('bg-primary')
+  })
+})
+
 describe('autoFixCode — DOM nesting fix', () => {
   it('adds asChild when Button is inside Link', async () => {
     const code = `import Link from 'next/link'
