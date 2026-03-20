@@ -226,3 +226,41 @@ coherent chat --component "StatsPanel" "Redesign StatsPanel: add a sparkline min
 One edit, three pages updated. No copy-pasting, no hunting for duplicates, no inconsistencies.
 
 [Screenshot: Updated StatsPanel with sparklines on Dashboard]
+
+---
+
+## Step 11: Undo and try again
+
+Design is iterative. Sometimes an idea doesn't work out — and that's fine. Coherent keeps a backup of your project before every change.
+
+The sparklines looked too busy? Let's undo:
+
+~~~
+coherent undo
+~~~
+
+This restores the project to the state before the last `coherent chat` command. Now let's try a different design direction:
+
+~~~
+coherent chat --component "StatsPanel" "Make the StatsPanel cards more compact with smaller icons, add a thin colored left border matching the icon color, keep the trend indicator but remove the percentage — just show the arrow"
+~~~
+
+The undo → iterate cycle is how real design works. Try something, evaluate, revert if needed, try something different. No code to manage, no git conflicts — just creative exploration.
+
+[Screenshot: StatsPanel after undo (original design)]
+
+[Screenshot: StatsPanel with new design (compact, colored left border)]
+
+---
+
+## Step 12: Edit a layout component
+
+Layout components like the Header appear on every page. Editing them is just as easy — and the change is reflected site-wide.
+
+~~~
+coherent chat --component "Header" "Add a notification bell icon with a red dot badge and user avatar dropdown to the header"
+~~~
+
+[Screenshot: Header before (simple)]
+
+[Screenshot: Header after (with notification bell and avatar dropdown)]
