@@ -449,10 +449,10 @@ export function cn(...inputs: ClassValue[]) {
       if (navType === 'sidebar' || navType === 'both') {
         const sidebarCode = this.pageGenerator.generateSharedSidebarCode()
         await generateSharedComponent(this.projectRoot, {
-          name: 'Sidebar',
+          name: 'AppSidebar',
           type: 'layout',
           code: sidebarCode,
-          description: 'Vertical sidebar navigation with collapsible sections',
+          description: 'Application sidebar using shadcn/ui Sidebar components',
           usedIn: ['app/(app)/layout.tsx'],
         })
       }

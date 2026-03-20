@@ -203,22 +203,23 @@ describe('PageGenerator', () => {
       expect(header).not.toContain("from '@/components/ui/dropdown-menu'")
     })
 
-    it('generates mobile hamburger menu', () => {
+    it('uses shadcn Sheet for mobile hamburger menu', () => {
       const config = makeConfig([
         { route: '/dashboard', label: 'Dashboard' },
         { route: '/projects', label: 'Projects' },
       ])
       const gen = new PageGenerator(config)
       const header = gen.generateSharedHeaderCode()
-      expect(header).toContain('mobileOpen')
+      expect(header).toContain('Sheet')
+      expect(header).toContain('SheetContent')
+      expect(header).toContain('SheetTrigger')
       expect(header).toContain('md:hidden')
       expect(header).toContain('hidden md:flex')
-      expect(header).toContain('Toggle menu')
     })
   })
 
   describe('generateSharedSidebarCode', () => {
-    it('generates a sidebar component with nav links', () => {
+    it('uses shadcn Sidebar components', () => {
       const config = makeConfig(
         [
           { route: '/dashboard', label: 'Dashboard' },
@@ -230,15 +231,18 @@ describe('PageGenerator', () => {
       const gen = new PageGenerator(config)
       const sidebar = gen.generateSharedSidebarCode()
       expect(sidebar).toContain("'use client'")
-      expect(sidebar).toContain('export function Sidebar()')
+      expect(sidebar).toContain('export function AppSidebar()')
+      expect(sidebar).toContain('SidebarProvider')
+      expect(sidebar).toContain('SidebarMenu')
+      expect(sidebar).toContain('SidebarMenuItem')
+      expect(sidebar).toContain('SidebarMenuButton')
       expect(sidebar).toContain('href="/dashboard"')
       expect(sidebar).toContain('href="/projects"')
       expect(sidebar).toContain('href="/settings"')
       expect(sidebar).toContain('MyApp')
-      expect(sidebar).toContain('collapsed')
     })
 
-    it('renders grouped items in sections', () => {
+    it('renders grouped items with SidebarGroup', () => {
       const config = makeConfig([
         { route: '/dashboard', label: 'Dashboard' },
         { route: '/team', label: 'Team' },
@@ -248,6 +252,8 @@ describe('PageGenerator', () => {
       ;(config.navigation!.items[2] as any).group = 'Account'
       const gen = new PageGenerator(config)
       const sidebar = gen.generateSharedSidebarCode()
+      expect(sidebar).toContain('SidebarGroup')
+      expect(sidebar).toContain('SidebarGroupLabel')
       expect(sidebar).toContain('Account')
       expect(sidebar).toContain('href="/team"')
       expect(sidebar).toContain('href="/settings"')

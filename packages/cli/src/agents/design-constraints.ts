@@ -396,10 +396,17 @@ BREADCRUMB:
 - Placement: top of page content, before page title.
 - Max items: show first, last, up to 2 middle. Use BreadcrumbEllipsis for deeper paths.
 
+IN-PAGE NAVIGATION (e.g. Settings tabs, Profile sections):
+- For in-page navigation with <= 5 items, use shadcn Tabs (vertical orientation via orientation="vertical").
+- Do NOT use the full Sidebar component for in-page navigation.
+- Tabs variant for settings: left-side vertical tabs with TabsList + TabsContent.
+- Pattern: <Tabs defaultValue="general" orientation="vertical" className="flex gap-6"><TabsList className="flex-col h-auto"><TabsTrigger value="general">General</TabsTrigger></TabsList><TabsContent value="general">...</TabsContent></Tabs>
+
 SIDEBAR LAYOUT:
-- Desktop: fixed sidebar (w-64) + main content. Mobile: Sheet from left triggered by hamburger.
-- Sidebar structure: logo/brand top → nav items (space-y-1) → user/settings bottom.
-- Each nav item: <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
+- Use shadcn Sidebar component (SidebarProvider, Sidebar, SidebarContent, SidebarMenu, etc.).
+- Desktop: collapsible sidebar + main content. Mobile: Sheet from left triggered by SidebarTrigger.
+- Sidebar structure: SidebarHeader (logo/brand) → SidebarContent (SidebarGroup with SidebarMenu) → SidebarFooter (user/settings).
+- Each nav item: <SidebarMenuItem><SidebarMenuButton asChild isActive={active}><Link href="...">Label</Link></SidebarMenuButton></SidebarMenuItem>
 - Active: add bg-accent text-accent-foreground font-medium.
 - Sidebar collapse: hidden on mobile (md:flex), Sheet trigger visible (md:hidden).
 

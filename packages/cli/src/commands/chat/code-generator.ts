@@ -188,10 +188,10 @@ export async function regenerateLayout(
         if (await canOverwriteShared(projectRoot, 'components/shared/sidebar.tsx', hashes)) {
           const sidebarCode = generator.generateSharedSidebarCode()
           await generateSharedComponent(projectRoot, {
-            name: 'Sidebar',
+            name: 'AppSidebar',
             type: 'layout',
             code: sidebarCode,
-            description: 'Vertical sidebar navigation with collapsible sections',
+            description: 'Application sidebar using shadcn/ui Sidebar components',
             usedIn: ['app/(app)/layout.tsx'],
             overwrite: true,
           })

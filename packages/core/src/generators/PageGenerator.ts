@@ -770,6 +770,8 @@ ${menuItems}
       ? `\nimport { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'`
       : ''
 
+    const sheetImport = `\nimport { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'`
+
     const appName = this.escapeString(this.config.name)
 
     const mobileNavItems = [...ungrouped]
@@ -795,7 +797,7 @@ ${menuItems}
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'${dropdownImport}
+import { useEffect, useState } from 'react'${dropdownImport}${sheetImport}
 
 function ThemeToggle() {
   const [dark, setDark] = useState(false)
@@ -844,26 +846,23 @@ export function Header() {
           </div>
           <div className="flex items-center gap-1">${authButtonsBlock}
             <ThemeToggle />
-            <button
-              onClick={() => setMobileOpen(!mobileOpen)}
-              className="flex md:hidden items-center justify-center w-9 h-9 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              aria-label="Toggle menu"
-            >
-              {mobileOpen ? (
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
-              )}
-            </button>
+            <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+              <SheetTrigger asChild>
+                <button
+                  className="flex md:hidden items-center justify-center w-9 h-9 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  aria-label="Toggle menu"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+                </button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-72 p-4">
+                <nav className="flex flex-col gap-1 pt-8">
+                  ${mobileLinks}${mobileAuthBlock}
+                </nav>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
-        {mobileOpen && (
-          <div className="md:hidden border-t bg-background">
-            <div className="mx-auto max-w-7xl px-4 py-3 space-y-1">
-            ${mobileLinks}${mobileAuthBlock}
-            </div>
-          </div>
-        )}
       </nav>
       <Link
         href="/design-system"
@@ -979,20 +978,14 @@ ${companyColumn}
   }
 
   /**
-   * Generate shared Sidebar component code for components/shared/sidebar.tsx.
+   * Generate shared Sidebar component code using shadcn/ui Sidebar.
    * Used when navigation.type is 'sidebar' or 'both'.
    */
   generateSharedSidebarCode(): string {
     const navItems = this.config.navigation?.items || []
     const authRoutes = new Set([
-      '/login',
-      '/signin',
-      '/sign-in',
-      '/signup',
-      '/sign-up',
-      '/register',
-      '/forgot-password',
-      '/reset-password',
+      '/login', '/signin', '/sign-in', '/signup', '/sign-up',
+      '/register', '/forgot-password', '/reset-password',
     ])
     const marketingRoutes = new Set(['/', '/landing', '/pricing', '/about', '/contact', '/blog', '/features'])
     const isSubRoute = (route: string) => route.replace(/^\//, '').split('/').length > 1
@@ -1017,39 +1010,36 @@ ${companyColumn}
       }
     }
 
-    const linkItems = ungrouped
-      .map(
-        item =>
-          `          <Link
-            href="${item.route}"
-            className={\`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors \${pathname === "${item.route}" ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}\`}
-          >
-            ${item.label}
-          </Link>`,
-      )
-      .join('\n')
+    const menuItem = (item: { route: string; label: string }) =>
+      `              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === "${item.route}"}>
+                  <Link href="${item.route}">${item.label}</Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>`
 
-    const groupBlocks: string[] = []
-    for (const [groupName, items] of grouped) {
-      const groupLinks = items
-        .map(
-          item =>
-            `              <Link
-                href="${item.route}"
-                className={\`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors \${pathname === "${item.route}" ? 'bg-muted text-foreground font-medium' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}\`}
-              >
-                ${item.label}
-              </Link>`,
-        )
-        .join('\n')
+    const ungroupedItems = ungrouped.map(menuItem).join('\n')
 
-      groupBlocks.push(`          <div className="space-y-1">
-            <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">${groupName}</p>
-${groupLinks}
-          </div>`)
-    }
+    const groupBlocks = Array.from(grouped.entries()).map(([groupName, items]) => {
+      const groupItems = items.map(menuItem).join('\n')
+      return `          <SidebarGroup>
+            <SidebarGroupLabel>${groupName}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+${groupItems}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>`
+    }).join('\n')
 
-    const allSections = [linkItems, ...groupBlocks].filter(Boolean).join('\n')
+    const mainGroup = ungroupedItems ? `          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+${ungroupedItems}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>` : ''
+
+    const allGroups = [mainGroup, groupBlocks].filter(Boolean).join('\n')
 
     const appName = this.escapeString(this.config.name)
 
@@ -1057,42 +1047,41 @@ ${groupLinks}
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+} from '@/components/ui/sidebar'
 
-export function Sidebar() {
+export function AppSidebar() {
   const pathname = usePathname()
-  const [collapsed, setCollapsed] = useState(false)
 
   if (pathname?.startsWith('/design-system')) return null
 
   return (
-    <aside className={\`shrink-0 border-r bg-muted/30 transition-all duration-200 \${collapsed ? 'w-16' : 'w-64'}\`}>
-      <div className="flex h-14 items-center justify-between border-b px-4">
-        {!collapsed && (
-          <Link href="/" className="text-sm font-semibold text-foreground truncate">
-            ${appName}
-          </Link>
-        )}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="flex items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            {collapsed ? (
-              <><path d="m9 18 6-6-6-6"/></>
-            ) : (
-              <><path d="m15 18-6-6 6-6"/></>
-            )}
-          </svg>
-        </button>
-      </div>
-      {!collapsed && (
-        <nav className="flex flex-col gap-1 p-3">
-${allSections}
-        </nav>
-      )}
-    </aside>
+    <SidebarProvider>
+      <Sidebar>
+        <SidebarHeader>
+          <div className="flex items-center justify-between px-2 py-1">
+            <Link href="/" className="text-sm font-semibold text-foreground truncate">
+              ${appName}
+            </Link>
+            <SidebarTrigger />
+          </div>
+        </SidebarHeader>
+        <SidebarContent>
+${allGroups}
+        </SidebarContent>
+      </Sidebar>
+    </SidebarProvider>
   )
 }
 `
