@@ -766,11 +766,17 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
   })
   if (hadSelectFix) {
     fixes.push('<select> → shadcn Select')
+    const selectImport = `import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'`
     if (!/from\s+['"]@\/components\/ui\/select['"]/.test(fixed)) {
-      fixed = fixed.replace(
+      const replaced = fixed.replace(
         /(import\s+\{[^}]*\}\s+from\s+['"]@\/components\/ui\/[^'"]+['"])/,
-        `$1\nimport { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'`,
+        `$1\n${selectImport}`,
       )
+      if (replaced !== fixed) {
+        fixed = replaced
+      } else {
+        fixed = selectImport + '\n' + fixed
+      }
     }
   }
 
