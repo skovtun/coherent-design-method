@@ -279,6 +279,19 @@ export default config
     --warning: ${light.warning};
     --error: ${light.error};
     --info: ${light.info || light.primary};
+    --sidebar-background: ${light.background};
+    --sidebar-foreground: ${light.foreground};
+    --sidebar-primary: ${light.primary};
+    --sidebar-primary-foreground: ${ProjectScaffolder.contrastingForeground(light.primary)};
+    --sidebar-accent: ${light.muted};
+    --sidebar-accent-foreground: ${light.foreground};
+    --sidebar-border: ${light.border};
+    --sidebar-ring: ${light.primary};
+    --chart-1: ${light.primary};
+    --chart-2: ${light.secondary};
+    --chart-3: ${light.success};
+    --chart-4: ${light.warning};
+    --chart-5: ${light.error};
   }
 
   .dark {
@@ -305,6 +318,19 @@ export default config
     --warning: ${dark.warning};
     --error: ${dark.error};
     --info: ${dark.info || dark.primary};
+    --sidebar-background: ${dark.background};
+    --sidebar-foreground: ${dark.foreground};
+    --sidebar-primary: ${dark.primary};
+    --sidebar-primary-foreground: ${ProjectScaffolder.contrastingForeground(dark.primary)};
+    --sidebar-accent: ${dark.muted};
+    --sidebar-accent-foreground: ${dark.foreground};
+    --sidebar-border: ${dark.border};
+    --sidebar-ring: ${dark.primary};
+    --chart-1: ${dark.primary};
+    --chart-2: ${dark.secondary};
+    --chart-3: ${dark.success};
+    --chart-4: ${dark.warning};
+    --chart-5: ${dark.error};
   }
 
   * {
