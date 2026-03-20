@@ -3,7 +3,7 @@ import { ComponentManager, type DesignSystemConfig, type ModificationRequest } f
 import { parseModification } from '../../agents/modifier.js'
 import { summarizePageAnalysis } from '../../utils/page-analyzer.js'
 import { extractPageNamesFromMessage, inferRelatedPages, impliesFullWebsite } from './request-parser.js'
-import { deduplicatePages } from './utils.js'
+import { deduplicatePages, readAnchorPageCodeFromDisk } from './utils.js'
 import { pMap } from '../../utils/concurrency.js'
 
 function buildExistingPagesContext(config: DesignSystemConfig): string {
@@ -82,7 +82,7 @@ function extractStyleContext(pageCode: string): string {
 
   if (lines.length === 0) return ''
 
-  return `STYLE CONTEXT (match these patterns exactly for visual consistency with the Home page):
+  return `STYLE CONTEXT (match these patterns exactly for visual consistency with the anchor page):
 ${lines.map(l => `  - ${l}`).join('\n')}`
 }
 
@@ -98,12 +98,18 @@ export function parseNavTypeFromPlan(planResult: Record<string, unknown>): 'head
 
 export { buildExistingPagesContext, extractStyleContext }
 
+export type SplitGenerateParseOpts = {
+  sharedComponentsSummary?: string
+  /** When set and the root/anchor page exists on disk, skip Phase 2 AI and reuse file for style context */
+  projectRoot?: string
+}
+
 export async function splitGeneratePages(
   spinner: ReturnType<typeof ora>,
   message: string,
   modCtx: { config: DesignSystemConfig; componentManager: InstanceType<typeof ComponentManager> },
   provider: Parameters<typeof parseModification>[2],
-  parseOpts: { sharedComponentsSummary?: string },
+  parseOpts: SplitGenerateParseOpts,
 ): Promise<ModificationRequest[]> {
   let pageNames: Array<{ name: string; id: string; route: string }> = []
 
@@ -174,45 +180,61 @@ export async function splitGeneratePages(
   const homePage = homeIdx !== -1 ? pageNames[homeIdx] : pageNames[0]
   const remainingPages = pageNames.filter((_, i) => i !== (homeIdx !== -1 ? homeIdx : 0))
 
-  spinner.start(`Phase 2/4 — Generating ${homePage.name} page (sets design direction)...`)
+  const projectRoot = parseOpts.projectRoot
   let homeRequest: ModificationRequest | null = null
   let homePageCode = ''
-  try {
-    const homeResult = await parseModification(
-      `Create ONE page called "${homePage.name}" at route "${homePage.route}". Context: ${message}. This REPLACES the default placeholder page — generate a complete, content-rich landing page for the project described above. Generate complete pageCode. Include a branded site-wide <header> with navigation links to ALL these pages: ${allPagesList}. Use these EXACT routes in navigation: ${allRoutes}. Include a <footer> at the bottom. Make it visually polished — this page sets the design direction for the entire site. Do not generate other pages.`,
-      modCtx,
-      provider,
-      parseOpts,
-    )
-    const codePage = homeResult.requests.find((r: ModificationRequest) => r.type === 'add-page')
-    if (codePage) {
-      homeRequest = codePage
-      homePageCode = ((codePage.changes as Record<string, unknown>)?.pageCode as string) || ''
+  let reusedExistingAnchor = false
+
+  if (projectRoot && remainingPages.length > 0) {
+    const existingCode = readAnchorPageCodeFromDisk(projectRoot, homePage.route)
+    if (existingCode) {
+      reusedExistingAnchor = true
+      homePageCode = existingCode
+      spinner.start(`Phase 2/4 — Loading ${homePage.name} from disk (style anchor)...`)
+      spinner.succeed(`Phase 2/4 — Reused existing ${homePage.name} page (skipped AI regeneration)`)
     }
-  } catch {
-    /* handled below */
   }
 
-  if (!homeRequest) {
-    homeRequest = {
-      type: 'add-page',
-      target: 'new',
-      changes: { id: homePage.id, name: homePage.name, route: homePage.route },
+  if (!reusedExistingAnchor) {
+    spinner.start(`Phase 2/4 — Generating ${homePage.name} page (sets design direction)...`)
+    try {
+      const homeResult = await parseModification(
+        `Create ONE page called "${homePage.name}" at route "${homePage.route}". Context: ${message}. This REPLACES the default placeholder page — generate a complete, content-rich landing page for the project described above. Generate complete pageCode. Include a branded site-wide <header> with navigation links to ALL these pages: ${allPagesList}. Use these EXACT routes in navigation: ${allRoutes}. Include a <footer> at the bottom. Make it visually polished — this page sets the design direction for the entire site. Do not generate other pages.`,
+        modCtx,
+        provider,
+        parseOpts,
+      )
+      const codePage = homeResult.requests.find((r: ModificationRequest) => r.type === 'add-page')
+      if (codePage) {
+        homeRequest = codePage
+        homePageCode = ((codePage.changes as Record<string, unknown>)?.pageCode as string) || ''
+      }
+    } catch {
+      /* handled below */
     }
+
+    if (!homeRequest) {
+      homeRequest = {
+        type: 'add-page',
+        target: 'new',
+        changes: { id: homePage.id, name: homePage.name, route: homePage.route },
+      }
+    }
+    spinner.succeed(`Phase 2/4 — ${homePage.name} page generated`)
   }
-  spinner.succeed(`Phase 2/4 — ${homePage.name} page generated`)
 
   spinner.start('Phase 3/4 — Extracting design patterns...')
   const styleContext = homePageCode ? extractStyleContext(homePageCode) : ''
   if (styleContext) {
     const lineCount = styleContext.split('\n').length - 1
-    spinner.succeed(`Phase 3/4 — Extracted ${lineCount} style patterns from ${homePage.name}`)
+    const source = reusedExistingAnchor ? `${homePage.name} (existing file)` : homePage.name
+    spinner.succeed(`Phase 3/4 — Extracted ${lineCount} style patterns from ${source}`)
   } else {
-    spinner.succeed('Phase 3/4 — No style patterns extracted (Home page had no code)')
+    spinner.succeed('Phase 3/4 — No style patterns extracted (anchor page had no code)')
   }
 
   if (remainingPages.length === 0) {
-    return [homeRequest]
+    return homeRequest ? [homeRequest] : []
   }
 
   spinner.start(`Phase 4/4 — Generating ${remainingPages.length} pages in parallel...`)
@@ -259,7 +281,11 @@ export async function splitGeneratePages(
     AI_CONCURRENCY,
   )
 
-  const allRequests: ModificationRequest[] = [homeRequest, ...remainingRequests]
+  const allRequests: ModificationRequest[] = reusedExistingAnchor
+    ? [...remainingRequests]
+    : homeRequest
+      ? [homeRequest, ...remainingRequests]
+      : [...remainingRequests]
 
   const emptyPages = allRequests.filter(r => r.type === 'add-page' && !(r.changes as Record<string, unknown>)?.pageCode)
   if (emptyPages.length > 0 && emptyPages.length <= 5) {

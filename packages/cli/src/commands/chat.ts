@@ -226,7 +226,7 @@ export async function chatCommand(
     let uxRecommendations: string | undefined
 
     const SPLIT_THRESHOLD = 4
-    const parseOpts = { sharedComponentsSummary }
+    const parseOpts = { sharedComponentsSummary, projectRoot }
     const modCtx = { config, componentManager: cm }
 
     const multiPageHint =

@@ -97,8 +97,6 @@ function stripInlineLayoutElements(code: string): { code: string; stripped: stri
   return { code: result, stripped }
 }
 
-const STANDARD_WRAPPER = 'mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6'
-
 const STANDARD_PAGE_WRAPPER = 'space-y-6'
 
 const HOME_REDIRECT_CODE = `import { redirect } from 'next/navigation'

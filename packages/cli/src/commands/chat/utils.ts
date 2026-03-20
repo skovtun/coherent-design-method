@@ -7,6 +7,37 @@ import chalk from 'chalk'
 
 const MARKETING_ROUTES = new Set(['', 'landing', 'pricing', 'about', 'contact', 'blog', 'features'])
 
+/** Skip placeholder / near-empty root pages when reusing split-generation style anchor */
+export const MIN_ANCHOR_PAGE_CODE_CHARS = 120
+
+const AUTH_ROUTE_SLUGS = new Set(['login', 'register', 'forgot-password', 'reset-password', 'sign-up'])
+
+/**
+ * Whether a route lives under `app/(auth)/` (not the same as `requiresAuth` on dashboard pages).
+ */
+export function inferRouteUsesAuthSegment(route: string): boolean {
+  const slug = route.replace(/^\//, '').split('/')[0] || ''
+  return AUTH_ROUTE_SLUGS.has(slug)
+}
+
+/**
+ * Read existing page source for split-generation style anchor (Phase 3).
+ * Returns null if missing or too short (placeholder).
+ */
+export function readAnchorPageCodeFromDisk(projectRoot: string, route: string): string | null {
+  const useAuthSegment = inferRouteUsesAuthSegment(route)
+  const abs = routeToFsPath(projectRoot, route, useAuthSegment)
+  if (!existsSync(abs)) return null
+  let code: string
+  try {
+    code = readFileSync(abs, 'utf-8')
+  } catch {
+    return null
+  }
+  if (code.trim().length < MIN_ANCHOR_PAGE_CODE_CHARS) return null
+  return code
+}
+
 export function isMarketingRoute(route: string): boolean {
   const slug = route.replace(/^\//, '').split('/')[0] || ''
   return MARKETING_ROUTES.has(slug)

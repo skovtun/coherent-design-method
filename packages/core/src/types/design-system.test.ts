@@ -42,6 +42,14 @@ describe('PageDefinitionSchema', () => {
       expect(result.data.id).toBe('my-page')
     }
   })
+
+  it('normalizes layout "sidebar" to sidebar-left (AI shorthand)', () => {
+    const result = PageDefinitionSchema.safeParse({ ...base, id: 'dash', route: '/dashboard', layout: 'sidebar' })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.layout).toBe('sidebar-left')
+    }
+  })
 })
 
 describe('DesignSystemConfig provider field', () => {

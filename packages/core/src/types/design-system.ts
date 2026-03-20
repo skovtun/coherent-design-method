@@ -234,14 +234,20 @@ export type LayoutBlockDefinition = z.infer<typeof LayoutBlockDefinitionSchema>
 
 /**
  * Page layout type
+ * AI often returns "sidebar" when the user says "sidebar navigation"; normalize to sidebar-left.
  */
-export const PageLayoutSchema = z.enum([
+const PAGE_LAYOUT_ENUM = z.enum([
   'centered', // Single centered column
   'sidebar-left', // Sidebar on left, content on right
   'sidebar-right', // Content on left, sidebar on right
   'full-width', // No constraints
   'grid', // CSS Grid layout
 ])
+
+export const PageLayoutSchema = z.preprocess(val => {
+  if (val === 'sidebar') return 'sidebar-left'
+  return val
+}, PAGE_LAYOUT_ENUM)
 
 export type PageLayout = z.infer<typeof PageLayoutSchema>
 

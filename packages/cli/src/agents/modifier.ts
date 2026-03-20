@@ -356,7 +356,7 @@ COMPONENT EXPORTS (use ONLY these names when importing from @/components/ui/...)
 
 In pageCode: import from @/components/ui/{kebab-name} using ONLY the exports listed above. Use <main>, <section>, <form>, <Input>, <Textarea>, <Button>, <Card>, <CardHeader>, <CardTitle>, <CardContent>, <CardFooter> etc. in JSX. No sections array — you write the full TSX.
 
-CRITICAL: id and route must be kebab-case. route must start with /. layout must be one of: centered | sidebar-left | sidebar-right | full-width | grid.
+CRITICAL: id and route must be kebab-case. route must start with /. layout must be one of: centered | sidebar-left | sidebar-right | full-width | grid. For "sidebar navigation" use sidebar-left (never the bare string "sidebar" — it is invalid JSON for this schema).
 
 UPDATE-PAGE: For modifying an existing page, return:
 {
