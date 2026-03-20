@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { validatePageQuality, autoFixCode, checkDesignConsistency } from './quality-validator.js'
+import { validatePageQuality, autoFixCode, checkDesignConsistency, verifyIncrementalEdit } from './quality-validator.js'
 
 describe('validatePageQuality', () => {
   it('detects native <button> in JSX', () => {
@@ -159,5 +159,27 @@ describe('design system consistency', () => {
     const code = 'className="p-[13px] mt-[47px]"'
     const warnings = checkDesignConsistency(code)
     expect(warnings).toContainEqual(expect.objectContaining({ type: 'arbitrary-spacing' }))
+  })
+})
+
+describe('AI output verification for incremental edits', () => {
+  it('detects removed imports that are still used', () => {
+    const before = `import { Button } from '@/components/ui/button'\nimport { Card } from '@/components/ui/card'\nexport default function Page() { return <Card><Button>Click</Button></Card> }`
+    const after = `import { Button } from '@/components/ui/button'\nexport default function Page() { return <Card><Button>Click</Button></Card> }`
+    const issues = verifyIncrementalEdit(before, after)
+    expect(issues).toContainEqual(expect.objectContaining({ type: 'missing-import', symbol: 'Card' }))
+  })
+
+  it('detects missing use client when hooks are present', () => {
+    const code = `import { useState } from 'react'\nexport default function Page() { const [x, setX] = useState(0); return <div>{x}</div> }`
+    const issues = verifyIncrementalEdit('', code)
+    expect(issues).toContainEqual(expect.objectContaining({ type: 'missing-use-client' }))
+  })
+
+  it('passes clean incremental edit', () => {
+    const before = `'use client'\nimport { Button } from '@/components/ui/button'\nexport default function Page() { return <Button>Old</Button> }`
+    const after = `'use client'\nimport { Button } from '@/components/ui/button'\nexport default function Page() { return <Button>New</Button> }`
+    const issues = verifyIncrementalEdit(before, after)
+    expect(issues).toHaveLength(0)
   })
 })

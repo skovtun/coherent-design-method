@@ -970,3 +970,59 @@ export function checkDesignConsistency(code: string): ConsistencyWarning[] {
 
   return warnings
 }
+
+// ============================================================================
+// INCREMENTAL EDIT VERIFICATION
+// ============================================================================
+
+export interface VerificationIssue {
+  type: 'missing-import' | 'missing-use-client' | 'missing-default-export'
+  symbol?: string
+  message: string
+}
+
+export function verifyIncrementalEdit(before: string, after: string): VerificationIssue[] {
+  const issues: VerificationIssue[] = []
+
+  const hookPattern = /\buse[A-Z]\w+\s*\(/
+  if (hookPattern.test(after) && !after.includes("'use client'") && !after.includes('"use client"')) {
+    issues.push({
+      type: 'missing-use-client',
+      message: 'Code uses React hooks but missing "use client" directive',
+    })
+  }
+
+  if (!after.includes('export default')) {
+    issues.push({
+      type: 'missing-default-export',
+      message: 'Missing default export — page component must have a default export',
+    })
+  }
+
+  const importRegex = /import\s+\{([^}]+)\}\s+from/g
+  const beforeImports = new Set<string>()
+  const afterImports = new Set<string>()
+
+  for (const match of before.matchAll(importRegex)) {
+    match[1].split(',').forEach(s => beforeImports.add(s.trim()))
+  }
+  for (const match of after.matchAll(importRegex)) {
+    match[1].split(',').forEach(s => afterImports.add(s.trim()))
+  }
+
+  for (const symbol of beforeImports) {
+    if (!afterImports.has(symbol) && symbol.length > 0) {
+      const codeWithoutImports = after.replace(/^import\s+.*$/gm, '')
+      const symbolRegex = new RegExp(`\\b${symbol}\\b`)
+      if (symbolRegex.test(codeWithoutImports)) {
+        issues.push({
+          type: 'missing-import',
+          symbol,
+          message: `Import for "${symbol}" was removed but symbol is still used in code`,
+        })
+      }
+    }
+  }
+
+  return issues
+}
