@@ -617,7 +617,7 @@ export async function applyModification(
             allShared: manifestForAudit.shared,
           })
 
-          const issues = validatePageQuality(codeToWrite)
+          let issues = validatePageQuality(codeToWrite)
           const errors = issues.filter(i => i.severity === 'error')
 
           if (errors.length >= 2 && aiProvider) {
@@ -635,8 +635,14 @@ export async function applyModification(
                   const recheckErrors = recheck.filter(i => i.severity === 'error')
                   if (recheckErrors.length < errors.length) {
                     codeToWrite = fixedCode
+                    const { code: reFixed, fixes: reFixes } = await autoFixCode(codeToWrite)
+                    if (reFixes.length > 0) {
+                      codeToWrite = reFixed
+                      postFixes.push(...reFixes)
+                    }
                     await writeFile(filePath, codeToWrite)
                     console.log(chalk.green(`   ✔ Quality fix: ${errors.length} → ${recheckErrors.length} errors`))
+                    issues = validatePageQuality(codeToWrite)
                   }
                 }
               }
