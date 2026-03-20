@@ -29,8 +29,11 @@ function blendColors(hex1: string, hex2: string, ratio: number): string {
 export function buildCssVariables(config: DesignSystemConfig): string {
   const light = config.tokens.colors.light
   const dark = config.tokens.colors.dark
-  const accentVars = light.accent ? `  --accent: ${light.accent};\n  --accent-foreground: ${light.foreground};\n` : ''
-  const accentDarkVars = dark.accent ? `  --accent: ${dark.accent};\n  --accent-foreground: ${dark.foreground};\n` : ''
+  // Always use muted for accent — AI confuses "accent" (vivid highlight) with shadcn's
+  // semantic meaning (subtle hover/active background). Vivid accent breaks ghost buttons,
+  // dropdown hovers, and sidebar active states.
+  const accentVars = `  --accent: ${light.muted};\n  --accent-foreground: ${light.foreground};\n`
+  const accentDarkVars = `  --accent: ${dark.muted};\n  --accent-foreground: ${dark.foreground};\n`
   return `:root {
   --background: ${light.background};
   --foreground: ${light.foreground};

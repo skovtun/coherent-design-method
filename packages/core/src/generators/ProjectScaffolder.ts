@@ -267,7 +267,7 @@ export default config
     --secondary-foreground: ${ProjectScaffolder.contrastingForeground(light.secondary)};
     --muted: ${light.muted};
     --muted-foreground: ${ProjectScaffolder.blendColors(light.foreground, light.background, 0.45)};
-    --accent: ${light.accent || light.muted};
+    --accent: ${light.muted};
     --accent-foreground: ${light.foreground};
     --destructive: ${light.error};
     --destructive-foreground: ${ProjectScaffolder.contrastingForeground(light.error)};
@@ -294,7 +294,7 @@ export default config
     --secondary-foreground: ${ProjectScaffolder.contrastingForeground(dark.secondary)};
     --muted: ${dark.muted};
     --muted-foreground: ${ProjectScaffolder.blendColors(dark.foreground, dark.background, 0.45)};
-    --accent: ${dark.accent || dark.muted};
+    --accent: ${dark.muted};
     --accent-foreground: ${dark.foreground};
     --destructive: ${dark.error};
     --destructive-foreground: ${ProjectScaffolder.contrastingForeground(dark.error)};
