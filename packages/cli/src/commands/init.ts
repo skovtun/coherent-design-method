@@ -18,6 +18,7 @@ import { writeFile } from '../utils/files.js'
 import { fileExistsAsync } from '../utils/files.js'
 import type { DesignSystemConfig } from '@getcoherent/core'
 import { ProjectScaffolder, ComponentGenerator } from '@getcoherent/core'
+import { ShadcnProvider } from '../providers/shadcn-provider.js'
 import { createMinimalConfig } from '../utils/minimal-config.js'
 import { showSuccessMessage } from '../utils/success-message.js'
 import { appendRecentChanges } from '../utils/recent-changes.js'
@@ -96,10 +97,19 @@ export function cn(...inputs: ClassValue[]) {
  * so pages that import from @/components/ui/button etc. resolve.
  */
 async function ensureRegistryComponents(config: DesignSystemConfig, projectPath: string): Promise<void> {
+  const provider = new ShadcnProvider()
+  await provider.init(projectPath)
+
+  const baseComponents = ['button', 'card', 'input', 'label', 'switch']
+  for (const name of baseComponents) {
+    await provider.install(name, projectPath)
+  }
+
   const generator = new ComponentGenerator(config)
   const uiDir = join(projectPath, 'components', 'ui')
   if (!existsSync(uiDir)) mkdirSync(uiDir, { recursive: true })
   for (const comp of config.components) {
+    if (comp.source === 'shadcn') continue
     const fileName = toKebabCase(comp.name) + '.tsx'
     const filePath = join(uiDir, fileName)
     if (existsSync(filePath)) continue
