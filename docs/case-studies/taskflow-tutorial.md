@@ -72,11 +72,15 @@ This starts the Next.js dev server and opens the app in your browser. You'll see
 This is where the magic happens. One prompt describes the entire application — pages, navigation, content structure — and Coherent generates everything.
 
 ~~~
-coherent chat "Create a SaaS project management app called TaskFlow with: landing page with hero, features, pricing sections; dashboard with sidebar navigation showing project stats, recent tasks, team activity; projects page with project cards showing progress; tasks page with task list and filters; team page with member cards and roles; settings page with profile, notifications and integrations tabs"
+coherent chat "Create a SaaS project management app called TaskFlow. Use SIDEBAR navigation. Pages: landing page with hero, features, pricing sections; dashboard showing project stats, recent tasks, team activity; projects page with project cards showing progress; tasks page with task list and filters; team page with member cards and roles; settings page with profile, notifications and integrations tabs"
 ~~~
 
+**Prompt tips:**
+- **Name your app** — say "called TaskFlow" so Coherent uses it in headers, footers, and metadata. If you forget, you can rename later with `coherent chat "rename the app to TaskFlow"`.
+- **State the navigation type** — say "Use SIDEBAR navigation" explicitly. Without this, Coherent defaults to header navigation.
+
 Behind the scenes, Coherent uses a 4-phase process:
-1. **Plan** — AI analyzes your prompt and determines which pages to create, including navigation type
+1. **Plan** — AI analyzes your prompt and determines which pages to create, navigation type, and app name
 2. **Generate Home** — Creates the landing page first, establishing visual style
 3. **Extract Style** — Pulls header, footer, and design patterns from the home page as reusable components
 4. **Generate Rest** — Creates remaining pages using the extracted style for consistency
@@ -91,7 +95,7 @@ This ensures every page shares the same visual language — consistent colors, t
 > coherent chat "regenerate the Dashboard page with full content"
 > ~~~
 >
-> This is normal — the AI has a context limit and occasionally can't produce code for every page in a single request.
+> This is normal — the AI has a context limit and occasionally can't produce code for every page in a single request. Auth pages (Login, Register) have built-in templates that activate automatically, so they should always have content.
 
 ---
 
@@ -338,7 +342,7 @@ npx vercel
 In ~30 minutes and 12 prompts, we created a complete SaaS application with:
 
 - **7 pages** — Landing, Dashboard, Projects, Tasks, Team, Settings, Login/Register
-- **Sidebar navigation** — detected automatically from the prompt
+- **Sidebar navigation** — set explicitly in the prompt ("Use SIDEBAR navigation")
 - **Shared components** — StatsPanel (used on 3 pages), Header, Footer, Sidebar
 - **Design tokens** — indigo color scheme, consistent across light and dark mode
 - **Auth flow** — Login, Register, Forgot Password with centered layout
