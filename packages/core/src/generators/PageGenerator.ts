@@ -941,24 +941,22 @@ export function Footer() {
   return (
     <footer className="border-t bg-muted/30">
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col gap-8 py-8 md:flex-row md:justify-between">
-          <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-8 py-10 md:grid-cols-4">
+          <div className="col-span-2 md:col-span-1">
             <Link href="/" className="text-sm font-semibold text-foreground hover:text-foreground/90 transition-colors">
               ${appName}
             </Link>
-            <p className="text-sm text-muted-foreground max-w-xs">
+            <p className="mt-2 text-sm text-muted-foreground">
               Modern project management for teams of all sizes.
             </p>
           </div>
-          <div className="flex gap-12">
-            <div className="flex flex-col space-y-3">
-              <p className="text-sm font-medium text-foreground">Product</p>
+          <div className="flex flex-col space-y-3">
+            <p className="text-sm font-medium text-foreground">Product</p>
 ${linkElements}
-            </div>
-${companyColumn}
           </div>
+${companyColumn}
         </div>
-        <div className="flex items-center justify-between border-t py-4 text-xs text-muted-foreground">
+        <div className="flex items-center justify-between border-t py-6 text-xs text-muted-foreground">
           <p>{'\u00A9'} {new Date().getFullYear()} ${appName}. All rights reserved.</p>
           <div className="flex gap-4">
             <span>Privacy Policy</span>

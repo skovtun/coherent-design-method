@@ -276,7 +276,7 @@ describe('PageGenerator', () => {
   })
 
   describe('generateSharedFooterCode', () => {
-    it('generates a footer component with app name', () => {
+    it('generates a footer component with app name and grid layout', () => {
       const config = makeConfig([], 'Projector')
       const gen = new PageGenerator(config)
       const footer = gen.generateSharedFooterCode()
@@ -284,6 +284,8 @@ describe('PageGenerator', () => {
       expect(footer).toContain('export function Footer()')
       expect(footer).toContain('Projector')
       expect(footer).toContain('footer')
+      expect(footer).toContain('grid grid-cols-2')
+      expect(footer).toContain('md:grid-cols-4')
     })
 
     it('hides on /design-system routes', () => {
