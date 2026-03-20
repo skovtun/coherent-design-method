@@ -54,6 +54,20 @@ describe('buildCssVariables', () => {
     expect(css).not.toContain('--accent: #FBBF24;')
   })
 
+  it('generates sidebar CSS variables', () => {
+    const config = makeConfig()
+    const css = buildCssVariables(config)
+
+    expect(css).toContain('--sidebar-background:')
+    expect(css).toContain('--sidebar-foreground:')
+    expect(css).toContain('--sidebar-primary:')
+    expect(css).toContain('--sidebar-primary-foreground:')
+    expect(css).toContain('--sidebar-accent:')
+    expect(css).toContain('--sidebar-accent-foreground:')
+    expect(css).toContain('--sidebar-border:')
+    expect(css).toContain('--sidebar-ring:')
+  })
+
   it('uses muted for --accent even when accent is not provided', () => {
     const config = makeConfig()
     delete (config.tokens.colors.light as Record<string, unknown>).accent

@@ -34,6 +34,24 @@ export function buildCssVariables(config: DesignSystemConfig): string {
   // dropdown hovers, and sidebar active states.
   const accentVars = `  --accent: ${light.muted};\n  --accent-foreground: ${light.foreground};\n`
   const accentDarkVars = `  --accent: ${dark.muted};\n  --accent-foreground: ${dark.foreground};\n`
+
+  const sidebarLightVars = `  --sidebar-background: ${light.background};
+  --sidebar-foreground: ${light.foreground};
+  --sidebar-primary: ${light.primary};
+  --sidebar-primary-foreground: ${contrastFg(light.primary)};
+  --sidebar-accent: ${light.muted};
+  --sidebar-accent-foreground: ${light.foreground};
+  --sidebar-border: ${light.border};
+  --sidebar-ring: ${light.primary};\n`
+
+  const sidebarDarkVars = `  --sidebar-background: ${dark.background};
+  --sidebar-foreground: ${dark.foreground};
+  --sidebar-primary: ${dark.primary};
+  --sidebar-primary-foreground: ${contrastFg(dark.primary)};
+  --sidebar-accent: ${dark.muted};
+  --sidebar-accent-foreground: ${dark.foreground};
+  --sidebar-border: ${dark.border};
+  --sidebar-ring: ${dark.primary};\n`
   return `:root {
   --background: ${light.background};
   --foreground: ${light.foreground};
@@ -56,7 +74,7 @@ export function buildCssVariables(config: DesignSystemConfig): string {
   --warning: ${light.warning};
   --error: ${light.error};
   --info: ${light.info || light.primary};
-${accentVars}}
+${accentVars}${sidebarLightVars}}
 .dark {
   --background: ${dark.background};
   --foreground: ${dark.foreground};
@@ -79,6 +97,6 @@ ${accentVars}}
   --warning: ${dark.warning};
   --error: ${dark.error};
   --info: ${dark.info || dark.primary};
-${accentDarkVars}}
+${accentDarkVars}${sidebarDarkVars}}
 `
 }
