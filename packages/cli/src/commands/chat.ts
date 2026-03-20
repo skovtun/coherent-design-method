@@ -42,6 +42,7 @@ import { extractInternalLinks, normalizeRequest, applyDefaults, AUTH_FLOW_PATTER
 import { splitGeneratePages } from './chat/split-generator.js'
 import { applyModification } from './chat/modification-handler.js'
 import { regenerateFiles } from './chat/code-generator.js'
+import { takeNavSnapshot, hasNavChanged } from '../utils/nav-snapshot.js'
 import { showPreview, getChangeDescription } from './chat/reporting.js'
 import { interactiveChat } from './chat/interactive.js'
 
@@ -520,6 +521,10 @@ export async function chatCommand(
       // non-critical
     }
 
+    const navBefore = takeNavSnapshot(
+      config.navigation?.items?.map(i => ({ label: i.label, href: i.route || `/${i.label.toLowerCase()}` })),
+    )
+
     // Apply modifications
     spinner.start('Applying modifications...')
     const results: Array<{ success: boolean; message: string; modified: string[] }> = []
@@ -686,6 +691,12 @@ export async function chatCommand(
       }
     }
 
+    // Flip initialized flag after first chat
+    if (updatedConfig.settings.initialized === false) {
+      updatedConfig.settings.initialized = true
+      dsm.updateConfig(updatedConfig)
+    }
+
     // Save config
     spinner.text = 'Saving configuration...'
     await dsm.save()
@@ -699,9 +710,17 @@ export async function chatCommand(
       allModified.add(`page:${route.slice(1) || 'home'}`)
     })
 
+    const navAfter = takeNavSnapshot(
+      updatedConfig.navigation?.items?.map(i => ({
+        label: i.label,
+        href: i.route || `/${i.label.toLowerCase()}`,
+      })),
+    )
+    const navChanged = hasNavChanged(navBefore, navAfter)
+
     if (allModified.size > 0) {
       spinner.start('Regenerating affected files...')
-      await regenerateFiles(Array.from(allModified), updatedConfig, projectRoot)
+      await regenerateFiles(Array.from(allModified), updatedConfig, projectRoot, { navChanged })
       spinner.succeed('Files regenerated')
     }
 
