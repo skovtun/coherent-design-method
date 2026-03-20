@@ -617,8 +617,7 @@ export async function applyModification(
             allShared: manifestForAudit.shared,
           })
 
-          const validRoutes = dsm.getConfig().pages.map((p: any) => p.route)
-          const issues = validatePageQuality(codeToWrite, validRoutes)
+          const issues = validatePageQuality(codeToWrite)
           const errors = issues.filter(i => i.severity === 'error')
 
           if (errors.length >= 2 && aiProvider) {
@@ -632,7 +631,7 @@ export async function applyModification(
                 const instruction = `Fix these quality issues:\n${errorList}\n\nRules:\n- Replace raw Tailwind colors (bg-emerald-500, text-zinc-400, etc.) with semantic tokens (bg-primary, text-muted-foreground, bg-muted, etc.)\n- Ensure heading hierarchy (h1 → h2 → h3, no skipping)\n- Add Label components for form inputs\n- Keep all existing functionality and layout intact`
                 const fixedCode = await ai.editPageCode(codeToWrite, instruction, page.name || page.id || 'Page')
                 if (fixedCode && fixedCode.length > 100 && /export\s+default/.test(fixedCode)) {
-                  const recheck = validatePageQuality(fixedCode, validRoutes)
+                  const recheck = validatePageQuality(fixedCode)
                   const recheckErrors = recheck.filter(i => i.severity === 'error')
                   if (recheckErrors.length < errors.length) {
                     codeToWrite = fixedCode

@@ -37,6 +37,7 @@ import {
   COHERENT_REQUIRED_PACKAGES,
 } from '../utils/self-heal.js'
 
+import { validatePageQuality } from '../utils/quality-validator.js'
 import { requireProject, loadConfig, routeToFsPath, resolveTargetFlags } from './chat/utils.js'
 import { extractInternalLinks, normalizeRequest, applyDefaults, AUTH_FLOW_PATTERNS } from './chat/request-parser.js'
 import { splitGeneratePages } from './chat/split-generator.js'
@@ -666,6 +667,40 @@ export async function chatCommand(
           chalk.cyan(`   Created ${missingRoutes.length} placeholder pages. Use \`coherent chat\` to fill them.\n`),
         )
         spinner.start('Finalizing...')
+      }
+    }
+
+    // Deferred BROKEN_INTERNAL_LINK validation — after ALL pages exist
+    const finalConfig = dsm.getConfig()
+    const allRoutes = finalConfig.pages.map((p: { route?: string }) => p.route).filter(Boolean) as string[]
+
+    if (allRoutes.length > 1) {
+      const linkIssues: Array<{ page: string; message: string }> = []
+
+      for (const result of results) {
+        if (!result.success) continue
+        for (const mod of result.modified) {
+          if (mod.startsWith('app/') && mod.endsWith('/page.tsx')) {
+            try {
+              const code = readFileSync(resolve(projectRoot, mod), 'utf-8')
+              const issues = validatePageQuality(code, allRoutes).filter(
+                (i: { type: string }) => i.type === 'BROKEN_INTERNAL_LINK',
+              )
+              for (const issue of issues) {
+                linkIssues.push({ page: mod, message: (issue as { message: string }).message })
+              }
+            } catch {
+              // file might not exist
+            }
+          }
+        }
+      }
+
+      if (linkIssues.length > 0) {
+        console.log(chalk.yellow('\n🔗 Broken internal links:'))
+        for (const { page, message } of linkIssues) {
+          console.log(chalk.dim(`   ${page}: ${message}`))
+        }
       }
     }
 
