@@ -304,13 +304,14 @@ export function validatePageQuality(code: string, validRoutes?: string[]): Quali
 
   // SKIPPED_HEADING: detect heading level gaps (h1→h3 without h2)
   const headingLevels = [...code.matchAll(/<h([1-6])[\s>]/g)].map(m => parseInt(m[1]))
+  const hasCardContext = /\bCard\b|\bCardTitle\b|\bCardHeader\b/.test(code)
   for (let i = 1; i < headingLevels.length; i++) {
     if (headingLevels[i] > headingLevels[i - 1] + 1) {
       issues.push({
         line: 0,
         type: 'SKIPPED_HEADING',
         message: `Heading level skipped: h${headingLevels[i - 1]} → h${headingLevels[i]} — don't skip levels`,
-        severity: 'warning',
+        severity: hasCardContext ? 'info' : 'warning',
       })
       break
     }

@@ -226,6 +226,44 @@ describe('autoFixCode — extended color coverage', () => {
   })
 })
 
+describe('SKIPPED_HEADING in Card context', () => {
+  it('downgrades to info when h3 is inside Card components', () => {
+    const code = `
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+export default function Dashboard() {
+  return (
+    <div className="space-y-6">
+      <h1>Dashboard</h1>
+      <Card>
+        <CardHeader><CardTitle>Active Projects</CardTitle></CardHeader>
+        <CardContent><h3>Project Alpha</h3></CardContent>
+      </Card>
+    </div>
+  )
+}`
+    const issues = validatePageQuality(code)
+    const skipped = issues.filter(i => i.type === 'SKIPPED_HEADING')
+    expect(skipped.length).toBe(1)
+    expect(skipped[0].severity).toBe('info')
+  })
+
+  it('keeps warning severity when h3 is NOT inside Card', () => {
+    const code = `
+export default function Page() {
+  return (
+    <div className="space-y-6">
+      <h1>Title</h1>
+      <h3>Subtitle without h2</h3>
+    </div>
+  )
+}`
+    const issues = validatePageQuality(code)
+    const skipped = issues.filter(i => i.type === 'SKIPPED_HEADING')
+    expect(skipped.length).toBe(1)
+    expect(skipped[0].severity).toBe('warning')
+  })
+})
+
 describe('AI output verification for incremental edits', () => {
   it('detects removed imports that are still used', () => {
     const before = `import { Button } from '@/components/ui/button'\nimport { Card } from '@/components/ui/card'\nexport default function Page() { return <Card><Button>Click</Button></Card> }`
