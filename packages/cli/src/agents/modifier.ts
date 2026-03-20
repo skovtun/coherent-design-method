@@ -131,6 +131,7 @@ User Request: "${message}"
 
 Return ONLY a JSON object with this structure (no pageCode, no sections, no content):
 {
+  "appName": "Extracted App Name",
   "requests": [
     { "type": "add-page", "target": "new", "changes": { "id": "page-id", "name": "Page Name", "route": "/page-route" } }
   ],
@@ -140,6 +141,7 @@ Return ONLY a JSON object with this structure (no pageCode, no sections, no cont
 }
 
 Rules:
+- appName: Extract the app/product name from the user's request if mentioned (e.g. "app called TaskFlow" → "TaskFlow", "build a CRM" → "CRM"). If no name is mentioned, omit this field.
 - Use kebab-case for id and route
 - Route must start with /
 - Keep response under 500 tokens

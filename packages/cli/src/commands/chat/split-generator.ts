@@ -123,6 +123,11 @@ export async function splitGeneratePages(
     if (detectedNavType !== 'header' && modCtx.config.navigation) {
       modCtx.config.navigation.type = detectedNavType
     }
+
+    const planRaw = planResult as unknown as Record<string, unknown>
+    if (typeof planRaw.appName === 'string' && planRaw.appName && modCtx.config.name === 'My App') {
+      modCtx.config.name = planRaw.appName
+    }
   } catch {
     spinner.text = 'AI plan failed — extracting pages from your request...'
   }
