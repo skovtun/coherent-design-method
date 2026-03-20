@@ -64,3 +64,69 @@ This starts the Next.js dev server and opens the app in your browser. You'll see
 [Screenshot: Default landing page (dark mode)]
 
 [Screenshot: Design System Viewer overview]
+
+---
+
+## Step 3: Generate the full app
+
+This is where the magic happens. One prompt describes the entire application — pages, navigation, content structure — and Coherent generates everything.
+
+~~~
+coherent chat "Create a SaaS project management app called TaskFlow with: landing page with hero, features, pricing sections; dashboard with sidebar navigation showing project stats, recent tasks, team activity; projects page with project cards showing progress; tasks page with task list and filters; team page with member cards and roles; settings page with profile, notifications and integrations tabs"
+~~~
+
+Behind the scenes, Coherent uses a 4-phase process:
+1. **Plan** — AI analyzes your prompt and determines which pages to create, including navigation type
+2. **Generate Home** — Creates the landing page first, establishing visual style
+3. **Extract Style** — Pulls header, footer, and design patterns from the home page as reusable components
+4. **Generate Rest** — Creates remaining pages using the extracted style for consistency
+
+This ensures every page shares the same visual language — consistent colors, typography, spacing, and component style.
+
+[Screenshot: Terminal output showing generation phases]
+
+---
+
+## Step 4: Review the result
+
+Let's see what was generated. First, check the project status:
+
+~~~
+coherent status
+~~~
+
+This shows a summary: how many pages, shared components, and design tokens exist in the project.
+
+[Screenshot: coherent status output]
+
+Now preview the app:
+
+~~~
+coherent preview
+~~~
+
+Walk through every page to see the results:
+
+[Screenshot: Landing page — hero section]
+
+[Screenshot: Landing page — features section]
+
+[Screenshot: Landing page — pricing section]
+
+[Screenshot: Dashboard with sidebar navigation]
+
+[Screenshot: Projects page with project cards]
+
+[Screenshot: Tasks page with task list]
+
+[Screenshot: Team page with member cards]
+
+[Screenshot: Settings page]
+
+[Screenshot: Login page (centered layout)]
+
+[Screenshot: Register page]
+
+**Try the dark mode toggle** — notice how all pages adapt automatically thanks to semantic design tokens. No hardcoded colors means perfect dark mode support out of the box.
+
+[Screenshot: Dashboard in dark mode]
