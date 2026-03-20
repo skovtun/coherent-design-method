@@ -72,7 +72,7 @@ This starts the Next.js dev server and opens the app in your browser. You'll see
 This is where the magic happens. One prompt describes the entire application — pages, navigation, content structure — and Coherent generates everything.
 
 ~~~
-coherent chat "Create a SaaS project management app called TaskFlow. Use SIDEBAR navigation. Pages: landing page with hero, features, pricing sections; dashboard showing project stats, recent tasks, team activity; projects page with project cards showing progress; tasks page with task list and filters; team page with member cards and roles; settings page with profile, notifications and integrations tabs"
+coherent chat "Create a SaaS project management app called TaskFlow. Use sidebar navigation. Pages: landing page with hero, features, pricing sections; dashboard showing project stats, recent tasks, team activity; projects page with project cards showing progress; tasks page with task list and filters; team page with member cards and roles; settings page with profile, notifications and integrations tabs"
 ~~~
 
 **Prompt tips:**

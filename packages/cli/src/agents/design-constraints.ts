@@ -109,6 +109,16 @@ ANTI-PATTERNS (NEVER DO):
 - Mixing link styles on the same page → pick ONE style
 - Interactive elements without hover/focus states
 
+COMPONENT VARIANT RULES (CRITICAL):
+- NEVER use <Button> with custom bg-*/text-* classes for navigation or tabs without variant="ghost".
+  The default Button variant sets bg-primary, so custom text-muted-foreground or bg-accent classes will conflict.
+  BAD:  <Button className="text-muted-foreground hover:bg-accent">Tab</Button>
+  GOOD: <Button variant="ghost" className="text-muted-foreground">Tab</Button>
+  BEST: Use shadcn <Tabs> / <TabsList> / <TabsTrigger> for tab-style navigation.
+- For sidebar navigation buttons, ALWAYS use variant="ghost" with active-state classes:
+  <Button variant="ghost" className={cn("w-full justify-start", isActive && "bg-accent font-medium")}>
+- For filter toggle buttons, use variant={isActive ? 'default' : 'outline'} — NOT className toggling.
+
 CONTENT (zero placeholders):
 - NEVER: "Lorem ipsum", "Card content", "Description here"
 - ALWAYS: Real, contextual content. Realistic metric names, values, dates.

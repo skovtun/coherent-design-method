@@ -1,9 +1,6 @@
-export interface QualityIssue {
-  line: number
-  type: string
-  message: string
-  severity: 'error' | 'warning' | 'info'
-}
+import { detectComponentIssues, applyComponentRules } from './component-rules.js'
+export type { QualityIssue } from './types.js'
+import type { QualityIssue } from './types.js'
 
 const RAW_COLOR_RE =
   /(?:(?:hover|focus|active|group-hover|focus-visible|focus-within):)?(?:bg|text|border|ring|outline|from|to|via)-(gray|blue|red|green|yellow|purple|pink|indigo|orange|slate|zinc|stone|neutral|emerald|teal|cyan|sky|violet|fuchsia|rose|amber|lime)-\d+/g
@@ -492,6 +489,9 @@ export function validatePageQuality(code: string, validRoutes?: string[]): Quali
       severity: 'error',
     })
   }
+
+  // Component variant misuse (e.g. Button without variant="ghost" in nav)
+  issues.push(...detectComponentIssues(code))
 
   return issues
 }
@@ -1020,6 +1020,13 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
   })
   if (fixed !== beforeLinkFix) {
     fixes.push('Link>Button → Button asChild>Link (DOM nesting fix)')
+  }
+
+  // Fix shadcn component variant misuse (e.g. Button without variant="ghost" in nav)
+  const { code: fixedByRules, fixes: ruleFixes } = applyComponentRules(fixed)
+  if (ruleFixes.length > 0) {
+    fixed = fixedByRules
+    fixes.push(...ruleFixes)
   }
 
   // Clean up double spaces in className that may result from previous fixes
