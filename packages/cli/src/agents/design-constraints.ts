@@ -653,6 +653,43 @@ DASHBOARD GRID:
 - Pattern: <main className="flex flex-1 flex-col gap-4 p-4 lg:p-6">
 `
 
+export const RULES_SHADCN_APIS = `
+SHADCN COMPONENT API REFERENCE (use these exact patterns):
+
+SIDEBAR:
+- Wrap in <SidebarProvider>. Components: Sidebar, SidebarContent, SidebarHeader, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarGroupContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarTrigger.
+- Nav items: <SidebarMenuItem><SidebarMenuButton asChild isActive={active}><Link href="...">Label</Link></SidebarMenuButton></SidebarMenuItem>
+- NEVER use Button for sidebar nav → use SidebarMenuButton.
+
+SELECT (Radix compound component):
+- Pattern: <Select><SelectTrigger><SelectValue placeholder="..." /></SelectTrigger><SelectContent><SelectItem value="x">X</SelectItem></SelectContent></Select>
+- NEVER use native <select>. Always use shadcn Select.
+
+DROPDOWN MENU:
+- Pattern: <DropdownMenu><DropdownMenuTrigger asChild><Button>Open</Button></DropdownMenuTrigger><DropdownMenuContent><DropdownMenuItem>Action</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+- Destructive items: className="text-destructive focus:text-destructive"
+- NEVER nest <button> inside trigger → use asChild.
+
+SHEET (mobile panels, sidebars):
+- Pattern: <Sheet><SheetTrigger asChild><Button>Open</Button></SheetTrigger><SheetContent side="right">...</SheetContent></Sheet>
+- side: "top" | "right" | "bottom" | "left". Default "right".
+
+DIALOG:
+- Pattern: <Dialog><DialogTrigger asChild><Button>Open</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>Title</DialogTitle><DialogDescription>Desc</DialogDescription></DialogHeader>...</DialogContent></Dialog>
+- ALWAYS include DialogTitle for accessibility.
+
+COMMAND (command palette / search):
+- Pattern: <Command><CommandInput placeholder="Search..." /><CommandList><CommandEmpty>No results</CommandEmpty><CommandGroup heading="Suggestions"><CommandItem>Item</CommandItem></CommandGroup></CommandList></Command>
+
+ANTI-PATTERNS (NEVER DO):
+- NEVER use <button> for sidebar navigation → SidebarMenuButton
+- NEVER use native <select> → shadcn Select
+- NEVER nest <button> inside a trigger → use asChild prop
+- NEVER use custom dropdown → shadcn DropdownMenu
+- NEVER build custom modal → shadcn Dialog
+- NEVER use custom toast → shadcn Sonner (toast())
+`
+
 export const RULES_COMPONENTS_MISC = `
 MISCELLANEOUS COMPONENT RULES:
 
@@ -811,6 +848,10 @@ const CONTEXTUAL_CATEGORIES: ContextualCategory[] = [
   {
     keywords: /accordion|scroll|code|image|calendar|date|toggle|dark.?mode|theme|rating|star|animation|z.?index/i,
     rules: RULES_COMPONENTS_MISC,
+  },
+  {
+    keywords: /sidebar|select|dropdown|sheet|dialog|modal|command|trigger|asChild|menu/i,
+    rules: RULES_SHADCN_APIS,
   },
 ]
 

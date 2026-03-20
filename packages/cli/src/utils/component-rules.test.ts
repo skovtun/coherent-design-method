@@ -197,3 +197,23 @@ describe('applyComponentRules', () => {
     expect(code).toContain('key={item.id}')
   })
 })
+
+describe('button-w-full-ghost-justify', () => {
+  it('detects Button with w-full variant="ghost" missing justify-start', () => {
+    const code = '<Button variant="ghost" className="w-full">Menu Item</Button>'
+    const issues = detectComponentIssues(code)
+    expect(issues.some(i => i.type === 'button-w-full-ghost-justify')).toBe(true)
+  })
+
+  it('adds justify-start to Button with w-full ghost', () => {
+    const code = '<Button variant="ghost" className="w-full">Menu Item</Button>'
+    const { code: fixed } = applyComponentRules(code)
+    expect(fixed).toContain('justify-start')
+  })
+
+  it('does not flag when justify-start already present', () => {
+    const code = '<Button variant="ghost" className="w-full justify-start">Menu Item</Button>'
+    const issues = detectComponentIssues(code)
+    expect(issues.some(i => i.type === 'button-w-full-ghost-justify')).toBe(false)
+  })
+})

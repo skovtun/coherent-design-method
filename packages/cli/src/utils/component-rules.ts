@@ -126,7 +126,52 @@ function getIndent(code: string, pos: number): string {
   return indentMatch ? indentMatch[1] : ''
 }
 
-const rules: ComponentRule[] = [buttonMissingGhostVariant]
+const buttonWFullGhostJustify: ComponentRule = {
+  id: 'button-w-full-ghost-justify',
+  component: 'Button',
+
+  detect(code: string): QualityIssue[] {
+    const issues: QualityIssue[] = []
+    const buttonRe = /<Button\s/g
+    let match: RegExpExecArray | null
+
+    while ((match = buttonRe.exec(code)) !== null) {
+      const props = extractJsxElementProps(code, match.index)
+      if (!props) continue
+      const hasGhost = /variant\s*=\s*["']ghost["']/.test(props)
+      const hasWFull = /w-full/.test(props)
+      const hasJustifyStart = /justify-start/.test(props)
+      if (hasGhost && hasWFull && !hasJustifyStart) {
+        issues.push({
+          line: 0,
+          type: 'button-w-full-ghost-justify',
+          severity: 'warning',
+          message: 'Button with w-full and variant="ghost" should include justify-start for proper text alignment',
+        })
+      }
+    }
+    return issues
+  },
+
+  fix(code: string): { code: string; applied: boolean; description: string } {
+    let applied = false
+    const result = code.replace(
+      /(<Button\s[^>]*variant\s*=\s*["']ghost["'][^>]*className\s*=\s*["'][^"']*)(w-full)([^"']*["'])/g,
+      (full, before, wFull, after) => {
+        if (full.includes('justify-start')) return full
+        applied = true
+        return `${before}${wFull} justify-start${after}`
+      },
+    )
+    return {
+      code: result,
+      applied,
+      description: 'Added justify-start to ghost Button with w-full',
+    }
+  },
+}
+
+const rules: ComponentRule[] = [buttonMissingGhostVariant, buttonWFullGhostJustify]
 
 export function detectComponentIssues(code: string): QualityIssue[] {
   const issues: QualityIssue[] = []
