@@ -356,7 +356,8 @@ export default function Page() {
   })
 
   it('replaces raw colors in template literal className', async () => {
-    const code = 'export default function Page() {\n  return <div className={`bg-blue-600 ${active ? "p-4" : ""}`}>Test</div>\n}'
+    const code =
+      'export default function Page() {\n  return <div className={`bg-blue-600 ${active ? "p-4" : ""}`}>Test</div>\n}'
     const { code: fixed } = await autoFixCode(code)
     expect(fixed).not.toContain('bg-blue-600')
     expect(fixed).toContain('bg-primary')

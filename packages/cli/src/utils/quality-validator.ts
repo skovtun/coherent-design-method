@@ -496,10 +496,7 @@ export function validatePageQuality(code: string, validRoutes?: string[]): Quali
   return issues
 }
 
-function replaceRawColors(
-  classes: string,
-  colorMap: Record<string, string>,
-): { result: string; changed: boolean } {
+function replaceRawColors(classes: string, colorMap: Record<string, string>): { result: string; changed: boolean } {
   let changed = false
   let result = classes
 
@@ -980,8 +977,7 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
   }
 
   // Fix Button inside Link → Button asChild wrapping Link
-  const linkWithButtonRe =
-    /(<Link\b[^>]*>)\s*(<Button\b(?![^>]*asChild)[^>]*>)([\s\S]*?)<\/Button>\s*<\/Link>/g
+  const linkWithButtonRe = /(<Link\b[^>]*>)\s*(<Button\b(?![^>]*asChild)[^>]*>)([\s\S]*?)<\/Button>\s*<\/Link>/g
   const beforeLinkFix = fixed
   fixed = fixed.replace(linkWithButtonRe, (_match, linkOpen: string, buttonOpen: string, inner: string) => {
     const hrefMatch = linkOpen.match(/href="([^"]*)"/)

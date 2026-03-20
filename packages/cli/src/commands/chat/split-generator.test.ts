@@ -4,9 +4,7 @@ import { parseNavTypeFromPlan } from './split-generator.js'
 describe('parseNavTypeFromPlan', () => {
   it('extracts sidebar navType from plan response', () => {
     const planResult = {
-      requests: [
-        { type: 'add-page', changes: { id: 'dashboard', name: 'Dashboard', route: '/dashboard' } },
-      ],
+      requests: [{ type: 'add-page', changes: { id: 'dashboard', name: 'Dashboard', route: '/dashboard' } }],
       navigation: { type: 'sidebar' },
     }
     expect(parseNavTypeFromPlan(planResult)).toBe('sidebar')
@@ -22,9 +20,7 @@ describe('parseNavTypeFromPlan', () => {
 
   it('defaults to header when no navigation field', () => {
     const planResult = {
-      requests: [
-        { type: 'add-page', changes: { id: 'home', name: 'Home', route: '/' } },
-      ],
+      requests: [{ type: 'add-page', changes: { id: 'home', name: 'Home', route: '/' } }],
     }
     expect(parseNavTypeFromPlan(planResult)).toBe('header')
   })
