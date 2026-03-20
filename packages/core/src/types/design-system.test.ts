@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { PageDefinitionSchema } from './design-system.js'
+import { DesignSystemConfigSchema, PageDefinitionSchema } from './design-system.js'
 
 describe('PageDefinitionSchema', () => {
   const base = {
@@ -41,5 +41,69 @@ describe('PageDefinitionSchema', () => {
     if (result.success) {
       expect(result.data.id).toBe('my-page')
     }
+  })
+})
+
+describe('initialized flag', () => {
+  const minimalConfig = {
+    name: 'Test',
+    description: 'Test app',
+    settings: {},
+    tokens: {
+      colors: {
+        light: {
+          primary: '#3B82F6',
+          secondary: '#10B981',
+          success: '#22C55E',
+          warning: '#F59E0B',
+          error: '#EF4444',
+          info: '#3B82F6',
+          background: '#FFFFFF',
+          foreground: '#0F172A',
+          muted: '#F1F5F9',
+          border: '#E2E8F0',
+        },
+        dark: {
+          primary: '#60A5FA',
+          secondary: '#34D399',
+          success: '#4ADE80',
+          warning: '#FBBF24',
+          error: '#F87171',
+          info: '#60A5FA',
+          background: '#0F172A',
+          foreground: '#F1F5F9',
+          muted: '#1E293B',
+          border: '#334155',
+        },
+      },
+      spacing: {},
+      typography: { fontFamily: {}, fontSize: {}, fontWeight: {}, lineHeight: {} },
+      radius: {},
+    },
+    theme: {},
+    components: [],
+    pages: [],
+    features: {
+      authentication: { enabled: false, strategies: [] },
+      payments: { enabled: false },
+      analytics: { enabled: false },
+      database: { enabled: false },
+      stateManagement: { enabled: false },
+    },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }
+
+  it('defaults to true when not provided (backward compat)', () => {
+    const config = DesignSystemConfigSchema.parse(minimalConfig)
+    expect(config.settings.initialized).toBe(true)
+  })
+
+  it('preserves false when explicitly set', () => {
+    const config = DesignSystemConfigSchema.parse({
+      ...minimalConfig,
+      settings: { initialized: false },
+    })
+    expect(config.settings.initialized).toBe(false)
   })
 })

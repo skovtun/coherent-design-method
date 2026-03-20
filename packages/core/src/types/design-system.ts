@@ -450,6 +450,8 @@ export const DesignSystemConfigSchema = z.object({
 
   // Global settings
   settings: z.object({
+    initialized: z.boolean().default(true),
+
     // Application type
     appType: z.enum(['multi-page', 'spa']).default('multi-page'),
 
