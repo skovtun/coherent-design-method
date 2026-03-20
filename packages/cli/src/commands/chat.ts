@@ -7,8 +7,8 @@
 
 import chalk from 'chalk'
 import ora from 'ora'
-import { resolve } from 'path'
-import { existsSync, readFileSync, mkdirSync } from 'fs'
+import { resolve, relative } from 'path'
+import { existsSync, readFileSync, mkdirSync, readdirSync } from 'fs'
 import {
   DesignSystemManager,
   ComponentManager,
@@ -723,7 +723,7 @@ export async function chatCommand(
 
     if (allModified.size > 0) {
       spinner.start('Regenerating affected files...')
-      await regenerateFiles(Array.from(allModified), updatedConfig, projectRoot, { navChanged })
+      await regenerateFiles(Array.from(allModified), updatedConfig, projectRoot, { navChanged, storedHashes })
       spinner.succeed('Files regenerated')
     }
 
@@ -740,14 +740,13 @@ export async function chatCommand(
       const layoutFile = resolve(projectRoot, 'app', 'layout.tsx')
       const filesToHash = [layoutFile]
       if (existsSync(sharedDir)) {
-        const { readdirSync } = await import('fs')
         for (const f of readdirSync(sharedDir)) {
           if (f.endsWith('.tsx')) filesToHash.push(resolve(sharedDir, f))
         }
       }
       for (const filePath of filesToHash) {
         if (existsSync(filePath)) {
-          const rel = filePath.replace(projectRoot + '/', '')
+          const rel = relative(projectRoot, filePath)
           updatedHashes[rel] = await computeFileHash(filePath)
         }
       }

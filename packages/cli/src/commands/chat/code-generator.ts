@@ -17,6 +17,7 @@ import { integrateSharedLayoutIntoRootLayout, generateSharedComponent } from '@g
 import { ensureAuthRouteGroup } from '../../utils/auth-route-group.js'
 import chalk from 'chalk'
 import { writeFile } from '../../utils/files.js'
+import { isManuallyEdited } from '../../utils/file-hashes.js'
 import { isShadcnComponent, installShadcnComponent } from '../../utils/shadcn-installer.js'
 import {
   sanitizeMetadataStrings,
@@ -119,14 +120,31 @@ export async function regeneratePage(pageId: string, config: DesignSystemConfig,
   await writeFile(filePath, code)
 }
 
+async function canOverwriteShared(
+  projectRoot: string,
+  componentFile: string,
+  storedHashes: Record<string, string>,
+): Promise<boolean> {
+  const filePath = resolve(projectRoot, componentFile)
+  if (!existsSync(filePath)) return true
+  const storedHash = storedHashes[componentFile]
+  if (!storedHash) return true
+  const edited = await isManuallyEdited(filePath, storedHash)
+  if (edited) {
+    console.log(chalk.yellow(`  ⚠ Skipping ${componentFile} — manually edited since last generation`))
+  }
+  return !edited
+}
+
 export async function regenerateLayout(
   config: DesignSystemConfig,
   projectRoot: string,
-  options: { navChanged: boolean } = { navChanged: false },
+  options: { navChanged: boolean; storedHashes?: Record<string, string> } = { navChanged: false },
 ): Promise<void> {
   const appType = config.settings.appType || 'multi-page'
   const generator = new PageGenerator(config)
   const initialized = config.settings.initialized !== false
+  const hashes = options.storedHashes ?? {}
 
   if (!initialized) {
     const layout = config.pages[0]?.layout || 'centered'
@@ -140,35 +158,41 @@ export async function regenerateLayout(
 
     if (shouldRegenShared) {
       if (navType === 'header' || navType === 'both') {
-        const headerCode = generator.generateSharedHeaderCode()
+        if (await canOverwriteShared(projectRoot, 'components/shared/header.tsx', hashes)) {
+          const headerCode = generator.generateSharedHeaderCode()
+          await generateSharedComponent(projectRoot, {
+            name: 'Header',
+            type: 'layout',
+            code: headerCode,
+            description: 'Main site header with navigation and theme toggle',
+            usedIn: ['app/layout.tsx'],
+            overwrite: true,
+          })
+        }
+      }
+      if (await canOverwriteShared(projectRoot, 'components/shared/footer.tsx', hashes)) {
+        const footerCode = generator.generateSharedFooterCode()
         await generateSharedComponent(projectRoot, {
-          name: 'Header',
+          name: 'Footer',
           type: 'layout',
-          code: headerCode,
-          description: 'Main site header with navigation and theme toggle',
+          code: footerCode,
+          description: 'Site footer',
           usedIn: ['app/layout.tsx'],
           overwrite: true,
         })
       }
-      const footerCode = generator.generateSharedFooterCode()
-      await generateSharedComponent(projectRoot, {
-        name: 'Footer',
-        type: 'layout',
-        code: footerCode,
-        description: 'Site footer',
-        usedIn: ['app/layout.tsx'],
-        overwrite: true,
-      })
       if (navType === 'sidebar' || navType === 'both') {
-        const sidebarCode = generator.generateSharedSidebarCode()
-        await generateSharedComponent(projectRoot, {
-          name: 'Sidebar',
-          type: 'layout',
-          code: sidebarCode,
-          description: 'Vertical sidebar navigation with collapsible sections',
-          usedIn: ['app/(app)/layout.tsx'],
-          overwrite: true,
-        })
+        if (await canOverwriteShared(projectRoot, 'components/shared/sidebar.tsx', hashes)) {
+          const sidebarCode = generator.generateSharedSidebarCode()
+          await generateSharedComponent(projectRoot, {
+            name: 'Sidebar',
+            type: 'layout',
+            code: sidebarCode,
+            description: 'Vertical sidebar navigation with collapsible sections',
+            usedIn: ['app/(app)/layout.tsx'],
+            overwrite: true,
+          })
+        }
       }
     }
   }
@@ -232,7 +256,7 @@ export async function regenerateFiles(
   modified: string[],
   config: DesignSystemConfig,
   projectRoot: string,
-  options: { navChanged: boolean } = { navChanged: false },
+  options: { navChanged: boolean; storedHashes?: Record<string, string> } = { navChanged: false },
 ): Promise<void> {
   const componentIds = new Set<string>()
   const pageIds = new Set<string>()
@@ -246,7 +270,10 @@ export async function regenerateFiles(
   }
 
   if (config.navigation?.enabled && modified.length > 0) {
-    await regenerateLayout(config, projectRoot, { navChanged: options.navChanged })
+    await regenerateLayout(config, projectRoot, {
+      navChanged: options.navChanged,
+      storedHashes: options.storedHashes,
+    })
   }
 
   if (componentIds.size > 0) {

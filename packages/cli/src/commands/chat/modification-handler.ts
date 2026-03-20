@@ -23,7 +23,13 @@ import { createAIProvider } from '../../utils/ai-provider.js'
 import { readFile, writeFile } from '../../utils/files.js'
 import { CORE_CONSTRAINTS, DESIGN_QUALITY, selectContextualRules } from '../../agents/design-constraints.js'
 import { isShadcnComponent, installShadcnComponent } from '../../utils/shadcn-installer.js'
-import { validatePageQuality, formatIssues, autoFixCode } from '../../utils/quality-validator.js'
+import {
+  validatePageQuality,
+  formatIssues,
+  autoFixCode,
+  checkDesignConsistency,
+  verifyIncrementalEdit,
+} from '../../utils/quality-validator.js'
 import { writeCursorRules } from '../../utils/cursor-rules.js'
 import { analyzePageCode } from '../../utils/page-analyzer.js'
 import {
@@ -645,6 +651,12 @@ export async function applyModification(
             console.log(chalk.yellow(`\n🔍 Quality check for ${page.name || page.id}:`))
             console.log(chalk.dim(report))
           }
+
+          const consistency = checkDesignConsistency(codeToWrite)
+          if (consistency.length > 0) {
+            console.log(chalk.yellow(`\n🎨 Design consistency for ${page.name || page.id}:`))
+            consistency.forEach(w => console.log(chalk.dim(`   ⚠ [${w.type}] ${w.message}`)))
+          }
         }
       }
       return {
@@ -715,6 +727,12 @@ export async function applyModification(
                   `${coreRules}\n${qualityRules}\n${contextualRules}\n${routeRules}\n${pagesCtx}`,
                 )
                 if (DEBUG) console.log(chalk.dim(`  [update-page] AI returned ${resolvedPageCode.length} chars`))
+
+                const editIssues = verifyIncrementalEdit(currentCode, resolvedPageCode)
+                if (editIssues.length > 0) {
+                  console.log(chalk.yellow(`\n⚠ Incremental edit issues for ${pageDef.name || pageDef.id}:`))
+                  editIssues.forEach(issue => console.log(chalk.dim(`   [${issue.type}] ${issue.message}`)))
+                }
               } else {
                 console.log(chalk.yellow('  ⚠ AI provider does not support editPageCode'))
               }
@@ -807,6 +825,12 @@ export async function applyModification(
             if (report) {
               console.log(chalk.yellow(`\n🔍 Quality check for ${pageDef.name || pageDef.id}:`))
               console.log(chalk.dim(report))
+            }
+
+            const consistency = checkDesignConsistency(codeToWrite)
+            if (consistency.length > 0) {
+              console.log(chalk.yellow(`\n🎨 Design consistency for ${pageDef.name || pageDef.id}:`))
+              consistency.forEach(w => console.log(chalk.dim(`   ⚠ [${w.type}] ${w.message}`)))
             }
           } else {
             try {
