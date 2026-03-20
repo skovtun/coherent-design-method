@@ -548,13 +548,15 @@ function replaceRawColors(classes: string, colorMap: Record<string, string>): { 
     }
     if (prefix === 'from' || prefix === 'to' || prefix === 'via') {
       changed = true
-      if (n >= 100 && n <= 300) return statePrefix + (isDestructive ? `${prefix}-destructive/20` : `${prefix}-primary/20`)
+      if (n >= 100 && n <= 300)
+        return statePrefix + (isDestructive ? `${prefix}-destructive/20` : `${prefix}-primary/20`)
       return statePrefix + (isDestructive ? `${prefix}-destructive` : `${prefix}-primary`)
     }
     return m
   })
 
-  const neutralColorRe = /\b((?:(?:hover|focus|active|group-hover|focus-visible|focus-within):)?)(bg|text|border|ring|outline)-(zinc|slate|gray|neutral|stone)-(\d+)\b/g
+  const neutralColorRe =
+    /\b((?:(?:hover|focus|active|group-hover|focus-visible|focus-within):)?)(bg|text|border|ring|outline)-(zinc|slate|gray|neutral|stone)-(\d+)\b/g
   result = result.replace(neutralColorRe, (m, statePrefix: string, prefix: string, _color: string, shade: string) => {
     const bare = m.replace(statePrefix, '')
     if (colorMap[bare]) {
