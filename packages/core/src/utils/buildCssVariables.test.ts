@@ -54,6 +54,21 @@ describe('buildCssVariables', () => {
     expect(css).not.toContain('--accent: #FBBF24;')
   })
 
+  it('generates --radius variable', () => {
+    const config = makeConfig()
+    const css = buildCssVariables(config)
+    expect(css).toContain('--radius:')
+  })
+
+  it('generates chart CSS variables --chart-1 through --chart-5', () => {
+    const config = makeConfig()
+    const css = buildCssVariables(config)
+
+    for (let i = 1; i <= 5; i++) {
+      expect(css).toContain(`--chart-${i}:`)
+    }
+  })
+
   it('generates sidebar CSS variables', () => {
     const config = makeConfig()
     const css = buildCssVariables(config)
