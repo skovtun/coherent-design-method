@@ -465,6 +465,34 @@ export function validatePageQuality(code: string, validRoutes?: string[]): Quali
     }
   }
 
+  // NESTED_INTERACTIVE: Button/button inside Link/a (without asChild)
+  const linkBlockRe = /<(?:Link|a)\b[^>]*>[\s\S]*?<\/(?:Link|a)>/g
+  let linkMatch
+  while ((linkMatch = linkBlockRe.exec(code)) !== null) {
+    const block = linkMatch[0]
+    if (/<(?:Button|button)\b/.test(block) && !/asChild/.test(block)) {
+      issues.push({
+        line: 0,
+        type: 'NESTED_INTERACTIVE',
+        message:
+          'Button inside Link without asChild — causes DOM nesting error. Use <Button asChild><Link>...</Link></Button> instead',
+        severity: 'error',
+      })
+      break
+    }
+  }
+
+  // Nested <a> inside <a>
+  const nestedAnchorRe = /<a\b[^>]*>[\s\S]*?<a\b/
+  if (nestedAnchorRe.test(code)) {
+    issues.push({
+      line: 0,
+      type: 'NESTED_INTERACTIVE',
+      message: 'Nested <a> tags — causes DOM nesting error. Remove inner anchor or restructure',
+      severity: 'error',
+    })
+  }
+
   return issues
 }
 
@@ -907,6 +935,20 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
         fixes.push(`added missing lucide imports: ${missing.join(', ')}`)
       }
     }
+  }
+
+  // Fix Button inside Link → Button asChild wrapping Link
+  const linkWithButtonRe =
+    /(<Link\b[^>]*>)\s*(<Button\b(?![^>]*asChild)[^>]*>)([\s\S]*?)<\/Button>\s*<\/Link>/g
+  const beforeLinkFix = fixed
+  fixed = fixed.replace(linkWithButtonRe, (_match, linkOpen: string, buttonOpen: string, inner: string) => {
+    const hrefMatch = linkOpen.match(/href="([^"]*)"/)
+    const href = hrefMatch ? hrefMatch[1] : '/'
+    const buttonWithAsChild = buttonOpen.replace('<Button', '<Button asChild')
+    return `${buttonWithAsChild}<Link href="${href}">${inner.trim()}</Link></Button>`
+  })
+  if (fixed !== beforeLinkFix) {
+    fixes.push('Link>Button → Button asChild>Link (DOM nesting fix)')
   }
 
   // Clean up double spaces in className that may result from previous fixes

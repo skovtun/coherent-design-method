@@ -285,3 +285,53 @@ describe('AI output verification for incremental edits', () => {
     expect(issues).toHaveLength(0)
   })
 })
+
+describe('DOM nesting validation', () => {
+  it('detects Button inside Link without asChild', () => {
+    const code = `
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+export default function Page() {
+  return <Link href="/foo"><Button>Click</Button></Link>
+}`
+    const issues = validatePageQuality(code)
+    const nesting = issues.filter(i => i.type === 'NESTED_INTERACTIVE')
+    expect(nesting.length).toBeGreaterThanOrEqual(1)
+    expect(nesting[0].severity).toBe('error')
+  })
+
+  it('allows Button with asChild inside Link', () => {
+    const code = `
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+export default function Page() {
+  return <Button asChild><Link href="/foo">Click</Link></Button>
+}`
+    const issues = validatePageQuality(code)
+    const nesting = issues.filter(i => i.type === 'NESTED_INTERACTIVE')
+    expect(nesting.length).toBe(0)
+  })
+
+  it('detects nested anchor tags', () => {
+    const code = `
+export default function Page() {
+  return <a href="/outer"><div><a href="/inner">Nested</a></div></a>
+}`
+    const issues = validatePageQuality(code)
+    const nesting = issues.filter(i => i.type === 'NESTED_INTERACTIVE')
+    expect(nesting.length).toBeGreaterThanOrEqual(1)
+  })
+})
+
+describe('autoFixCode — DOM nesting fix', () => {
+  it('adds asChild when Button is inside Link', async () => {
+    const code = `import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+export default function Page() {
+  return <Link href="/foo"><Button>Click</Button></Link>
+}`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('asChild')
+    expect(fixes.some(f => f.includes('DOM nesting') || f.includes('asChild'))).toBe(true)
+  })
+})
