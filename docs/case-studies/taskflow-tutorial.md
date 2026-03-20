@@ -264,3 +264,61 @@ coherent chat --component "Header" "Add a notification bell icon with a red dot 
 [Screenshot: Header before (simple)]
 
 [Screenshot: Header after (with notification bell and avatar dropdown)]
+
+---
+
+## Step 13: Check quality
+
+Before exporting, let's run the built-in quality checker. It validates your entire project against 97 design rules covering:
+
+- **Color consistency** — no hardcoded Tailwind colors (like `bg-blue-500`), only semantic tokens
+- **Accessibility** — heading hierarchy, alt text, focus indicators
+- **Typography** — consistent font sizes and weights
+- **Layout** — proper spacing, no broken internal links
+
+~~~
+coherent check
+~~~
+
+[Screenshot: coherent check output showing results]
+
+---
+
+## Step 14: Auto-fix issues
+
+Coherent can automatically fix many of the detected issues — replacing raw colors with semantic tokens, fixing missing imports, normalizing typography.
+
+~~~
+coherent fix
+~~~
+
+[Screenshot: coherent fix output showing fixes applied]
+
+Run `coherent check` again to confirm everything is clean:
+
+~~~
+coherent check
+~~~
+
+[Screenshot: coherent check output — all clean]
+
+---
+
+## Step 15: Export for deployment
+
+Your app is ready. Export it as a clean Next.js project — stripped of all Coherent development artifacts (Design System Viewer, config files, dev tools) — ready for deployment to Vercel, Netlify, or any Node.js host.
+
+~~~
+coherent export --output ./taskflow-export
+~~~
+
+The exported app is a standard Next.js project. Deploy it however you normally would:
+
+~~~
+cd taskflow-export
+npx vercel
+~~~
+
+[Screenshot: coherent export output]
+
+[Screenshot: Exported project folder structure]
