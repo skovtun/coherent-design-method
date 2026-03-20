@@ -12,6 +12,7 @@ export function createMinimalConfig(): DesignSystemConfig {
   const now = new Date().toISOString()
 
   return {
+    provider: 'shadcn',
     version: '1.0.0',
     coherentVersion: CLI_VERSION,
     frameworkVersions: {
