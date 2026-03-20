@@ -919,7 +919,7 @@ export function inferPageType(route: string, name: string): string | null {
   if (/\bblog\b/.test(key)) return 'blog'
   if (/\bchangelog\b/.test(key)) return 'changelog'
   if (/\babout\b/.test(key)) return 'about'
-  if (/\bsetting/i.test(key)) return 'settings'
+  if (/\bsettings?\b/.test(key)) return 'settings'
   return null
 }
 
@@ -948,6 +948,22 @@ function getDefaultContent(pageType: string, pageName: string): Record<string, u
     contact: {
       title: 'Contact Us',
       description: 'Get in touch with our team',
+    },
+    blog: {
+      title: 'Blog',
+      description: 'Latest news, updates, and insights',
+    },
+    changelog: {
+      title: 'Changelog',
+      description: "What's new and improved",
+    },
+    about: {
+      title: `About ${pageName}`,
+      description: 'Learn more about our mission and team',
+    },
+    settings: {
+      title: 'Settings',
+      description: 'Manage your account and preferences',
     },
   }
   return defaults[pageType] || { title: pageName, description: '' }
