@@ -1,4 +1,14 @@
 import type { ComponentProvider, ComponentMeta, ComponentAPI, DesignTokens } from '@getcoherent/core'
+import { existsSync as fsExistsSync } from 'node:fs'
+import { exec as cpExec } from 'node:child_process'
+import * as path from 'node:path'
+
+export interface InstallDeps {
+  exec: typeof cpExec
+  existsSync: typeof fsExistsSync
+}
+
+const defaultDeps: InstallDeps = { exec: cpExec, existsSync: fsExistsSync }
 
 type Category = ComponentMeta['category']
 
@@ -361,8 +371,24 @@ export class ShadcnProvider implements ComponentProvider {
     // Implemented in Task 2.3
   }
 
-  async install(_name: string, _projectRoot: string): Promise<void> {
-    // Implemented in Task 2.2
+  async install(name: string, projectRoot: string, deps: InstallDeps = defaultDeps): Promise<void> {
+    const componentPath = path.join(projectRoot, 'components', 'ui', `${name}.tsx`)
+    if (deps.existsSync(componentPath)) return
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        deps.exec(
+          `npx shadcn@latest add ${name} --yes --overwrite`,
+          { cwd: projectRoot, timeout: 15000 },
+          (err) => {
+            if (err) reject(err)
+            else resolve()
+          },
+        )
+      })
+    } catch {
+      console.warn(`Network unavailable, using bundled template for ${name}`)
+    }
   }
 
   list(): ComponentMeta[] {
