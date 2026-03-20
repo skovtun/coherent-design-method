@@ -1,3 +1,7 @@
+import { readFileSync } from 'fs'
+import { resolve, dirname } from 'path'
+import { fileURLToPath } from 'url'
+
 /**
  * Framework Versions
  *
@@ -20,4 +24,16 @@ export const FRAMEWORK_VERSIONS = {
   'eslint-config-next': '15.2.4',
 } as const
 
-export const CLI_VERSION = '0.1.0' // Sync with packages/cli/package.json
+const __cdm_dirname = dirname(fileURLToPath(import.meta.url))
+
+function readCliVersion(): string {
+  try {
+    const pkgPath = resolve(__cdm_dirname, '..', 'package.json')
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'))
+    return pkg.version || '0.0.0'
+  } catch {
+    return '0.0.0'
+  }
+}
+
+export const CLI_VERSION = readCliVersion()
