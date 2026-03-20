@@ -7,7 +7,7 @@
 
 import chalk from 'chalk'
 import ora from 'ora'
-import { resolve, relative } from 'path'
+import { resolve, relative, join } from 'path'
 import { existsSync, readFileSync, mkdirSync, readdirSync } from 'fs'
 import {
   DesignSystemManager,
@@ -82,6 +82,13 @@ export async function chatCommand(
   const project = requireProject()
   const projectRoot = project.root
   const configPath = project.configPath
+
+  const migrationGuard = join(projectRoot, '.coherent', 'migration-in-progress')
+  if (existsSync(migrationGuard)) {
+    spinner.fail('Migration in progress')
+    console.error(chalk.red('\n❌ A migration is in progress. Run `coherent migrate --rollback` to undo first.'))
+    bail('Migration in progress')
+  }
 
   const validProviders = ['claude', 'openai', 'auto']
   const provider = (options.provider || 'auto').toLowerCase() as 'claude' | 'openai' | 'auto'

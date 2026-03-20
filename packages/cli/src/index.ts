@@ -29,6 +29,7 @@ import { dsRegenerateCommand } from './commands/ds.js'
 import { updateCommand } from './commands/update.js'
 import { undoCommand } from './commands/undo.js'
 import { syncCommand } from './commands/sync.js'
+import { migrateAction } from './commands/migrate.js'
 import { checkForUpdates } from './utils/update-notifier.js'
 
 const program = new Command()
@@ -109,6 +110,14 @@ program
   .description('Restore project to state before last coherent chat')
   .option('--list', 'List available backups')
   .action(opts => undoCommand(opts))
+
+program
+  .command('migrate')
+  .description('Upgrade project to use real shadcn/ui components')
+  .option('--dry-run', 'Preview changes without applying')
+  .option('--yes', 'Skip confirmation prompts')
+  .option('--rollback', 'Undo last migration')
+  .action(opts => migrateAction(opts))
 
 // ─── Advanced commands (hidden from main help) ──────────────────────
 
