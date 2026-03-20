@@ -1,6 +1,6 @@
 import { resolve } from 'path'
 import { existsSync } from 'fs'
-import { mkdir } from 'fs/promises'
+import { mkdir, readFile } from 'fs/promises'
 import { dirname } from 'path'
 import {
   ComponentGenerator,
@@ -142,15 +142,26 @@ export async function regenerateLayout(config: DesignSystemConfig, projectRoot: 
         overwrite: true,
       })
     }
-    const footerCode = generator.generateSharedFooterCode()
-    await generateSharedComponent(projectRoot, {
-      name: 'Footer',
-      type: 'layout',
-      code: footerCode,
-      description: 'Site footer',
-      usedIn: ['app/layout.tsx'],
-      overwrite: true,
-    })
+    // Overwrite footer only if it still has the init-stub Coherent branding
+    let shouldOverwriteFooter = false
+    try {
+      const footerPath = resolve(projectRoot, 'components', 'shared', 'footer.tsx')
+      const existing = await readFile(footerPath, 'utf-8')
+      shouldOverwriteFooter = existing.includes('Coherent Design Method')
+    } catch {
+      shouldOverwriteFooter = true
+    }
+    if (shouldOverwriteFooter) {
+      const footerCode = generator.generateSharedFooterCode()
+      await generateSharedComponent(projectRoot, {
+        name: 'Footer',
+        type: 'layout',
+        code: footerCode,
+        description: 'Site footer',
+        usedIn: ['app/layout.tsx'],
+        overwrite: true,
+      })
+    }
     if (navType === 'sidebar' || navType === 'both') {
       const sidebarCode = generator.generateSharedSidebarCode()
       await generateSharedComponent(projectRoot, {
