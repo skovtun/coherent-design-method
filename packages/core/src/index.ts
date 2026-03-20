@@ -10,6 +10,7 @@
  */
 
 export * from './types/design-system'
+export * from './types/component-provider'
 export * from './types/shared-components-manifest'
 export * from './managers/DesignSystemManager'
 export * from './managers/ComponentManager'
