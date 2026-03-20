@@ -1,6 +1,6 @@
 import { resolve } from 'path'
 import { existsSync } from 'fs'
-import { mkdir, readFile } from 'fs/promises'
+import { mkdir } from 'fs/promises'
 import { dirname } from 'path'
 import {
   ComponentGenerator,
@@ -119,39 +119,37 @@ export async function regeneratePage(pageId: string, config: DesignSystemConfig,
   await writeFile(filePath, code)
 }
 
-export async function regenerateLayout(config: DesignSystemConfig, projectRoot: string): Promise<void> {
-  const layout = config.pages[0]?.layout || 'centered'
+export async function regenerateLayout(
+  config: DesignSystemConfig,
+  projectRoot: string,
+  options: { navChanged: boolean } = { navChanged: false },
+): Promise<void> {
   const appType = config.settings.appType || 'multi-page'
   const generator = new PageGenerator(config)
+  const initialized = config.settings.initialized !== false
 
-  const code = await generator.generateLayout(layout, appType, { skipNav: true })
-  const layoutPath = resolve(projectRoot, 'app', 'layout.tsx')
-  await writeFile(layoutPath, code)
+  if (!initialized) {
+    const layout = config.pages[0]?.layout || 'centered'
+    const code = await generator.generateLayout(layout, appType, { skipNav: true })
+    await writeFile(resolve(projectRoot, 'app', 'layout.tsx'), code)
+  }
 
   if (config.navigation?.enabled && appType === 'multi-page') {
     const navType = config.navigation.type || 'header'
+    const shouldRegenShared = !initialized || options.navChanged
 
-    if (navType === 'header' || navType === 'both') {
-      const headerCode = generator.generateSharedHeaderCode()
-      await generateSharedComponent(projectRoot, {
-        name: 'Header',
-        type: 'layout',
-        code: headerCode,
-        description: 'Main site header with navigation and theme toggle',
-        usedIn: ['app/layout.tsx'],
-        overwrite: true,
-      })
-    }
-    // Overwrite footer only if it still has the init-stub Coherent branding
-    let shouldOverwriteFooter = false
-    try {
-      const footerPath = resolve(projectRoot, 'components', 'shared', 'footer.tsx')
-      const existing = await readFile(footerPath, 'utf-8')
-      shouldOverwriteFooter = existing.includes('Coherent Design Method')
-    } catch {
-      shouldOverwriteFooter = true
-    }
-    if (shouldOverwriteFooter) {
+    if (shouldRegenShared) {
+      if (navType === 'header' || navType === 'both') {
+        const headerCode = generator.generateSharedHeaderCode()
+        await generateSharedComponent(projectRoot, {
+          name: 'Header',
+          type: 'layout',
+          code: headerCode,
+          description: 'Main site header with navigation and theme toggle',
+          usedIn: ['app/layout.tsx'],
+          overwrite: true,
+        })
+      }
       const footerCode = generator.generateSharedFooterCode()
       await generateSharedComponent(projectRoot, {
         name: 'Footer',
@@ -161,17 +159,17 @@ export async function regenerateLayout(config: DesignSystemConfig, projectRoot: 
         usedIn: ['app/layout.tsx'],
         overwrite: true,
       })
-    }
-    if (navType === 'sidebar' || navType === 'both') {
-      const sidebarCode = generator.generateSharedSidebarCode()
-      await generateSharedComponent(projectRoot, {
-        name: 'Sidebar',
-        type: 'layout',
-        code: sidebarCode,
-        description: 'Vertical sidebar navigation with collapsible sections',
-        usedIn: ['app/(app)/layout.tsx'],
-        overwrite: true,
-      })
+      if (navType === 'sidebar' || navType === 'both') {
+        const sidebarCode = generator.generateSharedSidebarCode()
+        await generateSharedComponent(projectRoot, {
+          name: 'Sidebar',
+          type: 'layout',
+          code: sidebarCode,
+          description: 'Vertical sidebar navigation with collapsible sections',
+          usedIn: ['app/(app)/layout.tsx'],
+          overwrite: true,
+        })
+      }
     }
   }
 
@@ -234,6 +232,7 @@ export async function regenerateFiles(
   modified: string[],
   config: DesignSystemConfig,
   projectRoot: string,
+  options: { navChanged: boolean } = { navChanged: false },
 ): Promise<void> {
   const componentIds = new Set<string>()
   const pageIds = new Set<string>()
@@ -247,7 +246,7 @@ export async function regenerateFiles(
   }
 
   if (config.navigation?.enabled && modified.length > 0) {
-    await regenerateLayout(config, projectRoot)
+    await regenerateLayout(config, projectRoot, { navChanged: options.navChanged })
   }
 
   if (componentIds.size > 0) {
