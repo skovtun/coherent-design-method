@@ -1,4 +1,5 @@
-import type { ComponentProvider, ComponentMeta, ComponentAPI, DesignTokens } from '@getcoherent/core'
+import type { ComponentProvider, ComponentMeta, ComponentAPI, DesignTokens, DesignSystemConfig } from '@getcoherent/core'
+import { buildCssVariables } from '@getcoherent/core'
 import { existsSync as fsExistsSync } from 'node:fs'
 import { exec as cpExec } from 'node:child_process'
 import * as path from 'node:path'
@@ -428,13 +429,21 @@ export class ShadcnProvider implements ComponentProvider {
     return basicAPI(meta.id, meta.name, meta.category)
   }
 
-  getCssVariables(_tokens: DesignTokens): string {
-    // Implemented in Task 3.5
-    return ''
+  getCssVariables(tokens: DesignTokens): string {
+    const fakeConfig = { tokens } as DesignSystemConfig
+    return buildCssVariables(fakeConfig)
   }
 
   getThemeBlock(_tokens: DesignTokens): string {
-    // Implemented in Task 3.5
-    return ''
+    const sidebarVars = [
+      'background', 'foreground', 'primary', 'primary-foreground',
+      'accent', 'accent-foreground', 'border', 'ring',
+    ]
+    const lines = sidebarVars.map(v => `  --color-sidebar-${v}: var(--sidebar-${v});`)
+    const chartLines = Array.from({ length: 5 }, (_, i) =>
+      `  --color-chart-${i + 1}: var(--chart-${i + 1});`,
+    )
+
+    return `@theme inline {\n${lines.join('\n')}\n${chartLines.join('\n')}\n}\n`
   }
 }

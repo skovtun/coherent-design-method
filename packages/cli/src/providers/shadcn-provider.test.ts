@@ -130,6 +130,48 @@ describe('ShadcnProvider.install()', () => {
   })
 })
 
+describe('ShadcnProvider.getCssVariables()', () => {
+  const provider = new ShadcnProvider()
+  const tokens = {
+    colors: {
+      light: {
+        primary: '#3B82F6', secondary: '#10B981', success: '#22C55E',
+        warning: '#F59E0B', error: '#EF4444', info: '#3B82F6',
+        background: '#FFFFFF', foreground: '#0F172A', muted: '#F1F5F9', border: '#E2E8F0',
+      },
+      dark: {
+        primary: '#60A5FA', secondary: '#34D399', success: '#4ADE80',
+        warning: '#FBBF24', error: '#F87171', info: '#60A5FA',
+        background: '#0F172A', foreground: '#F1F5F9', muted: '#1E293B', border: '#334155',
+      },
+    },
+    spacing: { xs: '0.25rem', sm: '0.5rem', md: '1rem', lg: '1.5rem', xl: '2rem', '2xl': '3rem', '3xl': '4rem' },
+    typography: {
+      fontFamily: { sans: 'Inter', mono: 'JetBrains Mono' },
+      fontSize: { xs: '0.75rem', sm: '0.875rem', base: '1rem', lg: '1.125rem', xl: '1.25rem', '2xl': '1.5rem', '3xl': '1.875rem', '4xl': '2.25rem' },
+      fontWeight: { normal: 400, medium: 500, semibold: 600, bold: 700 },
+      lineHeight: { tight: 1.25, normal: 1.5, relaxed: 1.75 },
+    },
+    radius: { none: '0', sm: '0.25rem', md: '0.5rem', lg: '0.75rem', xl: '1rem', full: '9999px' },
+  }
+
+  it('delegates to buildCssVariables and returns valid CSS', () => {
+    const css = provider.getCssVariables(tokens)
+    expect(css).toContain(':root {')
+    expect(css).toContain('.dark {')
+    expect(css).toContain('--sidebar-background:')
+    expect(css).toContain('--chart-1:')
+    expect(css).toContain('--radius:')
+  })
+
+  it('getThemeBlock returns @theme inline mappings', () => {
+    const theme = provider.getThemeBlock(tokens)
+    expect(theme).toContain('@theme inline')
+    expect(theme).toContain('--color-sidebar-background')
+    expect(theme).toContain('--color-sidebar-foreground')
+  })
+})
+
 describe('ShadcnProvider.init()', () => {
   const provider = new ShadcnProvider()
   let tmpDir: string
