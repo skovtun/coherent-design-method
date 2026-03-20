@@ -748,6 +748,31 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
   })
   if (hadColorFix) fixes.push('raw colors → semantic tokens')
 
+  // Replace native <select> with shadcn Select
+  const selectRe = /<select\b[^>]*>([\s\S]*?)<\/select>/g
+  let hadSelectFix = false
+  fixed = fixed.replace(selectRe, (_match, inner: string) => {
+    const options: Array<{ value: string; label: string }> = []
+    const optionRe = /<option\s+value="([^"]*)"[^>]*>([^<]*)<\/option>/g
+    let optMatch
+    while ((optMatch = optionRe.exec(inner)) !== null) {
+      options.push({ value: optMatch[1], label: optMatch[2] })
+    }
+    if (options.length === 0) return _match
+    hadSelectFix = true
+    const items = options.map(o => `            <SelectItem value="${o.value}">${o.label}</SelectItem>`).join('\n')
+    return `<Select>\n          <SelectTrigger>\n            <SelectValue placeholder="Select..." />\n          </SelectTrigger>\n          <SelectContent>\n${items}\n          </SelectContent>\n        </Select>`
+  })
+  if (hadSelectFix) {
+    fixes.push('<select> → shadcn Select')
+    if (!/from\s+['"]@\/components\/ui\/select['"]/.test(fixed)) {
+      fixed = fixed.replace(
+        /(import\s+\{[^}]*\}\s+from\s+['"]@\/components\/ui\/[^'"]+['"])/,
+        `$1\nimport { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'`,
+      )
+    }
+  }
+
   // Fix invalid lucide-react icon imports (AI hallucinating non-existent names)
   const lucideImportMatch = fixed.match(/import\s*\{([^}]+)\}\s*from\s*["']lucide-react["']/)
   if (lucideImportMatch) {

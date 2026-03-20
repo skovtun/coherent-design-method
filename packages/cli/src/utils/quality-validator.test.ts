@@ -142,6 +142,31 @@ describe('autoFixCode', () => {
   })
 })
 
+describe('autoFixCode — native select replacement', () => {
+  it('replaces simple native <select> with shadcn Select', async () => {
+    const code = `'use client'
+import { Button } from '@/components/ui/button'
+export default function Page() {
+  return (
+    <div>
+      <select className="border rounded p-2">
+        <option value="a">Alpha</option>
+        <option value="b">Beta</option>
+      </select>
+    </div>
+  )
+}`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).not.toContain('<select')
+    expect(fixed).not.toContain('<option')
+    expect(fixed).toContain('Select')
+    expect(fixed).toContain('SelectTrigger')
+    expect(fixed).toContain('SelectContent')
+    expect(fixed).toContain('SelectItem')
+    expect(fixes.some(f => f.includes('select'))).toBe(true)
+  })
+})
+
 describe('design system consistency', () => {
   it('warns on hardcoded hex colors', () => {
     const code = 'className="bg-[#FF5733] text-white"'

@@ -323,6 +323,7 @@ pageCode rules (shadcn/ui blocks quality):
 - BUTTON + LINK: The Button component supports asChild prop. To make a button that navigates, use <Button asChild><Link href="/path"><Plus className="size-4" /> Label</Link></Button>. Never nest <button> inside <Link> or vice versa without asChild.
 - Hover/focus on every interactive element (hover:bg-muted, focus-visible:ring-2 focus-visible:ring-ring).
 - LANGUAGE: Match the language of the user's request. English request → English page. Russian request → Russian page. Never switch languages.
+- NEVER use native HTML <select> or <option>. Always use Select, SelectTrigger, SelectValue, SelectContent, SelectItem from @/components/ui/select.
 
 NEXT.JS APP ROUTER RULE (CRITICAL — invalid code fails to compile):
 - "use client" and export const metadata are FORBIDDEN in the same file.
