@@ -85,6 +85,14 @@ This ensures every page shares the same visual language — consistent colors, t
 
 [Screenshot: Terminal output showing generation phases]
 
+> **Tip:** When generating many pages at once, some may come back without content. If you see a warning like _"Page X has no generated code"_, simply regenerate the empty pages individually:
+>
+> ~~~
+> coherent chat "regenerate the Dashboard page with full content"
+> ~~~
+>
+> This is normal — the AI has a context limit and occasionally can't produce code for every page in a single request.
+
 ---
 
 ## Step 4: Review the result
