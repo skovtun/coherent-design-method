@@ -938,3 +938,35 @@ export function formatIssues(issues: QualityIssue[]): string {
   }
   return lines.join('\n')
 }
+
+// ============================================================================
+// DESIGN SYSTEM CONSISTENCY
+// ============================================================================
+
+export interface ConsistencyWarning {
+  type: 'hardcoded-color' | 'arbitrary-spacing' | 'component-duplicate'
+  message: string
+  line?: number
+}
+
+export function checkDesignConsistency(code: string): ConsistencyWarning[] {
+  const warnings: ConsistencyWarning[] = []
+
+  const hexPattern = /\[#[0-9a-fA-F]{3,8}\]/g
+  for (const match of code.matchAll(hexPattern)) {
+    warnings.push({
+      type: 'hardcoded-color',
+      message: `Hardcoded color ${match[0]} — use a design token (e.g., bg-primary) instead`,
+    })
+  }
+
+  const spacingPattern = /[pm][trblxy]?-\[\d+px\]/g
+  for (const match of code.matchAll(spacingPattern)) {
+    warnings.push({
+      type: 'arbitrary-spacing',
+      message: `Arbitrary spacing ${match[0]} — use Tailwind spacing scale instead`,
+    })
+  }
+
+  return warnings
+}

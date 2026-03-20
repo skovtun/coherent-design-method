@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { validatePageQuality, autoFixCode } from './quality-validator.js'
+import { validatePageQuality, autoFixCode, checkDesignConsistency } from './quality-validator.js'
 
 describe('validatePageQuality', () => {
   it('detects native <button> in JSX', () => {
@@ -139,5 +139,25 @@ describe('autoFixCode', () => {
     const { code: fixed } = await autoFixCode(code)
     expect(fixed).toContain('https://picsum.photos/800/400?random=')
     expect(fixed).not.toContain('/images/hero-banner.jpg')
+  })
+})
+
+describe('design system consistency', () => {
+  it('warns on hardcoded hex colors', () => {
+    const code = 'className="bg-[#FF5733] text-white"'
+    const warnings = checkDesignConsistency(code)
+    expect(warnings).toContainEqual(expect.objectContaining({ type: 'hardcoded-color' }))
+  })
+
+  it('does not warn on CSS variable colors', () => {
+    const code = 'className="bg-primary text-foreground"'
+    const warnings = checkDesignConsistency(code)
+    expect(warnings.filter(w => w.type === 'hardcoded-color')).toHaveLength(0)
+  })
+
+  it('warns on arbitrary pixel values in spacing', () => {
+    const code = 'className="p-[13px] mt-[47px]"'
+    const warnings = checkDesignConsistency(code)
+    expect(warnings).toContainEqual(expect.objectContaining({ type: 'arbitrary-spacing' }))
   })
 })
