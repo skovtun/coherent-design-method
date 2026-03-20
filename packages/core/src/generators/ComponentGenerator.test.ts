@@ -137,7 +137,7 @@ describe('ComponentGenerator', () => {
       expect(code).toContain('AlertDescription')
       expect(code).toContain('alertVariants')
       expect(code).toContain('role="alert"')
-      expect(code).toContain("export { Alert, AlertTitle, AlertDescription")
+      expect(code).toContain('export { Alert, AlertTitle, AlertDescription')
     })
   })
 

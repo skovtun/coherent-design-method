@@ -301,7 +301,29 @@ export function extractAppNameFromPrompt(prompt: string): string | null {
     const m = prompt.match(re)
     if (m && m[1] && m[1].length >= 2 && m[1].length <= 30) {
       const name = m[1].replace(/[.,;:!?]$/, '')
-      const skip = new Set(['a', 'an', 'the', 'my', 'our', 'new', 'full', 'complete', 'simple', 'modern', 'beautiful', 'responsive', 'fast', 'cool', 'great', 'basic', 'quick', 'small', 'large', 'custom', 'nice'])
+      const skip = new Set([
+        'a',
+        'an',
+        'the',
+        'my',
+        'our',
+        'new',
+        'full',
+        'complete',
+        'simple',
+        'modern',
+        'beautiful',
+        'responsive',
+        'fast',
+        'cool',
+        'great',
+        'basic',
+        'quick',
+        'small',
+        'large',
+        'custom',
+        'nice',
+      ])
       if (skip.has(name.toLowerCase())) continue
       return name.charAt(0).toUpperCase() + name.slice(1)
     }
