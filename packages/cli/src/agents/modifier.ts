@@ -412,6 +412,26 @@ FEW-SHOT EXAMPLE — correct stat card in pageCode (follow this pattern exactly)
 \`\`\`
 Key: CardTitle is text-sm font-medium (NOT text-lg). Metric is text-2xl font-bold. Subtext is text-xs text-muted-foreground. Icon is size-4 text-muted-foreground.
 
+SURGICAL MODIFICATION RULES (CRITICAL for incremental edits):
+- When modifying an existing page, return the COMPLETE page code
+- Change ONLY the specific section, component, or element the user requested
+- Do NOT modify imports unless the change requires new imports
+- Do NOT change state variables, event handlers, or data in unrelated sections
+- Do NOT restyle sections the user did not mention
+- Preserve all existing className values on unchanged elements
+- If the user asks to change a "section" or "block", identify it by heading, content, or position
+
+Component Promotion Rules:
+- When the user asks to "make X a shared component" or "reuse X across pages":
+  - Use request type "promote-and-link"
+  - Extract the JSX block into a separate component file
+  - Replace inline code with the component import on all specified pages
+
+Global Component Change Rules:
+- When the user asks to change "all cards" or "every button" or similar:
+  - If the pattern is already a shared component, modify the shared component file
+  - If the pattern is inline across pages, first promote it to a shared component, then modify it
+
 OPTIONAL UX RECOMMENDATIONS:
 If you see opportunities to improve UX (accessibility, layout, consistency, responsiveness, visual hierarchy), add a short markdown block in "uxRecommendations". Otherwise omit it.
 
