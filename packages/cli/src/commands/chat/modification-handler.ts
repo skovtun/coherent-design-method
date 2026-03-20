@@ -621,7 +621,7 @@ export async function applyModification(
           const issues = validatePageQuality(codeToWrite, validRoutes)
           const errors = issues.filter(i => i.severity === 'error')
 
-          if (errors.length >= 5 && aiProvider) {
+          if (errors.length >= 2 && aiProvider) {
             console.log(
               chalk.yellow(`\n🔄 ${errors.length} quality errors — attempting AI fix for ${page.name || page.id}...`),
             )
