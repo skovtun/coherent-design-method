@@ -31,6 +31,7 @@ export interface ModificationContext {
 export interface ParseModificationResult {
   requests: ModificationRequest[]
   uxRecommendations?: string
+  navigation?: { type: string }
 }
 
 export interface ParseModificationOptions {
@@ -50,7 +51,8 @@ export async function parseModification(
     const prompt = buildPlanOnlyPrompt(message, context.config)
     const raw = await ai.parseModification(prompt)
     const requestsArray = Array.isArray(raw) ? raw : (raw?.requests ?? [])
-    return { requests: requestsArray as ModificationRequest[], uxRecommendations: undefined }
+    const navigation = !Array.isArray(raw) && raw?.navigation ? (raw.navigation as { type: string }) : undefined
+    return { requests: requestsArray as ModificationRequest[], uxRecommendations: undefined, navigation }
   }
 
   const componentRegistry = buildComponentRegistry(context.componentManager)
@@ -131,7 +133,10 @@ Return ONLY a JSON object with this structure (no pageCode, no sections, no cont
 {
   "requests": [
     { "type": "add-page", "target": "new", "changes": { "id": "page-id", "name": "Page Name", "route": "/page-route" } }
-  ]
+  ],
+  "navigation": {
+    "type": "header"
+  }
 }
 
 Rules:
@@ -139,6 +144,10 @@ Rules:
 - Route must start with /
 - Keep response under 500 tokens
 - Do NOT include pageCode, sections, or any other fields
+- Navigation type: Detect from user's request and include in response:
+  * "sidebar" — if user mentions sidebar, side menu, left panel, admin panel, or app has 6+ main sections
+  * "header" — if user mentions top navigation, header nav, or app is simple (< 6 sections). This is the default.
+  * "both" — if complex multi-level app needs both header and sidebar navigation
 - Include ALL pages the user explicitly requested
 - ALSO include logically related pages that a real app would need. For example:
   * If there is a catalog/listing page, add a detail page (e.g. /products → /products/[id])

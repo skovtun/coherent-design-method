@@ -86,6 +86,16 @@ function extractStyleContext(pageCode: string): string {
 ${lines.map(l => `  - ${l}`).join('\n')}`
 }
 
+const VALID_NAV_TYPES = new Set(['header', 'sidebar', 'both'])
+
+export function parseNavTypeFromPlan(planResult: Record<string, unknown>): 'header' | 'sidebar' | 'both' {
+  const nav = planResult.navigation as Record<string, unknown> | undefined | null
+  if (nav && typeof nav.type === 'string' && VALID_NAV_TYPES.has(nav.type)) {
+    return nav.type as 'header' | 'sidebar' | 'both'
+  }
+  return 'header'
+}
+
 export { buildExistingPagesContext, extractStyleContext }
 
 export async function splitGeneratePages(
@@ -108,6 +118,11 @@ export async function splitGeneratePages(
       const route = (c.route as string) || `/${id}`
       return { name, id, route }
     })
+
+    const detectedNavType = parseNavTypeFromPlan(planResult as unknown as Record<string, unknown>)
+    if (detectedNavType !== 'header' && modCtx.config.navigation) {
+      modCtx.config.navigation.type = detectedNavType
+    }
   } catch {
     spinner.text = 'AI plan failed — extracting pages from your request...'
   }

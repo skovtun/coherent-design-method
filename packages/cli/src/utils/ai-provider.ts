@@ -23,6 +23,7 @@ export interface AIResponse {
 export interface ParseModificationOutput {
   requests: unknown[]
   uxRecommendations?: string
+  navigation?: { type: string }
 }
 
 export interface AIProviderInterface {
