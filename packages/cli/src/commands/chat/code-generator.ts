@@ -13,7 +13,7 @@ import {
   type PageDefinition,
 } from '@getcoherent/core'
 import { isAuthRoute } from '../../agents/page-templates.js'
-import { integrateSharedLayoutIntoRootLayout, loadManifest, generateSharedComponent } from '@getcoherent/core'
+import { integrateSharedLayoutIntoRootLayout, generateSharedComponent } from '@getcoherent/core'
 import { ensureAuthRouteGroup } from '../../utils/auth-route-group.js'
 import chalk from 'chalk'
 import { writeFile } from '../../utils/files.js'
@@ -124,15 +124,6 @@ export async function regenerateLayout(config: DesignSystemConfig, projectRoot: 
   const appType = config.settings.appType || 'multi-page'
   const generator = new PageGenerator(config)
 
-  let manifest: Awaited<ReturnType<typeof loadManifest>> | null = null
-  try {
-    manifest = await loadManifest(projectRoot)
-  } catch {
-    /* manifest may not exist yet */
-  }
-  const hasSharedHeader = manifest?.shared.some(c => c.type === 'layout' && /header|nav/i.test(c.name)) ?? false
-  const hasSharedFooter = manifest?.shared.some(c => c.type === 'layout' && /footer/i.test(c.name)) ?? false
-
   const code = await generator.generateLayout(layout, appType, { skipNav: true })
   const layoutPath = resolve(projectRoot, 'app', 'layout.tsx')
   await writeFile(layoutPath, code)
@@ -151,17 +142,15 @@ export async function regenerateLayout(config: DesignSystemConfig, projectRoot: 
         overwrite: true,
       })
     }
-    if (!hasSharedFooter) {
-      const footerCode = generator.generateSharedFooterCode()
-      await generateSharedComponent(projectRoot, {
-        name: 'Footer',
-        type: 'layout',
-        code: footerCode,
-        description: 'Site footer',
-        usedIn: ['app/layout.tsx'],
-        overwrite: true,
-      })
-    }
+    const footerCode = generator.generateSharedFooterCode()
+    await generateSharedComponent(projectRoot, {
+      name: 'Footer',
+      type: 'layout',
+      code: footerCode,
+      description: 'Site footer',
+      usedIn: ['app/layout.tsx'],
+      overwrite: true,
+    })
     if (navType === 'sidebar' || navType === 'both') {
       const sidebarCode = generator.generateSharedSidebarCode()
       await generateSharedComponent(projectRoot, {
