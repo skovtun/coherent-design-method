@@ -166,3 +166,63 @@ coherent chat --page "Pricing" "Redesign the pricing section: 3 tiers (Starter, 
 [Screenshot: Pricing section — before]
 
 [Screenshot: Pricing section — after (3-tier cards with highlighted plan)]
+
+---
+
+## Step 7: See what you have
+
+As your project grows, it's helpful to see what components exist. The `components list` command gives you an inventory:
+
+~~~
+coherent components list
+~~~
+
+You'll see shared components (Header, Footer, Sidebar) created during generation, plus all UI components from shadcn/ui. Each shared component has a unique ID (CID-001, CID-002, etc.) tracked in the component registry.
+
+[Screenshot: coherent components list output]
+
+---
+
+## Step 8: Create a reusable component
+
+Here's where design systems shine. Instead of repeating similar UI on multiple pages, we'll create a **StatsPanel** — a row of metric cards that can be reused anywhere with different data.
+
+~~~
+coherent chat --component "StatsPanel" "Create a shared StatsPanel component — a horizontal row of 4 stat cards. Each card has: an icon in a rounded colored background, a large metric number, a label below, and a trend indicator (up/down arrow with percentage in green or red). Use Card from shadcn, semantic tokens for colors"
+~~~
+
+This creates a new shared component and registers it in the component system. The component uses design tokens for colors, so it automatically adapts to light/dark mode and respects the color scheme.
+
+[Screenshot: Terminal output showing component creation]
+
+---
+
+## Step 9: Use the component across pages
+
+Now we'll place StatsPanel on three different pages, each with contextually relevant data:
+
+~~~
+coherent chat "Update the dashboard page to use StatsPanel at the top showing: Total Projects, Active Tasks, Team Members, Completed This Week. Also add StatsPanel to the projects page showing: Total Projects, In Progress, Completed, Overdue. And to settings page showing: Storage Used, API Calls, Team Size, Active Integrations"
+~~~
+
+One prompt, three pages updated. The StatsPanel component stays consistent — same layout, same visual treatment — but the data and icons are different on each page.
+
+[Screenshot: Dashboard with StatsPanel]
+
+[Screenshot: Projects page with StatsPanel]
+
+[Screenshot: Settings page with StatsPanel]
+
+---
+
+## Step 10: Modify the component — updates everywhere
+
+This is the real power of shared components. When you change StatsPanel, it updates on all three pages simultaneously.
+
+~~~
+coherent chat --component "StatsPanel" "Redesign StatsPanel: add a sparkline mini chart to each card, make the trend percentage bolder, add a subtle hover effect with shadow elevation"
+~~~
+
+One edit, three pages updated. No copy-pasting, no hunting for duplicates, no inconsistencies.
+
+[Screenshot: Updated StatsPanel with sparklines on Dashboard]
