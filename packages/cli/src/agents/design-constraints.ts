@@ -427,6 +427,7 @@ DROPDOWN MENU:
 - Item text: text-sm. Icon before text: size-4 mr-2.
 - Group related items with DropdownMenuSeparator.
 - Destructive item: className="text-destructive" at bottom, separated.
+- NON-DESTRUCTIVE items: NEVER apply text color classes. Use default text-foreground. No text-amber, text-orange, text-yellow on menu items.
 - Keyboard shortcut hint: <DropdownMenuShortcut>⌘K</DropdownMenuShortcut>.
 - Max items without scroll: 8. For more, use Command palette.
 - Trigger: Button variant="ghost" size="icon" for icon-only, variant="outline" for labeled.

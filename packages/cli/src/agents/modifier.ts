@@ -302,6 +302,7 @@ LAYOUT CONTRACT (CRITICAL — prevents duplicate navigation and footer):
 - The app has a root layout (app/layout.tsx) that renders a shared Header and Footer.
 - Pages are rendered INSIDE this layout, between the Header and Footer.
 - NEVER include <header>, <nav>, or <footer> elements in pageCode. Also do NOT add a footer-like section at the bottom (no "© 2024", no site links, no logo + nav links at the bottom).
+- NEVER generate a sidebar panel, navigation column, or left-side navigation inside pageCode. Sidebar navigation is handled by the layout system via shared Sidebar component. If the user mentions "sidebar", it will be rendered by app/(app)/layout.tsx — do NOT recreate it in page code.
 - If the page needs sub-navigation (tabs, breadcrumbs, sidebar nav), use elements like <div role="tablist"> or <aside> — NOT <header>, <nav>, or <footer>.
 - Do NOT add any navigation bars, logo headers, site-wide menus, or site footers to pages. The layout provides all of these.
 
@@ -330,6 +331,7 @@ pageCode rules (shadcn/ui blocks quality):
 - No placeholders: real contextual copy only. Use the EXACT text, language, and content from the user's request.
 - IMAGES: For avatar/profile photos, use https://i.pravatar.cc/150?u=<unique-seed> (e.g. ?u=sarah.johnson). For hero/product images, use https://picsum.photos/800/400?random=N. Use standard <img> tags with className, NOT Next.js <Image>. Always provide alt text.
 - BUTTON + LINK: The Button component supports asChild prop. To make a button that navigates, use <Button asChild><Link href="/path"><Plus className="size-4" /> Label</Link></Button>. Never nest <button> inside <Link> or vice versa without asChild.
+- DOM NESTING: NEVER nest interactive elements. No <Button> inside <Link>, no <a> inside <a>, no <button> inside <button>. For clickable cards containing internal buttons, use onClick on the card wrapper — NOT <Link> wrapping the entire card.
 - Hover/focus on every interactive element (hover:bg-muted, focus-visible:ring-2 focus-visible:ring-ring).
 - LANGUAGE: Match the language of the user's request. English request → English page. Russian request → Russian page. Never switch languages.
 - NEVER use native HTML <select> or <option>. Always use Select, SelectTrigger, SelectValue, SelectContent, SelectItem from @/components/ui/select.
