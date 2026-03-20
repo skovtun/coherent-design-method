@@ -20,7 +20,9 @@ export interface ComponentProvider {
   id: string
   init(projectRoot: string): Promise<void>
   install(name: string, projectRoot: string): Promise<void>
+  has(name: string): boolean
   list(): ComponentMeta[]
+  listNames(): string[]
   getComponentAPI(name: string): ComponentAPI | null
   getCssVariables(tokens: DesignTokens): string
   getThemeBlock(tokens: DesignTokens): string

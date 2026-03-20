@@ -140,6 +140,8 @@ export async function migrateAction(options: MigrateOptions): Promise<void> {
   try {
     await provider.init(projectRoot)
 
+    // TODO: Add template hash comparison to skip user-modified files.
+    // Currently all managed component files are replaced. See design doc step 5.
     let migrated = 0
     for (const id of migratable) {
       try {

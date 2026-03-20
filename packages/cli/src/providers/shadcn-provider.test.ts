@@ -125,7 +125,7 @@ describe('ShadcnProvider.install()', () => {
     })
 
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('using bundled template'),
+      expect.stringContaining('Could not install button'),
     )
   })
 })

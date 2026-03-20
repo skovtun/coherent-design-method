@@ -412,7 +412,7 @@ export class ShadcnProvider implements ComponentProvider {
         )
       })
     } catch {
-      console.warn(`Network unavailable, using bundled template for ${name}`)
+      console.warn(`Could not install ${name} (network error or timeout). Run \`npx shadcn@latest add ${name}\` manually.`)
     }
   }
 

@@ -433,10 +433,10 @@ export async function applyModification(
     case 'add-component': {
       const componentData = request.changes as ComponentDefinition
 
-      const _provider = new ShadcnProvider()
-      if (componentData.source === 'shadcn' && _provider.has(componentData.id)) {
+      const shadcnProvider = new ShadcnProvider()
+      if (componentData.source === 'shadcn' && shadcnProvider.has(componentData.id)) {
         try {
-          await _provider.install(componentData.id, projectRoot)
+          await shadcnProvider.install(componentData.id, projectRoot)
           const shadcnDef = getShadcnComponent(componentData.id)
           if (shadcnDef) {
             const mergedData: ComponentDefinition = {
