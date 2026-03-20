@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { parseNavTypeFromPlan, extractAppNameFromPrompt } from './split-generator.js'
+import { inferPageType } from './modification-handler.js'
 
 describe('parseNavTypeFromPlan', () => {
   it('extracts sidebar navType from plan response', () => {
@@ -61,5 +62,27 @@ describe('extractAppNameFromPrompt', () => {
 
   it('skips generic words', () => {
     expect(extractAppNameFromPrompt('build a new app with login')).toBeNull()
+  })
+})
+
+describe('inferPageType', () => {
+  it('infers login from route', () => {
+    expect(inferPageType('/login', 'Login')).toBe('login')
+  })
+
+  it('infers register from sign-up route', () => {
+    expect(inferPageType('/sign-up', 'Sign Up')).toBe('register')
+  })
+
+  it('infers dashboard from name', () => {
+    expect(inferPageType('/app', 'Dashboard')).toBe('dashboard')
+  })
+
+  it('infers pricing from route', () => {
+    expect(inferPageType('/pricing', 'Plans')).toBe('pricing')
+  })
+
+  it('returns null for unknown page', () => {
+    expect(inferPageType('/projects', 'Projects')).toBeNull()
   })
 })

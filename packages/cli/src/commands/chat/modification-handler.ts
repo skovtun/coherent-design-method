@@ -908,7 +908,7 @@ export async function applyModification(
   }
 }
 
-function inferPageType(route: string, name: string): string | null {
+export function inferPageType(route: string, name: string): string | null {
   const key = (route + ' ' + name).toLowerCase()
   if (/\blogin\b|\bsign.?in\b/.test(key)) return 'login'
   if (/\bregister\b|\bsign.?up\b/.test(key)) return 'register'

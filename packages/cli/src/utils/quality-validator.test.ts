@@ -418,6 +418,28 @@ describe('autoFixCode — escaped closing quotes', () => {
   })
 })
 
+describe('autoFixCode — icon shrink-0', () => {
+  it('adds shrink-0 to lucide icon className', async () => {
+    const code = `import { Filter } from "lucide-react"
+export default function Page() {
+  return <Filter className="size-4 text-muted-foreground" />
+}`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('shrink-0')
+    expect(fixes.some(f => f.includes('shrink-0'))).toBe(true)
+  })
+
+  it('does not add shrink-0 if already present', async () => {
+    const code = `import { Filter } from "lucide-react"
+export default function Page() {
+  return <Filter className="size-4 shrink-0 text-muted-foreground" />
+}`
+    const { code: fixed } = await autoFixCode(code)
+    const matches = fixed.match(/shrink-0/g)
+    expect(matches?.length).toBe(1)
+  })
+})
+
 describe('autoFixCode — DOM nesting fix', () => {
   it('adds asChild when Button is inside Link', async () => {
     const code = `import Link from 'next/link'

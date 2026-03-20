@@ -130,6 +130,15 @@ describe('ComponentGenerator', () => {
       expect(code).toContain('focus-visible:ring-2')
       expect(code).toContain('placeholder:text-muted-foreground')
     })
+
+    it('generates Alert with AlertTitle and AlertDescription exports', async () => {
+      const code = await gen.generate(makeDef({ id: 'alert', name: 'Alert' }))
+      expect(code).toContain('AlertTitle')
+      expect(code).toContain('AlertDescription')
+      expect(code).toContain('alertVariants')
+      expect(code).toContain('role="alert"')
+      expect(code).toContain("export { Alert, AlertTitle, AlertDescription")
+    })
   })
 
   describe('fallback styles', () => {
