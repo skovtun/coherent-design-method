@@ -162,6 +162,45 @@ describe('design system consistency', () => {
   })
 })
 
+describe('autoFixCode — extended color coverage', () => {
+  it('replaces red colors with destructive tokens', async () => {
+    const code = `'use client'\nexport default function Page() {\n  return <div className="bg-red-500 text-red-100 border-red-600">Error</div>\n}`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).not.toContain('bg-red-500')
+    expect(fixed).not.toContain('text-red-100')
+    expect(fixed).not.toContain('border-red-600')
+  })
+
+  it('replaces green colors with primary tokens', async () => {
+    const code = `'use client'\nexport default function Page() {\n  return <div className="bg-green-500 text-green-600">Success</div>\n}`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).not.toContain('bg-green-500')
+    expect(fixed).not.toContain('text-green-600')
+  })
+
+  it('replaces yellow and orange colors', async () => {
+    const code = `'use client'\nexport default function Page() {\n  return <div className="bg-yellow-500 text-orange-600">Warning</div>\n}`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).not.toContain('bg-yellow-500')
+    expect(fixed).not.toContain('text-orange-600')
+  })
+
+  it('replaces pink, fuchsia, and lime colors', async () => {
+    const code = `'use client'\nexport default function Page() {\n  return <div className="bg-pink-500 text-fuchsia-400 border-lime-600">Colorful</div>\n}`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).not.toContain('bg-pink-500')
+    expect(fixed).not.toContain('text-fuchsia-400')
+    expect(fixed).not.toContain('border-lime-600')
+  })
+
+  it('handles shade 300 and 400 for bg', async () => {
+    const code = `'use client'\nexport default function Page() {\n  return <div className="bg-blue-300 bg-emerald-400">Shades</div>\n}`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).not.toContain('bg-blue-300')
+    expect(fixed).not.toContain('bg-emerald-400')
+  })
+})
+
 describe('AI output verification for incremental edits', () => {
   it('detects removed imports that are still used', () => {
     const before = `import { Button } from '@/components/ui/button'\nimport { Card } from '@/components/ui/card'\nexport default function Page() { return <Card><Button>Click</Button></Card> }`

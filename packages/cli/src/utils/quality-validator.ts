@@ -663,21 +663,26 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
     if (isInsideTerminalBlock(offset)) return fullMatch
 
     let result = classes
-    const accentColorRe = /\b(bg|text|border)-(emerald|blue|violet|indigo|purple|teal|cyan|sky|rose|amber)-(\d+)\b/g
-    result = result.replace(accentColorRe, (m, prefix: string, _color: string, shade: string) => {
+    const accentColorRe = /\b(bg|text|border)-(emerald|blue|violet|indigo|purple|teal|cyan|sky|rose|amber|red|green|yellow|pink|orange|fuchsia|lime)-(\d+)\b/g
+    result = result.replace(accentColorRe, (m, prefix: string, color: string, shade: string) => {
       if (colorMap[m]) {
         hadColorFix = true
         return colorMap[m]
       }
       const n = parseInt(shade)
+      const isDestructive = color === 'red'
       if (prefix === 'bg') {
         if (n >= 500 && n <= 700) {
           hadColorFix = true
-          return 'bg-primary'
+          return isDestructive ? 'bg-destructive' : 'bg-primary'
         }
         if (n >= 100 && n <= 200) {
           hadColorFix = true
-          return 'bg-primary/10'
+          return isDestructive ? 'bg-destructive/10' : 'bg-primary/10'
+        }
+        if (n >= 300 && n <= 400) {
+          hadColorFix = true
+          return isDestructive ? 'bg-destructive/20' : 'bg-primary/20'
         }
         if (n >= 800) {
           hadColorFix = true
@@ -687,16 +692,20 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
       if (prefix === 'text') {
         if (n >= 400 && n <= 600) {
           hadColorFix = true
-          return 'text-primary'
+          return isDestructive ? 'text-destructive' : 'text-primary'
         }
         if (n >= 100 && n <= 300) {
+          hadColorFix = true
+          return 'text-foreground'
+        }
+        if (n >= 700) {
           hadColorFix = true
           return 'text-foreground'
         }
       }
       if (prefix === 'border') {
         hadColorFix = true
-        return 'border-primary'
+        return isDestructive ? 'border-destructive' : 'border-primary'
       }
       return m
     })
