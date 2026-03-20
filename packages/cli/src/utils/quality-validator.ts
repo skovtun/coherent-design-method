@@ -786,8 +786,8 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
     return fullMatch
   })
 
-  // Replace colors in cn()/clsx()/cva() string arguments
-  fixed = fixed.replace(/(?:cn|clsx|cva)\(([^)]*)\)/g, (fullMatch, args: string) => {
+  // Replace colors in cn()/clsx()/cva() string arguments (supports one level of nested parens)
+  fixed = fixed.replace(/(?:cn|clsx|cva)\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g, (fullMatch, args: string) => {
     const replaced = args.replace(/"([^"]*)"/g, (_qm, inner: string) => {
       const { result, changed } = replaceRawColors(inner, colorMap)
       if (changed) hadColorFix = true

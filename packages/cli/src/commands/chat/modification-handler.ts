@@ -644,8 +644,9 @@ export async function applyModification(
                       postFixes.push(...reFixes)
                     }
                     await writeFile(filePath, codeToWrite)
-                    console.log(chalk.green(`   ✔ Quality fix: ${errors.length} → ${recheckErrors.length} errors`))
                     issues = validatePageQuality(codeToWrite)
+                    const finalErrors = issues.filter(i => i.severity === 'error').length
+                    console.log(chalk.green(`   ✔ Quality fix: ${errors.length} → ${finalErrors} errors`))
                   }
                 }
               }
