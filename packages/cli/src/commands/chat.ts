@@ -351,12 +351,13 @@ export async function chatCommand(
       return
     }
 
-    // Pre-flight component check
+    // Pre-flight component check — Phase 1: Collect all needed component IDs across all pages
     const pageRequests = normalizedRequests.filter(
       (r): r is ModificationRequest & { type: 'add-page' } => r.type === 'add-page',
     )
     const preflightInstalledIds: string[] = []
     const allNpmImportsFromPages = new Set<string>()
+    const allNeededComponentIds = new Set<string>()
 
     for (const pageRequest of pageRequests) {
       const page = pageRequest.changes as PageDefinition & {
@@ -364,16 +365,15 @@ export async function chatCommand(
         pageCode?: string
       }
 
-      const neededComponentIds = new Set<string>()
       page.sections?.forEach(
         (section: { componentId?: string; props?: { fields?: Array<{ component?: string }> } }) => {
           if (section.componentId) {
-            neededComponentIds.add(section.componentId)
+            allNeededComponentIds.add(section.componentId)
           }
           if (section.props?.fields && Array.isArray(section.props.fields)) {
             section.props.fields.forEach((field: { component?: string }) => {
               if (field.component) {
-                neededComponentIds.add(field.component)
+                allNeededComponentIds.add(field.component)
               }
             })
           }
@@ -382,7 +382,7 @@ export async function chatCommand(
       if (typeof page.pageCode === 'string' && page.pageCode.trim() !== '') {
         const importMatches = page.pageCode.matchAll(/@\/components\/ui\/([a-z0-9-]+)/g)
         for (const m of importMatches) {
-          if (m[1]) neededComponentIds.add(m[1])
+          if (m[1]) allNeededComponentIds.add(m[1])
         }
         extractNpmPackagesFromCode(page.pageCode).forEach(p => allNpmImportsFromPages.add(p))
       }
@@ -398,7 +398,7 @@ export async function chatCommand(
             })
             const tmplImports = preview.matchAll(/@\/components\/ui\/([a-z0-9-]+)/g)
             for (const m of tmplImports) {
-              if (m[1]) neededComponentIds.add(m[1])
+              if (m[1]) allNeededComponentIds.add(m[1])
             }
             extractNpmPackagesFromCode(preview).forEach(p => allNpmImportsFromPages.add(p))
           } catch {
@@ -408,8 +408,7 @@ export async function chatCommand(
       }
 
       if (DEBUG) {
-        console.log(chalk.gray('\n[DEBUG] Pre-flight analysis:'))
-        console.log(chalk.gray(`  Needed components: ${Array.from(neededComponentIds).join(', ')}`))
+        console.log(chalk.gray(`\n[DEBUG] Pre-flight analysis for page "${page.name || page.route}": `))
         console.log(chalk.gray(`  Page sections: ${page.sections?.length || 0}`))
         if (page.sections?.[0]?.props?.fields) {
           console.log(chalk.gray(`  First section has ${page.sections[0].props.fields.length} fields`))
@@ -417,71 +416,77 @@ export async function chatCommand(
             console.log(chalk.gray(`    Field ${i}: component=${f.component}`))
           })
         }
-        console.log('')
       }
+    }
 
-      const INVALID_COMPONENT_IDS = new Set(['ui', 'shared', 'lib', 'utils', 'hooks', 'app', 'components'])
-      for (const id of INVALID_COMPONENT_IDS) neededComponentIds.delete(id)
+    // Phase 2: Single batch install of all missing components
+    const INVALID_COMPONENT_IDS = new Set(['ui', 'shared', 'lib', 'utils', 'hooks', 'app', 'components'])
+    for (const id of INVALID_COMPONENT_IDS) allNeededComponentIds.delete(id)
 
-      const missingComponents: string[] = []
-      for (const componentId of neededComponentIds) {
-        const exists = cm.read(componentId)
-        if (DEBUG) console.log(chalk.gray(`    Checking ${componentId}: ${exists ? 'EXISTS' : 'MISSING'}`))
-        if (!exists) {
-          missingComponents.push(componentId)
+    if (DEBUG) {
+      console.log(chalk.gray('\n[DEBUG] Pre-flight analysis (consolidated):'))
+      console.log(chalk.gray(`  All needed components: ${Array.from(allNeededComponentIds).join(', ')}`))
+      console.log('')
+    }
+
+    const missingComponents: string[] = []
+    for (const componentId of allNeededComponentIds) {
+      const exists = cm.read(componentId)
+      if (DEBUG) console.log(chalk.gray(`    Checking ${componentId}: ${exists ? 'EXISTS' : 'MISSING'}`))
+      if (!exists) {
+        missingComponents.push(componentId)
+      }
+    }
+
+    if (missingComponents.length > 0) {
+      spinner.stop()
+      console.log(chalk.cyan('\n🔍 Pre-flight check: Installing missing components...\n'))
+
+      for (const componentId of missingComponents) {
+        if (DEBUG) {
+          console.log(chalk.gray(`    [DEBUG] Trying to install: ${componentId}`))
+          console.log(chalk.gray(`    [DEBUG] isShadcnComponent(${componentId}): ${isShadcnComponent(componentId)}`))
         }
-      }
 
-      if (missingComponents.length > 0) {
-        spinner.stop()
-        console.log(chalk.cyan('\n🔍 Pre-flight check: Installing missing components...\n'))
+        if (isShadcnComponent(componentId)) {
+          try {
+            const shadcnDef = await installShadcnComponent(componentId, projectRoot)
+            if (DEBUG)
+              console.log(chalk.gray(`    [DEBUG] shadcnDef for ${componentId}: ${shadcnDef ? 'OK' : 'NULL'}`))
 
-        for (const componentId of missingComponents) {
-          if (DEBUG) {
-            console.log(chalk.gray(`    [DEBUG] Trying to install: ${componentId}`))
-            console.log(chalk.gray(`    [DEBUG] isShadcnComponent(${componentId}): ${isShadcnComponent(componentId)}`))
-          }
-
-          if (isShadcnComponent(componentId)) {
-            try {
-              const shadcnDef = await installShadcnComponent(componentId, projectRoot)
-              if (DEBUG)
-                console.log(chalk.gray(`    [DEBUG] shadcnDef for ${componentId}: ${shadcnDef ? 'OK' : 'NULL'}`))
-
-              if (shadcnDef) {
-                if (DEBUG) console.log(chalk.gray(`    [DEBUG] Registering ${shadcnDef.id} (${shadcnDef.name})`))
-                const result = await cm.register(shadcnDef)
-                if (DEBUG) {
-                  console.log(
-                    chalk.gray(
-                      `    [DEBUG] Register result: ${result.success ? 'SUCCESS' : 'FAILED'}${!result.success && result.message ? ` - ${result.message}` : ''}`,
-                    ),
-                  )
-                }
-
-                if (result.success) {
-                  preflightInstalledIds.push(shadcnDef.id)
-                  console.log(chalk.green(`   ✨ Auto-installed ${shadcnDef.name} component`))
-                  const updatedConfig = result.config
-                  dsm.updateConfig(updatedConfig)
-                  cm.updateConfig(updatedConfig)
-                  pm.updateConfig(updatedConfig)
-                }
+            if (shadcnDef) {
+              if (DEBUG) console.log(chalk.gray(`    [DEBUG] Registering ${shadcnDef.id} (${shadcnDef.name})`))
+              const result = await cm.register(shadcnDef)
+              if (DEBUG) {
+                console.log(
+                  chalk.gray(
+                    `    [DEBUG] Register result: ${result.success ? 'SUCCESS' : 'FAILED'}${!result.success && result.message ? ` - ${result.message}` : ''}`,
+                  ),
+                )
               }
-            } catch (error) {
-              console.log(chalk.red(`   ❌ Failed to install ${componentId}:`))
-              console.log(chalk.red(`      ${error instanceof Error ? error.message : error}`))
-              if (error instanceof Error && error.stack) {
-                console.log(chalk.gray(`      ${error.stack.split('\n')[1]}`))
+
+              if (result.success) {
+                preflightInstalledIds.push(shadcnDef.id)
+                console.log(chalk.green(`   ✨ Auto-installed ${shadcnDef.name} component`))
+                const updatedConfig = result.config
+                dsm.updateConfig(updatedConfig)
+                cm.updateConfig(updatedConfig)
+                pm.updateConfig(updatedConfig)
               }
             }
-          } else {
-            console.log(chalk.yellow(`   ⚠️  Component ${componentId} not available`))
+          } catch (error) {
+            console.log(chalk.red(`   ❌ Failed to install ${componentId}:`))
+            console.log(chalk.red(`      ${error instanceof Error ? error.message : error}`))
+            if (error instanceof Error && error.stack) {
+              console.log(chalk.gray(`      ${error.stack.split('\n')[1]}`))
+            }
           }
+        } else {
+          console.log(chalk.yellow(`   ⚠️  Component ${componentId} not available`))
         }
-        console.log('')
-        spinner.start('Applying modifications...')
       }
+      console.log('')
+      spinner.start('Applying modifications...')
     }
 
     // Pre-flight npm deps
