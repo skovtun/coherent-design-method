@@ -234,7 +234,35 @@ export async function splitGeneratePages(
     AI_CONCURRENCY,
   )
 
-  const allRequests = [homeRequest, ...remainingRequests]
+  const allRequests: ModificationRequest[] = [homeRequest, ...remainingRequests]
+
+  const emptyPages = allRequests.filter(
+    r => r.type === 'add-page' && !(r.changes as Record<string, unknown>)?.pageCode,
+  )
+  if (emptyPages.length > 0 && emptyPages.length <= 5) {
+    spinner.text = `Retrying ${emptyPages.length} page(s) without code...`
+    for (const req of emptyPages) {
+      const page = req.changes as Record<string, unknown>
+      const pageName = (page.name as string) || (page.id as string) || 'page'
+      const pageRoute = (page.route as string) || `/${pageName.toLowerCase()}`
+      try {
+        const retryResult = await parseModification(
+          `Create ONE page called "${pageName}" at route "${pageRoute}". Context: ${message}. Generate complete pageCode for this single page only.`,
+          modCtx,
+          provider,
+          parseOpts,
+        )
+        const codePage = retryResult.requests.find((r: ModificationRequest) => r.type === 'add-page')
+        if (codePage && (codePage.changes as Record<string, unknown>)?.pageCode) {
+          const idx = allRequests.indexOf(req)
+          if (idx !== -1) allRequests[idx] = codePage
+        }
+      } catch {
+        // keep the empty version — user will see the warning
+      }
+    }
+  }
+
   const withCode = allRequests.filter(r => (r.changes as Record<string, unknown>)?.pageCode).length
   spinner.succeed(`Phase 4/4 — Generated ${allRequests.length} pages (${withCode} with full code)`)
   return allRequests
