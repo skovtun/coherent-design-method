@@ -43,6 +43,7 @@ import { splitGeneratePages } from './chat/split-generator.js'
 import { applyModification } from './chat/modification-handler.js'
 import { regenerateFiles } from './chat/code-generator.js'
 import { takeNavSnapshot, hasNavChanged } from '../utils/nav-snapshot.js'
+import { loadHashes, saveHashes, computeFileHash } from '../utils/file-hashes.js'
 import { showPreview, getChangeDescription } from './chat/reporting.js'
 import { interactiveChat } from './chat/interactive.js'
 
@@ -116,6 +117,8 @@ export async function chatCommand(
       }
       spinner.text = 'Loading design system configuration...'
     }
+
+    const storedHashes = await loadHashes(projectRoot)
 
     const dsm = new DesignSystemManager(configPath)
     await dsm.load()
@@ -728,6 +731,29 @@ export async function chatCommand(
       fixGlobalsCss(projectRoot, updatedConfig)
     } catch {
       /* best-effort */
+    }
+
+    // Update file hashes for all written files
+    try {
+      const updatedHashes = { ...storedHashes }
+      const sharedDir = resolve(projectRoot, 'components', 'shared')
+      const layoutFile = resolve(projectRoot, 'app', 'layout.tsx')
+      const filesToHash = [layoutFile]
+      if (existsSync(sharedDir)) {
+        const { readdirSync } = await import('fs')
+        for (const f of readdirSync(sharedDir)) {
+          if (f.endsWith('.tsx')) filesToHash.push(resolve(sharedDir, f))
+        }
+      }
+      for (const filePath of filesToHash) {
+        if (existsSync(filePath)) {
+          const rel = filePath.replace(projectRoot + '/', '')
+          updatedHashes[rel] = await computeFileHash(filePath)
+        }
+      }
+      await saveHashes(projectRoot, updatedHashes)
+    } catch {
+      if (DEBUG) console.log(chalk.dim('[hashes] Could not save file hashes'))
     }
 
     // Record recent changes
