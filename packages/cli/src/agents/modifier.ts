@@ -454,6 +454,23 @@ Return valid JSON only, no markdown code fence. Use this shape:
 Legacy: returning only a JSON array of requests is still accepted.`
 }
 
+export function buildLightweightPagePrompt(
+  pageName: string,
+  route: string,
+  styleContext: string,
+  sharedComponentsSummary?: string,
+): string {
+  return [
+    `Generate complete pageCode for a page called "${pageName}" at route "${route}".`,
+    `Output valid TSX with a default export React component.`,
+    `Use shadcn/ui components (import from @/components/ui/*). Use Tailwind CSS semantic tokens only.`,
+    styleContext ? `Follow this style context:\n${styleContext}` : '',
+    sharedComponentsSummary ? `Available shared components:\n${sharedComponentsSummary}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+}
+
 /**
  * Check component registry for reuse opportunities
  */

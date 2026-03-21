@@ -8,6 +8,7 @@ import {
 import { inferPageType } from './modification-handler.js'
 import { detectPageType } from '../../agents/page-templates.js'
 import { readAnchorPageCodeFromDisk } from './utils.js'
+import { buildLightweightPagePrompt } from '../../agents/modifier.js'
 
 vi.mock('../../utils/ai-provider.js', () => ({
   createAIProvider: vi.fn(),
@@ -350,6 +351,26 @@ describe('detectPageType for auth pages', () => {
   it('returns login for existing login patterns', () => {
     expect(detectPageType('login')).toBe('login')
     expect(detectPageType('signin')).toBe('login')
+  })
+})
+
+describe('buildLightweightPagePrompt', () => {
+  it('produces minimal prompt with page name and route', () => {
+    const prompt = buildLightweightPagePrompt('Dashboard', '/dashboard', 'Use dark theme with cards.')
+    expect(prompt).toContain('Dashboard')
+    expect(prompt).toContain('/dashboard')
+    expect(prompt).toContain('dark theme')
+    expect(prompt).toContain('default export')
+  })
+
+  it('includes shared components summary when provided', () => {
+    const prompt = buildLightweightPagePrompt('Projects', '/projects', '', 'CID-001 Header (layout)')
+    expect(prompt).toContain('CID-001 Header')
+  })
+
+  it('omits shared components when not provided', () => {
+    const prompt = buildLightweightPagePrompt('About', '/about', 'light theme')
+    expect(prompt).not.toContain('shared components')
   })
 })
 

@@ -342,7 +342,7 @@ export async function splitGeneratePages(
       : [...remainingRequests]
 
   const emptyPages = allRequests.filter(r => r.type === 'add-page' && !(r.changes as Record<string, unknown>)?.pageCode)
-  if (emptyPages.length > 0 && emptyPages.length <= 5) {
+  if (emptyPages.length > 0) {
     spinner.text = `Retrying ${emptyPages.length} page(s) without code...`
     for (const req of emptyPages) {
       const page = req.changes as Record<string, unknown>
