@@ -10,7 +10,7 @@ import type { DesignSystemConfig, ModificationRequest, ComponentSpec } from '@ge
 import { ComponentManager } from '@getcoherent/core'
 import { createAIProvider, type AIProvider } from '../utils/ai-provider.js'
 import { expandPageRequest } from './page-templates.js'
-import { ShadcnProvider } from '../providers/shadcn-provider.js'
+import { getComponentProvider } from '../providers/index.js'
 import {
   DESIGN_THINKING,
   CORE_CONSTRAINTS,
@@ -190,7 +190,7 @@ If the shared component needs minor adaptation (e.g., different props), use its 
 For editing an existing shared component use type "modify-layout-block" with target "CID-XXX" or name.
 `
     : ''
-  const availableShadcn = new ShadcnProvider().listNames()
+  const availableShadcn = getComponentProvider().listNames()
 
   const designThinking = DESIGN_THINKING
   const coreRules = CORE_CONSTRAINTS
