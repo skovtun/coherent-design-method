@@ -88,6 +88,8 @@ export interface GenerateSharedComponentInput {
   usedIn?: string[]
   /** If true, overwrite an existing component with the same name instead of creating a uniquely-named copy. */
   overwrite?: boolean
+  /** TypeScript props interface body, e.g. "{ title: string; icon: React.ReactNode }". */
+  propsInterface?: string
 }
 
 export interface GenerateSharedComponentResult {
@@ -134,6 +136,7 @@ export async function generateSharedComponent(
     file: filePath,
     usedIn: input.usedIn ?? [],
     description: input.description,
+    propsInterface: input.propsInterface,
   })
   await saveManifest(projectRoot, nextManifest)
 

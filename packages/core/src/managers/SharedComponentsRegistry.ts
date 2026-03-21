@@ -72,6 +72,7 @@ export interface CreateSharedComponentInput {
   file: string
   usedIn?: string[]
   description?: string
+  propsInterface?: string
 }
 
 /**
@@ -93,6 +94,7 @@ export function createEntry(
     file: input.file,
     usedIn: input.usedIn ?? [],
     description: input.description,
+    propsInterface: input.propsInterface,
     createdAt: now,
   }
   const nextManifest: SharedComponentsManifest = {
