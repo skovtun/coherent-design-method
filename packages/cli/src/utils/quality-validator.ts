@@ -1022,6 +1022,29 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
     fixes.push('Link>Button → Button asChild>Link (DOM nesting fix)')
   }
 
+  // Fix Button asChild children — add inline-flex for base-ui compatibility
+  // When shadcn uses @base-ui/react, asChild is not supported. The child element
+  // (Link/a) renders as a nested block, breaking icon layout. Adding inline-flex
+  // ensures text + icon stay on one line regardless of the underlying Button impl.
+  const beforeAsChildFlex = fixed
+  fixed = fixed.replace(
+    /(<Button\b[^>]*\basChild\b[^>]*>)\s*(<(?:Link|a)\b)([^>]*)(>)/g,
+    (_match, btnOpen: string, childTag: string, childProps: string, close: string) => {
+      if (/\binline-flex\b/.test(childProps)) return _match
+      if (/className="([^"]*)"/.test(childProps)) {
+        const merged = childProps.replace(
+          /className="([^"]*)"/,
+          (_cm: string, classes: string) => `className="inline-flex items-center gap-2 ${classes}"`,
+        )
+        return `${btnOpen}${childTag}${merged}${close}`
+      }
+      return `${btnOpen}${childTag} className="inline-flex items-center gap-2"${close}`
+    },
+  )
+  if (fixed !== beforeAsChildFlex) {
+    fixes.push('added inline-flex to Button asChild children (base-ui compat)')
+  }
+
   // Fix shadcn component variant misuse (e.g. Button without variant="ghost" in nav)
   const { code: fixedByRules, fixes: ruleFixes } = applyComponentRules(fixed)
   if (ruleFixes.length > 0) {

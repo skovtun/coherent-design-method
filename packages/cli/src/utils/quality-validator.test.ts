@@ -452,3 +452,59 @@ export default function Page() {
     expect(fixes.some(f => f.includes('DOM nesting') || f.includes('asChild'))).toBe(true)
   })
 })
+
+describe('autoFixCode — Button asChild child flex (base-ui compat)', () => {
+  it('adds inline-flex to Link inside Button asChild', async () => {
+    const code = `import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+import { ArrowRight } from "lucide-react"
+export default function Page() {
+  return <Button size="lg" asChild><Link href="/register">Get Started<ArrowRight className="size-4 shrink-0" /></Link></Button>
+}`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('inline-flex')
+    expect(fixed).toContain('items-center')
+    expect(fixes.some(f => f.includes('inline-flex'))).toBe(true)
+  })
+
+  it('merges inline-flex with existing className on Link', async () => {
+    const code = `import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+export default function Page() {
+  return <Button asChild><Link href="/foo" className="text-sm">Click</Link></Button>
+}`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('inline-flex')
+    expect(fixed).toContain('text-sm')
+  })
+
+  it('skips if Link already has inline-flex', async () => {
+    const code = `import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+export default function Page() {
+  return <Button asChild><Link href="/foo" className="inline-flex items-center gap-2">Click</Link></Button>
+}`
+    const { code: fixed } = await autoFixCode(code)
+    const count = (fixed.match(/inline-flex/g) || []).length
+    expect(count).toBe(1)
+  })
+
+  it('handles multiline Button asChild with Link child', async () => {
+    const code = `import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+import { ArrowRight } from "lucide-react"
+export default function Page() {
+  return (
+    <Button size="lg" asChild>
+      <Link href="/register">
+        Get Started
+        <ArrowRight className="size-4 shrink-0" />
+      </Link>
+    </Button>
+  )
+}`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('inline-flex')
+    expect(fixed).toContain('items-center')
+  })
+})
