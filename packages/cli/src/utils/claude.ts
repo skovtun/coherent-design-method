@@ -8,7 +8,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { DiscoveryResult, DesignSystemConfig } from '@getcoherent/core'
 import { validateConfig } from '@getcoherent/core'
-import type { AIProviderInterface, ParseModificationOutput } from './ai-provider.js'
+import type { AIProviderInterface, ParseModificationOutput, SharedExtractionItem } from './ai-provider.js'
 
 export class ClaudeClient implements AIProviderInterface {
   private client: Anthropic
@@ -422,5 +422,58 @@ Requirements:
       .trim()
       .replace(/^```(?:tsx?|jsx?)\s*/i, '')
       .replace(/\s*```$/i, '')
+  }
+
+  async extractSharedComponents(
+    pageCode: string,
+    reservedNames: string[],
+    existingSharedNames: string[],
+  ): Promise<{ components: SharedExtractionItem[] }> {
+    try {
+      const response = await this.client.messages.create({
+        model: this.defaultModel,
+        max_tokens: 16384,
+        messages: [
+          {
+            role: 'user',
+            content: `Analyze this page and extract reusable components.
+
+PAGE CODE:
+${pageCode}
+
+Rules:
+- Extract 1-5 components maximum
+- Each component must be ≥10 lines of meaningful JSX
+- Output complete, self-contained TypeScript modules with:
+  - "use client" directive (if hooks or event handlers are used)
+  - All necessary imports (shadcn/ui from @/components/ui/*, lucide-react, next/link, etc.)
+  - A typed props interface exported as a named type
+  - A named export function (not default export)
+- Do NOT extract: the entire page, trivial wrappers, layout components (header, footer, nav)
+- Do NOT use these names (reserved for shadcn/ui): ${reservedNames.join(', ')}
+- Do NOT use these names (already shared): ${existingSharedNames.join(', ')}
+- Look for: cards with icon+title+description, pricing tiers, testimonial blocks, stat displays, CTA sections
+
+Each component object: "name" (PascalCase), "type" ("section"|"widget"), "description", "propsInterface", "code" (full TSX module as string)
+
+If no repeating patterns found: { "components": [] }`,
+          },
+        ],
+        system:
+          'You are a React/Next.js component extraction specialist. ' +
+          'Analyze page code and identify reusable UI patterns that can be extracted into shared components. ' +
+          'Return ONLY valid JSON. No markdown fencing, no explanation outside the JSON object.',
+      })
+
+      const content = response.content[0]
+      if (content.type !== 'text') return { components: [] }
+
+      const jsonText = this.extractJSON(content.text)
+      const parsed = JSON.parse(jsonText)
+      const components: SharedExtractionItem[] = Array.isArray(parsed.components) ? parsed.components : []
+      return { components }
+    } catch {
+      return { components: [] }
+    }
   }
 }
