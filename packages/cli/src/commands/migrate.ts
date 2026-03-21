@@ -9,7 +9,7 @@ import chalk from 'chalk'
 import ora from 'ora'
 import { existsSync, mkdirSync, cpSync, rmSync, writeFileSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { ShadcnProvider } from '../providers/shadcn-provider.js'
+import { getComponentProvider } from '../providers/index.js'
 import { getProjectRoot } from '../utils/find-config.js'
 
 export interface MigrateOptions {
@@ -110,7 +110,7 @@ export async function migrateAction(options: MigrateOptions): Promise<void> {
     return
   }
 
-  const provider = new ShadcnProvider()
+  const provider = getComponentProvider()
   const managedIds = new Set(provider.listNames())
   const files = readdirSync(uiDir).filter(f => f.endsWith('.tsx'))
   const migratable = files
@@ -138,19 +138,18 @@ export async function migrateAction(options: MigrateOptions): Promise<void> {
   setGuard(projectRoot, backup)
 
   try {
-    await provider.init(projectRoot)
-
-    // TODO: Add template hash comparison to skip user-modified files.
-    // Currently all managed component files are replaced. See design doc step 5.
-    let migrated = 0
     for (const id of migratable) {
-      try {
-        const filePath = join(uiDir, `${id}.tsx`)
-        if (existsSync(filePath)) rmSync(filePath)
-        await provider.install(id, projectRoot)
+      const filePath = join(uiDir, `${id}.tsx`)
+      if (existsSync(filePath)) rmSync(filePath)
+    }
+
+    const results = await provider.installBatch(migratable, projectRoot, { force: true })
+    let migrated = 0
+    for (const [id, result] of results) {
+      if (result.success) {
         migrated++
-      } catch (err) {
-        console.warn(chalk.yellow(`  ⚠ Failed to migrate ${id}: ${err instanceof Error ? err.message : err}`))
+      } else {
+        console.warn(chalk.yellow(`  ⚠ Failed to migrate ${id}`))
       }
     }
 
