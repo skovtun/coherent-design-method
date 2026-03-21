@@ -278,7 +278,7 @@ export async function splitGeneratePages(
     return homeRequest ? [homeRequest] : []
   }
 
-  spinner.start(`Phase 5/5 — Generating ${remainingPages.length} pages in parallel...`)
+  spinner.start(`Phase 4/5 — Generating ${remainingPages.length} pages in parallel...`)
 
   const sharedNote =
     'Header and Footer are shared components rendered by the root layout. Do NOT include any site-wide <header>, <nav>, or <footer> in this page. Start with the main content directly.'
@@ -310,12 +310,12 @@ export async function splitGeneratePages(
       try {
         const result = await parseModification(prompt, modCtx, provider, parseOpts)
         phase4Done++
-        spinner.text = `Phase 5/5 — ${phase4Done}/${remainingPages.length} pages generated...`
+        spinner.text = `Phase 4/5 — ${phase4Done}/${remainingPages.length} pages generated...`
         const codePage = result.requests.find((r: ModificationRequest) => r.type === 'add-page')
         return codePage || { type: 'add-page' as const, target: 'new', changes: { id, name, route } }
       } catch {
         phase4Done++
-        spinner.text = `Phase 5/5 — ${phase4Done}/${remainingPages.length} pages generated...`
+        spinner.text = `Phase 4/5 — ${phase4Done}/${remainingPages.length} pages generated...`
         return { type: 'add-page' as const, target: 'new', changes: { id, name, route } }
       }
     },
@@ -354,7 +354,7 @@ export async function splitGeneratePages(
   }
 
   const withCode = allRequests.filter(r => (r.changes as Record<string, unknown>)?.pageCode).length
-  spinner.succeed(`Phase 5/5 — Generated ${allRequests.length} pages (${withCode} with full code)`)
+  spinner.succeed(`Phase 4/5 — Generated ${allRequests.length} pages (${withCode} with full code)`)
   return allRequests
 }
 

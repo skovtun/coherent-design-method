@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { generateSharedComponent } from './SharedComponentGenerator.js'
-import { writeFile, mkdir, readFile } from 'fs/promises'
-import { existsSync } from 'fs'
+import { writeFile, readFile } from 'fs/promises'
 
 vi.mock('fs/promises', () => ({
   writeFile: vi.fn().mockResolvedValue(undefined),
