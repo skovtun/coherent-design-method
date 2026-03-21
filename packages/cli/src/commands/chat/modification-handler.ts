@@ -22,8 +22,7 @@ import { ensureAuthRouteGroup } from '../../utils/auth-route-group.js'
 import { createAIProvider } from '../../utils/ai-provider.js'
 import { readFile, writeFile } from '../../utils/files.js'
 import { CORE_CONSTRAINTS, DESIGN_QUALITY, selectContextualRules } from '../../agents/design-constraints.js'
-import { getShadcnComponent } from '../../utils/shadcn-installer.js'
-import { ShadcnProvider } from '../../providers/shadcn-provider.js'
+import { getComponentProvider } from '../../providers/index.js'
 import {
   validatePageQuality,
   formatIssues,
@@ -431,34 +430,29 @@ export async function applyModification(
     case 'add-component': {
       const componentData = request.changes as ComponentDefinition
 
-      const shadcnProvider = new ShadcnProvider()
-      if (componentData.source === 'shadcn' && shadcnProvider.has(componentData.id)) {
-        try {
-          await shadcnProvider.install(componentData.id, projectRoot)
-          const shadcnDef = getShadcnComponent(componentData.id)
-          if (shadcnDef) {
-            const mergedData: ComponentDefinition = {
-              ...shadcnDef,
-              variants:
-                componentData.variants && componentData.variants.length > 0
-                  ? componentData.variants
-                  : shadcnDef.variants,
-              sizes: componentData.sizes && componentData.sizes.length > 0 ? componentData.sizes : shadcnDef.sizes,
-            }
-            const result = await cm.register(mergedData)
-            if (result.success) {
-              dsm.updateConfig(result.config)
-              cm.updateConfig(result.config)
-              pm.updateConfig(result.config)
-            }
-            return {
-              success: result.success,
-              message: result.success ? `✨ Auto-installed ${componentData.name}` : result.message,
-              modified: result.modified,
-            }
+      const provider = getComponentProvider()
+      if (componentData.source === 'shadcn' && provider.has(componentData.id)) {
+        const result = await provider.installComponent(componentData.id, projectRoot)
+        if (result.success && result.componentDef) {
+          const mergedData: ComponentDefinition = {
+            ...result.componentDef,
+            variants:
+              componentData.variants && componentData.variants.length > 0
+                ? componentData.variants
+                : result.componentDef.variants,
+            sizes: componentData.sizes && componentData.sizes.length > 0 ? componentData.sizes : result.componentDef.sizes,
           }
-        } catch (error) {
-          console.error(`Failed to auto-install ${componentData.name}:`, error)
+          const regResult = await cm.register(mergedData)
+          if (regResult.success) {
+            dsm.updateConfig(regResult.config)
+            cm.updateConfig(regResult.config)
+            pm.updateConfig(regResult.config)
+          }
+          return {
+            success: regResult.success,
+            message: regResult.success ? `✨ Auto-installed ${componentData.name}` : regResult.message,
+            modified: regResult.modified,
+          }
         }
       }
 
