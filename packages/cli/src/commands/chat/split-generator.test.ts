@@ -1,6 +1,34 @@
-import { describe, it, expect } from 'vitest'
-import { parseNavTypeFromPlan, extractAppNameFromPrompt, buildSharedComponentsSummary } from './split-generator.js'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { parseNavTypeFromPlan, extractAppNameFromPrompt, buildSharedComponentsSummary, extractSharedComponents } from './split-generator.js'
 import { inferPageType } from './modification-handler.js'
+
+vi.mock('../../utils/ai-provider.js', () => ({
+  createAIProvider: vi.fn(),
+}))
+
+vi.mock('../../providers/index.js', () => ({
+  getComponentProvider: vi.fn(() => ({
+    listNames: () => ['Button', 'Card', 'Input'],
+    installComponent: vi.fn(async () => ({ success: true, componentDef: null })),
+  })),
+}))
+
+vi.mock('@getcoherent/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@getcoherent/core')>()
+  return {
+    ...actual,
+    loadManifest: vi.fn(async () => ({ shared: [], nextId: 1 })),
+    generateSharedComponent: vi.fn(async (_root: string, input: { name: string }) => ({
+      id: `CID-001`,
+      name: input.name,
+      file: `components/shared/${input.name.toLowerCase().replace(/([A-Z])/g, (m: string, c: string, i: number) => i ? `-${c.toLowerCase()}` : c.toLowerCase())}.tsx`,
+    })),
+  }
+})
+
+vi.mock('../../utils/quality-validator.js', () => ({
+  autoFixCode: vi.fn(async (code: string) => ({ code, fixes: [] })),
+}))
 
 describe('parseNavTypeFromPlan', () => {
   it('extracts sidebar navType from plan response', () => {
@@ -121,5 +149,153 @@ describe('inferPageType', () => {
 
   it('returns null for unknown page', () => {
     expect(inferPageType('/projects', 'Projects')).toBeNull()
+  })
+})
+
+function makeCode(lines: number): string {
+  return Array(lines).fill('// line of code').join('\n')
+}
+
+describe('extractSharedComponents', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns extracted components from valid AI response', async () => {
+    const { createAIProvider } = await import('../../utils/ai-provider.js')
+    const { generateSharedComponent } = await import('@getcoherent/core')
+
+    const mockAI = {
+      extractSharedComponents: vi.fn(async () => ({
+        components: [{
+          name: 'FeatureCard',
+          type: 'section',
+          description: 'A feature card',
+          propsInterface: '{ title: string }',
+          code: makeCode(15),
+        }],
+      })),
+    }
+    vi.mocked(createAIProvider).mockResolvedValue(mockAI as any)
+
+    const result = await extractSharedComponents(makeCode(20), '/tmp/project', 'auto')
+    expect(result.components).toHaveLength(1)
+    expect(result.components[0].name).toBe('FeatureCard')
+    expect(generateSharedComponent).toHaveBeenCalledWith('/tmp/project', expect.objectContaining({
+      name: 'FeatureCard',
+      type: 'section',
+      description: 'A feature card',
+      propsInterface: '{ title: string }',
+    }))
+  })
+
+  it('returns empty when AI provider does not support extraction', async () => {
+    const { createAIProvider } = await import('../../utils/ai-provider.js')
+    vi.mocked(createAIProvider).mockResolvedValue({} as any)
+
+    const result = await extractSharedComponents(makeCode(20), '/tmp/project', 'auto')
+    expect(result.components).toHaveLength(0)
+  })
+
+  it('filters out components with shadcn name collision', async () => {
+    const { createAIProvider } = await import('../../utils/ai-provider.js')
+
+    const mockAI = {
+      extractSharedComponents: vi.fn(async () => ({
+        components: [{
+          name: 'Card',
+          type: 'section',
+          description: 'Collides with shadcn',
+          propsInterface: '{}',
+          code: makeCode(15),
+        }],
+      })),
+    }
+    vi.mocked(createAIProvider).mockResolvedValue(mockAI as any)
+
+    const result = await extractSharedComponents(makeCode(20), '/tmp/project', 'auto')
+    expect(result.components).toHaveLength(0)
+  })
+
+  it('filters out components with fewer than 10 lines', async () => {
+    const { createAIProvider } = await import('../../utils/ai-provider.js')
+
+    const mockAI = {
+      extractSharedComponents: vi.fn(async () => ({
+        components: [{
+          name: 'Tiny',
+          type: 'widget',
+          description: 'Too small',
+          propsInterface: '{}',
+          code: makeCode(5),
+        }],
+      })),
+    }
+    vi.mocked(createAIProvider).mockResolvedValue(mockAI as any)
+
+    const result = await extractSharedComponents(makeCode(20), '/tmp/project', 'auto')
+    expect(result.components).toHaveLength(0)
+  })
+
+  it('handles AI failure gracefully', async () => {
+    const { createAIProvider } = await import('../../utils/ai-provider.js')
+
+    const mockAI = {
+      extractSharedComponents: vi.fn(async () => { throw new Error('API error') }),
+    }
+    vi.mocked(createAIProvider).mockResolvedValue(mockAI as any)
+
+    const result = await extractSharedComponents(makeCode(20), '/tmp/project', 'auto')
+    expect(result.components).toHaveLength(0)
+    expect(result.summary).toBeUndefined()
+  })
+
+  it('filters out components matching existing manifest names', async () => {
+    const { createAIProvider } = await import('../../utils/ai-provider.js')
+    const { loadManifest } = await import('@getcoherent/core')
+
+    vi.mocked(loadManifest).mockResolvedValue({
+      shared: [{ id: 'CID-001', name: 'Header', type: 'layout', file: 'components/shared/header.tsx', usedIn: [] }],
+      nextId: 2,
+    })
+
+    const mockAI = {
+      extractSharedComponents: vi.fn(async () => ({
+        components: [{
+          name: 'Header',
+          type: 'section',
+          description: 'Duplicate of existing',
+          propsInterface: '{}',
+          code: makeCode(15),
+        }],
+      })),
+    }
+    vi.mocked(createAIProvider).mockResolvedValue(mockAI as any)
+
+    const result = await extractSharedComponents(makeCode(20), '/tmp/project', 'auto')
+    expect(result.components).toHaveLength(0)
+
+    // Restore default mock
+    vi.mocked(loadManifest).mockResolvedValue({ shared: [], nextId: 1 })
+  })
+
+  it('keeps first when duplicate names in AI response', async () => {
+    const { createAIProvider } = await import('../../utils/ai-provider.js')
+    const { generateSharedComponent } = await import('@getcoherent/core')
+
+    const mockAI = {
+      extractSharedComponents: vi.fn(async () => ({
+        components: [
+          { name: 'FeatureCard', type: 'section', description: 'First', propsInterface: '{}', code: makeCode(15) },
+          { name: 'FeatureCard', type: 'widget', description: 'Duplicate', propsInterface: '{}', code: makeCode(15) },
+        ],
+      })),
+    }
+    vi.mocked(createAIProvider).mockResolvedValue(mockAI as any)
+
+    const result = await extractSharedComponents(makeCode(20), '/tmp/project', 'auto')
+    expect(result.components).toHaveLength(1)
+    expect(result.components[0].name).toBe('FeatureCard')
+    expect(generateSharedComponent).toHaveBeenCalledTimes(1)
   })
 })

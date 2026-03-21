@@ -1,10 +1,15 @@
 import type ora from 'ora'
-import { ComponentManager, type DesignSystemConfig, type ModificationRequest, type SharedComponentsManifest } from '@getcoherent/core'
+import { z } from 'zod'
+import { ComponentManager, type DesignSystemConfig, type ModificationRequest, type SharedComponentsManifest, loadManifest, generateSharedComponent } from '@getcoherent/core'
+import type { GenerateSharedComponentResult } from '@getcoherent/core'
 import { parseModification } from '../../agents/modifier.js'
 import { summarizePageAnalysis } from '../../utils/page-analyzer.js'
 import { extractPageNamesFromMessage, inferRelatedPages, impliesFullWebsite } from './request-parser.js'
 import { deduplicatePages, readAnchorPageCodeFromDisk } from './utils.js'
 import { pMap } from '../../utils/concurrency.js'
+import { createAIProvider, type AIProvider } from '../../utils/ai-provider.js'
+import { getComponentProvider } from '../../providers/index.js'
+import { autoFixCode } from '../../utils/quality-validator.js'
 
 function buildExistingPagesContext(config: DesignSystemConfig): string {
   const pages = config.pages || []
@@ -329,6 +334,90 @@ export async function splitGeneratePages(
   const withCode = allRequests.filter(r => (r.changes as Record<string, unknown>)?.pageCode).length
   spinner.succeed(`Phase 4/4 — Generated ${allRequests.length} pages (${withCode} with full code)`)
   return allRequests
+}
+
+const SharedExtractionItemSchema = z.object({
+  name: z.string().min(2).max(50),
+  type: z.enum(['section', 'widget']),
+  description: z.string().max(200).default(''),
+  propsInterface: z.string().default('{}'),
+  code: z.string(),
+})
+
+const SharedExtractionResponseSchema = z.object({
+  components: z.array(SharedExtractionItemSchema).max(5).default([]),
+})
+
+export type SharedExtractionItem = z.infer<typeof SharedExtractionItemSchema>
+
+export async function extractSharedComponents(
+  homePageCode: string,
+  projectRoot: string,
+  aiProvider: AIProvider,
+): Promise<{ components: GenerateSharedComponentResult[]; summary: string | undefined }> {
+  const manifest = await loadManifest(projectRoot)
+  let ai
+  try {
+    ai = await createAIProvider(aiProvider)
+  } catch {
+    return { components: [], summary: buildSharedComponentsSummary(manifest) }
+  }
+
+  if (!ai.extractSharedComponents) {
+    return { components: [], summary: buildSharedComponentsSummary(manifest) }
+  }
+
+  let rawItems: SharedExtractionItem[]
+  try {
+    const reservedNames = getComponentProvider().listNames()
+    const existingNames = manifest.shared.map(e => e.name)
+    const result = await ai.extractSharedComponents(homePageCode, reservedNames, existingNames)
+    const parsed = SharedExtractionResponseSchema.safeParse(result)
+    rawItems = parsed.success ? parsed.data.components : []
+  } catch {
+    return { components: [], summary: buildSharedComponentsSummary(manifest) }
+  }
+
+  const reservedSet = new Set(getComponentProvider().listNames().map(n => n.toLowerCase()))
+  const existingSet = new Set(manifest.shared.map(e => e.name.toLowerCase()))
+  const seenNames = new Set<string>()
+  const filtered = rawItems.filter(item => {
+    if (item.code.split('\n').length < 10) return false
+    if (reservedSet.has(item.name.toLowerCase())) return false
+    if (existingSet.has(item.name.toLowerCase())) return false
+    if (seenNames.has(item.name.toLowerCase())) return false
+    seenNames.add(item.name.toLowerCase())
+    return true
+  })
+
+  const results: GenerateSharedComponentResult[] = []
+  const provider = getComponentProvider()
+
+  for (const item of filtered) {
+    try {
+      const { code: fixedCode } = await autoFixCode(item.code)
+
+      const shadcnImports = [...fixedCode.matchAll(/from\s+["']@\/components\/ui\/(.+?)["']/g)]
+      for (const match of shadcnImports) {
+        await provider.installComponent(match[1], projectRoot)
+      }
+
+      const result = await generateSharedComponent(projectRoot, {
+        name: item.name,
+        type: item.type,
+        code: fixedCode,
+        description: item.description,
+        propsInterface: item.propsInterface,
+        usedIn: [],
+      })
+      results.push(result)
+    } catch {
+      // skip failed component
+    }
+  }
+
+  const updatedManifest = await loadManifest(projectRoot)
+  return { components: results, summary: buildSharedComponentsSummary(updatedManifest) }
 }
 
 export function extractAppNameFromPrompt(prompt: string): string | null {
