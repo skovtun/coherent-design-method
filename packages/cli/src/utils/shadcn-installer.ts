@@ -818,16 +818,3 @@ export function listShadcnComponents(): string[] {
   }
   return _shadcnComponentsCache
 }
-
-/**
- * Install component (returns definition; file generation is handled by ComponentGenerator)
- */
-export async function installShadcnComponent(name: string, _projectRoot: string): Promise<ComponentDefinition | null> {
-  const component = getShadcnComponent(name)
-
-  if (!component) {
-    throw new Error(`Component ${name} not found in built-in templates`)
-  }
-
-  return component
-}
