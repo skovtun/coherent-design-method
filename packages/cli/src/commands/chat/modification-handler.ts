@@ -581,7 +581,7 @@ export async function applyModification(
           }
           const { code: layoutStripped, stripped } = stripInlineLayoutElements(codeToWrite)
           codeToWrite = layoutStripped
-          if (!isMarketingRoute(route)) {
+          if (!isMarketingRoute(route) && !isAuthRoute(route)) {
             const { code: normalized, fixed: wrapperFixed } = normalizePageWrapper(codeToWrite)
             if (wrapperFixed) {
               codeToWrite = normalized
@@ -788,7 +788,7 @@ export async function applyModification(
             }
             const { code: layoutStripped, stripped } = stripInlineLayoutElements(codeToWrite)
             codeToWrite = layoutStripped
-            if (!isMarketingRoute(route)) {
+            if (!isMarketingRoute(route) && !isAuthRoute(route)) {
               const { code: normalized, fixed: wrapperFixed } = normalizePageWrapper(codeToWrite)
               if (wrapperFixed) {
                 codeToWrite = normalized

@@ -38,6 +38,28 @@ export const PAGE_TEMPLATES: Record<string, { description: string; sections: str
     ],
   },
 
+  register: {
+    description: 'Registration page with centered card form',
+    sections: [
+      'Centered layout: outer div className="flex min-h-svh flex-col items-center justify-center p-6 md:p-10". Inner div className="w-full max-w-sm".',
+      'Card with CardHeader: CardTitle "Create an account" (text-2xl font-bold), CardDescription "Enter your details to get started" (text-sm text-muted-foreground).',
+      'CardContent with form: name Input, email Input (type="email"), password Input (type="password"), confirm password Input (type="password"), and a Button "Create account" (w-full).',
+      'CardFooter: text "Already have an account?" with a Sign in link. All text is text-sm text-muted-foreground.',
+      'This page uses "use client" (has useState for form state). Do NOT include export const metadata.',
+    ],
+    components: [
+      'Card',
+      'CardHeader',
+      'CardTitle',
+      'CardDescription',
+      'CardContent',
+      'CardFooter',
+      'Button',
+      'Input',
+      'Label',
+    ],
+  },
+
   pricing: {
     description: 'Pricing page with tier comparison cards',
     sections: [
@@ -199,6 +221,7 @@ export function detectPageType(pageName: string): string | null {
 
   if (/dashboard|admin|overview/.test(normalized)) return 'dashboard'
   if (/login|signin|sign-in/.test(normalized)) return 'login'
+  if (/register|signup|sign.?up/.test(normalized)) return 'register'
   if (/pricing|plans|subscription/.test(normalized)) return 'pricing'
   if (/about|team|company/.test(normalized)) return 'about'
   if (/contact|support|help/.test(normalized)) return 'contact'

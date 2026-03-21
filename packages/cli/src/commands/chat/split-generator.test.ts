@@ -6,6 +6,7 @@ import {
   extractSharedComponents,
 } from './split-generator.js'
 import { inferPageType } from './modification-handler.js'
+import { detectPageType } from '../../agents/page-templates.js'
 import { readAnchorPageCodeFromDisk } from './utils.js'
 
 vi.mock('../../utils/ai-provider.js', () => ({
@@ -326,6 +327,29 @@ describe('extractSharedComponents', () => {
     expect(result.components).toHaveLength(1)
     expect(result.components[0].name).toBe('FeatureCard')
     expect(generateSharedComponent).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('detectPageType for auth pages', () => {
+  it('returns register for register page', () => {
+    expect(detectPageType('register')).toBe('register')
+  })
+
+  it('returns register for Register (capitalized)', () => {
+    expect(detectPageType('Register')).toBe('register')
+  })
+
+  it('returns register for signup', () => {
+    expect(detectPageType('signup')).toBe('register')
+  })
+
+  it('returns register for Sign Up', () => {
+    expect(detectPageType('Sign Up')).toBe('register')
+  })
+
+  it('returns login for existing login patterns', () => {
+    expect(detectPageType('login')).toBe('login')
+    expect(detectPageType('signin')).toBe('login')
   })
 })
 

@@ -17,6 +17,7 @@ import { pMap } from '../../utils/concurrency.js'
 import { createAIProvider, type AIProvider } from '../../utils/ai-provider.js'
 import { getComponentProvider } from '../../providers/index.js'
 import { autoFixCode } from '../../utils/quality-validator.js'
+import { isAuthRoute } from '../../agents/page-templates.js'
 
 function buildExistingPagesContext(config: DesignSystemConfig): string {
   const pages = config.pages || []
@@ -300,6 +301,11 @@ export async function splitGeneratePages(
   const remainingRequests = await pMap(
     remainingPages,
     async ({ name, id, route }) => {
+      const isAuth = isAuthRoute(route) || isAuthRoute(name)
+      const authNote = isAuth
+        ? 'For this auth page: use centered card layout with outer div className="flex min-h-svh flex-col items-center justify-center p-6 md:p-10" and inner div className="w-full max-w-sm". Do NOT use section containers or full-width wrappers. The auth layout provides centering — just output the card content.'
+        : undefined
+
       const prompt = [
         `Create ONE page called "${name}" at route "${route}".`,
         `Context: ${message}.`,
@@ -307,6 +313,7 @@ export async function splitGeneratePages(
         sharedNote,
         routeNote,
         alignmentNote,
+        authNote,
         existingPagesContext,
         styleContext,
       ]
