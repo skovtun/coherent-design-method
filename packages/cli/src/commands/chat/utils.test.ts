@@ -2,11 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import {
-  inferRouteUsesAuthSegment,
-  readAnchorPageCodeFromDisk,
-  MIN_ANCHOR_PAGE_CODE_CHARS,
-} from './utils.js'
+import { inferRouteUsesAuthSegment, readAnchorPageCodeFromDisk, MIN_ANCHOR_PAGE_CODE_CHARS } from './utils.js'
 
 describe('inferRouteUsesAuthSegment', () => {
   it('is true for login', () => {

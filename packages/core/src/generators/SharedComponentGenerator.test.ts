@@ -19,7 +19,6 @@ describe('generateSharedComponent passes propsInterface to createEntry', () => {
   })
 
   it('passes propsInterface through to the registry entry', async () => {
-
     const result = await generateSharedComponent('/tmp/test-project', {
       name: 'FeatureCard',
       type: 'section',
@@ -30,9 +29,9 @@ describe('generateSharedComponent passes propsInterface to createEntry', () => {
     expect(result.name).toBe('FeatureCard')
     expect(result.file).toBe('components/shared/feature-card.tsx')
 
-    const manifestWriteCall = vi.mocked(writeFile).mock.calls.find(
-      (call) => String(call[0]).includes('coherent.components.json'),
-    )
+    const manifestWriteCall = vi
+      .mocked(writeFile)
+      .mock.calls.find(call => String(call[0]).includes('coherent.components.json'))
     expect(manifestWriteCall).toBeDefined()
     const savedManifest = JSON.parse(manifestWriteCall![1] as string)
     expect(savedManifest.shared[0].propsInterface).toBe('{ title: string }')
@@ -44,9 +43,9 @@ describe('generateSharedComponent passes propsInterface to createEntry', () => {
       type: 'layout',
     })
 
-    const manifestWriteCall = vi.mocked(writeFile).mock.calls.find(
-      (call) => String(call[0]).includes('coherent.components.json'),
-    )
+    const manifestWriteCall = vi
+      .mocked(writeFile)
+      .mock.calls.find(call => String(call[0]).includes('coherent.components.json'))
     expect(manifestWriteCall).toBeDefined()
     const savedManifest = JSON.parse(manifestWriteCall![1] as string)
     expect(savedManifest.shared[0].propsInterface).toBeUndefined()

@@ -1,6 +1,13 @@
 import type ora from 'ora'
 import { z } from 'zod'
-import { ComponentManager, type DesignSystemConfig, type ModificationRequest, type SharedComponentsManifest, loadManifest, generateSharedComponent } from '@getcoherent/core'
+import {
+  ComponentManager,
+  type DesignSystemConfig,
+  type ModificationRequest,
+  type SharedComponentsManifest,
+  loadManifest,
+  generateSharedComponent,
+} from '@getcoherent/core'
 import type { GenerateSharedComponentResult } from '@getcoherent/core'
 import { parseModification } from '../../agents/modifier.js'
 import { summarizePageAnalysis } from '../../utils/page-analyzer.js'
@@ -101,9 +108,7 @@ export function parseNavTypeFromPlan(planResult: Record<string, unknown>): 'head
   return 'header'
 }
 
-export function buildSharedComponentsSummary(
-  manifest: SharedComponentsManifest,
-): string | undefined {
+export function buildSharedComponentsSummary(manifest: SharedComponentsManifest): string | undefined {
   if (manifest.shared.length === 0) return undefined
   return manifest.shared
     .map(e => {
@@ -400,7 +405,11 @@ export async function extractSharedComponents(
     return { components: [], summary: buildSharedComponentsSummary(manifest) }
   }
 
-  const reservedSet = new Set(getComponentProvider().listNames().map(n => n.toLowerCase()))
+  const reservedSet = new Set(
+    getComponentProvider()
+      .listNames()
+      .map(n => n.toLowerCase()),
+  )
   const existingSet = new Set(manifest.shared.map(e => e.name.toLowerCase()))
   const seenNames = new Set<string>()
   const filtered = rawItems.filter(item => {

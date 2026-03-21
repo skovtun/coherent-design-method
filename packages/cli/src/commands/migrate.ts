@@ -84,7 +84,11 @@ function rollback(projectRoot: string): boolean {
 export async function migrateAction(options: MigrateOptions): Promise<void> {
   let projectRoot = options.projectRoot
   if (!projectRoot) {
-    try { projectRoot = getProjectRoot() } catch { projectRoot = process.cwd() }
+    try {
+      projectRoot = getProjectRoot()
+    } catch {
+      projectRoot = process.cwd()
+    }
   }
 
   if (options.rollback) {
@@ -113,9 +117,7 @@ export async function migrateAction(options: MigrateOptions): Promise<void> {
   const provider = getComponentProvider()
   const managedIds = new Set(provider.listNames())
   const files = readdirSync(uiDir).filter(f => f.endsWith('.tsx'))
-  const migratable = files
-    .map(f => f.replace('.tsx', ''))
-    .filter(id => managedIds.has(id))
+  const migratable = files.map(f => f.replace('.tsx', '')).filter(id => managedIds.has(id))
 
   if (migratable.length === 0) {
     console.log(chalk.green('All components are already up to date.'))

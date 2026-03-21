@@ -31,7 +31,8 @@ function hexToHsl(hex: string): [number, number, number] {
   const r = parseInt(c.slice(0, 2), 16) / 255
   const g = parseInt(c.slice(2, 4), 16) / 255
   const b = parseInt(c.slice(4, 6), 16) / 255
-  const max = Math.max(r, g, b), min = Math.min(r, g, b)
+  const max = Math.max(r, g, b),
+    min = Math.min(r, g, b)
   const l = (max + min) / 2
   if (max === min) return [0, 0, l]
   const d = max - min
@@ -49,7 +50,9 @@ function hslToHex(h: number, s: number, l: number): string {
   const f = (n: number) => {
     const k = (n + h / 30) % 12
     const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1)
-    return Math.round(255 * Math.max(0, Math.min(1, color))).toString(16).padStart(2, '0')
+    return Math.round(255 * Math.max(0, Math.min(1, color)))
+      .toString(16)
+      .padStart(2, '0')
   }
   return `#${f(0)}${f(8)}${f(4)}`
 }

@@ -58,10 +58,7 @@ describe('coherent migrate', () => {
     writeFileSync(path.join(backupBase, 'components-ui', 'button.tsx'), 'original content')
 
     mkdirSync(path.join(tmpDir, '.coherent'), { recursive: true })
-    writeFileSync(
-      path.join(tmpDir, '.coherent', 'migration-in-progress'),
-      JSON.stringify({ backup: backupBase }),
-    )
+    writeFileSync(path.join(tmpDir, '.coherent', 'migration-in-progress'), JSON.stringify({ backup: backupBase }))
 
     writeFileSync(path.join(uiDir, 'button.tsx'), 'modified content')
 

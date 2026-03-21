@@ -475,7 +475,10 @@ export async function chatCommand(
 
             if (result.success && result.componentDef) {
               if (!cm.read(componentId)) {
-                if (DEBUG) console.log(chalk.gray(`    [DEBUG] Registering ${result.componentDef.id} (${result.componentDef.name})`))
+                if (DEBUG)
+                  console.log(
+                    chalk.gray(`    [DEBUG] Registering ${result.componentDef.id} (${result.componentDef.name})`),
+                  )
                 const regResult = await cm.register(result.componentDef)
                 if (DEBUG) {
                   console.log(

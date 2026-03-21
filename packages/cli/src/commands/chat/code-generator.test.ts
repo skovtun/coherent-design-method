@@ -114,12 +114,14 @@ describe('regenerateComponent', () => {
     writeFileSync(join(tmpDir, 'components', 'ui', 'custom-widget.tsx'), 'old code')
 
     const config = {
-      components: [{
-        id: 'custom-widget',
-        name: 'CustomWidget',
-        source: 'custom',
-        template: '<div>Custom Widget</div>',
-      }],
+      components: [
+        {
+          id: 'custom-widget',
+          name: 'CustomWidget',
+          source: 'custom',
+          template: '<div>Custom Widget</div>',
+        },
+      ],
       pages: [],
       tokens: {},
     } as unknown as DesignSystemConfig

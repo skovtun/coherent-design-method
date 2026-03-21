@@ -440,7 +440,8 @@ export async function applyModification(
               componentData.variants && componentData.variants.length > 0
                 ? componentData.variants
                 : result.componentDef.variants,
-            sizes: componentData.sizes && componentData.sizes.length > 0 ? componentData.sizes : result.componentDef.sizes,
+            sizes:
+              componentData.sizes && componentData.sizes.length > 0 ? componentData.sizes : result.componentDef.sizes,
           }
           const regResult = await cm.register(mergedData)
           if (regResult.success) {

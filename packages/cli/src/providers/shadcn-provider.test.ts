@@ -112,11 +112,9 @@ describe('ShadcnProvider.install()', () => {
     const { exec } = await import('node:child_process')
     const { existsSync } = await import('node:fs')
 
-    const execMock = vi.fn(
-      (_cmd: string, _opts: unknown, cb?: (err: Error | null) => void) => {
-        if (cb) cb(new Error('ENOTFOUND'))
-      },
-    )
+    const execMock = vi.fn((_cmd: string, _opts: unknown, cb?: (err: Error | null) => void) => {
+      if (cb) cb(new Error('ENOTFOUND'))
+    })
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     await provider.install('button', '/tmp/test-project', {
@@ -124,9 +122,7 @@ describe('ShadcnProvider.install()', () => {
       existsSync: (() => false) as typeof existsSync,
     })
 
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Could not install button'),
-    )
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Could not install button'))
   })
 
   it('re-installs when force=true even if file exists', async () => {
@@ -139,10 +135,15 @@ describe('ShadcnProvider.install()', () => {
       },
     )
 
-    await provider.install('button', '/tmp/test-project', {
-      exec: execMock as unknown as typeof exec,
-      existsSync: (() => true) as typeof existsSync,
-    }, true)
+    await provider.install(
+      'button',
+      '/tmp/test-project',
+      {
+        exec: execMock as unknown as typeof exec,
+        existsSync: (() => true) as typeof existsSync,
+      },
+      true,
+    )
 
     expect(execMock).toHaveBeenCalledTimes(1)
   })
@@ -153,20 +154,43 @@ describe('ShadcnProvider.getCssVariables()', () => {
   const tokens = {
     colors: {
       light: {
-        primary: '#3B82F6', secondary: '#10B981', success: '#22C55E',
-        warning: '#F59E0B', error: '#EF4444', info: '#3B82F6',
-        background: '#FFFFFF', foreground: '#0F172A', muted: '#F1F5F9', border: '#E2E8F0',
+        primary: '#3B82F6',
+        secondary: '#10B981',
+        success: '#22C55E',
+        warning: '#F59E0B',
+        error: '#EF4444',
+        info: '#3B82F6',
+        background: '#FFFFFF',
+        foreground: '#0F172A',
+        muted: '#F1F5F9',
+        border: '#E2E8F0',
       },
       dark: {
-        primary: '#60A5FA', secondary: '#34D399', success: '#4ADE80',
-        warning: '#FBBF24', error: '#F87171', info: '#60A5FA',
-        background: '#0F172A', foreground: '#F1F5F9', muted: '#1E293B', border: '#334155',
+        primary: '#60A5FA',
+        secondary: '#34D399',
+        success: '#4ADE80',
+        warning: '#FBBF24',
+        error: '#F87171',
+        info: '#60A5FA',
+        background: '#0F172A',
+        foreground: '#F1F5F9',
+        muted: '#1E293B',
+        border: '#334155',
       },
     },
     spacing: { xs: '0.25rem', sm: '0.5rem', md: '1rem', lg: '1.5rem', xl: '2rem', '2xl': '3rem', '3xl': '4rem' },
     typography: {
       fontFamily: { sans: 'Inter', mono: 'JetBrains Mono' },
-      fontSize: { xs: '0.75rem', sm: '0.875rem', base: '1rem', lg: '1.125rem', xl: '1.25rem', '2xl': '1.5rem', '3xl': '1.875rem', '4xl': '2.25rem' },
+      fontSize: {
+        xs: '0.75rem',
+        sm: '0.875rem',
+        base: '1rem',
+        lg: '1.125rem',
+        xl: '1.25rem',
+        '2xl': '1.5rem',
+        '3xl': '1.875rem',
+        '4xl': '2.25rem',
+      },
       fontWeight: { normal: 400, medium: 500, semibold: 600, bold: 700 },
       lineHeight: { tight: 1.25, normal: 1.5, relaxed: 1.75 },
     },
@@ -331,15 +355,13 @@ describe('ShadcnProvider.installBatch()', () => {
   it('installs multiple components via single exec call and returns results', async () => {
     const provider = new ShadcnProvider()
     const { exec } = await import('node:child_process')
-    const execMock = vi.fn(
-      (_cmd: string, _opts: unknown, cb?: (err: Error | null) => void) => {
-        const { mkdirSync: mk, writeFileSync: wf } = require('node:fs')
-        mk(path.join(tmpDir, 'components', 'ui'), { recursive: true })
-        wf(path.join(tmpDir, 'components', 'ui', 'button.tsx'), 'export {}')
-        wf(path.join(tmpDir, 'components', 'ui', 'card.tsx'), 'export {}')
-        if (cb) cb(null)
-      },
-    )
+    const execMock = vi.fn((_cmd: string, _opts: unknown, cb?: (err: Error | null) => void) => {
+      const { mkdirSync: mk, writeFileSync: wf } = require('node:fs')
+      mk(path.join(tmpDir, 'components', 'ui'), { recursive: true })
+      wf(path.join(tmpDir, 'components', 'ui', 'button.tsx'), 'export {}')
+      wf(path.join(tmpDir, 'components', 'ui', 'card.tsx'), 'export {}')
+      if (cb) cb(null)
+    })
 
     const results = await provider.installBatch(['button', 'card'], tmpDir, undefined, {
       exec: execMock as unknown as typeof exec,
@@ -362,14 +384,12 @@ describe('ShadcnProvider.installBatch()', () => {
     wf(path.join(tmpDir, 'components', 'ui', 'button.tsx'), 'existing')
 
     const { exec } = await import('node:child_process')
-    const execMock = vi.fn(
-      (_cmd: string, _opts: unknown, cb?: (err: Error | null) => void) => {
-        const fs = require('node:fs')
-        fs.mkdirSync(path.join(tmpDir, 'components', 'ui'), { recursive: true })
-        fs.writeFileSync(path.join(tmpDir, 'components', 'ui', 'card.tsx'), 'export {}')
-        if (cb) cb(null)
-      },
-    )
+    const execMock = vi.fn((_cmd: string, _opts: unknown, cb?: (err: Error | null) => void) => {
+      const fs = require('node:fs')
+      fs.mkdirSync(path.join(tmpDir, 'components', 'ui'), { recursive: true })
+      fs.writeFileSync(path.join(tmpDir, 'components', 'ui', 'card.tsx'), 'export {}')
+      if (cb) cb(null)
+    })
 
     const results = await provider.installBatch(['button', 'card'], tmpDir, undefined, {
       exec: execMock as unknown as typeof exec,
@@ -388,14 +408,12 @@ describe('ShadcnProvider.installBatch()', () => {
   it('handles mixed valid and invalid IDs', async () => {
     const provider = new ShadcnProvider()
     const { exec } = await import('node:child_process')
-    const execMock = vi.fn(
-      (_cmd: string, _opts: unknown, cb?: (err: Error | null) => void) => {
-        const fs = require('node:fs')
-        fs.mkdirSync(path.join(tmpDir, 'components', 'ui'), { recursive: true })
-        fs.writeFileSync(path.join(tmpDir, 'components', 'ui', 'button.tsx'), 'export {}')
-        if (cb) cb(null)
-      },
-    )
+    const execMock = vi.fn((_cmd: string, _opts: unknown, cb?: (err: Error | null) => void) => {
+      const fs = require('node:fs')
+      fs.mkdirSync(path.join(tmpDir, 'components', 'ui'), { recursive: true })
+      fs.writeFileSync(path.join(tmpDir, 'components', 'ui', 'button.tsx'), 'export {}')
+      if (cb) cb(null)
+    })
 
     const results = await provider.installBatch(['button', 'nonexistent', 'also-fake'], tmpDir, undefined, {
       exec: execMock as unknown as typeof exec,
@@ -414,18 +432,21 @@ describe('ShadcnProvider.installBatch()', () => {
     wf(path.join(tmpDir, 'components', 'ui', 'button.tsx'), 'old content')
 
     const { exec } = await import('node:child_process')
-    const execMock = vi.fn(
-      (_cmd: string, _opts: unknown, cb?: (err: Error | null) => void) => {
-        const fs = require('node:fs')
-        fs.writeFileSync(path.join(tmpDir, 'components', 'ui', 'button.tsx'), 'new content')
-        if (cb) cb(null)
+    const execMock = vi.fn((_cmd: string, _opts: unknown, cb?: (err: Error | null) => void) => {
+      const fs = require('node:fs')
+      fs.writeFileSync(path.join(tmpDir, 'components', 'ui', 'button.tsx'), 'new content')
+      if (cb) cb(null)
+    })
+
+    const results = await provider.installBatch(
+      ['button'],
+      tmpDir,
+      { force: true },
+      {
+        exec: execMock as unknown as typeof exec,
+        existsSync,
       },
     )
-
-    const results = await provider.installBatch(['button'], tmpDir, { force: true }, {
-      exec: execMock as unknown as typeof exec,
-      existsSync,
-    })
 
     expect(execMock).toHaveBeenCalledTimes(1)
     expect(results.get('button')?.success).toBe(true)

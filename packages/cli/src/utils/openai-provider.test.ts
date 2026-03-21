@@ -28,11 +28,7 @@ describe('OpenAIClient.extractSharedComponents', () => {
     })
 
     const client = new OpenAIClient('test-key', 'gpt-4o', makeMockOpenAI(aiResponse))
-    const result = await client.extractSharedComponents(
-      '<div>page code</div>',
-      ['Button', 'Card'],
-      ['ExistingHero'],
-    )
+    const result = await client.extractSharedComponents('<div>page code</div>', ['Button', 'Card'], ['ExistingHero'])
 
     expect(result.components).toHaveLength(1)
     expect(result.components[0].name).toBe('FeatureCard')

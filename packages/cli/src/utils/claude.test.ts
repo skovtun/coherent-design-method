@@ -24,9 +24,10 @@ function makeClient(responseText: string): ClaudeClient {
   return client
 }
 
-function makeClientWithCapture(
-  responseText: string,
-): { client: ClaudeClient; captured: { messages: any[]; system: string; max_tokens: number } } {
+function makeClientWithCapture(responseText: string): {
+  client: ClaudeClient
+  captured: { messages: any[]; system: string; max_tokens: number }
+} {
   const captured = { messages: [] as any[], system: '', max_tokens: 0 }
   const client = new ClaudeClient('test-key')
   ;(client as any).client = {

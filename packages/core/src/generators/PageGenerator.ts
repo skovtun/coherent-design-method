@@ -984,8 +984,14 @@ ${companyColumn}
   generateSharedSidebarCode(): string {
     const navItems = this.config.navigation?.items || []
     const authRoutes = new Set([
-      '/login', '/signin', '/sign-in', '/signup', '/sign-up',
-      '/register', '/forgot-password', '/reset-password',
+      '/login',
+      '/signin',
+      '/sign-in',
+      '/signup',
+      '/sign-up',
+      '/register',
+      '/forgot-password',
+      '/reset-password',
     ])
     const marketingRoutes = new Set(['/', '/landing', '/pricing', '/about', '/contact', '/blog', '/features'])
     const isSubRoute = (route: string) => route.replace(/^\//, '').split('/').length > 1
@@ -1019,9 +1025,10 @@ ${companyColumn}
 
     const ungroupedItems = ungrouped.map(menuItem).join('\n')
 
-    const groupBlocks = Array.from(grouped.entries()).map(([groupName, items]) => {
-      const groupItems = items.map(menuItem).join('\n')
-      return `          <SidebarGroup>
+    const groupBlocks = Array.from(grouped.entries())
+      .map(([groupName, items]) => {
+        const groupItems = items.map(menuItem).join('\n')
+        return `          <SidebarGroup>
             <SidebarGroupLabel>${groupName}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
@@ -1029,15 +1036,18 @@ ${groupItems}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>`
-    }).join('\n')
+      })
+      .join('\n')
 
-    const mainGroup = ungroupedItems ? `          <SidebarGroup>
+    const mainGroup = ungroupedItems
+      ? `          <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
 ${ungroupedItems}
               </SidebarMenu>
             </SidebarGroupContent>
-          </SidebarGroup>` : ''
+          </SidebarGroup>`
+      : ''
 
     const allGroups = [mainGroup, groupBlocks].filter(Boolean).join('\n')
 

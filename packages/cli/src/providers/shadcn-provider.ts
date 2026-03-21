@@ -1,4 +1,11 @@
-import type { ComponentProvider, ComponentMeta, ComponentAPI, DesignTokens, DesignSystemConfig, ComponentDefinition } from '@getcoherent/core'
+import type {
+  ComponentProvider,
+  ComponentMeta,
+  ComponentAPI,
+  DesignTokens,
+  DesignSystemConfig,
+  ComponentDefinition,
+} from '@getcoherent/core'
 import { buildCssVariables } from '@getcoherent/core'
 import { existsSync as fsExistsSync } from 'node:fs'
 import { getShadcnComponent } from '../utils/shadcn-installer.js'
@@ -97,11 +104,26 @@ const COMPONENT_APIS: Record<string, ComponentAPI> = {
   sidebar: {
     name: 'Sidebar',
     subcomponents: [
-      'SidebarProvider', 'Sidebar', 'SidebarContent', 'SidebarHeader', 'SidebarFooter',
-      'SidebarGroup', 'SidebarGroupLabel', 'SidebarGroupContent',
-      'SidebarMenu', 'SidebarMenuItem', 'SidebarMenuButton', 'SidebarMenuSub',
-      'SidebarMenuSubItem', 'SidebarMenuSubButton', 'SidebarMenuAction', 'SidebarMenuBadge',
-      'SidebarSeparator', 'SidebarRail', 'SidebarTrigger', 'SidebarInset',
+      'SidebarProvider',
+      'Sidebar',
+      'SidebarContent',
+      'SidebarHeader',
+      'SidebarFooter',
+      'SidebarGroup',
+      'SidebarGroupLabel',
+      'SidebarGroupContent',
+      'SidebarMenu',
+      'SidebarMenuItem',
+      'SidebarMenuButton',
+      'SidebarMenuSub',
+      'SidebarMenuSubItem',
+      'SidebarMenuSubButton',
+      'SidebarMenuAction',
+      'SidebarMenuBadge',
+      'SidebarSeparator',
+      'SidebarRail',
+      'SidebarTrigger',
+      'SidebarInset',
     ],
     importPath: '@/components/ui/sidebar',
     keyProps: {
@@ -139,8 +161,14 @@ const COMPONENT_APIS: Record<string, ComponentAPI> = {
   dialog: {
     name: 'Dialog',
     subcomponents: [
-      'Dialog', 'DialogTrigger', 'DialogContent', 'DialogHeader',
-      'DialogFooter', 'DialogTitle', 'DialogDescription', 'DialogClose',
+      'Dialog',
+      'DialogTrigger',
+      'DialogContent',
+      'DialogHeader',
+      'DialogFooter',
+      'DialogTitle',
+      'DialogDescription',
+      'DialogClose',
     ],
     importPath: '@/components/ui/dialog',
     keyProps: {
@@ -166,8 +194,14 @@ const COMPONENT_APIS: Record<string, ComponentAPI> = {
   sheet: {
     name: 'Sheet',
     subcomponents: [
-      'Sheet', 'SheetTrigger', 'SheetContent', 'SheetHeader',
-      'SheetFooter', 'SheetTitle', 'SheetDescription', 'SheetClose',
+      'Sheet',
+      'SheetTrigger',
+      'SheetContent',
+      'SheetHeader',
+      'SheetFooter',
+      'SheetTitle',
+      'SheetDescription',
+      'SheetClose',
     ],
     importPath: '@/components/ui/sheet',
     keyProps: {
@@ -191,8 +225,14 @@ const COMPONENT_APIS: Record<string, ComponentAPI> = {
   select: {
     name: 'Select',
     subcomponents: [
-      'Select', 'SelectTrigger', 'SelectValue', 'SelectContent',
-      'SelectGroup', 'SelectLabel', 'SelectItem', 'SelectSeparator',
+      'Select',
+      'SelectTrigger',
+      'SelectValue',
+      'SelectContent',
+      'SelectGroup',
+      'SelectLabel',
+      'SelectItem',
+      'SelectSeparator',
     ],
     importPath: '@/components/ui/select',
     keyProps: {
@@ -216,11 +256,20 @@ const COMPONENT_APIS: Record<string, ComponentAPI> = {
   'dropdown-menu': {
     name: 'DropdownMenu',
     subcomponents: [
-      'DropdownMenu', 'DropdownMenuTrigger', 'DropdownMenuContent',
-      'DropdownMenuItem', 'DropdownMenuCheckboxItem', 'DropdownMenuRadioItem',
-      'DropdownMenuLabel', 'DropdownMenuSeparator', 'DropdownMenuGroup',
-      'DropdownMenuSub', 'DropdownMenuSubTrigger', 'DropdownMenuSubContent',
-      'DropdownMenuRadioGroup', 'DropdownMenuShortcut',
+      'DropdownMenu',
+      'DropdownMenuTrigger',
+      'DropdownMenuContent',
+      'DropdownMenuItem',
+      'DropdownMenuCheckboxItem',
+      'DropdownMenuRadioItem',
+      'DropdownMenuLabel',
+      'DropdownMenuSeparator',
+      'DropdownMenuGroup',
+      'DropdownMenuSub',
+      'DropdownMenuSubTrigger',
+      'DropdownMenuSubContent',
+      'DropdownMenuRadioGroup',
+      'DropdownMenuShortcut',
     ],
     importPath: '@/components/ui/dropdown-menu',
     keyProps: {
@@ -245,9 +294,14 @@ const COMPONENT_APIS: Record<string, ComponentAPI> = {
   'navigation-menu': {
     name: 'NavigationMenu',
     subcomponents: [
-      'NavigationMenu', 'NavigationMenuList', 'NavigationMenuItem',
-      'NavigationMenuTrigger', 'NavigationMenuContent', 'NavigationMenuLink',
-      'NavigationMenuIndicator', 'NavigationMenuViewport',
+      'NavigationMenu',
+      'NavigationMenuList',
+      'NavigationMenuItem',
+      'NavigationMenuTrigger',
+      'NavigationMenuContent',
+      'NavigationMenuLink',
+      'NavigationMenuIndicator',
+      'NavigationMenuViewport',
     ],
     importPath: '@/components/ui/navigation-menu',
     keyProps: {},
@@ -269,8 +323,14 @@ const COMPONENT_APIS: Record<string, ComponentAPI> = {
   command: {
     name: 'Command',
     subcomponents: [
-      'Command', 'CommandInput', 'CommandList', 'CommandEmpty',
-      'CommandGroup', 'CommandItem', 'CommandSeparator', 'CommandShortcut',
+      'Command',
+      'CommandInput',
+      'CommandList',
+      'CommandEmpty',
+      'CommandGroup',
+      'CommandItem',
+      'CommandSeparator',
+      'CommandShortcut',
       'CommandDialog',
     ],
     importPath: '@/components/ui/command',
@@ -284,9 +344,7 @@ const COMPONENT_APIS: Record<string, ComponentAPI> = {
     </CommandGroup>
   </CommandList>
 </Command>`,
-    antiPatterns: [
-      'NEVER build custom search palette — use Command/CommandDialog',
-    ],
+    antiPatterns: ['NEVER build custom search palette — use Command/CommandDialog'],
   },
 
   tabs: {
@@ -329,7 +387,16 @@ const COMPONENT_APIS: Record<string, ComponentAPI> = {
 
   table: {
     name: 'Table',
-    subcomponents: ['Table', 'TableHeader', 'TableBody', 'TableFooter', 'TableRow', 'TableHead', 'TableCell', 'TableCaption'],
+    subcomponents: [
+      'Table',
+      'TableHeader',
+      'TableBody',
+      'TableFooter',
+      'TableRow',
+      'TableHead',
+      'TableCell',
+      'TableCaption',
+    ],
     importPath: '@/components/ui/table',
     keyProps: {},
     usage: `<Table>
@@ -340,9 +407,7 @@ const COMPONENT_APIS: Record<string, ComponentAPI> = {
     <TableRow><TableCell>Value</TableCell></TableRow>
   </TableBody>
 </Table>`,
-    antiPatterns: [
-      'NEVER use native <table> — use shadcn Table for consistent styling',
-    ],
+    antiPatterns: ['NEVER use native <table> — use shadcn Table for consistent styling'],
   },
 
   accordion: {
@@ -418,25 +483,19 @@ export class ShadcnProvider implements ComponentProvider {
 
     try {
       await new Promise<void>((resolve, reject) => {
-        deps.exec(
-          `npx shadcn@latest add ${name} --yes --overwrite`,
-          { cwd: projectRoot, timeout: 15000 },
-          (err) => {
-            if (err) reject(err)
-            else resolve()
-          },
-        )
+        deps.exec(`npx shadcn@latest add ${name} --yes --overwrite`, { cwd: projectRoot, timeout: 15000 }, err => {
+          if (err) reject(err)
+          else resolve()
+        })
       })
     } catch {
-      console.warn(`Could not install ${name} (network error or timeout). Run \`npx shadcn@latest add ${name}\` manually.`)
+      console.warn(
+        `Could not install ${name} (network error or timeout). Run \`npx shadcn@latest add ${name}\` manually.`,
+      )
     }
   }
 
-  async installComponent(
-    id: string,
-    projectRoot: string,
-    options?: InstallOptions,
-  ): Promise<InstallResult> {
+  async installComponent(id: string, projectRoot: string, options?: InstallOptions): Promise<InstallResult> {
     if (!this.has(id)) return { success: false, componentDef: null }
 
     await this.init(projectRoot)
@@ -450,7 +509,7 @@ export class ShadcnProvider implements ComponentProvider {
     await this.install(id, projectRoot, defaultDeps, !!options?.force)
 
     const success = fsExistsSync(filePath)
-    const componentDef = success ? getShadcnComponent(id) ?? null : null
+    const componentDef = success ? (getShadcnComponent(id) ?? null) : null
     return { success, componentDef }
   }
 
@@ -490,7 +549,7 @@ export class ShadcnProvider implements ComponentProvider {
         deps.exec(
           `npx shadcn@latest add ${toInstall.join(' ')} --yes --overwrite`,
           { cwd: projectRoot, timeout: 30000 },
-          (err) => {
+          err => {
             if (err) reject(err)
             else resolve()
           },
@@ -511,7 +570,7 @@ export class ShadcnProvider implements ComponentProvider {
       const success = fsExistsSync(filePath)
       results.set(id, {
         success,
-        componentDef: success ? getShadcnComponent(id) ?? null : null,
+        componentDef: success ? (getShadcnComponent(id) ?? null) : null,
       })
     }
 
@@ -546,13 +605,17 @@ export class ShadcnProvider implements ComponentProvider {
 
   getThemeBlock(_tokens: DesignTokens): string {
     const sidebarVars = [
-      'background', 'foreground', 'primary', 'primary-foreground',
-      'accent', 'accent-foreground', 'border', 'ring',
+      'background',
+      'foreground',
+      'primary',
+      'primary-foreground',
+      'accent',
+      'accent-foreground',
+      'border',
+      'ring',
     ]
     const lines = sidebarVars.map(v => `  --color-sidebar-${v}: var(--sidebar-${v});`)
-    const chartLines = Array.from({ length: 5 }, (_, i) =>
-      `  --color-chart-${i + 1}: var(--chart-${i + 1});`,
-    )
+    const chartLines = Array.from({ length: 5 }, (_, i) => `  --color-chart-${i + 1}: var(--chart-${i + 1});`)
 
     return `@theme inline {\n${lines.join('\n')}\n${chartLines.join('\n')}\n}\n`
   }

@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { parseNavTypeFromPlan, extractAppNameFromPrompt, buildSharedComponentsSummary, extractSharedComponents } from './split-generator.js'
+import {
+  parseNavTypeFromPlan,
+  extractAppNameFromPrompt,
+  buildSharedComponentsSummary,
+  extractSharedComponents,
+} from './split-generator.js'
 import { inferPageType } from './modification-handler.js'
 
 vi.mock('../../utils/ai-provider.js', () => ({
@@ -13,7 +18,7 @@ vi.mock('../../providers/index.js', () => ({
   })),
 }))
 
-vi.mock('@getcoherent/core', async (importOriginal) => {
+vi.mock('@getcoherent/core', async importOriginal => {
   const actual = await importOriginal<typeof import('@getcoherent/core')>()
   return {
     ...actual,
@@ -21,7 +26,7 @@ vi.mock('@getcoherent/core', async (importOriginal) => {
     generateSharedComponent: vi.fn(async (_root: string, input: { name: string }) => ({
       id: `CID-001`,
       name: input.name,
-      file: `components/shared/${input.name.toLowerCase().replace(/([A-Z])/g, (m: string, c: string, i: number) => i ? `-${c.toLowerCase()}` : c.toLowerCase())}.tsx`,
+      file: `components/shared/${input.name.toLowerCase().replace(/([A-Z])/g, (m: string, c: string, i: number) => (i ? `-${c.toLowerCase()}` : c.toLowerCase()))}.tsx`,
     })),
   }
 })
@@ -101,11 +106,16 @@ describe('buildSharedComponentsSummary', () => {
 
   it('formats entry without propsInterface', () => {
     const manifest = {
-      shared: [{
-        id: 'CID-001', name: 'Header', type: 'layout' as const,
-        file: 'components/shared/header.tsx', usedIn: [],
-        description: 'Main header',
-      }],
+      shared: [
+        {
+          id: 'CID-001',
+          name: 'Header',
+          type: 'layout' as const,
+          file: 'components/shared/header.tsx',
+          usedIn: [],
+          description: 'Main header',
+        },
+      ],
       nextId: 2,
     }
     const result = buildSharedComponentsSummary(manifest)!
@@ -116,12 +126,17 @@ describe('buildSharedComponentsSummary', () => {
 
   it('includes propsInterface when present', () => {
     const manifest = {
-      shared: [{
-        id: 'CID-003', name: 'FeatureCard', type: 'section' as const,
-        file: 'components/shared/feature-card.tsx', usedIn: [],
-        description: 'Feature card',
-        propsInterface: '{ icon: React.ReactNode; title: string }',
-      }],
+      shared: [
+        {
+          id: 'CID-003',
+          name: 'FeatureCard',
+          type: 'section' as const,
+          file: 'components/shared/feature-card.tsx',
+          usedIn: [],
+          description: 'Feature card',
+          propsInterface: '{ icon: React.ReactNode; title: string }',
+        },
+      ],
       nextId: 4,
     }
     const result = buildSharedComponentsSummary(manifest)!
@@ -167,13 +182,15 @@ describe('extractSharedComponents', () => {
 
     const mockAI = {
       extractSharedComponents: vi.fn(async () => ({
-        components: [{
-          name: 'FeatureCard',
-          type: 'section',
-          description: 'A feature card',
-          propsInterface: '{ title: string }',
-          code: makeCode(15),
-        }],
+        components: [
+          {
+            name: 'FeatureCard',
+            type: 'section',
+            description: 'A feature card',
+            propsInterface: '{ title: string }',
+            code: makeCode(15),
+          },
+        ],
       })),
     }
     vi.mocked(createAIProvider).mockResolvedValue(mockAI as any)
@@ -181,12 +198,15 @@ describe('extractSharedComponents', () => {
     const result = await extractSharedComponents(makeCode(20), '/tmp/project', 'auto')
     expect(result.components).toHaveLength(1)
     expect(result.components[0].name).toBe('FeatureCard')
-    expect(generateSharedComponent).toHaveBeenCalledWith('/tmp/project', expect.objectContaining({
-      name: 'FeatureCard',
-      type: 'section',
-      description: 'A feature card',
-      propsInterface: '{ title: string }',
-    }))
+    expect(generateSharedComponent).toHaveBeenCalledWith(
+      '/tmp/project',
+      expect.objectContaining({
+        name: 'FeatureCard',
+        type: 'section',
+        description: 'A feature card',
+        propsInterface: '{ title: string }',
+      }),
+    )
   })
 
   it('returns empty when AI provider does not support extraction', async () => {
@@ -202,13 +222,15 @@ describe('extractSharedComponents', () => {
 
     const mockAI = {
       extractSharedComponents: vi.fn(async () => ({
-        components: [{
-          name: 'Card',
-          type: 'section',
-          description: 'Collides with shadcn',
-          propsInterface: '{}',
-          code: makeCode(15),
-        }],
+        components: [
+          {
+            name: 'Card',
+            type: 'section',
+            description: 'Collides with shadcn',
+            propsInterface: '{}',
+            code: makeCode(15),
+          },
+        ],
       })),
     }
     vi.mocked(createAIProvider).mockResolvedValue(mockAI as any)
@@ -222,13 +244,15 @@ describe('extractSharedComponents', () => {
 
     const mockAI = {
       extractSharedComponents: vi.fn(async () => ({
-        components: [{
-          name: 'Tiny',
-          type: 'widget',
-          description: 'Too small',
-          propsInterface: '{}',
-          code: makeCode(5),
-        }],
+        components: [
+          {
+            name: 'Tiny',
+            type: 'widget',
+            description: 'Too small',
+            propsInterface: '{}',
+            code: makeCode(5),
+          },
+        ],
       })),
     }
     vi.mocked(createAIProvider).mockResolvedValue(mockAI as any)
@@ -241,7 +265,9 @@ describe('extractSharedComponents', () => {
     const { createAIProvider } = await import('../../utils/ai-provider.js')
 
     const mockAI = {
-      extractSharedComponents: vi.fn(async () => { throw new Error('API error') }),
+      extractSharedComponents: vi.fn(async () => {
+        throw new Error('API error')
+      }),
     }
     vi.mocked(createAIProvider).mockResolvedValue(mockAI as any)
 
@@ -261,13 +287,15 @@ describe('extractSharedComponents', () => {
 
     const mockAI = {
       extractSharedComponents: vi.fn(async () => ({
-        components: [{
-          name: 'Header',
-          type: 'section',
-          description: 'Duplicate of existing',
-          propsInterface: '{}',
-          code: makeCode(15),
-        }],
+        components: [
+          {
+            name: 'Header',
+            type: 'section',
+            description: 'Duplicate of existing',
+            propsInterface: '{}',
+            code: makeCode(15),
+          },
+        ],
       })),
     }
     vi.mocked(createAIProvider).mockResolvedValue(mockAI as any)
