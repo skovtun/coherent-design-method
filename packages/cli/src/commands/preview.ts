@@ -23,7 +23,7 @@ import {
 } from '../utils/self-heal.js'
 import { startFileWatcher } from '../utils/file-watcher.js'
 import { getShadcnComponent } from '../utils/shadcn-installer.js'
-import { ShadcnProvider } from '../providers/shadcn-provider.js'
+import { getComponentProvider } from '../providers/index.js'
 import { analyzePageCode } from '../utils/page-analyzer.js'
 
 /**
@@ -167,20 +167,33 @@ async function fixMissingComponentExports(projectRoot: string): Promise<void> {
   }
   const generator = new ComponentGenerator(config || { components: [], pages: [], tokens: {} })
 
+  const provider = getComponentProvider()
+
   for (const [componentId, needed] of neededExports) {
     const componentFile = join(uiDir, `${componentId}.tsx`)
-    const def = getShadcnComponent(componentId)
 
     if (!existsSync(componentFile)) {
-      if (!def) continue
-      try {
-        const { mkdirSync } = await import('fs')
-        mkdirSync(uiDir, { recursive: true })
-        const newContent = await generator.generate(def)
-        writeFileSync(componentFile, newContent, 'utf-8')
-        console.log(chalk.dim(`   ✔ Created missing ${componentId}.tsx`))
-      } catch {
-        /* best-effort */
+      if (provider.has(componentId)) {
+        try {
+          const result = await provider.installComponent(componentId, projectRoot)
+          if (result.success) {
+            console.log(chalk.dim(`   ✔ Installed missing ${componentId}.tsx`))
+          }
+        } catch {
+          /* best-effort */
+        }
+      } else {
+        const def = getShadcnComponent(componentId)
+        if (!def) continue
+        try {
+          const { mkdirSync } = await import('fs')
+          mkdirSync(uiDir, { recursive: true })
+          const newContent = await generator.generate(def)
+          writeFileSync(componentFile, newContent, 'utf-8')
+          console.log(chalk.dim(`   ✔ Created missing ${componentId}.tsx`))
+        } catch {
+          /* best-effort */
+        }
       }
       continue
     }
@@ -208,13 +221,25 @@ async function fixMissingComponentExports(projectRoot: string): Promise<void> {
     const missing = [...needed].filter(n => !existingExports.has(n))
     if (missing.length === 0) continue
 
-    if (!def) continue
-    try {
-      const newContent = await generator.generate(def)
-      writeFileSync(componentFile, newContent, 'utf-8')
-      console.log(chalk.dim(`   ✔ Regenerated ${componentId}.tsx (added missing exports: ${missing.join(', ')})`))
-    } catch {
-      /* best-effort */
+    if (provider.has(componentId)) {
+      try {
+        const result = await provider.installComponent(componentId, projectRoot, { force: true })
+        if (result.success) {
+          console.log(chalk.dim(`   ✔ Reinstalled ${componentId}.tsx (added missing exports: ${missing.join(', ')})`))
+        }
+      } catch {
+        /* best-effort */
+      }
+    } else {
+      const def = getShadcnComponent(componentId)
+      if (!def) continue
+      try {
+        const newContent = await generator.generate(def)
+        writeFileSync(componentFile, newContent, 'utf-8')
+        console.log(chalk.dim(`   ✔ Regenerated ${componentId}.tsx (added missing exports: ${missing.join(', ')})`))
+      } catch {
+        /* best-effort */
+      }
     }
   }
 }
@@ -272,15 +297,9 @@ function extractShadcnComponentFromModuleNotFound(msg: string): string | null {
 
 /** Auto-install a missing shadcn component file via provider. Ensures components.json exists first. */
 async function autoInstallShadcnComponent(componentId: string, projectRoot: string): Promise<boolean> {
-  const provider = new ShadcnProvider()
-  if (!provider.has(componentId)) return false
-  try {
-    await provider.init(projectRoot)
-    await provider.install(componentId, projectRoot)
-    return existsSync(join(projectRoot, 'components', 'ui', `${componentId}.tsx`))
-  } catch {
-    return false
-  }
+  const provider = getComponentProvider()
+  const result = await provider.installComponent(componentId, projectRoot)
+  return result.success
 }
 
 const DEFAULT_PORT = 3000
