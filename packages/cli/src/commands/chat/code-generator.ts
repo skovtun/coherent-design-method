@@ -203,7 +203,7 @@ export async function regenerateLayout(
   try {
     await integrateSharedLayoutIntoRootLayout(projectRoot)
     await ensureAuthRouteGroup(projectRoot)
-    await ensureAppRouteGroupLayout(projectRoot, config.navigation?.type)
+    await ensureAppRouteGroupLayout(projectRoot, config.navigation?.type, options.navChanged)
   } catch (err) {
     if (process.env.COHERENT_DEBUG === '1') {
       console.log(chalk.dim('Layout integration warning:', err))
@@ -211,16 +211,20 @@ export async function regenerateLayout(
   }
 }
 
-async function ensureAppRouteGroupLayout(projectRoot: string, navType?: string): Promise<void> {
+export async function ensureAppRouteGroupLayout(
+  projectRoot: string,
+  navType?: string,
+  forceUpdate = false,
+): Promise<void> {
   const layoutPath = resolve(projectRoot, 'app', '(app)', 'layout.tsx')
-  if (existsSync(layoutPath)) return
+  if (existsSync(layoutPath) && !forceUpdate) return
   const { mkdir: mkdirAsync } = await import('fs/promises')
   await mkdirAsync(resolve(projectRoot, 'app', '(app)'), { recursive: true })
   const code = buildAppLayoutCode(navType)
   await writeFile(layoutPath, code)
 }
 
-function buildAppLayoutCode(navType?: string): string {
+export function buildAppLayoutCode(navType?: string): string {
   const hasSidebar = navType === 'sidebar' || navType === 'both'
   if (hasSidebar) {
     return `import { Sidebar } from '@/components/shared/sidebar'
