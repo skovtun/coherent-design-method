@@ -29,8 +29,7 @@ import { appendFile } from 'fs/promises'
 import { appendRecentChanges, type RecentChange } from '../utils/recent-changes.js'
 import { createBackup, logBackupCreated } from '../utils/backup.js'
 import { needsGlobalsFix, fixGlobalsCss } from '../utils/fix-globals-css.js'
-import { getShadcnComponent } from '../utils/shadcn-installer.js'
-import { ShadcnProvider } from '../providers/shadcn-provider.js'
+import { getComponentProvider } from '../providers/index.js'
 import {
   installPackages,
   getInstalledPackages,
@@ -458,9 +457,11 @@ export async function chatCommand(
 
     const missingComponents: string[] = []
     for (const componentId of allNeededComponentIds) {
-      const exists = cm.read(componentId)
-      if (DEBUG) console.log(chalk.gray(`    Checking ${componentId}: ${exists ? 'EXISTS' : 'MISSING'}`))
-      if (!exists) {
+      const isRegistered = !!cm.read(componentId)
+      const filePath = join(projectRoot, 'components', 'ui', `${componentId}.tsx`)
+      const fileExists = existsSync(filePath)
+      if (DEBUG) console.log(chalk.gray(`    Checking ${componentId}: registered=${isRegistered} file=${fileExists}`))
+      if (!isRegistered || !fileExists) {
         missingComponents.push(componentId)
       }
     }
@@ -468,8 +469,7 @@ export async function chatCommand(
     if (missingComponents.length > 0) {
       spinner.stop()
       console.log(chalk.cyan('\n🔍 Pre-flight check: Installing missing components...\n'))
-      const provider = new ShadcnProvider()
-      await provider.init(projectRoot)
+      const provider = getComponentProvider()
 
       for (const componentId of missingComponents) {
         if (DEBUG) {
@@ -479,28 +479,31 @@ export async function chatCommand(
 
         if (provider.has(componentId)) {
           try {
-            await provider.install(componentId, projectRoot)
-            const shadcnDef = getShadcnComponent(componentId)
-            if (DEBUG) console.log(chalk.gray(`    [DEBUG] shadcnDef for ${componentId}: ${shadcnDef ? 'OK' : 'NULL'}`))
+            const result = await provider.installComponent(componentId, projectRoot)
+            if (DEBUG) console.log(chalk.gray(`    [DEBUG] installComponent result: ${result.success}`))
 
-            if (shadcnDef) {
-              if (DEBUG) console.log(chalk.gray(`    [DEBUG] Registering ${shadcnDef.id} (${shadcnDef.name})`))
-              const result = await cm.register(shadcnDef)
-              if (DEBUG) {
-                console.log(
-                  chalk.gray(
-                    `    [DEBUG] Register result: ${result.success ? 'SUCCESS' : 'FAILED'}${!result.success && result.message ? ` - ${result.message}` : ''}`,
-                  ),
-                )
-              }
+            if (result.success && result.componentDef) {
+              if (!cm.read(componentId)) {
+                if (DEBUG) console.log(chalk.gray(`    [DEBUG] Registering ${result.componentDef.id} (${result.componentDef.name})`))
+                const regResult = await cm.register(result.componentDef)
+                if (DEBUG) {
+                  console.log(
+                    chalk.gray(
+                      `    [DEBUG] Register result: ${regResult.success ? 'SUCCESS' : 'FAILED'}${!regResult.success && regResult.message ? ` - ${regResult.message}` : ''}`,
+                    ),
+                  )
+                }
 
-              if (result.success) {
-                preflightInstalledIds.push(shadcnDef.id)
-                console.log(chalk.green(`   ✨ Auto-installed ${shadcnDef.name} component`))
-                const updatedConfig = result.config
-                dsm.updateConfig(updatedConfig)
-                cm.updateConfig(updatedConfig)
-                pm.updateConfig(updatedConfig)
+                if (regResult.success) {
+                  preflightInstalledIds.push(result.componentDef.id)
+                  console.log(chalk.green(`   ✨ Auto-installed ${result.componentDef.name} component`))
+                  dsm.updateConfig(regResult.config)
+                  cm.updateConfig(regResult.config)
+                  pm.updateConfig(regResult.config)
+                }
+              } else {
+                preflightInstalledIds.push(result.componentDef.id)
+                console.log(chalk.green(`   ✨ Re-installed ${result.componentDef.name} component (file was missing)`))
               }
             }
           } catch (error) {
