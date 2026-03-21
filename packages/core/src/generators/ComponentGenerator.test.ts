@@ -77,6 +77,7 @@ const minimalConfig: DesignSystemConfig = {
     typescript: true,
     cssFramework: 'tailwind',
     autoScaffold: false,
+    homePagePlaceholder: false,
   },
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),

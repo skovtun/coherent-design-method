@@ -6,6 +6,7 @@ import {
   extractSharedComponents,
 } from './split-generator.js'
 import { inferPageType } from './modification-handler.js'
+import { readAnchorPageCodeFromDisk } from './utils.js'
 
 vi.mock('../../utils/ai-provider.js', () => ({
   createAIProvider: vi.fn(),
@@ -325,5 +326,12 @@ describe('extractSharedComponents', () => {
     expect(result.components).toHaveLength(1)
     expect(result.components[0].name).toBe('FeatureCard')
     expect(generateSharedComponent).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('readAnchorPageCodeFromDisk', () => {
+  it('returns null when file does not exist', () => {
+    const result = readAnchorPageCodeFromDisk('/nonexistent', '/')
+    expect(result).toBeNull()
   })
 })

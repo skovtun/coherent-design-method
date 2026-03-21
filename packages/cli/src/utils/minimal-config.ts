@@ -225,6 +225,7 @@ export function createMinimalConfig(): DesignSystemConfig {
       typescript: true,
       cssFramework: 'tailwind',
       autoScaffold: false,
+      homePagePlaceholder: true,
     },
 
     createdAt: now,

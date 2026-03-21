@@ -209,7 +209,8 @@ export async function splitGeneratePages(
   let homePageCode = ''
   let reusedExistingAnchor = false
 
-  if (projectRoot && remainingPages.length > 0) {
+  const isPlaceholder = modCtx.config?.settings?.homePagePlaceholder === true
+  if (projectRoot && remainingPages.length > 0 && !isPlaceholder) {
     const existingCode = readAnchorPageCodeFromDisk(projectRoot, homePage.route)
     if (existingCode) {
       reusedExistingAnchor = true

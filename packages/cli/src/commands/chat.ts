@@ -568,6 +568,23 @@ export async function chatCommand(
       results.push(result)
     }
 
+    // Flip homePagePlaceholder after home page is generated
+    for (const request of normalizedRequests) {
+      const changes = request.changes as Record<string, unknown>
+      if (
+        (request.type === 'add-page' || request.type === 'update-page') &&
+        changes?.route === '/' &&
+        changes?.pageCode
+      ) {
+        const cfg = dsm.getConfig()
+        if (cfg.settings.homePagePlaceholder) {
+          cfg.settings.homePagePlaceholder = false
+          dsm.updateConfig(cfg)
+        }
+        break
+      }
+    }
+
     // Auto-scaffold linked pages
     const currentConfig = dsm.getConfig()
     const autoScaffoldEnabled = currentConfig.settings.autoScaffold === true

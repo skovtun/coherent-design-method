@@ -481,6 +481,9 @@ export const DesignSystemConfigSchema = z.object({
 
     // Auto-scaffold linked pages (e.g. login → signup, forgot-password)
     autoScaffold: z.boolean().default(false),
+
+    // True when the home page is the init placeholder (not yet AI-generated)
+    homePagePlaceholder: z.boolean().default(false),
   }),
 
   // Timestamps
@@ -743,6 +746,7 @@ export const EXAMPLE_MULTIPAGE_CONFIG: DesignSystemConfig = {
     typescript: true,
     cssFramework: 'tailwind',
     autoScaffold: false,
+    homePagePlaceholder: false,
   },
 
   createdAt: new Date().toISOString(),
@@ -764,6 +768,7 @@ export const EXAMPLE_SPA_CONFIG: DesignSystemConfig = {
     typescript: true,
     cssFramework: 'tailwind',
     autoScaffold: false,
+    homePagePlaceholder: false,
   },
   features: {
     ...EXAMPLE_MULTIPAGE_CONFIG.features,
