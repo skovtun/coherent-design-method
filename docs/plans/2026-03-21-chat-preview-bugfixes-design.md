@@ -21,7 +21,11 @@ Add `homePagePlaceholder: z.boolean().default(false)` to `DesignSystemConfigSche
 **Chat side (split-generator.ts):**
 - Before calling `readAnchorPageCodeFromDisk()`, check `config.settings.homePagePlaceholder`
 - If `true` → skip anchor reuse, let Phase 2 generate the home page from scratch via AI
-- After home page is successfully generated → set `homePagePlaceholder: false` and persist config
+
+**Flag flip (chat.ts):**
+- After `applyModification` returns success for any `add-page` request where `route === '/'` and `changes.pageCode` is non-empty → set `config.settings.homePagePlaceholder = false` and persist config
+- Also flip for `update-page` requests targeting `route === '/'` with non-empty `pageCode`
+- Do NOT flip for single-page requests that don't touch the home page
 
 **Relationship to `initialized` flag:**
 - `initialized` controls layout regeneration mode (full vs incremental)
@@ -66,10 +70,12 @@ Timeline gap:
 
 After `regenerateLayout` writes Header/Footer/Sidebar files, scan each written file for `@/components/ui/*` imports and install missing components via `provider.installComponent()`.
 
+`regenerateLayout` does not currently return which files were written (it conditionally writes based on config and `canOverwriteShared()` checks). **Approach:** always scan all three potential files (`components/shared/header.tsx`, `components/shared/footer.tsx`, `components/shared/sidebar.tsx`) if they exist on disk after `regenerateLayout` returns. This is simpler than tracking which files were written and has no downside — scanning a file that wasn't changed is a no-op.
+
 ```
-regenerateLayout() writes header.tsx, footer.tsx, sidebar.tsx
-  → for each written file:
-    → scan for @/components/ui/* imports
+regenerateLayout() returns
+  → scan components/shared/{header,footer,sidebar}.tsx (if exist)
+    → for each file: extract @/components/ui/* imports
     → installComponent() for any missing
 ```
 
@@ -134,11 +140,18 @@ When retrying empty pages, use a minimal prompt without the full design-constrai
 
 This gives the model more output space within the existing `max_tokens` limit. No need to increase `max_tokens` (which may exceed model limits).
 
-**Fix 3: Reduce retry concurrency to 1**
+**Fix 3: Verify retries remain sequential**
 
-During retries, process pages sequentially (`concurrency: 1`) to avoid rate-limit cascading failures.
+The current retry loop already uses `for...of` with `await` (sequential). Verify this stays sequential and is not changed to parallel. No code change needed — this is a "do not regress" note.
 
 **Fix 4: Expand template fallbacks**
+
+The template fallback system has two layers:
+- `detectPageType()` in `page-templates.ts` — controls **prompt expansion** (AI guidance)
+- `inferPageType()` in `modification-handler.ts` — controls **code generation fallback** (when AI returns no pageCode)
+- `getTemplateForPageType()` in `packages/core/src/generators/templates/pages/index.ts` — returns the actual template function
+
+Both detection functions may need updating for new page types.
 
 Add templates for common page types not currently covered:
 
@@ -148,24 +161,31 @@ Add templates for common page types not currently covered:
 | `tasks` | `/tasks`, `/task-list` | Task list with status badges, filters, search |
 | `task-detail` | `/tasks/[id]` | Task detail view with status, assignee, description |
 | `reset-password` | `/reset-password` | Password reset form (mirror forgot-password) |
-| `profile` | `/profile`, `/account` | Profile card with avatar, info fields |
+
+Note: `profile` template already exists in core (`packages/core/src/generators/templates/pages/register.ts`) and `PAGE_TEMPLATES.profile` exists in `page-templates.ts`. However, `inferPageType()` is missing `profile` — add it there.
+
+New template files go in `packages/core/src/generators/templates/pages/` and must be registered in `TEMPLATE_REGISTRY` (`index.ts`) and content types in `types.ts`.
 
 These are used only when AI fails to generate code AND retry also fails — last-resort fallback.
 
 ### Files
 
-- `packages/cli/src/commands/chat/split-generator.ts` — retry gate, retry concurrency, lightweight prompt
+- `packages/cli/src/commands/chat/split-generator.ts` — retry gate, lightweight prompt
 - `packages/cli/src/agents/modifier.ts` — export lightweight prompt builder
-- `packages/cli/src/commands/chat/modification-handler.ts` — template fallbacks
-- `packages/cli/src/agents/page-templates.ts` — new template definitions
+- `packages/cli/src/commands/chat/modification-handler.ts` — add `profile` to `inferPageType`
+- `packages/core/src/generators/templates/pages/team.ts` — new template
+- `packages/core/src/generators/templates/pages/tasks.ts` — new template
+- `packages/core/src/generators/templates/pages/task-detail.ts` — new template
+- `packages/core/src/generators/templates/pages/reset-password.ts` — new template
+- `packages/core/src/generators/templates/pages/index.ts` — register new templates
+- `packages/core/src/generators/templates/pages/types.ts` — new content types
 
 ### Tests
 
 - Retry runs when 6+ pages are empty
 - Retry uses lightweight prompt (verify prompt content)
-- Retry concurrency is 1
-- Template fallbacks produce valid code for team, tasks, task-detail, reset-password, profile
-- `inferPageType` matches new route patterns
+- Template fallbacks produce valid code for team, tasks, task-detail, reset-password
+- `inferPageType` matches new route patterns including `profile`
 
 ---
 
@@ -194,15 +214,19 @@ const LINK_WITHOUT_HREF_RE = /<(?:Link|a)\b(?![^>]*\bhref\s*=)[^>]*>/g
 
 Matches `<Link` or `<a>` tags that lack any `href` attribute (including dynamic `href={...}`). Severity: error.
 
+**Known limitation:** The regex uses `[^>]*` which doesn't match newlines, so multi-line opening tags like `<Link\n  className="..."\n>` won't be caught. This is acceptable because AI-generated code almost always uses single-line tags. If this becomes an issue, the regex can be updated with the `s` flag.
+
 Self-closing tags (`<Link />`, `<a />`) should also be caught but are rare in practice.
 
 **Layer 3: AutoFix (quality-validator.ts)**
 
-For `<Link` without `href`: insert `href="/"` as safe default.
+For both `<Link` and `<a>` without `href`: insert `href="/"` as safe default.
 
 ```typescript
 // <Link className="inline-flex...">
 // → <Link href="/" className="inline-flex...">
+// <a className="...">
+// → <a href="/" className="...">
 ```
 
 The validation warning remains so users know to fix the URL.
@@ -233,20 +257,26 @@ The `(auth)` route group layout already provides centering (`min-h-svh bg-muted 
 
 **Fix 1: Skip normalizePageWrapper for auth routes**
 
-In `modification-handler.ts`:
+In `modification-handler.ts`, the `normalizePageWrapper` call appears at **two** locations — both must be updated:
+- Inside the `add-page` handler (~line 584)
+- Inside the `update-page` handler (~line 791)
+
 ```typescript
-// Before:
+// Before (both locations):
 if (!isMarketingRoute(route)) {
 
-// After:
+// After (both locations):
 if (!isMarketingRoute(route) && !isAuthRoute(route)) {
 ```
 
 `isAuthRoute` is already available via import from `page-templates.js`.
 
-**Fix 2: Add register template**
+**Fix 2: Add register prompt expansion**
 
-In `page-templates.ts`, add `register`/`signup` pattern to `detectPageType()` and a template mirroring login (centered card, `max-w-sm`, fields for name/email/password/confirm).
+The register code generation template already exists in core (`packages/core/src/generators/templates/pages/register.ts`, registered in `TEMPLATE_REGISTRY`). What's missing is the **prompt expansion** entry:
+
+- Add `register`/`signup` pattern to `detectPageType()` in `page-templates.ts`
+- Add `PAGE_TEMPLATES.register` entry with centered card layout instructions (mirror login template)
 
 **Fix 3: Auth-specific prompt note in Phase 4**
 
