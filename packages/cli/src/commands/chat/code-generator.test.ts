@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { buildAppLayoutCode, ensureAppRouteGroupLayout } from './code-generator.js'
+import { buildAppLayoutCode, ensureAppRouteGroupLayout, regenerateComponent } from './code-generator.js'
+import type { DesignSystemConfig } from '@getcoherent/core'
 
 describe('buildAppLayoutCode', () => {
   it('generates header layout by default (no navType)', () => {
@@ -79,5 +80,52 @@ describe('ensureAppRouteGroupLayout', () => {
     const content = readFileSync(join(layoutDir, 'layout.tsx'), 'utf-8')
     expect(content).toContain('Sidebar')
     expect(content).not.toContain('max-w-7xl')
+  })
+})
+
+describe('regenerateComponent', () => {
+  let tmpDir: string
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'regen-comp-'))
+    mkdirSync(join(tmpDir, 'components', 'ui'), { recursive: true })
+  })
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true })
+  })
+
+  it('skips shadcn-sourced components (installed by npx shadcn add)', async () => {
+    const realSheet = '// Real shadcn Sheet with SheetContent, SheetTrigger...'
+    writeFileSync(join(tmpDir, 'components', 'ui', 'sheet.tsx'), realSheet)
+
+    const config = {
+      components: [{ id: 'sheet', name: 'Sheet', source: 'shadcn' }],
+      pages: [],
+      tokens: {},
+    } as unknown as DesignSystemConfig
+
+    await regenerateComponent('sheet', config, tmpDir)
+    const content = readFileSync(join(tmpDir, 'components', 'ui', 'sheet.tsx'), 'utf-8')
+    expect(content).toBe(realSheet)
+  })
+
+  it('regenerates custom-sourced components', async () => {
+    writeFileSync(join(tmpDir, 'components', 'ui', 'custom-widget.tsx'), 'old code')
+
+    const config = {
+      components: [{
+        id: 'custom-widget',
+        name: 'CustomWidget',
+        source: 'custom',
+        template: '<div>Custom Widget</div>',
+      }],
+      pages: [],
+      tokens: {},
+    } as unknown as DesignSystemConfig
+
+    await regenerateComponent('custom-widget', config, tmpDir)
+    const content = readFileSync(join(tmpDir, 'components', 'ui', 'custom-widget.tsx'), 'utf-8')
+    expect(content).not.toBe('old code')
   })
 })

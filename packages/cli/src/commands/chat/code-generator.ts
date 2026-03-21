@@ -98,6 +98,7 @@ export async function regenerateComponent(
 ): Promise<void> {
   const component = config.components.find(c => c.id === componentId)
   if (!component) return
+  if (component.source === 'shadcn') return
 
   const generator = new ComponentGenerator(config)
   const code = await generator.generate(component)
