@@ -1,6 +1,7 @@
-import type { ComponentProvider, ComponentMeta, ComponentAPI, DesignTokens, DesignSystemConfig } from '@getcoherent/core'
+import type { ComponentProvider, ComponentMeta, ComponentAPI, DesignTokens, DesignSystemConfig, ComponentDefinition } from '@getcoherent/core'
 import { buildCssVariables } from '@getcoherent/core'
 import { existsSync as fsExistsSync } from 'node:fs'
+import { getShadcnComponent } from '../utils/shadcn-installer.js'
 import { exec as cpExec } from 'node:child_process'
 import * as path from 'node:path'
 
@@ -10,6 +11,15 @@ export interface InstallDeps {
 }
 
 const defaultDeps: InstallDeps = { exec: cpExec, existsSync: fsExistsSync }
+
+export interface InstallResult {
+  success: boolean
+  componentDef: ComponentDefinition | null
+}
+
+export interface InstallOptions {
+  force?: boolean
+}
 
 type Category = ComponentMeta['category']
 
@@ -416,6 +426,29 @@ export class ShadcnProvider implements ComponentProvider {
     } catch {
       console.warn(`Could not install ${name} (network error or timeout). Run \`npx shadcn@latest add ${name}\` manually.`)
     }
+  }
+
+  async installComponent(
+    id: string,
+    projectRoot: string,
+    options?: InstallOptions,
+  ): Promise<InstallResult> {
+    if (!this.has(id)) return { success: false, componentDef: null }
+
+    await this.init(projectRoot)
+
+    const kebabId = id.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()
+    const filePath = path.join(projectRoot, 'components', 'ui', `${kebabId}.tsx`)
+
+    if (!options?.force && fsExistsSync(filePath)) {
+      return { success: true, componentDef: getShadcnComponent(id) ?? null }
+    }
+
+    await this.install(id, projectRoot, defaultDeps, !!options?.force)
+
+    const success = fsExistsSync(filePath)
+    const componentDef = success ? getShadcnComponent(id) ?? null : null
+    return { success, componentDef }
   }
 
   has(name: string): boolean {

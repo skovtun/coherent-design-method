@@ -217,6 +217,91 @@ describe('ShadcnProvider integration', () => {
   })
 })
 
+describe('ShadcnProvider.installComponent()', () => {
+  let tmpDir: string
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(path.join(tmpdir(), 'install-component-'))
+  })
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true })
+  })
+
+  it('returns { success: false } for unknown component', async () => {
+    const provider = new ShadcnProvider()
+    const result = await provider.installComponent('nonexistent', tmpDir)
+    expect(result.success).toBe(false)
+    expect(result.componentDef).toBeNull()
+  })
+
+  it('creates components.json via init() before install', async () => {
+    const provider = new ShadcnProvider()
+    expect(existsSync(path.join(tmpDir, 'components.json'))).toBe(false)
+
+    vi.spyOn(provider, 'install').mockImplementation(async (name, root) => {
+      const { mkdirSync, writeFileSync } = await import('node:fs')
+      mkdirSync(path.join(root, 'components', 'ui'), { recursive: true })
+      writeFileSync(path.join(root, 'components', 'ui', `${name}.tsx`), `export function Button() {}`)
+    })
+
+    await provider.installComponent('button', tmpDir)
+    expect(existsSync(path.join(tmpDir, 'components.json'))).toBe(true)
+  })
+
+  it('returns success=true and componentDef when file is created', async () => {
+    const provider = new ShadcnProvider()
+    vi.spyOn(provider, 'install').mockImplementation(async (name, root) => {
+      const { mkdirSync, writeFileSync } = await import('node:fs')
+      mkdirSync(path.join(root, 'components', 'ui'), { recursive: true })
+      writeFileSync(path.join(root, 'components', 'ui', `${name}.tsx`), 'export function Button() {}')
+    })
+
+    const result = await provider.installComponent('button', tmpDir)
+    expect(result.success).toBe(true)
+    expect(result.componentDef).not.toBeNull()
+    expect(result.componentDef!.id).toBe('button')
+  })
+
+  it('returns success=false when install silently fails', async () => {
+    const provider = new ShadcnProvider()
+    vi.spyOn(provider, 'install').mockImplementation(async () => {
+      // npx fails silently, no file created
+    })
+
+    const result = await provider.installComponent('button', tmpDir)
+    expect(result.success).toBe(false)
+    expect(result.componentDef).toBeNull()
+  })
+
+  it('skips install when file exists and force=false', async () => {
+    const provider = new ShadcnProvider()
+    const { mkdirSync, writeFileSync } = await import('node:fs')
+    mkdirSync(path.join(tmpDir, 'components', 'ui'), { recursive: true })
+    writeFileSync(path.join(tmpDir, 'components', 'ui', 'button.tsx'), 'existing')
+
+    const installSpy = vi.spyOn(provider, 'install').mockImplementation(async () => {})
+
+    const result = await provider.installComponent('button', tmpDir)
+    expect(result.success).toBe(true)
+    expect(result.componentDef).not.toBeNull()
+    expect(installSpy).not.toHaveBeenCalled()
+  })
+
+  it('re-installs when force=true even if file exists', async () => {
+    const provider = new ShadcnProvider()
+    const { mkdirSync, writeFileSync } = await import('node:fs')
+    mkdirSync(path.join(tmpDir, 'components', 'ui'), { recursive: true })
+    writeFileSync(path.join(tmpDir, 'components', 'ui', 'button.tsx'), 'existing')
+
+    const installSpy = vi.spyOn(provider, 'install').mockImplementation(async () => {})
+
+    const result = await provider.installComponent('button', tmpDir, { force: true })
+    expect(installSpy).toHaveBeenCalledWith('button', tmpDir, expect.anything(), true)
+    expect(result.success).toBe(true)
+  })
+})
+
 describe('ShadcnProvider.init()', () => {
   const provider = new ShadcnProvider()
   let tmpDir: string
