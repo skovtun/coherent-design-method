@@ -398,9 +398,9 @@ export class ShadcnProvider implements ComponentProvider {
     writeFileSync(componentsJsonPath, JSON.stringify(componentsJson, null, 2) + '\n')
   }
 
-  async install(name: string, projectRoot: string, deps: InstallDeps = defaultDeps): Promise<void> {
+  async install(name: string, projectRoot: string, deps: InstallDeps = defaultDeps, force = false): Promise<void> {
     const componentPath = path.join(projectRoot, 'components', 'ui', `${name}.tsx`)
-    if (deps.existsSync(componentPath)) return
+    if (!force && deps.existsSync(componentPath)) return
 
     try {
       await new Promise<void>((resolve, reject) => {

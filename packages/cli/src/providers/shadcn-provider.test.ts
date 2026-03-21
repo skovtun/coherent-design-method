@@ -128,6 +128,24 @@ describe('ShadcnProvider.install()', () => {
       expect.stringContaining('Could not install button'),
     )
   })
+
+  it('re-installs when force=true even if file exists', async () => {
+    const { exec } = await import('node:child_process')
+    const { existsSync } = await import('node:fs')
+
+    const execMock = vi.fn(
+      (_cmd: string, _opts: unknown, cb?: (err: Error | null, result: { stdout: string; stderr: string }) => void) => {
+        if (cb) cb(null, { stdout: 'Done', stderr: '' })
+      },
+    )
+
+    await provider.install('button', '/tmp/test-project', {
+      exec: execMock as unknown as typeof exec,
+      existsSync: (() => true) as typeof existsSync,
+    }, true)
+
+    expect(execMock).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('ShadcnProvider.getCssVariables()', () => {
