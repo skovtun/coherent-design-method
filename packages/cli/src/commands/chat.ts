@@ -40,7 +40,7 @@ import {
 import { validatePageQuality } from '../utils/quality-validator.js'
 import { requireProject, loadConfig, routeToFsPath, resolveTargetFlags } from './chat/utils.js'
 import { extractInternalLinks, normalizeRequest, applyDefaults, AUTH_FLOW_PATTERNS } from './chat/request-parser.js'
-import { splitGeneratePages } from './chat/split-generator.js'
+import { splitGeneratePages, buildSharedComponentsSummary } from './chat/split-generator.js'
 import { applyModification } from './chat/modification-handler.js'
 import { regenerateFiles } from './chat/code-generator.js'
 import { takeNavSnapshot, hasNavChanged } from '../utils/nav-snapshot.js'
@@ -207,16 +207,7 @@ export async function chatCommand(
       }
     }
 
-    const sharedComponentsSummary =
-      manifest.shared.length > 0
-        ? manifest.shared
-            .map(e => {
-              const importPath = e.file.replace(/^components\/shared\//, '').replace(/\.tsx$/, '')
-              const desc = e.description ? ` — ${e.description}` : ''
-              return `  ${e.id} ${e.name} (${e.type})${desc}\n    Import: @/components/shared/${importPath}`
-            })
-            .join('\n')
-        : undefined
+    const sharedComponentsSummary = buildSharedComponentsSummary(manifest)
     if (DEBUG && sharedComponentsSummary) {
       console.log(chalk.dim('[add-page] sharedComponentsSummary in prompt:\n' + sharedComponentsSummary))
     }

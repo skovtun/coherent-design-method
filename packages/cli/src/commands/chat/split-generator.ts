@@ -1,5 +1,5 @@
 import type ora from 'ora'
-import { ComponentManager, type DesignSystemConfig, type ModificationRequest } from '@getcoherent/core'
+import { ComponentManager, type DesignSystemConfig, type ModificationRequest, type SharedComponentsManifest } from '@getcoherent/core'
 import { parseModification } from '../../agents/modifier.js'
 import { summarizePageAnalysis } from '../../utils/page-analyzer.js'
 import { extractPageNamesFromMessage, inferRelatedPages, impliesFullWebsite } from './request-parser.js'
@@ -94,6 +94,20 @@ export function parseNavTypeFromPlan(planResult: Record<string, unknown>): 'head
     return nav.type as 'header' | 'sidebar' | 'both'
   }
   return 'header'
+}
+
+export function buildSharedComponentsSummary(
+  manifest: SharedComponentsManifest,
+): string | undefined {
+  if (manifest.shared.length === 0) return undefined
+  return manifest.shared
+    .map(e => {
+      const importPath = e.file.replace(/^components\/shared\//, '').replace(/\.tsx$/, '')
+      const desc = e.description ? ` — ${e.description}` : ''
+      const propsLine = e.propsInterface ? `\n    Props: ${e.propsInterface}` : ''
+      return `  ${e.id} ${e.name} (${e.type})${desc}\n    Import: @/components/shared/${importPath}${propsLine}`
+    })
+    .join('\n')
 }
 
 export { buildExistingPagesContext, extractStyleContext }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseNavTypeFromPlan, extractAppNameFromPrompt } from './split-generator.js'
+import { parseNavTypeFromPlan, extractAppNameFromPrompt, buildSharedComponentsSummary } from './split-generator.js'
 import { inferPageType } from './modification-handler.js'
 
 describe('parseNavTypeFromPlan', () => {
@@ -62,6 +62,43 @@ describe('extractAppNameFromPrompt', () => {
 
   it('skips generic words', () => {
     expect(extractAppNameFromPrompt('build a new app with login')).toBeNull()
+  })
+})
+
+describe('buildSharedComponentsSummary', () => {
+  it('returns undefined for empty manifest', () => {
+    const manifest = { shared: [], nextId: 1 }
+    expect(buildSharedComponentsSummary(manifest)).toBeUndefined()
+  })
+
+  it('formats entry without propsInterface', () => {
+    const manifest = {
+      shared: [{
+        id: 'CID-001', name: 'Header', type: 'layout' as const,
+        file: 'components/shared/header.tsx', usedIn: [],
+        description: 'Main header',
+      }],
+      nextId: 2,
+    }
+    const result = buildSharedComponentsSummary(manifest)!
+    expect(result).toContain('CID-001 Header (layout)')
+    expect(result).toContain('Import: @/components/shared/header')
+    expect(result).not.toContain('Props:')
+  })
+
+  it('includes propsInterface when present', () => {
+    const manifest = {
+      shared: [{
+        id: 'CID-003', name: 'FeatureCard', type: 'section' as const,
+        file: 'components/shared/feature-card.tsx', usedIn: [],
+        description: 'Feature card',
+        propsInterface: '{ icon: React.ReactNode; title: string }',
+      }],
+      nextId: 4,
+    }
+    const result = buildSharedComponentsSummary(manifest)!
+    expect(result).toContain('CID-003 FeatureCard (section)')
+    expect(result).toContain('Props: { icon: React.ReactNode; title: string }')
   })
 })
 
