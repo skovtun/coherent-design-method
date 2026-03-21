@@ -1,8 +1,16 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { buildAppLayoutCode, ensureAppRouteGroupLayout, regenerateComponent } from './code-generator.js'
+import { buildAppLayoutCode, ensureAppRouteGroupLayout, regenerateComponent, scanAndInstallSharedDeps } from './code-generator.js'
+
+vi.mock('../../providers/index.js', () => ({
+  getComponentProvider: vi.fn(() => ({
+    listNames: () => ['Button', 'Card', 'Input', 'Sheet'],
+    has: (id: string) => ['button', 'card', 'input', 'sheet'].includes(id),
+    installComponent: vi.fn(async () => ({ success: true, componentDef: null })),
+  })),
+}))
 import type { DesignSystemConfig } from '@getcoherent/core'
 
 describe('buildAppLayoutCode', () => {
@@ -129,5 +137,50 @@ describe('regenerateComponent', () => {
     await regenerateComponent('custom-widget', config, tmpDir)
     const content = readFileSync(join(tmpDir, 'components', 'ui', 'custom-widget.tsx'), 'utf-8')
     expect(content).not.toBe('old code')
+  })
+})
+
+describe('scanAndInstallSharedDeps', () => {
+  let tmpDir: string
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'scan-deps-'))
+  })
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true })
+  })
+
+  it('returns empty array when shared dir does not exist', async () => {
+    const result = await scanAndInstallSharedDeps(tmpDir)
+    expect(result).toEqual([])
+  })
+
+  it('detects ui component imports in shared files', async () => {
+    const sharedDir = join(tmpDir, 'components', 'shared')
+    mkdirSync(sharedDir, { recursive: true })
+    writeFileSync(
+      join(sharedDir, 'header.tsx'),
+      `import { Sheet, SheetTrigger, SheetContent } from '@/components/ui/sheet'\nexport function Header() { return <div>Header</div> }`
+    )
+    mkdirSync(join(tmpDir, 'components', 'ui'), { recursive: true })
+
+    const result = await scanAndInstallSharedDeps(tmpDir)
+    expect(result).toContain('sheet')
+  })
+
+  it('skips already-installed components', async () => {
+    const sharedDir = join(tmpDir, 'components', 'shared')
+    mkdirSync(sharedDir, { recursive: true })
+    writeFileSync(
+      join(sharedDir, 'header.tsx'),
+      `import { Button } from '@/components/ui/button'\nexport function Header() { return <div>Header</div> }`
+    )
+    const uiDir = join(tmpDir, 'components', 'ui')
+    mkdirSync(uiDir, { recursive: true })
+    writeFileSync(join(uiDir, 'button.tsx'), 'export function Button() {}')
+
+    const result = await scanAndInstallSharedDeps(tmpDir)
+    expect(result).toEqual([])
   })
 })

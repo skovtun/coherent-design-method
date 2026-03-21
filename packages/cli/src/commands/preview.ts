@@ -8,7 +8,7 @@
 import chalk from 'chalk'
 import ora from 'ora'
 import { spawn, ChildProcess } from 'child_process'
-import { existsSync, rmSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, rmSync, readFileSync, writeFileSync, readdirSync } from 'fs'
 import { resolve, join } from 'path'
 import { readdir } from 'fs/promises'
 import { findConfig, exitNotCoherent, warnIfVolatile } from '../utils/find-config.js'
@@ -140,6 +140,15 @@ async function fixMissingComponentExports(projectRoot: string): Promise<void> {
   if (!existsSync(appDir) || !existsSync(uiDir)) return
 
   const pages = await listPageFiles(appDir)
+
+  const sharedDir = join(projectRoot, 'components', 'shared')
+  if (existsSync(sharedDir)) {
+    const sharedFiles = readdirSync(sharedDir)
+      .filter(f => f.endsWith('.tsx') || f.endsWith('.ts'))
+      .map(f => join(sharedDir, f))
+    pages.push(...sharedFiles)
+  }
+
   const neededExports = new Map<string, Set<string>>()
 
   for (const file of pages) {

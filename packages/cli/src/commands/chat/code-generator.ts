@@ -1,5 +1,5 @@
 import { resolve } from 'path'
-import { existsSync } from 'fs'
+import { existsSync, readdirSync, readFileSync } from 'fs'
 import { mkdir } from 'fs/promises'
 import { dirname } from 'path'
 import {
@@ -207,6 +207,30 @@ export async function regenerateLayout(
   }
 }
 
+export async function scanAndInstallSharedDeps(projectRoot: string): Promise<string[]> {
+  const sharedDir = resolve(projectRoot, 'components', 'shared')
+  if (!existsSync(sharedDir)) return []
+
+  const files = readdirSync(sharedDir).filter(f => f.endsWith('.tsx') || f.endsWith('.ts'))
+  const installed: string[] = []
+  const provider = getComponentProvider()
+
+  for (const file of files) {
+    const code = readFileSync(resolve(sharedDir, file), 'utf-8')
+    const importMatches = [...code.matchAll(/@\/components\/ui\/([a-z0-9-]+)/g)]
+    for (const [, componentId] of importMatches) {
+      const uiPath = resolve(projectRoot, 'components', 'ui', `${componentId}.tsx`)
+      if (!existsSync(uiPath) && provider.has(componentId)) {
+        try {
+          await provider.installComponent(componentId, projectRoot)
+          installed.push(componentId)
+        } catch { /* best-effort */ }
+      }
+    }
+  }
+  return [...new Set(installed)]
+}
+
 export async function ensureAppRouteGroupLayout(
   projectRoot: string,
   navType?: string,
@@ -277,6 +301,10 @@ export async function regenerateFiles(
       navChanged: options.navChanged,
       storedHashes: options.storedHashes,
     })
+    const sharedInstalled = await scanAndInstallSharedDeps(projectRoot)
+    if (sharedInstalled.length > 0 && process.env.COHERENT_DEBUG === '1') {
+      console.log(chalk.dim(`  Auto-installed shared deps: ${sharedInstalled.join(', ')}`))
+    }
   }
 
   if (componentIds.size > 0) {
