@@ -211,7 +211,7 @@ describe('ShadcnProvider.init()', () => {
     rmSync(tmpDir, { recursive: true, force: true })
   })
 
-  it('creates components.json with correct structure', async () => {
+  it('creates components.json with Tailwind v4-compatible structure', async () => {
     await provider.init(tmpDir)
 
     const jsonPath = path.join(tmpDir, 'components.json')
@@ -224,6 +224,9 @@ describe('ShadcnProvider.init()', () => {
     expect(content.tsx).toBe(true)
     expect(content.aliases.ui).toBe('@/components/ui')
     expect(content.aliases.utils).toBe('@/lib/utils')
+    expect(content.tailwind.config).toBe('')
+    expect(content.tailwind.css).toBe('app/globals.css')
+    expect(content.iconLibrary).toBe('lucide')
   })
 
   it('does not overwrite existing components.json', async () => {

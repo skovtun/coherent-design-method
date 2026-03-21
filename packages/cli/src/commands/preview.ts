@@ -270,14 +270,13 @@ function extractShadcnComponentFromModuleNotFound(msg: string): string | null {
   return m?.[1] ?? null
 }
 
-/** Auto-install a missing shadcn component file via provider. Verifies file exists after install. */
+/** Auto-install a missing shadcn component file via provider. Ensures components.json exists first. */
 async function autoInstallShadcnComponent(componentId: string, projectRoot: string): Promise<boolean> {
   const provider = new ShadcnProvider()
   if (!provider.has(componentId)) return false
   try {
+    await provider.init(projectRoot)
     await provider.install(componentId, projectRoot)
-    const { existsSync } = await import('node:fs')
-    const { join } = await import('node:path')
     return existsSync(join(projectRoot, 'components', 'ui', `${componentId}.tsx`))
   } catch {
     return false

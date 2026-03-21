@@ -376,13 +376,15 @@ export class ShadcnProvider implements ComponentProvider {
       $schema: 'https://ui.shadcn.com/schema.json',
       style: 'new-york',
       tailwind: {
-        config: 'tailwind.config.ts',
+        config: '',
         css: 'app/globals.css',
         baseColor: 'neutral',
         cssVariables: true,
+        prefix: '',
       },
       rsc: true,
       tsx: true,
+      iconLibrary: 'lucide',
       aliases: {
         components: '@/components',
         utils: '@/lib/utils',

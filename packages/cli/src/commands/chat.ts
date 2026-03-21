@@ -469,6 +469,7 @@ export async function chatCommand(
       spinner.stop()
       console.log(chalk.cyan('\n🔍 Pre-flight check: Installing missing components...\n'))
       const provider = new ShadcnProvider()
+      await provider.init(projectRoot)
 
       for (const componentId of missingComponents) {
         if (DEBUG) {
