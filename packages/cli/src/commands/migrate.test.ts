@@ -3,6 +3,22 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync, readdirSync
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import * as path from 'node:path'
+
+vi.mock('../providers/index.js', () => ({
+  getComponentProvider: () => ({
+    listNames: () => ['button', 'card', 'input', 'dialog'],
+    installBatch: vi.fn(async (ids: string[], projectRoot: string) => {
+      const results = new Map()
+      for (const id of ids) {
+        mkdirSync(path.join(projectRoot, 'components', 'ui'), { recursive: true })
+        writeFileSync(path.join(projectRoot, 'components', 'ui', `${id}.tsx`), `export function ${id}() {}`)
+        results.set(id, { success: true, componentDef: { id } })
+      }
+      return results
+    }),
+  }),
+}))
+
 import { migrateAction } from './migrate.js'
 
 describe('coherent migrate', () => {

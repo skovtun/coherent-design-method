@@ -346,9 +346,16 @@ describe('ShadcnProvider.installBatch()', () => {
   it('calls init() before batch install', async () => {
     const provider = new ShadcnProvider()
     const initSpy = vi.spyOn(provider, 'init')
-    vi.spyOn(provider, 'install').mockImplementation(async () => {})
 
-    await provider.installBatch(['button'], tmpDir)
+    const { exec } = await import('node:child_process')
+    const execMock = vi.fn((_cmd: string, _opts: unknown, cb?: (err: Error | null) => void) => {
+      if (cb) cb(null)
+    })
+
+    await provider.installBatch(['button'], tmpDir, undefined, {
+      exec: execMock as unknown as typeof exec,
+      existsSync: () => false,
+    })
     expect(initSpy).toHaveBeenCalledWith(tmpDir)
   })
 
