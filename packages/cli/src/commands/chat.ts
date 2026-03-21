@@ -428,6 +428,24 @@ export async function chatCommand(
       }
     }
 
+    // Phase 1b: Scan shared component files (header, footer, etc.) for UI dependencies
+    if (manifest.shared.length > 0) {
+      for (const entry of manifest.shared) {
+        try {
+          const sharedPath = resolve(projectRoot, entry.file)
+          if (existsSync(sharedPath)) {
+            const sharedCode = readFileSync(sharedPath, 'utf-8')
+            const sharedImports = sharedCode.matchAll(/@\/components\/ui\/([a-z0-9-]+)/g)
+            for (const m of sharedImports) {
+              if (m[1]) allNeededComponentIds.add(m[1])
+            }
+          }
+        } catch {
+          /* shared file unreadable — skip */
+        }
+      }
+    }
+
     // Phase 2: Single batch install of all missing components
     const INVALID_COMPONENT_IDS = new Set(['ui', 'shared', 'lib', 'utils', 'hooks', 'app', 'components'])
     for (const id of INVALID_COMPONENT_IDS) allNeededComponentIds.delete(id)

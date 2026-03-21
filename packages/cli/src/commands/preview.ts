@@ -270,13 +270,15 @@ function extractShadcnComponentFromModuleNotFound(msg: string): string | null {
   return m?.[1] ?? null
 }
 
-/** Auto-install a missing shadcn component file via provider. */
+/** Auto-install a missing shadcn component file via provider. Verifies file exists after install. */
 async function autoInstallShadcnComponent(componentId: string, projectRoot: string): Promise<boolean> {
   const provider = new ShadcnProvider()
   if (!provider.has(componentId)) return false
   try {
     await provider.install(componentId, projectRoot)
-    return true
+    const { existsSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    return existsSync(join(projectRoot, 'components', 'ui', `${componentId}.tsx`))
   } catch {
     return false
   }
@@ -333,27 +335,33 @@ function launchWithMonitoring(projectRoot: string, restarts: number): Promise<vo
       }
     })
 
+    const installingSet = new Set<string>()
+
     server.stderr?.on('data', (data: Buffer) => {
       const msg = data.toString()
       process.stderr.write(data)
-      if (msg.includes("Module not found: Can't resolve") && restarts < MAX_RESTARTS) {
+      if (msg.includes("Module not found: Can't resolve") && restarts < MAX_RESTARTS && !intentionalRestart) {
         const shadcnId = extractShadcnComponentFromModuleNotFound(msg)
-        if (shadcnId) {
+        if (shadcnId && !installingSet.has(shadcnId)) {
+          installingSet.add(shadcnId)
           console.log(chalk.yellow(`\n⚠ Missing component detected: ${shadcnId}`))
           console.log(chalk.cyan('  Auto-installing...'))
           autoInstallShadcnComponent(shadcnId, projectRoot).then(ok => {
             if (ok) {
-              console.log(chalk.green(`  ✔ Generated ${shadcnId}.tsx. Restarting...`))
+              console.log(chalk.green(`  ✔ Installed ${shadcnId}.tsx. Restarting...`))
               intentionalRestart = true
               server.kill('SIGTERM')
               launchWithMonitoring(projectRoot, restarts + 1)
                 .then(resolvePromise)
                 .catch(rejectPromise)
+            } else {
+              console.log(chalk.red(`  ✖ Could not install ${shadcnId}. Run: npx shadcn@latest add ${shadcnId}`))
             }
           })
-        } else {
+        } else if (!shadcnId) {
           const pkg = extractPackageFromModuleNotFound(msg)
-          if (pkg) {
+          if (pkg && !installingSet.has(pkg)) {
+            installingSet.add(pkg)
             console.log(chalk.yellow(`\n⚠ Missing package detected: ${pkg}`))
             console.log(chalk.cyan('  Auto-installing...'))
             installPackages(projectRoot, [pkg]).then(ok => {
