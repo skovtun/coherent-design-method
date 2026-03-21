@@ -490,6 +490,19 @@ export function validatePageQuality(code: string, validRoutes?: string[]): Quali
     })
   }
 
+  // LINK_MISSING_HREF: <Link> or <a> without href attribute
+  const linkWithoutHrefRe = /<(?:Link|a)\b(?![^>]*\bhref\s*=)[^>]*>/g
+  let linkNoHrefMatch: RegExpExecArray | null
+  while ((linkNoHrefMatch = linkWithoutHrefRe.exec(code)) !== null) {
+    const matchLine = code.slice(0, linkNoHrefMatch.index).split('\n').length
+    issues.push({
+      line: matchLine,
+      type: 'LINK_MISSING_HREF',
+      message: '<Link> or <a> without href prop — causes Next.js runtime error. Add href attribute.',
+      severity: 'error',
+    })
+  }
+
   // Component variant misuse (e.g. Button without variant="ghost" in nav)
   issues.push(...detectComponentIssues(code))
 
@@ -1043,6 +1056,13 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
   )
   if (fixed !== beforeAsChildFlex) {
     fixes.push('added inline-flex to Button asChild children (base-ui compat)')
+  }
+
+  // Fix <Link> and <a> without href — add href="/" as safe default
+  const beforeLinkHrefFix = fixed
+  fixed = fixed.replace(/<(Link|a)\b(?![^>]*\bhref\s*=)([^>]*)>/g, '<$1 href="/"$2>')
+  if (fixed !== beforeLinkHrefFix) {
+    fixes.push('added href="/" to <Link>/<a> missing href')
   }
 
   // Fix shadcn component variant misuse (e.g. Button without variant="ghost" in nav)

@@ -323,6 +323,58 @@ export default function Page() {
   })
 })
 
+describe('LINK_MISSING_HREF', () => {
+  it('detects <Link> without href', () => {
+    const code = '<Link className="inline-flex items-center gap-2"><Plus /> New</Link>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'LINK_MISSING_HREF')).toBe(true)
+  })
+
+  it('detects <a> without href', () => {
+    const code = '<a className="underline">Click</a>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'LINK_MISSING_HREF')).toBe(true)
+  })
+
+  it('does not flag <Link href="/foo">', () => {
+    const code = '<Link href="/foo">Go</Link>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'LINK_MISSING_HREF')).toBe(false)
+  })
+
+  it('does not flag <Link href={url}>', () => {
+    const code = '<Link href={url}>Go</Link>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'LINK_MISSING_HREF')).toBe(false)
+  })
+
+  it('does not flag <a href="#">', () => {
+    const code = '<a href="#">Link</a>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'LINK_MISSING_HREF')).toBe(false)
+  })
+})
+
+describe('autoFixCode Link href', () => {
+  it('adds href="/" to <Link> without href', async () => {
+    const code = '<Link className="inline-flex"><Plus /> New</Link>'
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('<Link href="/"')
+  })
+
+  it('adds href="/" to <a> without href', async () => {
+    const code = '<a className="underline">Click</a>'
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('<a href="/"')
+  })
+
+  it('does not modify <Link href="/foo">', async () => {
+    const code = '<Link href="/foo" className="text-blue-500">Go</Link>'
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('href="/foo"')
+  })
+})
+
 describe('autoFixCode — RAW_COLOR in cn()/clsx()', () => {
   it('replaces raw colors inside cn() calls', async () => {
     const code = `import { cn } from '@/lib/utils'
