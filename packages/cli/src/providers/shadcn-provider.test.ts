@@ -349,7 +349,7 @@ describe('ShadcnProvider.installBatch()', () => {
     mkdirSync(path.join(tmpDir, 'components', 'ui'), { recursive: true })
     writeFileSync(path.join(tmpDir, 'components', 'ui', 'button.tsx'), 'existing')
 
-    const installSpy = vi.spyOn(provider, 'install').mockImplementation(async (name, root) => {
+    vi.spyOn(provider, 'install').mockImplementation(async (name, root) => {
       const fs = await import('node:fs')
       fs.mkdirSync(path.join(root, 'components', 'ui'), { recursive: true })
       fs.writeFileSync(path.join(root, 'components', 'ui', `${name}.tsx`), `export {}`)
