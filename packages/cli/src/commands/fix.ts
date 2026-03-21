@@ -33,8 +33,7 @@ import {
   saveManifest,
 } from '@getcoherent/core'
 import { writeFile } from '../utils/files.js'
-import { getShadcnComponent } from '../utils/shadcn-installer.js'
-import { ShadcnProvider } from '../providers/shadcn-provider.js'
+import { getComponentProvider } from '../providers/index.js'
 import {
   findMissingPackages,
   installPackages,
@@ -166,7 +165,7 @@ export async function fixCommand(opts: FixOptions = {}) {
       }
     }
 
-    const provider = new ShadcnProvider()
+    const provider = getComponentProvider()
     const toInstall = [...new Set([...missingComponents, ...missingFiles])].filter(id => provider.has(id))
 
     if (toInstall.length > 0) {
@@ -177,27 +176,29 @@ export async function fixCommand(opts: FixOptions = {}) {
         let installed = 0
         for (const componentId of toInstall) {
           try {
-            await provider.install(componentId, projectRoot)
-            const shadcnDef = getShadcnComponent(componentId)
-            if (!shadcnDef) continue
-            if (!cm.read(componentId)) {
-              const result = await cm.register(shadcnDef)
-              if (!result.success) continue
-              dsm.updateConfig(result.config)
-              cm.updateConfig(result.config)
-              pm!.updateConfig(result.config)
+            const result = await provider.installComponent(componentId, projectRoot)
+            if (!result.success) continue
+            if (result.componentDef && !cm.read(componentId)) {
+              const regResult = await cm.register(result.componentDef)
+              if (!regResult.success) continue
+              dsm.updateConfig(regResult.config)
+              cm.updateConfig(regResult.config)
+              pm!.updateConfig(regResult.config)
             }
-            const updatedConfig = dsm.getConfig()
-            const component = updatedConfig.components.find(c => c.id === componentId)
-            if (component) {
-              const generator = new ComponentGenerator(updatedConfig)
-              const code = await generator.generate(component)
-              const fileName = toKebabCase(component.name) + '.tsx'
-              const filePath = resolve(projectRoot, 'components', 'ui', fileName)
-              mkdirSync(resolve(projectRoot, 'components', 'ui'), { recursive: true })
-              await writeFile(filePath, code)
-              installed++
+
+            if (result.componentDef?.source !== 'shadcn') {
+              const updatedConfig = dsm.getConfig()
+              const component = updatedConfig.components.find(c => c.id === componentId)
+              if (component) {
+                const generator = new ComponentGenerator(updatedConfig)
+                const code = await generator.generate(component)
+                const fileName = toKebabCase(component.name) + '.tsx'
+                const filePath = resolve(projectRoot, 'components', 'ui', fileName)
+                mkdirSync(resolve(projectRoot, 'components', 'ui'), { recursive: true })
+                await writeFile(filePath, code)
+              }
             }
+            installed++
           } catch (err) {
             console.log(
               chalk.yellow(`  ⚠ Failed to install ${componentId}: ${err instanceof Error ? err.message : 'unknown'}`),
