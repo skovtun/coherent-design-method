@@ -26,6 +26,14 @@ export interface ParseModificationOutput {
   navigation?: { type: string }
 }
 
+export interface SharedExtractionItem {
+  name: string
+  type: 'section' | 'widget'
+  description: string
+  propsInterface: string
+  code: string
+}
+
 export interface AIProviderInterface {
   generateConfig(discovery: DiscoveryResult): Promise<DesignSystemConfig>
   parseModification(prompt: string): Promise<ParseModificationOutput>
@@ -43,6 +51,12 @@ export interface AIProviderInterface {
   ): Promise<string>
   /** Story 2.11 B2: Extract a block from page code as a standalone React component. Returns component TSX code. */
   extractBlockAsComponent?(pageCode: string, blockHint: string, componentName: string): Promise<string>
+  /** Extract reusable UI component patterns from a page's TSX code. */
+  extractSharedComponents?(
+    pageCode: string,
+    reservedNames: string[],
+    existingSharedNames: string[],
+  ): Promise<{ components: SharedExtractionItem[] }>
 }
 
 // Import types for interface
