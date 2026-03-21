@@ -5,6 +5,10 @@ import { getShadcnComponent } from '../utils/shadcn-installer.js'
 import { exec as cpExec } from 'node:child_process'
 import * as path from 'node:path'
 
+function toKebab(id: string): string {
+  return id.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()
+}
+
 export interface InstallDeps {
   exec: typeof cpExec
   existsSync: typeof fsExistsSync
@@ -437,8 +441,7 @@ export class ShadcnProvider implements ComponentProvider {
 
     await this.init(projectRoot)
 
-    const kebabId = id.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()
-    const filePath = path.join(projectRoot, 'components', 'ui', `${kebabId}.tsx`)
+    const filePath = path.join(projectRoot, 'components', 'ui', `${toKebab(id)}.tsx`)
 
     if (!options?.force && fsExistsSync(filePath)) {
       return { success: true, componentDef: getShadcnComponent(id) ?? null }
@@ -455,6 +458,7 @@ export class ShadcnProvider implements ComponentProvider {
     ids: string[],
     projectRoot: string,
     options?: InstallOptions,
+    deps: InstallDeps = defaultDeps,
   ): Promise<Map<string, InstallResult>> {
     const results = new Map<string, InstallResult>()
     const invalidIds = ids.filter(id => !this.has(id))
@@ -470,8 +474,7 @@ export class ShadcnProvider implements ComponentProvider {
 
     const toInstall: string[] = []
     for (const id of validIds) {
-      const kebabId = id.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()
-      const filePath = path.join(projectRoot, 'components', 'ui', `${kebabId}.tsx`)
+      const filePath = path.join(projectRoot, 'components', 'ui', `${toKebab(id)}.tsx`)
       if (!options?.force && fsExistsSync(filePath)) {
         results.set(id, { success: true, componentDef: getShadcnComponent(id) ?? null })
       } else {
@@ -481,10 +484,30 @@ export class ShadcnProvider implements ComponentProvider {
 
     if (toInstall.length === 0) return results
 
+    // Single npx call for all components
+    try {
+      await new Promise<void>((resolve, reject) => {
+        deps.exec(
+          `npx shadcn@latest add ${toInstall.join(' ')} --yes --overwrite`,
+          { cwd: projectRoot, timeout: 30000 },
+          (err) => {
+            if (err) reject(err)
+            else resolve()
+          },
+        )
+      })
+    } catch {
+      // Batch failed — fall back to sequential install
+      for (const id of toInstall) {
+        const result = await this.installComponent(id, projectRoot, options)
+        results.set(id, result)
+      }
+      return results
+    }
+
+    // Verify each component
     for (const id of toInstall) {
-      await this.install(id, projectRoot, defaultDeps, !!options?.force)
-      const kebabId = id.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()
-      const filePath = path.join(projectRoot, 'components', 'ui', `${kebabId}.tsx`)
+      const filePath = path.join(projectRoot, 'components', 'ui', `${toKebab(id)}.tsx`)
       const success = fsExistsSync(filePath)
       results.set(id, {
         success,

@@ -328,15 +328,27 @@ describe('ShadcnProvider.installBatch()', () => {
     expect(initSpy).toHaveBeenCalledWith(tmpDir)
   })
 
-  it('installs multiple components and returns results', async () => {
+  it('installs multiple components via single exec call and returns results', async () => {
     const provider = new ShadcnProvider()
-    vi.spyOn(provider, 'install').mockImplementation(async (name, root) => {
-      const { mkdirSync, writeFileSync } = await import('node:fs')
-      mkdirSync(path.join(root, 'components', 'ui'), { recursive: true })
-      writeFileSync(path.join(root, 'components', 'ui', `${name}.tsx`), `export {}`)
+    const { exec } = await import('node:child_process')
+    const execMock = vi.fn(
+      (_cmd: string, _opts: unknown, cb?: (err: Error | null) => void) => {
+        const { mkdirSync: mk, writeFileSync: wf } = require('node:fs')
+        mk(path.join(tmpDir, 'components', 'ui'), { recursive: true })
+        wf(path.join(tmpDir, 'components', 'ui', 'button.tsx'), 'export {}')
+        wf(path.join(tmpDir, 'components', 'ui', 'card.tsx'), 'export {}')
+        if (cb) cb(null)
+      },
+    )
+
+    const results = await provider.installBatch(['button', 'card'], tmpDir, undefined, {
+      exec: execMock as unknown as typeof exec,
+      existsSync,
     })
 
-    const results = await provider.installBatch(['button', 'card'], tmpDir)
+    expect(execMock).toHaveBeenCalledTimes(1)
+    const cmd = execMock.mock.calls[0][0] as string
+    expect(cmd).toContain('button card')
     expect(results.get('button')?.success).toBe(true)
     expect(results.get('button')?.componentDef?.id).toBe('button')
     expect(results.get('card')?.success).toBe(true)
@@ -345,19 +357,78 @@ describe('ShadcnProvider.installBatch()', () => {
 
   it('skips already-installed components when force=false', async () => {
     const provider = new ShadcnProvider()
-    const { mkdirSync, writeFileSync } = await import('node:fs')
-    mkdirSync(path.join(tmpDir, 'components', 'ui'), { recursive: true })
-    writeFileSync(path.join(tmpDir, 'components', 'ui', 'button.tsx'), 'existing')
+    const { mkdirSync: mk, writeFileSync: wf } = await import('node:fs')
+    mk(path.join(tmpDir, 'components', 'ui'), { recursive: true })
+    wf(path.join(tmpDir, 'components', 'ui', 'button.tsx'), 'existing')
 
-    vi.spyOn(provider, 'install').mockImplementation(async (name, root) => {
-      const fs = await import('node:fs')
-      fs.mkdirSync(path.join(root, 'components', 'ui'), { recursive: true })
-      fs.writeFileSync(path.join(root, 'components', 'ui', `${name}.tsx`), `export {}`)
+    const { exec } = await import('node:child_process')
+    const execMock = vi.fn(
+      (_cmd: string, _opts: unknown, cb?: (err: Error | null) => void) => {
+        const fs = require('node:fs')
+        fs.mkdirSync(path.join(tmpDir, 'components', 'ui'), { recursive: true })
+        fs.writeFileSync(path.join(tmpDir, 'components', 'ui', 'card.tsx'), 'export {}')
+        if (cb) cb(null)
+      },
+    )
+
+    const results = await provider.installBatch(['button', 'card'], tmpDir, undefined, {
+      exec: execMock as unknown as typeof exec,
+      existsSync,
     })
-
-    const results = await provider.installBatch(['button', 'card'], tmpDir)
     expect(results.get('button')?.success).toBe(true)
     expect(results.get('card')?.success).toBe(true)
+    // Only card should have been in the exec call (button already exists)
+    if (execMock.mock.calls.length > 0) {
+      const cmd = execMock.mock.calls[0][0] as string
+      expect(cmd).not.toContain('button')
+      expect(cmd).toContain('card')
+    }
+  })
+
+  it('handles mixed valid and invalid IDs', async () => {
+    const provider = new ShadcnProvider()
+    const { exec } = await import('node:child_process')
+    const execMock = vi.fn(
+      (_cmd: string, _opts: unknown, cb?: (err: Error | null) => void) => {
+        const fs = require('node:fs')
+        fs.mkdirSync(path.join(tmpDir, 'components', 'ui'), { recursive: true })
+        fs.writeFileSync(path.join(tmpDir, 'components', 'ui', 'button.tsx'), 'export {}')
+        if (cb) cb(null)
+      },
+    )
+
+    const results = await provider.installBatch(['button', 'nonexistent', 'also-fake'], tmpDir, undefined, {
+      exec: execMock as unknown as typeof exec,
+      existsSync,
+    })
+
+    expect(results.get('button')?.success).toBe(true)
+    expect(results.get('nonexistent')?.success).toBe(false)
+    expect(results.get('also-fake')?.success).toBe(false)
+  })
+
+  it('re-installs with force=true even if files exist', async () => {
+    const provider = new ShadcnProvider()
+    const { mkdirSync: mk, writeFileSync: wf } = await import('node:fs')
+    mk(path.join(tmpDir, 'components', 'ui'), { recursive: true })
+    wf(path.join(tmpDir, 'components', 'ui', 'button.tsx'), 'old content')
+
+    const { exec } = await import('node:child_process')
+    const execMock = vi.fn(
+      (_cmd: string, _opts: unknown, cb?: (err: Error | null) => void) => {
+        const fs = require('node:fs')
+        fs.writeFileSync(path.join(tmpDir, 'components', 'ui', 'button.tsx'), 'new content')
+        if (cb) cb(null)
+      },
+    )
+
+    const results = await provider.installBatch(['button'], tmpDir, { force: true }, {
+      exec: execMock as unknown as typeof exec,
+      existsSync,
+    })
+
+    expect(execMock).toHaveBeenCalledTimes(1)
+    expect(results.get('button')?.success).toBe(true)
   })
 })
 
