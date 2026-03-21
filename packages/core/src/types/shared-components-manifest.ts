@@ -24,6 +24,8 @@ export const SharedComponentEntrySchema = z.object({
   createdAt: z.string().datetime().optional(),
   /** Human-readable description */
   description: z.string().optional(),
+  /** TypeScript props interface body, e.g. "{ icon: React.ReactNode; title: string }" */
+  propsInterface: z.string().optional(),
 })
 export type SharedComponentEntry = z.infer<typeof SharedComponentEntrySchema>
 
