@@ -132,7 +132,7 @@ export async function splitGeneratePages(
 ): Promise<ModificationRequest[]> {
   let pageNames: Array<{ name: string; id: string; route: string }> = []
 
-  spinner.start('Phase 1/4 — Planning pages...')
+  spinner.start('Phase 1/5 — Planning pages...')
   try {
     const planResult = await parseModification(message, modCtx, provider, { ...parseOpts, planOnly: true })
     const pageReqs = planResult.requests.filter((r: ModificationRequest) => r.type === 'add-page')
@@ -193,7 +193,7 @@ export async function splitGeneratePages(
   const allRoutes = pageNames.map(p => p.route).join(', ')
   const allPagesList = pageNames.map(p => `${p.name} (${p.route})`).join(', ')
   const inferredNote = inferred.length > 0 ? ` (${inferred.length} auto-inferred)` : ''
-  spinner.succeed(`Phase 1/4 — Found ${pageNames.length} pages${inferredNote}: ${allPagesList}`)
+  spinner.succeed(`Phase 1/5 — Found ${pageNames.length} pages${inferredNote}: ${allPagesList}`)
 
   const homeIdx = pageNames.findIndex(p => p.route === '/')
   const homePage = homeIdx !== -1 ? pageNames[homeIdx] : pageNames[0]
@@ -209,13 +209,13 @@ export async function splitGeneratePages(
     if (existingCode) {
       reusedExistingAnchor = true
       homePageCode = existingCode
-      spinner.start(`Phase 2/4 — Loading ${homePage.name} from disk (style anchor)...`)
-      spinner.succeed(`Phase 2/4 — Reused existing ${homePage.name} page (skipped AI regeneration)`)
+      spinner.start(`Phase 2/5 — Loading ${homePage.name} from disk (style anchor)...`)
+      spinner.succeed(`Phase 2/5 — Reused existing ${homePage.name} page (skipped AI regeneration)`)
     }
   }
 
   if (!reusedExistingAnchor) {
-    spinner.start(`Phase 2/4 — Generating ${homePage.name} page (sets design direction)...`)
+    spinner.start(`Phase 2/5 — Generating ${homePage.name} page (sets design direction)...`)
     try {
       const homeResult = await parseModification(
         `Create ONE page called "${homePage.name}" at route "${homePage.route}". Context: ${message}. This REPLACES the default placeholder page — generate a complete, content-rich landing page for the project described above. Generate complete pageCode. Include a branded site-wide <header> with navigation links to ALL these pages: ${allPagesList}. Use these EXACT routes in navigation: ${allRoutes}. Include a <footer> at the bottom. Make it visually polished — this page sets the design direction for the entire site. Do not generate other pages.`,
@@ -239,24 +239,46 @@ export async function splitGeneratePages(
         changes: { id: homePage.id, name: homePage.name, route: homePage.route },
       }
     }
-    spinner.succeed(`Phase 2/4 — ${homePage.name} page generated`)
+    spinner.succeed(`Phase 2/5 — ${homePage.name} page generated`)
   }
 
-  spinner.start('Phase 3/4 — Extracting design patterns...')
+  spinner.start('Phase 3/5 — Extracting design patterns...')
   const styleContext = homePageCode ? extractStyleContext(homePageCode) : ''
   if (styleContext) {
     const lineCount = styleContext.split('\n').length - 1
     const source = reusedExistingAnchor ? `${homePage.name} (existing file)` : homePage.name
-    spinner.succeed(`Phase 3/4 — Extracted ${lineCount} style patterns from ${source}`)
+    spinner.succeed(`Phase 3/5 — Extracted ${lineCount} style patterns from ${source}`)
   } else {
-    spinner.succeed('Phase 3/4 — No style patterns extracted (anchor page had no code)')
+    spinner.succeed('Phase 3/5 — No style patterns extracted (anchor page had no code)')
+  }
+
+  // Phase 3.5: Extract shared components from anchor
+  if (remainingPages.length >= 2 && homePageCode && projectRoot) {
+    const manifest = await loadManifest(projectRoot)
+    const shouldSkip = reusedExistingAnchor && manifest.shared.some(e => e.type !== 'layout')
+
+    if (!shouldSkip) {
+      spinner.start('Phase 3.5/5 — Extracting shared components...')
+      try {
+        const extraction = await extractSharedComponents(homePageCode, projectRoot, provider ?? 'auto')
+        parseOpts.sharedComponentsSummary = extraction.summary
+        if (extraction.components.length > 0) {
+          const names = extraction.components.map(c => c.name).join(', ')
+          spinner.succeed(`Phase 3.5/5 — Extracted ${extraction.components.length} shared components (${names})`)
+        } else {
+          spinner.succeed('Phase 3.5/5 — No shared components extracted')
+        }
+      } catch {
+        spinner.warn('Phase 3.5/5 — Could not extract shared components (continuing without)')
+      }
+    }
   }
 
   if (remainingPages.length === 0) {
     return homeRequest ? [homeRequest] : []
   }
 
-  spinner.start(`Phase 4/4 — Generating ${remainingPages.length} pages in parallel...`)
+  spinner.start(`Phase 5/5 — Generating ${remainingPages.length} pages in parallel...`)
 
   const sharedNote =
     'Header and Footer are shared components rendered by the root layout. Do NOT include any site-wide <header>, <nav>, or <footer> in this page. Start with the main content directly.'
@@ -288,12 +310,12 @@ export async function splitGeneratePages(
       try {
         const result = await parseModification(prompt, modCtx, provider, parseOpts)
         phase4Done++
-        spinner.text = `Phase 4/4 — ${phase4Done}/${remainingPages.length} pages generated...`
+        spinner.text = `Phase 5/5 — ${phase4Done}/${remainingPages.length} pages generated...`
         const codePage = result.requests.find((r: ModificationRequest) => r.type === 'add-page')
         return codePage || { type: 'add-page' as const, target: 'new', changes: { id, name, route } }
       } catch {
         phase4Done++
-        spinner.text = `Phase 4/4 — ${phase4Done}/${remainingPages.length} pages generated...`
+        spinner.text = `Phase 5/5 — ${phase4Done}/${remainingPages.length} pages generated...`
         return { type: 'add-page' as const, target: 'new', changes: { id, name, route } }
       }
     },
@@ -332,7 +354,7 @@ export async function splitGeneratePages(
   }
 
   const withCode = allRequests.filter(r => (r.changes as Record<string, unknown>)?.pageCode).length
-  spinner.succeed(`Phase 4/4 — Generated ${allRequests.length} pages (${withCode} with full code)`)
+  spinner.succeed(`Phase 5/5 — Generated ${allRequests.length} pages (${withCode} with full code)`)
   return allRequests
 }
 
