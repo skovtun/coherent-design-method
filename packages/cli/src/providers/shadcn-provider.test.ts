@@ -302,6 +302,65 @@ describe('ShadcnProvider.installComponent()', () => {
   })
 })
 
+describe('ShadcnProvider.installBatch()', () => {
+  let tmpDir: string
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(path.join(tmpdir(), 'install-batch-'))
+  })
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true })
+  })
+
+  it('returns failure for unknown component IDs', async () => {
+    const provider = new ShadcnProvider()
+    const results = await provider.installBatch(['nonexistent'], tmpDir)
+    expect(results.get('nonexistent')?.success).toBe(false)
+  })
+
+  it('calls init() before batch install', async () => {
+    const provider = new ShadcnProvider()
+    const initSpy = vi.spyOn(provider, 'init')
+    vi.spyOn(provider, 'install').mockImplementation(async () => {})
+
+    await provider.installBatch(['button'], tmpDir)
+    expect(initSpy).toHaveBeenCalledWith(tmpDir)
+  })
+
+  it('installs multiple components and returns results', async () => {
+    const provider = new ShadcnProvider()
+    vi.spyOn(provider, 'install').mockImplementation(async (name, root) => {
+      const { mkdirSync, writeFileSync } = await import('node:fs')
+      mkdirSync(path.join(root, 'components', 'ui'), { recursive: true })
+      writeFileSync(path.join(root, 'components', 'ui', `${name}.tsx`), `export {}`)
+    })
+
+    const results = await provider.installBatch(['button', 'card'], tmpDir)
+    expect(results.get('button')?.success).toBe(true)
+    expect(results.get('button')?.componentDef?.id).toBe('button')
+    expect(results.get('card')?.success).toBe(true)
+    expect(results.get('card')?.componentDef?.id).toBe('card')
+  })
+
+  it('skips already-installed components when force=false', async () => {
+    const provider = new ShadcnProvider()
+    const { mkdirSync, writeFileSync } = await import('node:fs')
+    mkdirSync(path.join(tmpDir, 'components', 'ui'), { recursive: true })
+    writeFileSync(path.join(tmpDir, 'components', 'ui', 'button.tsx'), 'existing')
+
+    const installSpy = vi.spyOn(provider, 'install').mockImplementation(async (name, root) => {
+      const fs = await import('node:fs')
+      fs.mkdirSync(path.join(root, 'components', 'ui'), { recursive: true })
+      fs.writeFileSync(path.join(root, 'components', 'ui', `${name}.tsx`), `export {}`)
+    })
+
+    const results = await provider.installBatch(['button', 'card'], tmpDir)
+    expect(results.get('button')?.success).toBe(true)
+    expect(results.get('card')?.success).toBe(true)
+  })
+})
+
 describe('ShadcnProvider.init()', () => {
   const provider = new ShadcnProvider()
   let tmpDir: string

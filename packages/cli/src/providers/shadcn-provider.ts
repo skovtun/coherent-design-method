@@ -451,6 +451,50 @@ export class ShadcnProvider implements ComponentProvider {
     return { success, componentDef }
   }
 
+  async installBatch(
+    ids: string[],
+    projectRoot: string,
+    options?: InstallOptions,
+  ): Promise<Map<string, InstallResult>> {
+    const results = new Map<string, InstallResult>()
+    const invalidIds = ids.filter(id => !this.has(id))
+    const validIds = ids.filter(id => this.has(id))
+
+    for (const id of invalidIds) {
+      results.set(id, { success: false, componentDef: null })
+    }
+
+    if (validIds.length === 0) return results
+
+    await this.init(projectRoot)
+
+    const toInstall: string[] = []
+    for (const id of validIds) {
+      const kebabId = id.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()
+      const filePath = path.join(projectRoot, 'components', 'ui', `${kebabId}.tsx`)
+      if (!options?.force && fsExistsSync(filePath)) {
+        results.set(id, { success: true, componentDef: getShadcnComponent(id) ?? null })
+      } else {
+        toInstall.push(id)
+      }
+    }
+
+    if (toInstall.length === 0) return results
+
+    for (const id of toInstall) {
+      await this.install(id, projectRoot, defaultDeps, !!options?.force)
+      const kebabId = id.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()
+      const filePath = path.join(projectRoot, 'components', 'ui', `${kebabId}.tsx`)
+      const success = fsExistsSync(filePath)
+      results.set(id, {
+        success,
+        componentDef: success ? getShadcnComponent(id) ?? null : null,
+      })
+    }
+
+    return results
+  }
+
   has(name: string): boolean {
     return componentMetaMap.has(name)
   }
