@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { PageGenerator } from './PageGenerator.js'
+import { getTemplateForPageType } from './templates/pages/index.js'
 import type { DesignSystemConfig } from '../types/design-system.js'
 
 const LIGHT = {
@@ -278,6 +279,36 @@ describe('PageGenerator', () => {
       const sidebar = gen.generateSharedSidebarCode()
       expect(sidebar).toContain("pathname?.startsWith('/design-system')")
       expect(sidebar).toContain('return null')
+    })
+  })
+
+  describe('template fallbacks', () => {
+    it('has template for team', () => {
+      const fn = getTemplateForPageType('team')
+      expect(fn).not.toBeNull()
+      const code = fn!({ title: 'Team', description: 'Meet the team', members: [] }, { route: '/team', pageName: 'TeamPage' })
+      expect(code).toContain('export default')
+    })
+
+    it('has template for tasks', () => {
+      const fn = getTemplateForPageType('tasks')
+      expect(fn).not.toBeNull()
+      const code = fn!({ title: 'Tasks', description: 'Task list', tasks: [] }, { route: '/tasks', pageName: 'TasksPage' })
+      expect(code).toContain('export default')
+    })
+
+    it('has template for task-detail', () => {
+      const fn = getTemplateForPageType('task-detail')
+      expect(fn).not.toBeNull()
+      const code = fn!({ title: 'Task Detail', description: 'Task info' }, { route: '/tasks/[id]', pageName: 'TaskDetailPage' })
+      expect(code).toContain('export default')
+    })
+
+    it('has template for reset-password', () => {
+      const fn = getTemplateForPageType('reset-password')
+      expect(fn).not.toBeNull()
+      const code = fn!({ title: 'Reset Password', description: 'Set new password' }, { route: '/reset-password', pageName: 'ResetPasswordPage' })
+      expect(code).toContain('export default')
     })
   })
 

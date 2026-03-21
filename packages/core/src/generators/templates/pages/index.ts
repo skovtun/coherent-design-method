@@ -12,6 +12,10 @@ import { faqTemplate } from './faq.js'
 import { changelogTemplate } from './changelog.js'
 import { loginTemplate } from './login.js'
 import { registerTemplate } from './register.js'
+import { teamTemplate } from './team.js'
+import { tasksTemplate } from './tasks.js'
+import { taskDetailTemplate } from './task-detail.js'
+import { resetPasswordTemplate } from './reset-password.js'
 import type { TemplateOptions } from './types.js'
 
 export type { TemplateOptions } from './types.js'
@@ -30,6 +34,10 @@ export type {
   ChangelogContent,
   LoginContent,
   RegisterContent,
+  TeamContent,
+  TasksContent,
+  TaskDetailContent,
+  ResetPasswordContent,
   PageContent,
 } from './types.js'
 
@@ -50,6 +58,10 @@ const TEMPLATE_REGISTRY: Record<string, TemplateFn> = {
   changelog: changelogTemplate,
   login: loginTemplate,
   register: registerTemplate,
+  team: teamTemplate,
+  tasks: tasksTemplate,
+  'task-detail': taskDetailTemplate,
+  'reset-password': resetPasswordTemplate,
 }
 
 export function getTemplateForPageType(pageType: string): TemplateFn | null {

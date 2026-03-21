@@ -916,6 +916,11 @@ export function inferPageType(route: string, name: string): string | null {
   if (/\bchangelog\b/.test(key)) return 'changelog'
   if (/\babout\b/.test(key)) return 'about'
   if (/\bsettings?\b/.test(key)) return 'settings'
+  if (/\bteam\b|\bmember\b/.test(key)) return 'team'
+  if (/\btasks?\b/.test(key) && /\[id\]|\bdetail\b/.test(key)) return 'task-detail'
+  if (/\btasks?\b/.test(key)) return 'tasks'
+  if (/\breset.?password\b/.test(key)) return 'reset-password'
+  if (/\bprofile\b|\baccount\b/.test(key)) return 'profile'
   return null
 }
 
@@ -960,6 +965,26 @@ function getDefaultContent(pageType: string, pageName: string): Record<string, u
     settings: {
       title: 'Settings',
       description: 'Manage your account and preferences',
+    },
+    team: {
+      title: 'Our Team',
+      description: 'Meet the people behind the product',
+    },
+    tasks: {
+      title: 'Tasks',
+      description: 'Manage and track your tasks',
+    },
+    'task-detail': {
+      title: 'Task Detail',
+      description: 'View task details and activity',
+    },
+    'reset-password': {
+      title: 'Reset Password',
+      description: 'Enter your new password',
+    },
+    profile: {
+      title: 'Profile',
+      description: 'View and edit your profile',
     },
   }
   return defaults[pageType] || { title: pageName, description: '' }

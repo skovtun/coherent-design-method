@@ -193,6 +193,47 @@ export const PAGE_TEMPLATES: Record<string, { description: string; sections: str
     ],
     components: ['Badge'],
   },
+
+  team: {
+    description: 'Team page with member cards',
+    sections: [
+      'Page header: h1 "Our Team" className="text-2xl font-bold tracking-tight" + p className="text-sm text-muted-foreground"',
+      'Grid of team member Cards (className="grid gap-4 md:grid-cols-2 lg:grid-cols-4"). Each card: avatar placeholder (bg-muted rounded-full size-12 with initials), name (text-sm font-semibold), role (text-sm text-muted-foreground).',
+    ],
+    components: ['Card', 'CardContent'],
+  },
+
+  tasks: {
+    description: 'Task list page with status badges and search',
+    sections: [
+      'Page header: h1 "Tasks" + description. Search input with Search icon.',
+      'Task list: divide-y container. Each row: status badge (colored), task title, priority badge, assignee name. Use flex items-center justify-between.',
+      'This page uses "use client" (has useState for search). Do NOT include export const metadata.',
+    ],
+    components: ['Input', 'Badge'],
+  },
+
+  'task-detail': {
+    description: 'Task detail page with info and activity',
+    sections: [
+      'Back button linking to /tasks. Page header with task title and description.',
+      'Two-column layout (md:grid-cols-2): Left Card with task details (status, priority, assignee, due date). Right Card with activity timeline.',
+      'This page uses "use client" (has useState). Do NOT include export const metadata.',
+    ],
+    components: ['Card', 'CardHeader', 'CardTitle', 'CardContent', 'Button'],
+  },
+
+  'reset-password': {
+    description: 'Reset password page with centered card form',
+    sections: [
+      'Centered layout: outer div className="flex min-h-svh flex-col items-center justify-center p-6 md:p-10". Inner div className="w-full max-w-sm".',
+      'Card with CardHeader: CardTitle "Reset Password" (text-xl), CardDescription.',
+      'CardContent with form: new password Input (type="password"), confirm password Input (type="password"), Button "Reset password" (w-full).',
+      'Footer text: "Remember your password?" with Sign in link.',
+      'This page uses "use client" (has useState for form state). Do NOT include export const metadata.',
+    ],
+    components: ['Card', 'CardHeader', 'CardTitle', 'CardDescription', 'CardContent', 'Button', 'Input', 'Label'],
+  },
 }
 
 /** Auth route path segments (no leading slash). Used for (auth) route group. */
@@ -223,7 +264,7 @@ export function detectPageType(pageName: string): string | null {
   if (/login|signin|sign-in/.test(normalized)) return 'login'
   if (/register|signup|sign.?up/.test(normalized)) return 'register'
   if (/pricing|plans|subscription/.test(normalized)) return 'pricing'
-  if (/about|team|company/.test(normalized)) return 'about'
+  if (/about|company/.test(normalized)) return 'about'
   if (/contact|support|help/.test(normalized)) return 'contact'
   if (/settings|preferences|account/.test(normalized)) return 'settings'
   if (/home|landing|hero/.test(normalized)) return 'landing'
@@ -234,6 +275,10 @@ export function detectPageType(pageName: string): string | null {
   if (/gallery|portfolio|images/.test(normalized)) return 'gallery'
   if (/faq|frequently|questions/.test(normalized)) return 'faq'
   if (/changelog|release|versions/.test(normalized)) return 'changelog'
+  if (/team|members/.test(normalized)) return 'team'
+  if (/tasks?/.test(normalized) && /detail|\[id\]/.test(normalized)) return 'task-detail'
+  if (/tasks?/.test(normalized)) return 'tasks'
+  if (/reset.?password/.test(normalized)) return 'reset-password'
 
   return null
 }

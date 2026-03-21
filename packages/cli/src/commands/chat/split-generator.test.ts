@@ -168,6 +168,26 @@ describe('inferPageType', () => {
   it('returns null for unknown page', () => {
     expect(inferPageType('/projects', 'Projects')).toBeNull()
   })
+
+  it('infers team from route', () => {
+    expect(inferPageType('/team', 'Team')).toBe('team')
+  })
+
+  it('infers tasks from route', () => {
+    expect(inferPageType('/tasks', 'Tasks')).toBe('tasks')
+  })
+
+  it('infers task-detail from route with [id]', () => {
+    expect(inferPageType('/tasks/[id]', 'Task Detail')).toBe('task-detail')
+  })
+
+  it('infers reset-password from route', () => {
+    expect(inferPageType('/reset-password', 'Reset Password')).toBe('reset-password')
+  })
+
+  it('infers profile from route', () => {
+    expect(inferPageType('/profile', 'Profile')).toBe('profile')
+  })
 })
 
 function makeCode(lines: number): string {

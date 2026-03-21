@@ -149,6 +149,22 @@ export interface RegisterContent extends BasePageContent {
   loginRoute?: string
 }
 
+export interface TeamContent extends BasePageContent {
+  members?: Array<{ name: string; role: string; email?: string; avatar?: string }>
+}
+
+export interface TasksContent extends BasePageContent {
+  tasks?: Array<{ title: string; status: string; assignee?: string; priority?: string }>
+}
+
+export interface TaskDetailContent extends BasePageContent {
+  taskId?: string
+}
+
+export interface ResetPasswordContent extends BasePageContent {
+  loginRoute?: string
+}
+
 export interface ChangelogContent extends BasePageContent {
   versions: Array<{
     version: string
@@ -181,3 +197,7 @@ export type PageContent =
   | { pageType: 'changelog'; content: ChangelogContent }
   | { pageType: 'login'; content: LoginContent }
   | { pageType: 'register'; content: RegisterContent }
+  | { pageType: 'team'; content: TeamContent }
+  | { pageType: 'tasks'; content: TasksContent }
+  | { pageType: 'task-detail'; content: TaskDetailContent }
+  | { pageType: 'reset-password'; content: ResetPasswordContent }
