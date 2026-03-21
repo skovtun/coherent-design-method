@@ -18,8 +18,7 @@ import { ensureAuthRouteGroup } from '../../utils/auth-route-group.js'
 import chalk from 'chalk'
 import { writeFile } from '../../utils/files.js'
 import { isManuallyEdited } from '../../utils/file-hashes.js'
-import { getShadcnComponent } from '../../utils/shadcn-installer.js'
-import { ShadcnProvider } from '../../providers/shadcn-provider.js'
+import { getComponentProvider } from '../../providers/index.js'
 import {
   sanitizeMetadataStrings,
   ensureUseClientIfNeeded,
@@ -61,31 +60,27 @@ export async function ensureComponentsInstalled(
 ): Promise<{ installed: string[] }> {
   const installed: string[] = []
   const ids = Array.from(componentIds)
-  const provider = new ShadcnProvider()
+  const provider = getComponentProvider()
+
   for (const componentId of ids) {
     const isRegistered = !!cm.read(componentId)
-    const fileName = componentId.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase() + '.tsx'
+    const fileName = toKebabCase(componentId) + '.tsx'
     const filePath = resolve(projectRoot, 'components', 'ui', fileName)
     const fileExists = existsSync(filePath)
 
     if (isRegistered && fileExists) continue
-    if (!provider.has(componentId)) continue
-    try {
-      await provider.install(componentId, projectRoot)
-      const shadcnDef = getShadcnComponent(componentId)
-      if (shadcnDef) {
-        if (!isRegistered) {
-          const result = await cm.register(shadcnDef)
-          if (result.success) {
-            dsm.updateConfig(result.config)
-            cm.updateConfig(result.config)
-            pm.updateConfig(result.config)
-          }
+
+    const result = await provider.installComponent(componentId, projectRoot)
+    if (result.success && result.componentDef) {
+      if (!isRegistered) {
+        const regResult = await cm.register(result.componentDef)
+        if (regResult.success) {
+          dsm.updateConfig(regResult.config)
+          cm.updateConfig(regResult.config)
+          pm.updateConfig(regResult.config)
         }
-        installed.push(shadcnDef.id)
       }
-    } catch {
-      // ignore single failure; page write will still happen
+      installed.push(result.componentDef.id)
     }
   }
   return { installed }
