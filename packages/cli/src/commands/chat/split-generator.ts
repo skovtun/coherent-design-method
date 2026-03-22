@@ -365,12 +365,10 @@ export async function splitGeneratePages(
           styleContext || '',
           parseOpts.sharedComponentsSummary,
         )
-        const retryResult = await parseModification(
-          lightweightPrompt,
-          modCtx,
-          provider,
-          { ...parseOpts, lightweight: true },
-        )
+        const retryResult = await parseModification(lightweightPrompt, modCtx, provider, {
+          ...parseOpts,
+          lightweight: true,
+        })
         const codePage = retryResult.requests.find((r: ModificationRequest) => r.type === 'add-page')
         if (codePage && (codePage.changes as Record<string, unknown>)?.pageCode) {
           const idx = allRequests.indexOf(req)
