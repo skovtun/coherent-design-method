@@ -208,10 +208,10 @@ if (fixed !== beforeLinkHrefFix) {
 
 ### File: `packages/cli/src/commands/chat/modification-handler.ts`
 
-At the 4 call sites for `autoFixCode`, pass context when available:
+There are 4 `autoFixCode` call sites in this file (lines ~573, ~659, ~796, ~879). For each, build context from available data. Note: `loadPlan(projectRoot)` must be called BEFORE `autoFixCode` (currently it's called after at line ~585 — move it earlier or reuse the existing variable):
 
 ```typescript
-const currentPlan = loadPlan(projectRoot)
+const currentPlan = projectRoot ? loadPlan(projectRoot) : null
 const autoFixCtx: AutoFixContext = {
   currentRoute: route,
   knownRoutes: dsm.getConfig().pages.map((p: any) => p.route).filter(Boolean),
@@ -219,6 +219,10 @@ const autoFixCtx: AutoFixContext = {
 }
 const { code: autoFixed, fixes: autoFixes } = await autoFixCode(codeToWrite, autoFixCtx)
 ```
+
+Note: `pageNotes` and `links` are defined in `ArchitecturePlanSchema` (see `plan-generator.ts`). `routeToKey` is exported from `plan-generator.ts`.
+
+There is also a 5th call site in `split-generator.ts` (line ~546) for shared component extraction — this one is intentionally left without context since shared components don't belong to a specific route.
 
 ### Tests
 
@@ -320,57 +324,91 @@ if (pageType !== 'auth') {
 
 ### File: `packages/cli/src/commands/chat/modification-handler.ts`
 
-At `validatePageQuality` call sites, pass `pageType`:
+At `validatePageQuality` call sites, pass `pageType`. Since existing calls omit `validRoutes`, pass `undefined` explicitly to reach the 3rd parameter:
 
 ```typescript
 const pageType = currentPlan ? getPageType(route, currentPlan) : inferPageTypeFromRoute(route)
-const issues = validatePageQuality(codeToWrite, validRoutes, pageType)
+const issues = validatePageQuality(codeToWrite, undefined, pageType)
 ```
 
 ### Tests
 
 - `validatePageQuality(authCode, [], 'auth')` does NOT produce NO_H1 warning
+- `validatePageQuality(authCode, [], 'auth')` does NOT produce MULTIPLE_H1 warning (intentional — auth pages don't use h1)
 - `validatePageQuality(appCode, [], 'app')` still produces NO_H1 when missing
 - `validatePageQuality(code, [])` (no pageType) still produces NO_H1 when missing (backward compat)
 
 ---
 
-## Fix F: inferRelatedPages Misses Reset Password
+## Fix F: inferRelatedPages Misses Transitive Pages
 
-**Problem**: Phase 1 includes Forgot Password (`/forgot-password`) but Reset Password (`/reset-password`) doesn't appear until auto-scaffold at the end. `AUTH_FLOW_PATTERNS['/forgot-password']` includes `/reset-password`, but inference fails because of execution ordering.
+**Problem**: Phase 1 includes Forgot Password (`/forgot-password`) but Reset Password (`/reset-password`) doesn't appear until auto-scaffold at the end.
 
-**Root cause investigation needed**: The `inferRelatedPages` function checks `plannedRoutes` which should include `/forgot-password` at inference time. Two possible causes:
+**Root cause**: `inferRelatedPages` iterates only the original `plannedPages` array, not newly inferred pages. When `/forgot-password` is itself inferred from `/login` (added to `inferred` and `plannedRoutes`), the `for...of` loop never processes it — so `/reset-password` is never reached.
 
-1. `/forgot-password` is added by the AI plan AFTER `inferRelatedPages` runs (AI plan step returns a list, then inference runs on a different list)
-2. There's a race condition in how pages are accumulated
-
-**Solution**: Investigate and fix the ordering. The fix depends on what the investigation reveals, but the expected outcome is:
-
-### File: `packages/cli/src/commands/chat/split-generator.ts`
-
-Ensure `inferRelatedPages` runs AFTER all sources of pages are merged:
-
-```typescript
-// Phase 1: Merge all page sources
-const aiPages = await parseModification(...)  // AI plan
-const messagePages = extractPageNamesFromMessage(message)
-const merged = deduplicatePages([...aiPages, ...messagePages])
-
-// Phase 1b: Infer related AFTER merge
-const inferred = inferRelatedPages(merged).filter(p => !existingRoutes.has(p.route))
-if (inferred.length > 0) {
-  merged.push(...inferred)
-}
-const pageNames = deduplicatePages(merged)
+```
+/login → infers /forgot-password (added to inferred, but NOT iterated)
+/forgot-password → should infer /reset-password (NEVER RUNS)
 ```
 
-If the ordering is already correct, the bug may be that `AUTH_FLOW_PATTERNS` uses the raw route `/forgot-password` but the planned page uses a different variant. Debug with logging.
+**Solution**: Replace the `for...of` loop with a worklist/queue algorithm that processes newly inferred pages too.
+
+### File: `packages/cli/src/commands/chat/request-parser.ts`
+
+Replace the `inferRelatedPages` implementation:
+
+```typescript
+export function inferRelatedPages(
+  plannedPages: Array<{ name: string; id: string; route: string }>,
+): Array<{ name: string; id: string; route: string }> {
+  const plannedRoutes = new Set(plannedPages.map(p => p.route))
+  const inferred: Array<{ name: string; id: string; route: string }> = []
+  const queue = [...plannedPages]
+  let i = 0
+
+  while (i < queue.length) {
+    const { route } = queue[i++]
+
+    const authRelated = AUTH_FLOW_PATTERNS[route]
+    if (authRelated) {
+      for (const rel of authRelated) {
+        if (!plannedRoutes.has(rel)) {
+          const slug = rel.slice(1)
+          const name = slug
+            .split('-')
+            .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+            .join(' ')
+          const page = { id: slug, name, route: rel }
+          inferred.push(page)
+          queue.push(page)
+          plannedRoutes.add(rel)
+        }
+      }
+    }
+
+    for (const rule of PAGE_RELATIONSHIP_RULES) {
+      if (rule.trigger.test(route)) {
+        for (const rel of rule.related) {
+          if (!plannedRoutes.has(rel.route)) {
+            inferred.push(rel)
+            queue.push(rel)
+            plannedRoutes.add(rel.route)
+          }
+        }
+      }
+    }
+  }
+
+  return inferred
+}
+```
 
 ### Tests
 
 - When pages include `/forgot-password`, inference produces `/reset-password`
 - When pages include `/login`, inference produces `/signup` and `/forgot-password`
-- Transitive inference: `/login` → `/forgot-password` → `/reset-password` (may need two passes)
+- **Transitive inference**: `/login` → `/forgot-password` → `/reset-password` — all three inferred in one call
+- No infinite loops: circular refs (e.g., `/login` ↔ `/signup`) terminate correctly
 - No duplicates after inference + deduplication
 
 ---
@@ -389,9 +427,8 @@ If the ordering is already correct, the bug may be that `AUTH_FLOW_PATTERNS` use
 | File | Fixes |
 |------|-------|
 | `packages/cli/src/commands/chat/utils.ts` | A (dedup synonyms) |
-| `packages/cli/src/commands/chat/request-parser.ts` | A (AUTH_FLOW_PATTERNS), F (ordering investigation) |
+| `packages/cli/src/commands/chat/request-parser.ts` | A (AUTH_FLOW_PATTERNS, extractPageNamesFromMessage), F (worklist in inferRelatedPages) |
 | `packages/cli/src/commands/chat/reporting.ts` | B (sections from config) |
-| `packages/cli/src/utils/quality-validator.ts` | C (smart href), E (NO_H1 pageType) |
+| `packages/cli/src/utils/quality-validator.ts` | C (smart href + resolveHref), E (NO_H1 pageType guard) |
 | `packages/cli/src/agents/design-constraints.ts` | D (CRITICAL rules) |
-| `packages/cli/src/commands/chat/modification-handler.ts` | C (pass context), E (pass pageType) |
-| `packages/cli/src/commands/chat/split-generator.ts` | F (inference ordering) |
+| `packages/cli/src/commands/chat/modification-handler.ts` | C (pass AutoFixContext), E (pass pageType) |
