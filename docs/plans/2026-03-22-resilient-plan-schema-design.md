@@ -122,15 +122,28 @@ This ensures no output during spinner animation.
 
 #### `updateArchitecturePlan`
 
-Same pattern: the `catch` block before the deterministic merge logs a warning. Since `updateArchitecturePlan` always returns a plan (via merge fallback), warnings are informational:
+`updateArchitecturePlan` is called outside of a spinner context, so direct `console.warn` is safe. Diagnostics cover **both** failure modes:
+
+1. **`safeParse` validation failure** (AI returns JSON but schema rejects it):
 
 ```typescript
-catch (err) {
-  console.warn(chalk.dim(`  Plan update via AI failed, using deterministic merge: ${err instanceof Error ? err.message : String(err)}`))
+if (!parsed.success) {
+  const issues = parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')
+  console.warn(chalk.dim(`  Plan update validation failed: ${issues}`))
+  // fall through to deterministic merge
 }
 ```
 
-`updateArchitecturePlan` is called outside of a spinner context, so direct `console.warn` is safe here.
+2. **API/parse error** (network failure, invalid JSON):
+
+```typescript
+catch (err) {
+  console.warn(chalk.dim(`  Plan update error: ${err instanceof Error ? err.message : String(err)}`))
+  // fall through to deterministic merge
+}
+```
+
+Both paths log the specific reason before falling through to the deterministic merge fallback. This is a different mechanism from `generateArchitecturePlan`'s collect-and-return pattern because `updateArchitecturePlan` runs without an active spinner.
 
 ## Files Changed
 
