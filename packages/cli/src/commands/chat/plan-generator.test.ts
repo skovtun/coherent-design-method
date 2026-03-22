@@ -9,6 +9,7 @@ import {
   getPageType,
   generateArchitecturePlan,
   generateSharedComponentsFromPlan,
+  updateArchitecturePlan,
   savePlan,
   loadPlan,
 } from './plan-generator.js'
@@ -220,6 +221,58 @@ describe('savePlan / loadPlan', () => {
     const loaded = loadPlan(tmpDir)
     expect(loaded?.groups[0].id).toBe('v2')
     rmSync(tmpDir, { recursive: true })
+  })
+})
+
+describe('updateArchitecturePlan', () => {
+  it('sends existing plan as context to AI and returns updated plan', async () => {
+    const existingPlan = ArchitecturePlanSchema.parse({
+      appName: 'MyApp',
+      groups: [{ id: 'app', layout: 'sidebar', pages: ['/dashboard'] }],
+      sharedComponents: [],
+      pageNotes: { dashboard: { type: 'app', sections: ['Stats'] } },
+    })
+    const mockProvider = {
+      parseModification: vi.fn().mockResolvedValue({
+        appName: 'MyApp',
+        groups: [{ id: 'app', layout: 'sidebar', pages: ['/dashboard', '/billing'] }],
+        sharedComponents: [],
+        pageNotes: {
+          dashboard: { type: 'app', sections: ['Stats'] },
+          billing: { type: 'app', sections: ['Plans table'] },
+        },
+      }),
+    }
+    const result = await updateArchitecturePlan(
+      existingPlan,
+      [{ name: 'Billing', id: 'billing', route: '/billing' }],
+      'Add a billing page',
+      mockProvider as any,
+    )
+    expect(result.groups[0].pages).toContain('/billing')
+    expect(result.pageNotes['billing']).toBeDefined()
+    expect(mockProvider.parseModification).toHaveBeenCalledWith(expect.stringContaining('"dashboard"'))
+  })
+
+  it('deterministically merges new pages into existing plan when AI update fails', async () => {
+    const existingPlan = ArchitecturePlanSchema.parse({
+      groups: [{ id: 'app', layout: 'sidebar', pages: ['/dashboard'] }],
+      sharedComponents: [],
+      pageNotes: {},
+    })
+    const mockProvider = {
+      parseModification: vi.fn().mockRejectedValue(new Error('AI fail')),
+    }
+    const result = await updateArchitecturePlan(
+      existingPlan,
+      [{ name: 'Billing', id: 'billing', route: '/billing' }],
+      'Add billing',
+      mockProvider as any,
+    )
+    expect(result.groups[0].pages).toContain('/billing')
+    expect(result.pageNotes['billing']).toBeDefined()
+    expect(result.pageNotes['billing'].type).toBe('app')
+    expect(result.groups[0].pages).toContain('/dashboard')
   })
 })
 

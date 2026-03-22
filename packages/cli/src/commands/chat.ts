@@ -41,6 +41,7 @@ import { validatePageQuality } from '../utils/quality-validator.js'
 import { requireProject, loadConfig, routeToFsPath, resolveTargetFlags } from './chat/utils.js'
 import { extractInternalLinks, normalizeRequest, applyDefaults, AUTH_FLOW_PATTERNS } from './chat/request-parser.js'
 import { splitGeneratePages, buildSharedComponentsSummary } from './chat/split-generator.js'
+import { savePlan, loadPlan, ensurePlanGroupLayouts } from './chat/plan-generator.js'
 import { applyModification } from './chat/modification-handler.js'
 import { regenerateFiles, scanAndInstallSharedDeps } from './chat/code-generator.js'
 import { takeNavSnapshot, hasNavChanged } from '../utils/nav-snapshot.js'
@@ -231,6 +232,10 @@ export async function chatCommand(
       try {
         const splitResult = await splitGeneratePages(spinner, message, modCtx, provider, parseOpts)
         requests = splitResult.requests
+        if (splitResult.plan && projectRoot) {
+          savePlan(projectRoot, splitResult.plan)
+          await ensurePlanGroupLayouts(projectRoot, splitResult.plan)
+        }
         uxRecommendations = undefined
       } catch {
         spinner.warn('Split generation encountered an issue — trying page-by-page...')
@@ -310,6 +315,10 @@ export async function chatCommand(
           try {
             const splitResult = await splitGeneratePages(spinner, message, modCtx, provider, parseOpts)
             requests = splitResult.requests
+            if (splitResult.plan && projectRoot) {
+              savePlan(projectRoot, splitResult.plan)
+              await ensurePlanGroupLayouts(projectRoot, splitResult.plan)
+            }
             uxRecommendations = undefined
           } catch {
             throw firstError

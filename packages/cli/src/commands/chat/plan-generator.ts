@@ -92,6 +92,52 @@ Navigation type requested: ${layoutHint || 'auto-detect'}`
   return null
 }
 
+export async function updateArchitecturePlan(
+  existingPlan: ArchitecturePlan,
+  newPages: Array<{ name: string; id: string; route: string }>,
+  userMessage: string,
+  aiProvider: AIProviderInterface,
+): Promise<ArchitecturePlan> {
+  const prompt = `${PLAN_SYSTEM_PROMPT}
+
+Existing plan:
+${JSON.stringify(existingPlan, null, 2)}
+
+New pages to integrate: ${newPages.map((p) => `${p.name} (${p.route})`).join(', ')}
+
+User's request: "${userMessage}"
+
+Update the existing plan to include these new pages. Keep all existing groups, components, and pageNotes. Add the new pages to appropriate groups and add pageNotes for them.`
+
+  try {
+    const raw = await aiProvider.parseModification(prompt)
+    const parsed = ArchitecturePlanSchema.safeParse(raw)
+    if (parsed.success) return parsed.data
+  } catch {
+    // fall through to deterministic merge
+  }
+
+  // Deterministic merge: append new pages to the largest group
+  const merged = structuredClone(existingPlan)
+  const largestGroup = merged.groups.reduce(
+    (best, g) => (g.pages.length > (best?.pages.length ?? 0) ? g : best),
+    merged.groups[0],
+  )
+
+  for (const page of newPages) {
+    const alreadyPlaced = merged.groups.some((g) => g.pages.includes(page.route))
+    if (!alreadyPlaced && largestGroup) {
+      largestGroup.pages.push(page.route)
+    }
+    const key = routeToKey(page.route)
+    if (!merged.pageNotes[key]) {
+      merged.pageNotes[key] = { type: 'app', sections: [] }
+    }
+  }
+
+  return merged
+}
+
 let cachedPlan: { path: string; plan: ArchitecturePlan } | null = null
 
 export function savePlan(projectRoot: string, plan: ArchitecturePlan): void {
