@@ -2,34 +2,98 @@ import { z } from 'zod'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { dirname, resolve } from 'path'
 import { mkdir, writeFile } from 'fs/promises'
+import chalk from 'chalk'
 import type { AIProviderInterface } from '../../utils/ai-provider.js'
+
+const LAYOUT_SYNONYMS: Record<string, string> = {
+  horizontal: 'header',
+  top: 'header',
+  nav: 'header',
+  navbar: 'header',
+  topbar: 'header',
+  'top-bar': 'header',
+  vertical: 'sidebar',
+  left: 'sidebar',
+  side: 'sidebar',
+  drawer: 'sidebar',
+  full: 'both',
+  combined: 'both',
+  empty: 'none',
+  minimal: 'none',
+  clean: 'none',
+}
+
+const PAGE_TYPE_SYNONYMS: Record<string, string> = {
+  landing: 'marketing',
+  public: 'marketing',
+  home: 'marketing',
+  website: 'marketing',
+  static: 'marketing',
+  application: 'app',
+  dashboard: 'app',
+  admin: 'app',
+  panel: 'app',
+  console: 'app',
+  authentication: 'auth',
+  login: 'auth',
+  register: 'auth',
+  signin: 'auth',
+  signup: 'auth',
+}
+
+const COMPONENT_TYPE_SYNONYMS: Record<string, string> = {
+  component: 'widget',
+  ui: 'widget',
+  element: 'widget',
+  block: 'widget',
+  'page-section': 'section',
+  hero: 'section',
+  feature: 'section',
+  area: 'section',
+}
+
+function normalizeEnum(synonyms: Record<string, string>) {
+  return (v: string) => {
+    const trimmed = v.trim().toLowerCase()
+    return synonyms[trimmed] ?? trimmed
+  }
+}
 
 export const RouteGroupSchema = z.object({
   id: z.string(),
-  layout: z.enum(['header', 'sidebar', 'both', 'none']),
+  layout: z
+    .string()
+    .transform(normalizeEnum(LAYOUT_SYNONYMS))
+    .pipe(z.enum(['header', 'sidebar', 'both', 'none'])),
   pages: z.array(z.string()),
 })
 
 export const PlannedComponentSchema = z.object({
   name: z.string(),
-  description: z.string(),
-  props: z.string(),
-  usedBy: z.array(z.string()),
-  type: z.enum(['section', 'widget']),
+  description: z.string().default(''),
+  props: z.string().default('{}'),
+  usedBy: z.array(z.string()).default([]),
+  type: z
+    .string()
+    .transform(normalizeEnum(COMPONENT_TYPE_SYNONYMS))
+    .pipe(z.enum(['section', 'widget'])),
   shadcnDeps: z.array(z.string()).default([]),
 })
 
 export const PageNoteSchema = z.object({
-  type: z.enum(['marketing', 'app', 'auth']),
-  sections: z.array(z.string()),
+  type: z
+    .string()
+    .transform(normalizeEnum(PAGE_TYPE_SYNONYMS))
+    .pipe(z.enum(['marketing', 'app', 'auth'])),
+  sections: z.array(z.string()).default([]),
   links: z.record(z.string()).optional(),
 })
 
 export const ArchitecturePlanSchema = z.object({
   appName: z.string().optional(),
   groups: z.array(RouteGroupSchema),
-  sharedComponents: z.array(PlannedComponentSchema).max(8),
-  pageNotes: z.record(z.string(), PageNoteSchema),
+  sharedComponents: z.array(PlannedComponentSchema).max(8).default([]),
+  pageNotes: z.record(z.string(), PageNoteSchema).default({}),
 })
 
 export type ArchitecturePlan = z.infer<typeof ArchitecturePlanSchema>

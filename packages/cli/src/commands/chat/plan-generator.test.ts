@@ -91,6 +91,88 @@ describe('ArchitecturePlanSchema', () => {
   })
 })
 
+describe('ArchitecturePlanSchema synonym normalization', () => {
+  it('normalizes layout synonyms', () => {
+    const plan = {
+      groups: [
+        { id: 'app', layout: 'horizontal', pages: ['/dashboard'] },
+        { id: 'auth', layout: 'vertical', pages: ['/login'] },
+        { id: 'marketing', layout: 'top', pages: ['/'] },
+        { id: 'empty', layout: 'empty', pages: ['/404'] },
+      ],
+      sharedComponents: [],
+      pageNotes: {},
+    }
+    const result = ArchitecturePlanSchema.safeParse(plan)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.groups[0].layout).toBe('header')
+      expect(result.data.groups[1].layout).toBe('sidebar')
+      expect(result.data.groups[2].layout).toBe('header')
+      expect(result.data.groups[3].layout).toBe('none')
+    }
+  })
+
+  it('normalizes pageNote type synonyms', () => {
+    const plan = {
+      groups: [{ id: 'app', layout: 'sidebar', pages: ['/dashboard'] }],
+      sharedComponents: [],
+      pageNotes: {
+        dashboard: { type: 'application', sections: ['Stats'] },
+        home: { type: 'landing', sections: ['Hero'] },
+        login: { type: 'authentication', sections: ['Form'] },
+      },
+    }
+    const result = ArchitecturePlanSchema.safeParse(plan)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.pageNotes['dashboard'].type).toBe('app')
+      expect(result.data.pageNotes['home'].type).toBe('marketing')
+      expect(result.data.pageNotes['login'].type).toBe('auth')
+    }
+  })
+
+  it('normalizes component type synonyms', () => {
+    const plan = {
+      groups: [],
+      sharedComponents: [
+        { name: 'A', description: 'd', props: '{}', usedBy: ['/x'], type: 'component' },
+        { name: 'B', description: 'd', props: '{}', usedBy: ['/x'], type: 'hero' },
+      ],
+      pageNotes: {},
+    }
+    const result = ArchitecturePlanSchema.safeParse(plan)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.sharedComponents[0].type).toBe('widget')
+      expect(result.data.sharedComponents[1].type).toBe('section')
+    }
+  })
+
+  it('trims whitespace before normalization', () => {
+    const plan = {
+      groups: [{ id: 'app', layout: ' sidebar ', pages: ['/d'] }],
+      sharedComponents: [],
+      pageNotes: { d: { type: ' app ', sections: [] } },
+    }
+    const result = ArchitecturePlanSchema.safeParse(plan)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.groups[0].layout).toBe('sidebar')
+      expect(result.data.pageNotes['d'].type).toBe('app')
+    }
+  })
+
+  it('still rejects truly invalid values', () => {
+    const plan = {
+      groups: [{ id: 'app', layout: 'foobar', pages: [] }],
+      sharedComponents: [],
+      pageNotes: {},
+    }
+    expect(ArchitecturePlanSchema.safeParse(plan).success).toBe(false)
+  })
+})
+
 describe('getPageGroup', () => {
   const plan = ArchitecturePlanSchema.parse({
     groups: [
