@@ -309,7 +309,11 @@ export default function GroupLayout({
 }: {
   children: React.ReactNode
 }) {
-  return <>{children}</>
+  return (
+    <div className="min-h-svh flex items-center justify-center p-4">
+      {children}
+    </div>
+  )
 }
 `
   }

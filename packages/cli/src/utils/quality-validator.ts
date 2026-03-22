@@ -1151,6 +1151,16 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
     fixes.push('stripped border from TabsTrigger (shadcn handles active state)')
   }
 
+  // Add variant="line" to TabsList for clean underline style
+  const beforeTabsListFix = fixed
+  fixed = fixed.replace(
+    /<TabsList\b(?![^>]*variant=)/g,
+    '<TabsList variant="line"',
+  )
+  if (fixed !== beforeTabsListFix) {
+    fixes.push('added variant="line" to TabsList (clean underline style)')
+  }
+
   // Clean up double spaces in className that may result from previous fixes
   fixed = fixed.replace(/className="([^"]*)"/g, (_match, inner: string) => {
     const cleaned = inner.replace(/\s{2,}/g, ' ').trim()

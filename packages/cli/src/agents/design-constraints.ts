@@ -256,6 +256,10 @@ const DESIGN_QUALITY_APP = `
 - On mobile (sm:): search full width, filters wrap to next line
 - Do NOT wrap search/filter toolbars in Card components. They are plain flex rows above content.
 
+### Tabs
+- Always use <TabsList variant="line"> for a clean underline style (not the pill/segmented control default)
+- The variant="line" prop removes the bg-muted pill container and uses an underline indicator instead
+
 NEVER include marketing sections (hero, pricing, testimonials) on app pages.
 `
 
@@ -322,7 +326,7 @@ export function inferPageTypeFromRoute(route: string): 'marketing' | 'app' | 'au
     'forgot-password',
     'reset-password',
   ])
-  const marketingSlugs = new Set(['pricing', 'features', 'about', 'blog', 'contact', 'terms', 'privacy'])
+  const marketingSlugs = new Set(['pricing', 'features', 'about', 'blog', 'contact', 'terms', 'privacy', 'landing', 'home'])
 
   if (authSlugs.has(slug)) return 'auth'
   if (marketingSlugs.has(slug) || slug === '') return 'marketing'

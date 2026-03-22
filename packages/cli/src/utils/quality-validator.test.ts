@@ -176,6 +176,20 @@ describe('autoFixCode', () => {
     expect(fixed).toContain('&lt;')
     expect(fixed).not.toContain('title="value < 10"')
   })
+
+  it('adds variant="line" to TabsList without variant', async () => {
+    const code = `<TabsList className="grid w-full grid-cols-3"><TabsTrigger value="a">A</TabsTrigger></TabsList>`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('variant="line"')
+    expect(fixes.some(f => f.includes('variant="line"'))).toBe(true)
+  })
+
+  it('does NOT add variant="line" to TabsList that already has variant', async () => {
+    const code = `<TabsList variant="default" className="grid w-full grid-cols-3"><TabsTrigger value="a">A</TabsTrigger></TabsList>`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('variant="default"')
+    expect(fixed).not.toContain('variant="line"')
+  })
 })
 
 describe('autoFixCode — native select replacement', () => {

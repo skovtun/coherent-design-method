@@ -45,6 +45,12 @@ describe('inferPageTypeFromRoute', () => {
   it('returns app for /settings', () => {
     expect(inferPageTypeFromRoute('/settings')).toBe('app')
   })
+  it('returns marketing for /landing', () => {
+    expect(inferPageTypeFromRoute('/landing')).toBe('marketing')
+  })
+  it('returns marketing for /home', () => {
+    expect(inferPageTypeFromRoute('/home')).toBe('marketing')
+  })
 })
 
 describe('DESIGN_QUALITY_CRITICAL', () => {

@@ -13,8 +13,9 @@ In this tutorial, we'll build **TaskFlow** — a full-featured SaaS project mana
 - Landing page with hero, features, and pricing
 - Dashboard with sidebar navigation
 - Projects, Tasks, Team, and Settings pages
-- Auth pages (login, register, forgot password)
-- Reusable StatsPanel component across 3 pages
+- Detail pages (Project Detail, Task Detail, Team Member) — auto-inferred
+- Auth pages (Login, Register, Forgot Password, Reset Password)
+- 8 auto-generated shared components (StatCard, ProjectCard, TaskList, etc.)
 - Polished design with indigo color scheme
 
 Let's get started.
@@ -29,14 +30,14 @@ Every Coherent project starts with `init`. This sets up a Next.js 15 app with Ta
 coherent init taskflow
 ~~~
 
-When prompted, select **Yes** for auth scaffolding — this automatically creates Login, Register, and Forgot Password pages with a centered layout.
-
 **What just happened:**
 - Next.js 15 project with Tailwind CSS and shadcn/ui
 - Design System Viewer at `/design-system`
-- Auth pages: `/login`, `/register`, `/forgot-password`
+- Default landing page with placeholder content
 - Design tokens in `globals.css`
 - AI context files (`.cursorrules`, `CLAUDE.md`)
+
+Auth pages will be auto-generated during `coherent chat` — no need to scaffold them separately.
 
 [Screenshot: Terminal output of coherent init]
 
@@ -78,24 +79,29 @@ coherent chat "Create a SaaS project management app called TaskFlow. Use sidebar
 **Prompt tips:**
 - **Name your app** — say "called TaskFlow" so Coherent uses it in headers, footers, and metadata. If you forget, you can rename later with `coherent chat "rename the app to TaskFlow"`.
 - **State the navigation type** — say "Use SIDEBAR navigation" explicitly. Without this, Coherent defaults to header navigation.
+- **Don't worry about auth pages** — Coherent auto-infers and generates `/login`, `/register`, `/forgot-password`, and `/reset-password` from cross-page links, placing them in a centered auth layout.
+- **Don't worry about detail pages** — routes like `/projects/[id]` or `/tasks/[id]` are auto-inferred from list pages.
 
-Behind the scenes, Coherent uses a 4-phase process:
-1. **Plan** — AI analyzes your prompt and determines which pages to create, navigation type, and app name
-2. **Generate Home** — Creates the landing page first, establishing visual style
-3. **Extract Style** — Pulls header, footer, and design patterns from the home page as reusable components
-4. **Generate Rest** — Creates remaining pages using the extracted style for consistency
+Behind the scenes, Coherent uses a 6-phase pipeline:
 
-This ensures every page shares the same visual language — consistent colors, typography, spacing, and component style.
+1. **Phase 1 — Plan Pages** — AI analyzes your prompt and determines which pages to create, including auto-inferred detail pages (e.g., `/projects/[id]`, `/tasks/[id]`) and auth pages (`/login`, `/register`, `/forgot-password`, `/reset-password`)
+2. **Phase 2 — Architecture Plan** — AI creates a Component Architecture Plan: groups pages by navigation context (public/app/auth), identifies reusable UI components that appear on 2+ pages, and assigns page types (marketing, app, auth)
+3. **Phase 3 — Generate Home** — Creates the landing page first, establishing visual style
+4. **Phase 4 — Extract Style** — Pulls design patterns from the home page for consistency
+5. **Phase 4.5 — Generate Shared Components** — Creates reusable components identified in the architecture plan (e.g., StatCard, ProjectCard, FilterBar)
+6. **Phase 5 — Generate All Pages** — Creates remaining pages using the shared components and extracted style
+
+Before applying changes, a **pre-flight check** auto-installs any missing shadcn/ui components (Badge, Tabs, Select, etc.). After each page is written, an **inline quality check** validates against design rules and auto-fixes errors when possible.
+
+This ensures every page shares the same visual language — consistent colors, typography, spacing, and component style — with reusable components used across pages from the start.
 
 [Screenshot: Terminal output showing generation phases]
 
-> **Tip:** When generating many pages at once, some may come back without content. If you see a warning like _"Page X has no generated code"_, simply regenerate the empty pages individually:
+> **Tip:** Occasionally a page may come back without content (especially with 14+ pages in one request). If you see a warning like _"Page X has no generated code"_, regenerate it individually:
 >
 > ~~~
-> coherent chat "regenerate the Dashboard page with full content"
+> coherent chat "regenerate the Profile page with full content"
 > ~~~
->
-> This is normal — the AI has a context limit and occasionally can't produce code for every page in a single request. Auth pages (Login, Register) have built-in templates that activate automatically, so they should always have content.
 
 ---
 
@@ -117,7 +123,10 @@ Now preview the app:
 coherent preview
 ~~~
 
-Walk through every page to see the results:
+Walk through every page to see the results. With the architecture plan, pages are organized into route groups:
+- **Public** (`/`, `/landing`) — header navigation, marketing layout
+- **App** (`/dashboard`, `/projects`, `/tasks`, `/team`, `/settings`) — sidebar navigation, data-dense layout
+- **Auth** (`/login`, `/register`, `/forgot-password`, `/reset-password`) — centered card, no navigation
 
 [Screenshot: Landing page — hero section]
 
@@ -133,9 +142,9 @@ Walk through every page to see the results:
 
 [Screenshot: Team page with member cards]
 
-[Screenshot: Settings page]
+[Screenshot: Settings page with tabs]
 
-[Screenshot: Login page (centered layout)]
+[Screenshot: Login page (centered card layout)]
 
 [Screenshot: Register page]
 
@@ -197,7 +206,7 @@ You'll see shared components (Header, Footer, Sidebar) created during generation
 
 ## Step 8: Create a reusable component
 
-Here's where design systems shine. Instead of repeating similar UI on multiple pages, we'll create a **StatsPanel** — a row of metric cards that can be reused anywhere with different data.
+Coherent already generated shared components during Phase 4.5 (StatCard, ProjectCard, TaskList, etc.), but you can also create new ones manually. Here's where design systems shine. Let's create a **StatsPanel** — a custom row of metric cards with trend indicators.
 
 ~~~
 coherent chat --component "StatsPanel" "Create a shared StatsPanel component — a horizontal row of 4 stat cards. Each card has: an icon in a rounded colored background, a large metric number, a label below, and a trend indicator (up/down arrow with percentage in green or red). Use Card from shadcn, semantic tokens for colors"
@@ -281,7 +290,7 @@ coherent chat --component "Header" "Add a notification bell icon with a red dot 
 
 ## Step 13: Check quality
 
-Before exporting, let's run the built-in quality checker. It validates your entire project against 97 design rules covering:
+Coherent already runs inline quality checks during generation, auto-fixing common issues (HTML entities, missing `"use client"`, border cleanup, icon validation). But before exporting, let's run the full quality checker. It validates your entire project against 97 design rules covering:
 
 - **Color consistency** — no hardcoded Tailwind colors (like `bg-blue-500`), only semantic tokens
 - **Accessibility** — heading hierarchy, alt text, focus indicators
@@ -341,12 +350,13 @@ npx vercel
 
 In ~30 minutes and 12 prompts, we created a complete SaaS application with:
 
-- **7 pages** — Landing, Dashboard, Projects, Tasks, Team, Settings, Login/Register
+- **14 pages** — Landing, Dashboard, Projects, Project Detail, Tasks, Task Detail, Team, Team Member, Settings, Login, Register, Forgot Password, Reset Password, and Home
 - **Sidebar navigation** — set explicitly in the prompt ("Use SIDEBAR navigation")
-- **Shared components** — StatsPanel (used on 3 pages), Header, Footer, Sidebar
+- **Route groups** — public (header nav), app (sidebar), auth (no nav, centered card)
+- **8+ shared components** — StatCard, ProjectCard, TaskList, MemberCard, FilterBar, ActivityFeed, plus custom StatsPanel
 - **Design tokens** — indigo color scheme, consistent across light and dark mode
-- **Auth flow** — Login, Register, Forgot Password with centered layout
-- **Quality validation** — 97 design rules checked and auto-fixed
+- **Auth flow** — Login, Register, Forgot Password, Reset Password with centered card layout
+- **Inline quality checks** — errors auto-fixed during generation
 - **Production export** — clean Next.js app, ready to deploy
 
 ### The workflow

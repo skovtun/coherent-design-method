@@ -209,6 +209,8 @@ describe('buildGroupLayoutCode', () => {
   it('generates centered wrapper for none layout', () => {
     const code = buildGroupLayoutCode('none', ['/login'])
     expect(code).toContain('children')
+    expect(code).toContain('flex items-center justify-center')
+    expect(code).toContain('min-h-svh')
     expect(code).not.toContain('Sidebar')
     expect(code).not.toContain('max-w-7xl')
   })
