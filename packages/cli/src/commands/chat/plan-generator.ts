@@ -79,7 +79,8 @@ export const PlannedComponentSchema = z.object({
   type: z
     .string()
     .transform(normalizeEnum(COMPONENT_TYPE_SYNONYMS))
-    .pipe(z.enum(['section', 'widget'])),
+    .pipe(z.enum(['section', 'widget']))
+    .catch('widget'),
   shadcnDeps: z.array(z.string()).default([]),
 })
 
