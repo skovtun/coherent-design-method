@@ -2,7 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { buildAppLayoutCode, ensureAppRouteGroupLayout, regenerateComponent, scanAndInstallSharedDeps } from './code-generator.js'
+import {
+  buildAppLayoutCode,
+  ensureAppRouteGroupLayout,
+  regenerateComponent,
+  scanAndInstallSharedDeps,
+} from './code-generator.js'
 
 vi.mock('../../providers/index.js', () => ({
   getComponentProvider: vi.fn(() => ({
@@ -161,7 +166,7 @@ describe('scanAndInstallSharedDeps', () => {
     mkdirSync(sharedDir, { recursive: true })
     writeFileSync(
       join(sharedDir, 'header.tsx'),
-      `import { Sheet, SheetTrigger, SheetContent } from '@/components/ui/sheet'\nexport function Header() { return <div>Header</div> }`
+      `import { Sheet, SheetTrigger, SheetContent } from '@/components/ui/sheet'\nexport function Header() { return <div>Header</div> }`,
     )
     mkdirSync(join(tmpDir, 'components', 'ui'), { recursive: true })
 
@@ -174,7 +179,7 @@ describe('scanAndInstallSharedDeps', () => {
     mkdirSync(sharedDir, { recursive: true })
     writeFileSync(
       join(sharedDir, 'header.tsx'),
-      `import { Button } from '@/components/ui/button'\nexport function Header() { return <div>Header</div> }`
+      `import { Button } from '@/components/ui/button'\nexport function Header() { return <div>Header</div> }`,
     )
     const uiDir = join(tmpDir, 'components', 'ui')
     mkdirSync(uiDir, { recursive: true })

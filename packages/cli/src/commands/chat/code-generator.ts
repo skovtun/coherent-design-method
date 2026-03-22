@@ -224,7 +224,9 @@ export async function scanAndInstallSharedDeps(projectRoot: string): Promise<str
         try {
           await provider.installComponent(componentId, projectRoot)
           installed.push(componentId)
-        } catch { /* best-effort */ }
+        } catch {
+          /* best-effort */
+        }
       }
     }
   }
