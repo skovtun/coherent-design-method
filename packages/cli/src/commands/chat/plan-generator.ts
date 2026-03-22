@@ -118,3 +118,90 @@ export function loadPlan(projectRoot: string): ArchitecturePlan | null {
     return null
   }
 }
+
+export interface GeneratedComponent {
+  name: string
+  code: string
+  file: string
+}
+
+function toKebabCase(name: string): string {
+  return name.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()
+}
+
+export async function generateSharedComponentsFromPlan(
+  plan: ArchitecturePlan,
+  styleContext: string,
+  projectRoot: string,
+  aiProvider: AIProviderInterface,
+): Promise<GeneratedComponent[]> {
+  if (plan.sharedComponents.length === 0) return []
+
+  const componentSpecs = plan.sharedComponents
+    .map(
+      (c) =>
+        `- ${c.name}: ${c.description}. Props: ${c.props}. Type: ${c.type}. shadcn deps: ${c.shadcnDeps.join(', ') || 'none'}`,
+    )
+    .join('\n')
+
+  const prompt = `Generate React components as separate files. For EACH component below, return an add-page request with name and pageCode fields.
+
+Components to generate:
+${componentSpecs}
+
+Style context: ${styleContext || 'default'}
+
+Requirements:
+- Each component MUST have \`export default function ComponentName\`
+- Use shadcn/ui imports from @/components/ui/*
+- Use Tailwind CSS classes matching the style context
+- TypeScript with proper props interface
+- Each component is a standalone file
+
+Return JSON with { requests: [{ type: "add-page", changes: { name: "ComponentName", pageCode: "..." } }, ...] }`
+
+  const results: GeneratedComponent[] = []
+
+  try {
+    const raw = await aiProvider.parseModification(prompt)
+    const requests = Array.isArray(raw) ? raw : (raw?.requests ?? [])
+
+    for (const comp of plan.sharedComponents) {
+      const match = (requests as Array<{ type: string; changes: Record<string, unknown> }>).find(
+        (r) => r.type === 'add-page' && (r.changes as Record<string, string>)?.name === comp.name,
+      )
+      const code = (match?.changes as Record<string, string>)?.pageCode
+      if (code && code.includes('export default')) {
+        results.push({
+          name: comp.name,
+          code,
+          file: `components/shared/${toKebabCase(comp.name)}.tsx`,
+        })
+      }
+    }
+  } catch {
+    // batch call failed — try individual components
+    for (const comp of plan.sharedComponents) {
+      try {
+        const singlePrompt = `Generate a React component: ${comp.name} — ${comp.description}. Props: ${comp.props}. shadcn deps: ${comp.shadcnDeps.join(', ') || 'none'}. Style: ${styleContext || 'default'}. Return { requests: [{ type: "add-page", changes: { name: "${comp.name}", pageCode: "..." } }] }`
+        const raw = await aiProvider.parseModification(singlePrompt)
+        const requests = Array.isArray(raw) ? raw : (raw?.requests ?? [])
+        const match = (requests as Array<{ type: string; changes: Record<string, string> }>).find(
+          (r) => r.type === 'add-page' && r.changes?.name === comp.name,
+        )
+        const code = match?.changes?.pageCode
+        if (code && code.includes('export default')) {
+          results.push({
+            name: comp.name,
+            code,
+            file: `components/shared/${toKebabCase(comp.name)}.tsx`,
+          })
+        }
+      } catch {
+        // skip this component
+      }
+    }
+  }
+
+  return results
+}

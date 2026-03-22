@@ -8,6 +8,7 @@ import {
   getPageGroup,
   getPageType,
   generateArchitecturePlan,
+  generateSharedComponentsFromPlan,
   savePlan,
   loadPlan,
 } from './plan-generator.js'
@@ -219,5 +220,105 @@ describe('savePlan / loadPlan', () => {
     const loaded = loadPlan(tmpDir)
     expect(loaded?.groups[0].id).toBe('v2')
     rmSync(tmpDir, { recursive: true })
+  })
+})
+
+describe('generateSharedComponentsFromPlan', () => {
+  it('returns generated component code for each planned component', async () => {
+    const mockProvider = {
+      parseModification: vi.fn().mockResolvedValue({
+        requests: [
+          {
+            type: 'add-page',
+            changes: {
+              name: 'StatCard',
+              pageCode:
+                'import { Card } from "@/components/ui/card"\nexport default function StatCard({ label, value }: { label: string; value: string }) { return <Card><p>{label}</p><p>{value}</p></Card> }',
+            },
+          },
+        ],
+      }),
+    }
+    const plan = ArchitecturePlanSchema.parse({
+      groups: [],
+      sharedComponents: [
+        {
+          name: 'StatCard',
+          description: 'Metric card',
+          props: '{ label: string; value: string }',
+          usedBy: ['/dashboard'],
+          type: 'widget',
+          shadcnDeps: ['card'],
+        },
+      ],
+      pageNotes: {},
+    })
+    const results = await generateSharedComponentsFromPlan(plan, 'dark theme', '/tmp', mockProvider as any)
+    expect(results).toHaveLength(1)
+    expect(results[0].name).toBe('StatCard')
+    expect(results[0].code).toContain('export default')
+  })
+
+  it('skips components that fail generation', async () => {
+    let callCount = 0
+    const mockProvider = {
+      parseModification: vi.fn().mockImplementation(() => {
+        callCount++
+        if (callCount === 1) throw new Error('AI fail')
+        return {
+          requests: [
+            {
+              type: 'add-page',
+              changes: {
+                name: 'B',
+                pageCode: 'export default function B() { return <div/> }',
+              },
+            },
+          ],
+        }
+      }),
+    }
+    const plan = ArchitecturePlanSchema.parse({
+      groups: [],
+      sharedComponents: [
+        { name: 'A', description: 'd', props: '{}', usedBy: ['/x'], type: 'widget' },
+        { name: 'B', description: 'd', props: '{}', usedBy: ['/x'], type: 'widget' },
+      ],
+      pageNotes: {},
+    })
+    const results = await generateSharedComponentsFromPlan(plan, '', '/tmp', mockProvider as any)
+    expect(results).toHaveLength(1)
+    expect(results[0].name).toBe('B')
+  })
+
+  it('rejects code missing export default', async () => {
+    const mockProvider = {
+      parseModification: vi.fn().mockResolvedValue({
+        requests: [
+          {
+            type: 'add-page',
+            changes: {
+              name: 'Bad',
+              pageCode: 'function Bad() { return <div/> }',
+            },
+          },
+        ],
+      }),
+    }
+    const plan = ArchitecturePlanSchema.parse({
+      groups: [],
+      sharedComponents: [
+        {
+          name: 'Bad',
+          description: 'd',
+          props: '{}',
+          usedBy: ['/x'],
+          type: 'widget',
+        },
+      ],
+      pageNotes: {},
+    })
+    const results = await generateSharedComponentsFromPlan(plan, '', '/tmp', mockProvider as any)
+    expect(results).toHaveLength(0)
   })
 })
