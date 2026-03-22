@@ -247,6 +247,20 @@ export async function splitGeneratePages(
         if (process.env.COHERENT_DEBUG === '1' && planSummary) {
           console.log(chalk.dim(planSummary))
         }
+
+        if (plan.sharedComponents.length > 0 && parseOpts.projectRoot) {
+          const allDeps = new Set(plan.sharedComponents.flatMap(c => c.shadcnDeps))
+          if (allDeps.size > 0) {
+            const componentProvider = getComponentProvider()
+            for (const dep of allDeps) {
+              try {
+                await componentProvider.installComponent(dep, parseOpts.projectRoot)
+              } catch {
+                /* best-effort */
+              }
+            }
+          }
+        }
       } else {
         spinner.warn('Phase 2/6 — Plan generation failed (continuing without plan)')
       }

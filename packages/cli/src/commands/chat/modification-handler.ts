@@ -48,6 +48,7 @@ import {
   printPromoteAndLinkReport,
 } from './reporting.js'
 import { buildExistingPagesContext } from './split-generator.js'
+import { loadPlan, getPageType } from './plan-generator.js'
 
 const DEBUG = process.env.COHERENT_DEBUG === '1'
 
@@ -581,7 +582,15 @@ export async function applyModification(
           }
           const { code: layoutStripped, stripped } = stripInlineLayoutElements(codeToWrite)
           codeToWrite = layoutStripped
-          if (!isMarketingRoute(route) && !isAuthRoute(route)) {
+          const currentPlan = projectRoot ? loadPlan(projectRoot) : null
+          const pageType = currentPlan
+            ? getPageType(route, currentPlan)
+            : isMarketingRoute(route)
+              ? 'marketing'
+              : isAuth
+                ? 'auth'
+                : 'app'
+          if (pageType === 'app') {
             const { code: normalized, fixed: wrapperFixed } = normalizePageWrapper(codeToWrite)
             if (wrapperFixed) {
               codeToWrite = normalized
@@ -788,7 +797,15 @@ export async function applyModification(
             }
             const { code: layoutStripped, stripped } = stripInlineLayoutElements(codeToWrite)
             codeToWrite = layoutStripped
-            if (!isMarketingRoute(route) && !isAuthRoute(route)) {
+            const currentPlan2 = projectRoot ? loadPlan(projectRoot) : null
+            const pageType2 = currentPlan2
+              ? getPageType(route, currentPlan2)
+              : isMarketingRoute(route)
+                ? 'marketing'
+                : isAuth
+                  ? 'auth'
+                  : 'app'
+            if (pageType2 === 'app') {
               const { code: normalized, fixed: wrapperFixed } = normalizePageWrapper(codeToWrite)
               if (wrapperFixed) {
                 codeToWrite = normalized
