@@ -229,7 +229,8 @@ export async function chatCommand(
 
     if (multiPageHint) {
       try {
-        requests = await splitGeneratePages(spinner, message, modCtx, provider, parseOpts)
+        const splitResult = await splitGeneratePages(spinner, message, modCtx, provider, parseOpts)
+        requests = splitResult.requests
         uxRecommendations = undefined
       } catch {
         spinner.warn('Split generation encountered an issue — trying page-by-page...')
@@ -307,7 +308,8 @@ export async function chatCommand(
         if (isTruncated || isJsonError) {
           spinner.warn('Response too large — splitting into smaller requests...')
           try {
-            requests = await splitGeneratePages(spinner, message, modCtx, provider, parseOpts)
+            const splitResult = await splitGeneratePages(spinner, message, modCtx, provider, parseOpts)
+            requests = splitResult.requests
             uxRecommendations = undefined
           } catch {
             throw firstError

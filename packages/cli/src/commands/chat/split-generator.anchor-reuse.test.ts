@@ -129,8 +129,8 @@ describe('splitGeneratePages — existing anchor reuse', () => {
         },
       )
 
-      expect(out).toHaveLength(1)
-      expect((out[0].changes as { id?: string }).id).toBe('about')
+      expect(out.requests).toHaveLength(1)
+      expect((out.requests[0].changes as { id?: string }).id).toBe('about')
 
       const nonPlanCalls = vi.mocked(parseModification).mock.calls.filter(([, , , o]) => !o?.planOnly)
       expect(nonPlanCalls).toHaveLength(1)

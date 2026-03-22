@@ -5,7 +5,9 @@ import {
   buildSharedComponentsSummary,
   buildSharedComponentsNote,
   extractSharedComponents,
+  formatPlanSummary,
 } from './split-generator.js'
+import { ArchitecturePlanSchema } from './plan-generator.js'
 import { inferPageType } from './modification-handler.js'
 import { detectPageType } from '../../agents/page-templates.js'
 import { readAnchorPageCodeFromDisk } from './utils.js'
@@ -419,5 +421,47 @@ describe('readAnchorPageCodeFromDisk', () => {
   it('returns null when file does not exist', () => {
     const result = readAnchorPageCodeFromDisk('/nonexistent', '/')
     expect(result).toBeNull()
+  })
+})
+
+describe('formatPlanSummary', () => {
+  it('formats groups and shared components for prompt', () => {
+    const plan = ArchitecturePlanSchema.parse({
+      groups: [
+        { id: 'public', layout: 'header', pages: ['/', '/features'] },
+        { id: 'app', layout: 'sidebar', pages: ['/dashboard', '/tasks'] },
+      ],
+      sharedComponents: [
+        {
+          name: 'StatsCard',
+          description: 'Dashboard statistics card',
+          props: '{ title: string; value: number }',
+          usedBy: ['/dashboard'],
+          type: 'widget',
+          shadcnDeps: ['card'],
+        },
+      ],
+      pageNotes: {
+        dashboard: { type: 'app', sections: ['stats', 'table'] },
+      },
+    })
+
+    const summary = formatPlanSummary(plan)
+    expect(summary).toContain('public')
+    expect(summary).toContain('header')
+    expect(summary).toContain('app')
+    expect(summary).toContain('sidebar')
+    expect(summary).toContain('StatsCard')
+    expect(summary).toContain('Dashboard statistics card')
+  })
+
+  it('returns empty string for plan with no groups', () => {
+    const plan = ArchitecturePlanSchema.parse({
+      groups: [],
+      sharedComponents: [],
+      pageNotes: {},
+    })
+    const summary = formatPlanSummary(plan)
+    expect(summary).toBe('')
   })
 })

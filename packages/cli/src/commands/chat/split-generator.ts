@@ -18,6 +18,9 @@ import { createAIProvider, type AIProvider } from '../../utils/ai-provider.js'
 import { getComponentProvider } from '../../providers/index.js'
 import { autoFixCode } from '../../utils/quality-validator.js'
 import { isAuthRoute } from '../../agents/page-templates.js'
+import { getDesignQualityForType, inferPageTypeFromRoute } from '../../agents/design-constraints.js'
+import type { ArchitecturePlan } from './plan-generator.js'
+import { generateArchitecturePlan, getPageType } from './plan-generator.js'
 
 function buildExistingPagesContext(config: DesignSystemConfig): string {
   const pages = config.pages || []
@@ -129,6 +132,23 @@ Before implementing any section, check this list. Import and use matching compon
 ${sharedComponentsSummary}`
 }
 
+export function formatPlanSummary(plan: ArchitecturePlan): string {
+  if (plan.groups.length === 0) return ''
+
+  const groupLines = plan.groups.map(
+    (g) => `  Group "${g.id}" (layout: ${g.layout}): ${g.pages.join(', ')}`,
+  )
+  const compLines = plan.sharedComponents.map(
+    (c) => `  ${c.name} (${c.type}) — ${c.description}; usedBy: ${c.usedBy.join(', ')}`,
+  )
+
+  const parts = [`ARCHITECTURE PLAN:\nGroups:\n${groupLines.join('\n')}`]
+  if (compLines.length > 0) {
+    parts.push(`Shared Components:\n${compLines.join('\n')}`)
+  }
+  return parts.join('\n')
+}
+
 export { buildExistingPagesContext, extractStyleContext }
 
 export type SplitGenerateParseOpts = {
@@ -137,13 +157,18 @@ export type SplitGenerateParseOpts = {
   projectRoot?: string
 }
 
+export type SplitGenerateResult = {
+  requests: ModificationRequest[]
+  plan: ArchitecturePlan | null
+}
+
 export async function splitGeneratePages(
   spinner: ReturnType<typeof ora>,
   message: string,
   modCtx: { config: DesignSystemConfig; componentManager: InstanceType<typeof ComponentManager> },
   provider: Parameters<typeof parseModification>[2],
   parseOpts: SplitGenerateParseOpts,
-): Promise<ModificationRequest[]> {
+): Promise<SplitGenerateResult> {
   let pageNames: Array<{ name: string; id: string; route: string }> = []
 
   spinner.start('Phase 1/5 — Planning pages...')
@@ -207,7 +232,28 @@ export async function splitGeneratePages(
   const allRoutes = pageNames.map(p => p.route).join(', ')
   const allPagesList = pageNames.map(p => `${p.name} (${p.route})`).join(', ')
   const inferredNote = inferred.length > 0 ? ` (${inferred.length} auto-inferred)` : ''
-  spinner.succeed(`Phase 1/5 — Found ${pageNames.length} pages${inferredNote}: ${allPagesList}`)
+  spinner.succeed(`Phase 1/6 — Found ${pageNames.length} pages${inferredNote}: ${allPagesList}`)
+
+  let plan: ArchitecturePlan | null = null
+  if (parseOpts.projectRoot) {
+    spinner.start('Phase 2/6 — Generating architecture plan...')
+    try {
+      const ai = await createAIProvider(provider ?? 'auto')
+      const layoutHint = modCtx.config.navigation?.type || null
+      plan = await generateArchitecturePlan(pageNames, message, ai, layoutHint)
+      if (plan) {
+        const planSummary = formatPlanSummary(plan)
+        spinner.succeed(`Phase 2/6 — Architecture plan created (${plan.groups.length} groups, ${plan.sharedComponents.length} shared components)`)
+        if (process.env.COHERENT_DEBUG === '1' && planSummary) {
+          console.log(chalk.dim(planSummary))
+        }
+      } else {
+        spinner.warn('Phase 2/6 — Plan generation failed (continuing without plan)')
+      }
+    } catch {
+      spinner.warn('Phase 2/6 — Plan generation failed (continuing without plan)')
+    }
+  }
 
   const homeIdx = pageNames.findIndex(p => p.route === '/')
   const homePage = homeIdx !== -1 ? pageNames[homeIdx] : pageNames[0]
@@ -224,13 +270,13 @@ export async function splitGeneratePages(
     if (existingCode) {
       reusedExistingAnchor = true
       homePageCode = existingCode
-      spinner.start(`Phase 2/5 — Loading ${homePage.name} from disk (style anchor)...`)
-      spinner.succeed(`Phase 2/5 — Reused existing ${homePage.name} page (skipped AI regeneration)`)
+      spinner.start(`Phase 3/6 — Loading ${homePage.name} from disk (style anchor)...`)
+      spinner.succeed(`Phase 3/6 — Reused existing ${homePage.name} page (skipped AI regeneration)`)
     }
   }
 
   if (!reusedExistingAnchor) {
-    spinner.start(`Phase 2/5 — Generating ${homePage.name} page (sets design direction)...`)
+    spinner.start(`Phase 3/6 — Generating ${homePage.name} page (sets design direction)...`)
     try {
       const homeResult = await parseModification(
         `Create ONE page called "${homePage.name}" at route "${homePage.route}". Context: ${message}. This REPLACES the default placeholder page — generate a complete, content-rich landing page for the project described above. Generate complete pageCode. Include a branded site-wide <header> with navigation links to ALL these pages: ${allPagesList}. Use these EXACT routes in navigation: ${allRoutes}. Include a <footer> at the bottom. Make it visually polished — this page sets the design direction for the entire site. Do not generate other pages.`,
@@ -254,46 +300,69 @@ export async function splitGeneratePages(
         changes: { id: homePage.id, name: homePage.name, route: homePage.route },
       }
     }
-    spinner.succeed(`Phase 2/5 — ${homePage.name} page generated`)
+    spinner.succeed(`Phase 3/6 — ${homePage.name} page generated`)
   }
 
-  spinner.start('Phase 3/5 — Extracting design patterns...')
+  spinner.start('Phase 4/6 — Extracting design patterns...')
   const styleContext = homePageCode ? extractStyleContext(homePageCode) : ''
   if (styleContext) {
     const lineCount = styleContext.split('\n').length - 1
     const source = reusedExistingAnchor ? `${homePage.name} (existing file)` : homePage.name
-    spinner.succeed(`Phase 3/5 — Extracted ${lineCount} style patterns from ${source}`)
+    spinner.succeed(`Phase 4/6 — Extracted ${lineCount} style patterns from ${source}`)
   } else {
-    spinner.succeed('Phase 3/5 — No style patterns extracted (anchor page had no code)')
+    spinner.succeed('Phase 4/6 — No style patterns extracted (anchor page had no code)')
   }
 
-  // Phase 3.5: Extract shared components from anchor
-  if (remainingPages.length >= 2 && homePageCode && projectRoot) {
-    const manifest = await loadManifest(projectRoot)
-    const shouldSkip = reusedExistingAnchor && manifest.shared.some(e => e.type !== 'layout')
-
-    if (!shouldSkip) {
-      spinner.start('Phase 3.5/5 — Extracting shared components...')
+  // Phase 4.5: Extract shared components — plan-based or legacy extraction
+  if (remainingPages.length >= 2 && projectRoot) {
+    if (plan && plan.sharedComponents.length > 0) {
+      spinner.start(`Phase 4.5/6 — Generating ${plan.sharedComponents.length} shared components from plan...`)
       try {
-        const extraction = await extractSharedComponents(homePageCode, projectRoot, provider ?? 'auto')
-        parseOpts.sharedComponentsSummary = extraction.summary
-        if (extraction.components.length > 0) {
-          const names = extraction.components.map(c => c.name).join(', ')
-          spinner.succeed(`Phase 3.5/5 — Extracted ${extraction.components.length} shared components (${names})`)
+        const { generateSharedComponentsFromPlan } = await import('./plan-generator.js')
+        const generated = await generateSharedComponentsFromPlan(
+          plan,
+          styleContext,
+          projectRoot,
+          await createAIProvider(provider ?? 'auto'),
+        )
+        if (generated.length > 0) {
+          const updatedManifest = await loadManifest(projectRoot)
+          parseOpts.sharedComponentsSummary = buildSharedComponentsSummary(updatedManifest)
+          const names = generated.map(c => c.name).join(', ')
+          spinner.succeed(`Phase 4.5/6 — Generated ${generated.length} shared components (${names})`)
         } else {
-          spinner.succeed('Phase 3.5/5 — No shared components extracted')
+          spinner.succeed('Phase 4.5/6 — No shared components generated')
         }
       } catch {
-        spinner.warn('Phase 3.5/5 — Could not extract shared components (continuing without)')
+        spinner.warn('Phase 4.5/6 — Could not generate shared components (continuing without)')
+      }
+    } else if (homePageCode) {
+      const manifest = await loadManifest(projectRoot)
+      const shouldSkip = reusedExistingAnchor && manifest.shared.some(e => e.type !== 'layout')
+
+      if (!shouldSkip) {
+        spinner.start('Phase 4.5/6 — Extracting shared components (legacy)...')
+        try {
+          const extraction = await extractSharedComponents(homePageCode, projectRoot, provider ?? 'auto')
+          parseOpts.sharedComponentsSummary = extraction.summary
+          if (extraction.components.length > 0) {
+            const names = extraction.components.map(c => c.name).join(', ')
+            spinner.succeed(`Phase 4.5/6 — Extracted ${extraction.components.length} shared components (${names})`)
+          } else {
+            spinner.succeed('Phase 4.5/6 — No shared components extracted')
+          }
+        } catch {
+          spinner.warn('Phase 4.5/6 — Could not extract shared components (continuing without)')
+        }
       }
     }
   }
 
   if (remainingPages.length === 0) {
-    return homeRequest ? [homeRequest] : []
+    return { requests: homeRequest ? [homeRequest] : [], plan }
   }
 
-  spinner.start(`Phase 4/5 — Generating ${remainingPages.length} pages in parallel...`)
+  spinner.start(`Phase 5/6 — Generating ${remainingPages.length} pages in parallel...`)
 
   const sharedLayoutNote =
     'Header and Footer are shared components rendered by the root layout. Do NOT include any site-wide <header>, <nav>, or <footer> in this page. Start with the main content directly.'
@@ -301,16 +370,19 @@ export async function splitGeneratePages(
   const routeNote = `EXISTING ROUTES in this project: ${allRoutes}. All internal links MUST point to one of these routes. If a target doesn't exist, use href="#".`
   const alignmentNote =
     'CRITICAL LAYOUT RULE: Every <section> must wrap its content in a container div matching the header width. Use the EXACT same container classes as shown in the style context (e.g. className="container max-w-6xl px-4" or className="max-w-6xl mx-auto px-4"). Inner content can use narrower max-w for text centering, but the outer section container MUST match.'
+  const planSummaryNote = plan ? formatPlanSummary(plan) : ''
 
   const existingPagesContext = buildExistingPagesContext(modCtx.config)
 
   const AI_CONCURRENCY = 3
-  let phase4Done = 0
+  let phase5Done = 0
 
   const remainingRequests = await pMap(
     remainingPages,
     async ({ name, id, route }) => {
       const isAuth = isAuthRoute(route) || isAuthRoute(name)
+      const pageType = plan ? getPageType(route, plan) : inferPageTypeFromRoute(route)
+      const designConstraints = getDesignQualityForType(pageType)
       const authNote = isAuth
         ? 'For this auth page: use centered card layout with outer div className="flex min-h-svh flex-col items-center justify-center p-6 md:p-10" and inner div className="w-full max-w-sm". Do NOT use section containers or full-width wrappers. The auth layout provides centering — just output the card content.'
         : undefined
@@ -319,11 +391,14 @@ export async function splitGeneratePages(
         `Create ONE page called "${name}" at route "${route}".`,
         `Context: ${message}.`,
         `Generate complete pageCode for this single page only. Do not generate other pages.`,
+        `PAGE TYPE: ${pageType}`,
+        designConstraints,
         sharedLayoutNote,
         sharedComponentsNote,
         routeNote,
         alignmentNote,
         authNote,
+        planSummaryNote,
         existingPagesContext,
         styleContext,
       ]
@@ -332,13 +407,13 @@ export async function splitGeneratePages(
 
       try {
         const result = await parseModification(prompt, modCtx, provider, parseOpts)
-        phase4Done++
-        spinner.text = `Phase 4/5 — ${phase4Done}/${remainingPages.length} pages generated...`
+        phase5Done++
+        spinner.text = `Phase 5/6 — ${phase5Done}/${remainingPages.length} pages generated...`
         const codePage = result.requests.find((r: ModificationRequest) => r.type === 'add-page')
         return codePage || { type: 'add-page' as const, target: 'new', changes: { id, name, route } }
       } catch {
-        phase4Done++
-        spinner.text = `Phase 4/5 — ${phase4Done}/${remainingPages.length} pages generated...`
+        phase5Done++
+        spinner.text = `Phase 5/6 — ${phase5Done}/${remainingPages.length} pages generated...`
         return { type: 'add-page' as const, target: 'new', changes: { id, name, route } }
       }
     },
@@ -381,8 +456,8 @@ export async function splitGeneratePages(
   }
 
   const withCode = allRequests.filter(r => (r.changes as Record<string, unknown>)?.pageCode).length
-  spinner.succeed(`Phase 4/5 — Generated ${allRequests.length} pages (${withCode} with full code)`)
-  return allRequests
+  spinner.succeed(`Phase 5/6 — Generated ${allRequests.length} pages (${withCode} with full code)`)
+  return { requests: allRequests, plan }
 }
 
 const SharedExtractionItemSchema = z.object({
