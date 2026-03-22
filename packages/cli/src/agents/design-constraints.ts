@@ -73,7 +73,7 @@ LAYOUT PATTERNS:
 - Stats/KPI grid: grid gap-4 md:grid-cols-2 lg:grid-cols-4
 - Card grid (3 col): grid gap-4 md:grid-cols-3
 - Full-height page: min-h-svh (not min-h-screen)
-- Centered form (login/signup): flex min-h-svh flex-col items-center justify-center p-6 md:p-10 → div w-full max-w-md
+- Centered form (login/signup): auth layout handles centering — just output div w-full max-w-md with Card inside
 - Page content wrapper: flex flex-1 flex-col gap-4 p-4 lg:p-6
 - Responsive: primary md: and lg:. Use sm:/xl: only when genuinely needed. Avoid 2xl:. NEVER arbitrary like min-[800px].
 
@@ -250,10 +250,11 @@ const DESIGN_QUALITY_APP = `
 - Content: functional, scannable, data-dense
 
 ### Toolbars & Filters
-- Filter row: flex flex-wrap items-center gap-2
-- Search input: MUST use flex-1 to fill remaining horizontal space
+- Filter row: flex flex-wrap items-center gap-2 (plain div, NOT inside a Card)
+- Search input: MUST use flex-1 to fill remaining horizontal space. NEVER fixed-width search.
 - Filters/selects: fixed width (w-[180px] or auto), do NOT flex-grow
 - On mobile (sm:): search full width, filters wrap to next line
+- Do NOT wrap search/filter toolbars in Card components. They are plain flex rows above content.
 
 NEVER include marketing sections (hero, pricing, testimonials) on app pages.
 `
@@ -266,11 +267,17 @@ const DESIGN_QUALITY_AUTH = `
 ## DESIGN QUALITY — AUTH PAGES
 
 ### Layout
-- Centered card: flex min-h-svh items-center justify-center p-6 md:p-10
+- The auth layout ALREADY provides centering (flex items-center justify-center min-h-svh). Do NOT add your own centering wrapper or min-h-svh.
+- Just output: <div className="w-full max-w-md"> containing a Card
 - Card width: w-full max-w-md
 - No navigation, no section containers, no sidebar
 - Single focused form with clear CTA
-- Card → CardHeader (title + description) → CardContent (form) → CardFooter (link to other auth page)
+- Card → CardHeader (title + description) → CardContent (form with space-y-4) → CardFooter (link to other auth page)
+
+### Form Spacing
+- Form fields inside CardContent: space-y-4 between field groups
+- Ensure visible gap between the last input field and the submit button (use space-y-4 or space-y-6)
+- Each field group (Label + Input): space-y-2
 
 NEVER include navigation bars, sidebars, or multi-section layouts on auth pages.
 `

@@ -1137,6 +1137,20 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
     fixes.push(...ruleFixes)
   }
 
+  // Strip border/outline from TabsTrigger — shadcn uses data-[state=active] styling, not borders
+  const beforeTabsFix = fixed
+  fixed = fixed.replace(
+    /(<TabsTrigger\b[^>]*className=")([^"]*)(">)/g,
+    (_m, pre: string, classes: string, post: string) => {
+      const cleaned = classes.replace(/\b(border-input|border\b|outline\b)\s*/g, '').trim()
+      if (cleaned !== classes.trim()) return `${pre}${cleaned}${post}`
+      return _m
+    },
+  )
+  if (fixed !== beforeTabsFix) {
+    fixes.push('stripped border from TabsTrigger (shadcn handles active state)')
+  }
+
   // Clean up double spaces in className that may result from previous fixes
   fixed = fixed.replace(/className="([^"]*)"/g, (_match, inner: string) => {
     const cleaned = inner.replace(/\s{2,}/g, ' ').trim()
