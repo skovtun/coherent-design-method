@@ -38,7 +38,13 @@ import {
 } from '../utils/self-heal.js'
 
 import { validatePageQuality } from '../utils/quality-validator.js'
-import { requireProject, loadConfig, routeToFsPath, resolveTargetFlags } from './chat/utils.js'
+import {
+  requireProject,
+  loadConfig,
+  routeToFsPath,
+  resolveTargetFlags,
+  AUTH_SYNONYMS,
+} from './chat/utils.js'
 import { extractInternalLinks, normalizeRequest, applyDefaults, AUTH_FLOW_PATTERNS } from './chat/request-parser.js'
 import { splitGeneratePages, buildSharedComponentsSummary } from './chat/split-generator.js'
 import { savePlan } from './chat/plan-generator.js'
@@ -630,8 +636,15 @@ export async function chatCommand(
       }
 
       const existingRoutes = new Set(currentConfig.pages.map(p => p.route).filter(Boolean))
+      const expandedExisting = new Set(existingRoutes)
+      for (const route of existingRoutes) {
+        for (const [synonym, canonical] of Object.entries(AUTH_SYNONYMS)) {
+          if (route === canonical) expandedExisting.add(synonym)
+          if (route === synonym) expandedExisting.add(canonical)
+        }
+      }
       const missingRoutes = [...allLinkedRoutes].filter(route => {
-        if (existingRoutes.has(route)) return false
+        if (expandedExisting.has(route)) return false
         if (existsSync(routeToFsPath(projectRoot, route, false))) return false
         if (existsSync(routeToFsPath(projectRoot, route, true))) return false
         return true
@@ -877,8 +890,9 @@ export async function chatCommand(
     showPreview(normalizedRequests, results, updatedConfig, preflightNames)
 
     if (scaffoldedPages.length > 0) {
+      const uniqueScaffolded = [...new Map(scaffoldedPages.map(s => [s.route, s])).values()]
       console.log(chalk.cyan('🔗 Auto-scaffolded linked pages:'))
-      scaffoldedPages.forEach(({ route, name }) => {
+      uniqueScaffolded.forEach(({ route, name }) => {
         console.log(chalk.white(`   ✨ ${name} → ${route}`))
       })
       console.log('')

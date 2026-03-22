@@ -87,7 +87,7 @@ export function routeToRelPath(route: string, isAuthOrPlan?: boolean | Architect
   return `app/(app)/${slug}/page.tsx`
 }
 
-const AUTH_SYNONYMS: Record<string, string> = {
+export const AUTH_SYNONYMS: Record<string, string> = {
   '/register': '/signup',
   '/registration': '/signup',
   '/sign-up': '/signup',
