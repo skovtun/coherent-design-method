@@ -130,12 +130,15 @@ CONTENT (zero placeholders):
 // DESIGN QUALITY (always sent — visual polish layer)
 // ---------------------------------------------------------------------------
 
-export const DESIGN_QUALITY = `
-## DESIGN QUALITY (apply to EVERY page)
+// ---------------------------------------------------------------------------
+// DESIGN QUALITY — COMMON (applies to ALL page types)
+// ---------------------------------------------------------------------------
+
+export const DESIGN_QUALITY_COMMON = `
+## DESIGN QUALITY — COMMON
 
 ### Typography Hierarchy
 - Page headline (h1): text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1]
-- Landing/marketing hero headline: text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.05]
 - Section titles (h2): text-2xl md:text-3xl font-bold
 - Card titles (h3): text-sm font-semibold (never text-base or text-lg)
 - Body text: text-sm text-muted-foreground leading-relaxed
@@ -148,6 +151,34 @@ export const DESIGN_QUALITY = `
 - Sections alternate between bg-background and bg-muted/5 for rhythm
 - Section dividers: border-t border-border/10 (subtle, not heavy)
 
+### Buttons with Icons
+- Buttons containing text + icon: ALWAYS use inline-flex items-center gap-2 whitespace-nowrap
+- Icon inside button: h-4 w-4 (never larger), placed AFTER text for arrows, BEFORE text for action icons
+- NEVER let button content wrap to multiple lines — use whitespace-nowrap on the Button component
+- CTA buttons: use the Button component, NEVER raw <button> or <a> styled as button
+
+### Accent Color Discipline
+- ONE accent color per page (primary or emerald-400)
+- Use for: CTAs, terminal text, check icons, feature icon backgrounds, active states
+- NEVER mix blue + purple + emerald on same page
+- Badge: outline style (border-border/30 bg-transparent) not filled color
+- Status icons: text-emerald-400 for positive, text-red-400 for negative
+
+### Dark Theme Implementation
+- html element: className="dark"
+- Background: use CSS variables from globals.css dark section
+- Text: text-foreground for primary, text-muted-foreground for secondary
+- NEVER hardcode dark colors (bg-gray-900) — always use semantic tokens
+- Cards and elevated elements: slightly lighter than background (bg-card or bg-zinc-900/50)
+`
+
+// ---------------------------------------------------------------------------
+// DESIGN QUALITY — MARKETING (landing, features, pricing pages)
+// ---------------------------------------------------------------------------
+
+const DESIGN_QUALITY_MARKETING = `
+## DESIGN QUALITY — MARKETING PAGES
+
 ### Spacing Rhythm (3 distinct levels)
 - Between sections: py-20 md:py-28 (generous)
 - Within sections (title to content): mb-12 md:mb-16
@@ -155,11 +186,8 @@ export const DESIGN_QUALITY = `
 - Between cards in grid: gap-5 (tight)
 - NEVER uniform spacing everywhere — contrast creates rhythm
 
-### Buttons with Icons
-- Buttons containing text + icon: ALWAYS use inline-flex items-center gap-2 whitespace-nowrap
-- Icon inside button: h-4 w-4 (never larger), placed AFTER text for arrows, BEFORE text for action icons
-- NEVER let button content wrap to multiple lines — use whitespace-nowrap on the Button component
-- CTA buttons: use the Button component, NEVER raw <button> or <a> styled as button
+### Hero headline
+- Landing/marketing hero headline: text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.05]
 
 ### Icons in Feature Cards
 - Wrap in colored container: bg-primary/10 rounded-lg p-2.5
@@ -175,14 +203,7 @@ export const DESIGN_QUALITY = `
 - Title bar (optional): flex with 3 dots (bg-zinc-700 rounded-full w-2.5 h-2.5) + title text-zinc-500 text-[11px]
 - Copy button: text-zinc-500 hover:text-zinc-300
 
-### Accent Color Discipline
-- ONE accent color per page (primary or emerald-400)
-- Use for: CTAs, terminal text, check icons, feature icon backgrounds, active states
-- NEVER mix blue + purple + emerald on same page
-- Badge: outline style (border-border/30 bg-transparent) not filled color
-- Status icons: text-emerald-400 for positive, text-red-400 for negative
-
-### Hero Section (landing/marketing pages)
+### Hero Section
 - Minimum height: min-h-[80vh] flex items-center justify-center
 - Content: centered, max-w-3xl, flex flex-col items-center text-center gap-8
 - Badge above headline: small, outline, text-xs tracking-wide
@@ -199,8 +220,6 @@ export const DESIGN_QUALITY = `
 ### Step/Process Sections
 - Numbered steps: circle with border, number inside (w-10 h-10 rounded-full border border-border/30 text-sm)
 - Label above: text-xs font-semibold tracking-widest uppercase text-muted-foreground
-- Each step has a code block showing the command
-- Description below: text-sm text-muted-foreground
 
 ### Footer
 - Minimal: border-t border-border/10, py-10
@@ -208,13 +227,89 @@ export const DESIGN_QUALITY = `
 - Links: hover:text-foreground transition-colors
 - Layout: flex justify-between on desktop, stack on mobile
 
-### Dark Theme Implementation
-- html element: className="dark"
-- Background: use CSS variables from globals.css dark section
-- Text: text-foreground for primary, text-muted-foreground for secondary
-- NEVER hardcode dark colors (bg-gray-900) — always use semantic tokens
-- Cards and elevated elements: slightly lighter than background (bg-card or bg-zinc-900/50)
+NEVER include app-style elements (sidebar widgets, data tables, filters) on marketing pages.
 `
+
+// ---------------------------------------------------------------------------
+// DESIGN QUALITY — APP (dashboard, settings, team, projects)
+// ---------------------------------------------------------------------------
+
+const DESIGN_QUALITY_APP = `
+## DESIGN QUALITY — APP PAGES
+
+### Spacing
+- gap-4 md:gap-6 between sections
+- p-4 lg:p-6 content padding
+- Within cards: p-4 to p-6 (compact)
+- Between cards in grid: gap-4 (tight)
+
+### Layout
+- Data tables, card grids, filters, stat rows
+- Page wrapper: flex flex-1 flex-col gap-4 p-4 lg:p-6
+- Stats grid: grid gap-4 md:grid-cols-2 lg:grid-cols-4
+- Content: functional, scannable, data-dense
+
+NEVER include marketing sections (hero, pricing, testimonials) on app pages.
+`
+
+// ---------------------------------------------------------------------------
+// DESIGN QUALITY — AUTH (login, register, reset-password)
+// ---------------------------------------------------------------------------
+
+const DESIGN_QUALITY_AUTH = `
+## DESIGN QUALITY — AUTH PAGES
+
+### Layout
+- Centered card: flex min-h-svh items-center justify-center p-6 md:p-10
+- Card width: w-full max-w-sm
+- No navigation, no section containers, no sidebar
+- Single focused form with clear CTA
+- Card → CardHeader (title + description) → CardContent (form) → CardFooter (link to other auth page)
+
+NEVER include navigation bars, sidebars, or multi-section layouts on auth pages.
+`
+
+/**
+ * Returns the page-type-specific DESIGN_QUALITY block.
+ * Combine with DESIGN_QUALITY_COMMON for the full constraint set.
+ */
+export function getDesignQualityForType(type: 'marketing' | 'app' | 'auth'): string {
+  switch (type) {
+    case 'marketing':
+      return DESIGN_QUALITY_MARKETING
+    case 'app':
+      return DESIGN_QUALITY_APP
+    case 'auth':
+      return DESIGN_QUALITY_AUTH
+  }
+}
+
+/**
+ * Infer page type from route when no plan is available.
+ * Falls back to 'app' for unknown routes.
+ */
+export function inferPageTypeFromRoute(route: string): 'marketing' | 'app' | 'auth' {
+  const slug = route.replace(/^\//, '').split('/')[0] || ''
+  const authSlugs = new Set([
+    'login',
+    'register',
+    'sign-up',
+    'signup',
+    'sign-in',
+    'signin',
+    'forgot-password',
+    'reset-password',
+  ])
+  const marketingSlugs = new Set(['pricing', 'features', 'about', 'blog', 'contact', 'terms', 'privacy'])
+
+  if (authSlugs.has(slug)) return 'auth'
+  if (marketingSlugs.has(slug) || slug === '') return 'marketing'
+  return 'app'
+}
+
+// Backward-compatible composite — kept for existing callers
+export const DESIGN_QUALITY = `${DESIGN_QUALITY_COMMON}
+${DESIGN_QUALITY_MARKETING}`
 
 // ---------------------------------------------------------------------------
 // VISUAL DEPTH (always sent — the "permission to be beautiful" layer)
