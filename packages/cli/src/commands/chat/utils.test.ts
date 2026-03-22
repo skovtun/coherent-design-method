@@ -244,9 +244,7 @@ export default function LoginPage() {
   )
 }`
     const manifest = {
-      shared: [
-        { id: 'CID-003', name: 'FeatureCard', type: 'widget', file: 'components/shared/feature-card.tsx' },
-      ],
+      shared: [{ id: 'CID-003', name: 'FeatureCard', type: 'widget', file: 'components/shared/feature-card.tsx' }],
     }
     await warnInlineDuplicates(tmpDir, 'Dashboard', '/dashboard', pageCode, manifest)
     const warnings = consoleSpy.mock.calls.filter(c => String(c[0]).includes('FeatureCard'))

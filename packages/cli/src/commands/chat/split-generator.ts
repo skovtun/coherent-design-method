@@ -247,9 +247,7 @@ export async function splitGeneratePages(
       )
       plan = generatedPlan
       if (plan) {
-        const groupsSummary = plan.groups
-          .map(g => `${g.id} (${g.layout}, ${g.pages.length} pages)`)
-          .join(', ')
+        const groupsSummary = plan.groups.map(g => `${g.id} (${g.layout}, ${g.pages.length} pages)`).join(', ')
         const sharedSummary =
           plan.sharedComponents.length > 0
             ? plan.sharedComponents.map(c => `${c.name} → ${c.usedBy.join(', ')}`).join(' | ')
@@ -258,11 +256,7 @@ export async function splitGeneratePages(
         spinner.succeed(`Phase 2/6 — Architecture plan created`)
         console.log(chalk.dim(`  Groups: ${groupsSummary}`))
         if (sharedSummary) console.log(chalk.dim(`  Shared: ${sharedSummary}`))
-        console.log(
-          chalk.dim(
-            `  Total: ${totalPages} pages, ${plan.sharedComponents.length} shared components`,
-          ),
-        )
+        console.log(chalk.dim(`  Total: ${totalPages} pages, ${plan.sharedComponents.length} shared components`))
 
         if (plan.sharedComponents.length > 0 && parseOpts.projectRoot) {
           const allDeps = new Set(plan.sharedComponents.flatMap(c => c.shadcnDeps))

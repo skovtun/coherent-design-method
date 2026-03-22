@@ -519,7 +519,7 @@ export async function previewCommand() {
       }
       console.log(chalk.green('\n✅ Dependencies installed\n'))
     } else {
-      spinner.succeed('Project ready')
+      spinner.succeed('Dependencies installed')
     }
 
     // Step 2.5: Fix globals.css if needed (auto-fix old format)
