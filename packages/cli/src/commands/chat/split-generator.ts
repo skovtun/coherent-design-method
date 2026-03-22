@@ -170,7 +170,7 @@ export async function splitGeneratePages(
 ): Promise<SplitGenerateResult> {
   let pageNames: Array<{ name: string; id: string; route: string }> = []
 
-  spinner.start('Phase 1/5 — Planning pages...')
+  spinner.start('Phase 1/6 — Planning pages...')
   try {
     const planResult = await parseModification(message, modCtx, provider, { ...parseOpts, planOnly: true })
     const pageReqs = planResult.requests.filter((r: ModificationRequest) => r.type === 'add-page')
