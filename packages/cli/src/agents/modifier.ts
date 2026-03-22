@@ -18,6 +18,7 @@ import {
   VISUAL_DEPTH,
   INTERACTION_PATTERNS,
   selectContextualRules,
+  getDesignQualityForType,
 } from './design-constraints.js'
 
 export interface ModificationContext {
@@ -466,11 +467,17 @@ export function buildLightweightPagePrompt(
   route: string,
   styleContext: string,
   sharedComponentsSummary?: string,
+  pageType?: 'marketing' | 'app' | 'auth',
 ): string {
+  const designConstraints = pageType
+    ? getDesignQualityForType(pageType)
+    : ''
   return [
     `Generate complete pageCode for a page called "${pageName}" at route "${route}".`,
     `Output valid TSX with a default export React component.`,
     `Use shadcn/ui components (import from @/components/ui/*). Use Tailwind CSS semantic tokens only.`,
+    pageType ? `PAGE TYPE: ${pageType}` : '',
+    designConstraints,
     styleContext ? `Follow this style context:\n${styleContext}` : '',
     sharedComponentsSummary ? `Available shared components:\n${sharedComponentsSummary}` : '',
   ]

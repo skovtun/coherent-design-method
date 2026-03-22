@@ -242,11 +242,15 @@ export async function splitGeneratePages(
       const layoutHint = modCtx.config.navigation?.type || null
       plan = await generateArchitecturePlan(pageNames, message, ai, layoutHint)
       if (plan) {
-        const planSummary = formatPlanSummary(plan)
-        spinner.succeed(`Phase 2/6 — Architecture plan created (${plan.groups.length} groups, ${plan.sharedComponents.length} shared components)`)
-        if (process.env.COHERENT_DEBUG === '1' && planSummary) {
-          console.log(chalk.dim(planSummary))
-        }
+        const groupsSummary = plan.groups.map(g => `${g.id} (${g.layout}, ${g.pages.length} pages)`).join(', ')
+        const sharedSummary = plan.sharedComponents.length > 0
+          ? plan.sharedComponents.map(c => `${c.name} → ${c.usedBy.join(', ')}`).join(' | ')
+          : ''
+        const totalPages = plan.groups.reduce((sum, g) => sum + g.pages.length, 0)
+        spinner.succeed(`Phase 2/6 — Architecture plan created`)
+        console.log(chalk.dim(`  Groups: ${groupsSummary}`))
+        if (sharedSummary) console.log(chalk.dim(`  Shared: ${sharedSummary}`))
+        console.log(chalk.dim(`  Total: ${totalPages} pages, ${plan.sharedComponents.length} shared components`))
 
         if (plan.sharedComponents.length > 0 && parseOpts.projectRoot) {
           const allDeps = new Set(plan.sharedComponents.flatMap(c => c.shadcnDeps))
@@ -448,11 +452,13 @@ export async function splitGeneratePages(
       const pageName = (page.name as string) || (page.id as string) || 'page'
       const pageRoute = (page.route as string) || `/${pageName.toLowerCase()}`
       try {
+        const retryPageType = plan ? getPageType(pageRoute, plan) : inferPageTypeFromRoute(pageRoute)
         const lightweightPrompt = buildLightweightPagePrompt(
           pageName,
           pageRoute,
           styleContext || '',
           parseOpts.sharedComponentsSummary,
+          retryPageType,
         )
         const retryResult = await parseModification(lightweightPrompt, modCtx, provider, {
           ...parseOpts,
