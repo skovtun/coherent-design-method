@@ -253,7 +253,7 @@ export function fixEscapedClosingQuotes(code: string): string {
  *  Must NOT touch valid JSX: <Component, </Component>, <>, {expression} */
 export function fixUnescapedLtInJsx(code: string): string {
   let out = code
-  out = out.replace(/>([^<]*)<(\d)/g, '>$1&lt;$2')
-  out = out.replace(/>([^<]*)<([^/a-zA-Z!{>])/g, '>$1&lt;$2')
+  out = out.replace(/>([^<\n]*)<(\d)/g, '>$1&lt;$2')
+  out = out.replace(/>([^<\n]*)<([^/a-zA-Z!{>\n])/g, '>$1&lt;$2')
   return out
 }

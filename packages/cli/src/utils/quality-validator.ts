@@ -626,13 +626,39 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
   }
 
   // Fix HTML entities in JavaScript code (AI sometimes generates &lt; &gt; &amp; in code)
-  // Only replace where they appear as JS operators, not in JSX text content
+  // Only replace outside quoted attribute values (="...&lt;...")
   const beforeEntityFix = fixed
-  fixed = fixed.replace(/&lt;=/g, '<=')
-  fixed = fixed.replace(/&gt;=/g, '>=')
-  fixed = fixed.replace(/&amp;&amp;/g, '&&')
-  fixed = fixed.replace(/([\w)\]])\s*&lt;\s*([\w(])/g, '$1 < $2')
-  fixed = fixed.replace(/([\w)\]])\s*&gt;\s*([\w(])/g, '$1 > $2')
+  const isInsideAttrValue = (line: string, idx: number): boolean => {
+    let inQuote = false
+    let inAttr = false
+    for (let i = 0; i < idx; i++) {
+      if (line[i] === '=' && line[i + 1] === '"') {
+        inAttr = true
+        inQuote = true
+        i++
+      } else if (inAttr && line[i] === '"') {
+        inAttr = false
+        inQuote = false
+      }
+    }
+    return inQuote
+  }
+  fixed = fixed
+    .split('\n')
+    .map((line) => {
+      let l = line
+      l = l.replace(/&lt;=/g, (m, offset) => (isInsideAttrValue(line, offset) ? m : '<='))
+      l = l.replace(/&gt;=/g, (m, offset) => (isInsideAttrValue(line, offset) ? m : '>='))
+      l = l.replace(/&amp;&amp;/g, (m, offset) => (isInsideAttrValue(line, offset) ? m : '&&'))
+      l = l.replace(/([\w)\]])\s*&lt;\s*([\w(])/g, (m, p1, p2, offset) =>
+        isInsideAttrValue(line, offset) ? m : `${p1} < ${p2}`,
+      )
+      l = l.replace(/([\w)\]])\s*&gt;\s*([\w(])/g, (m, p1, p2, offset) =>
+        isInsideAttrValue(line, offset) ? m : `${p1} > ${p2}`,
+      )
+      return l
+    })
+    .join('\n')
   if (fixed !== beforeEntityFix) {
     fixes.push('Fixed syntax issues')
   }

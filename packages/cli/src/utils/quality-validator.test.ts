@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { validatePageQuality, autoFixCode, checkDesignConsistency, verifyIncrementalEdit } from './quality-validator.js'
+import { fixUnescapedLtInJsx } from './self-heal.js'
 
 describe('validatePageQuality', () => {
   it('detects native <button> in JSX', () => {
@@ -139,6 +140,13 @@ describe('autoFixCode', () => {
     const { code: fixed } = await autoFixCode(code)
     expect(fixed).toContain('https://picsum.photos/800/400?random=')
     expect(fixed).not.toContain('/images/hero-banner.jpg')
+  })
+
+  it('does NOT replace &lt; inside attribute values', async () => {
+    const code = 'export default function P() { return <div title="value &lt; 10">text</div> }'
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('&lt;')
+    expect(fixed).not.toContain('title="value < 10"')
   })
 })
 
@@ -558,5 +566,14 @@ export default function Page() {
     const { code: fixed } = await autoFixCode(code)
     expect(fixed).toContain('inline-flex')
     expect(fixed).toContain('items-center')
+  })
+})
+
+describe('fixUnescapedLtInJsx multiline safety', () => {
+  it('does not corrupt multiline JSX tags', () => {
+    const code = '>\n<div className="test">'
+    const result = fixUnescapedLtInJsx(code)
+    expect(result).toContain('<div')
+    expect(result).not.toContain('&lt;div')
   })
 })
