@@ -240,21 +240,17 @@ git commit -m "feat: add ArchitecturePlan Zod schema and helper functions"
 - Modify: `packages/cli/src/commands/chat/plan-generator.ts`
 - Modify: `packages/cli/src/commands/chat/plan-generator.test.ts`
 
+`generateArchitecturePlan` accepts the AI provider as a parameter (dependency injection) — matching the pattern where `splitGeneratePages` receives `provider` as a parameter.
+
 - [ ] **Step 1: Write failing tests for plan generation**
 
 ```typescript
 // plan-generator.test.ts — add to existing file
 import { vi } from 'vitest'
 
-// Mock AI provider
-vi.mock('../../utils/ai-provider.js', () => ({
-  createAIProvider: vi.fn(),
-}))
-
 describe('generateArchitecturePlan', () => {
   it('returns parsed plan from AI response', async () => {
-    const { createAIProvider } = await import('../../utils/ai-provider.js')
-    const mockAI = {
+    const mockProvider = {
       parseModification: vi.fn().mockResolvedValue({
         appName: 'TestApp',
         groups: [{ id: 'app', layout: 'sidebar', pages: ['/dashboard'] }],
@@ -262,13 +258,12 @@ describe('generateArchitecturePlan', () => {
         pageNotes: { dashboard: { type: 'app', sections: ['Stats'] } },
       }),
     }
-    vi.mocked(createAIProvider).mockResolvedValue(mockAI as any)
 
     const { generateArchitecturePlan } = await import('./plan-generator.js')
     const result = await generateArchitecturePlan(
       [{ name: 'Dashboard', id: 'dashboard', route: '/dashboard' }],
       'Create a dashboard app',
-      'auto',
+      mockProvider as any,
       'sidebar',
     )
     expect(result?.appName).toBe('TestApp')
@@ -276,22 +271,18 @@ describe('generateArchitecturePlan', () => {
   })
 
   it('returns null on AI failure', async () => {
-    const { createAIProvider } = await import('../../utils/ai-provider.js')
-    const mockAI = { parseModification: vi.fn().mockRejectedValue(new Error('fail')) }
-    vi.mocked(createAIProvider).mockResolvedValue(mockAI as any)
+    const mockProvider = { parseModification: vi.fn().mockRejectedValue(new Error('fail')) }
 
     const { generateArchitecturePlan } = await import('./plan-generator.js')
-    const result = await generateArchitecturePlan([], 'test', 'auto', null)
+    const result = await generateArchitecturePlan([], 'test', mockProvider as any, null)
     expect(result).toBeNull()
   })
 
   it('returns null on invalid schema', async () => {
-    const { createAIProvider } = await import('../../utils/ai-provider.js')
-    const mockAI = { parseModification: vi.fn().mockResolvedValue({ invalid: true }) }
-    vi.mocked(createAIProvider).mockResolvedValue(mockAI as any)
+    const mockProvider = { parseModification: vi.fn().mockResolvedValue({ invalid: true }) }
 
     const { generateArchitecturePlan } = await import('./plan-generator.js')
-    const result = await generateArchitecturePlan([], 'test', 'auto', null)
+    const result = await generateArchitecturePlan([], 'test', mockProvider as any, null)
     expect(result).toBeNull()
   })
 })
@@ -301,7 +292,18 @@ describe('generateArchitecturePlan', () => {
 
 - [ ] **Step 3: Implement generateArchitecturePlan**
 
-Add to `plan-generator.ts`: the `PLAN_SYSTEM_PROMPT`, the `generateArchitecturePlan` function that calls `ai.parseModification` with the prompt, validates via `ArchitecturePlanSchema.safeParse()`, retries once on failure, returns `null` if both attempts fail.
+Add to `plan-generator.ts`: the `PLAN_SYSTEM_PROMPT`, the `generateArchitecturePlan` function. Signature:
+
+```typescript
+export async function generateArchitecturePlan(
+  pages: Array<{ name: string; id: string; route: string }>,
+  userMessage: string,
+  aiProvider: AIProvider,
+  layoutHint: string | null,
+): Promise<ArchitecturePlan | null>
+```
+
+Calls `aiProvider.parseModification` with the prompt, validates via `ArchitecturePlanSchema.safeParse()`, retries once on failure, returns `null` if both attempts fail.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -353,11 +355,145 @@ describe('savePlan / loadPlan', () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 - [ ] **Step 3: Implement savePlan and loadPlan**
+
+`savePlan` must clear module-level `cachedPlan` variable (set to `null`) to prevent stale reads after incremental updates.
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+- [ ] **Step 5: Add cache invalidation test**
+
+```typescript
+it('savePlan clears cached plan', () => {
+  const tmpDir = mkdtempSync(join(tmpdir(), 'plan-'))
+  mkdirSync(join(tmpDir, '.coherent'), { recursive: true })
+  const planV1 = ArchitecturePlanSchema.parse({
+    groups: [{ id: 'v1', layout: 'sidebar', pages: ['/a'] }],
+    sharedComponents: [], pageNotes: {},
+  })
+  const planV2 = ArchitecturePlanSchema.parse({
+    groups: [{ id: 'v2', layout: 'header', pages: ['/b'] }],
+    sharedComponents: [], pageNotes: {},
+  })
+  savePlan(tmpDir, planV1)
+  loadPlan(tmpDir) // populates cache
+  savePlan(tmpDir, planV2) // must clear cache
+  const loaded = loadPlan(tmpDir)
+  expect(loaded?.groups[0].id).toBe('v2')
+  rmSync(tmpDir, { recursive: true })
+})
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git commit -m "feat: add plan save/load with .coherent/plan.json"
+```
+
+---
+
+### Task 3.5: Shared Component Code Generation (Phase 5)
+
+**Files:**
+- Modify: `packages/cli/src/commands/chat/plan-generator.ts`
+- Modify: `packages/cli/src/commands/chat/plan-generator.test.ts`
+
+This implements the Phase 5 function that generates TSX code for planned shared components.
+
+- [ ] **Step 1: Write failing tests**
+
+```typescript
+describe('generateSharedComponentsFromPlan', () => {
+  it('returns generated component code for each planned component', async () => {
+    const mockProvider = {
+      parseModification: vi.fn().mockResolvedValue({
+        requests: [{ type: 'add-page', changes: {
+          name: 'StatCard',
+          pageCode: 'import { Card } from "@/components/ui/card"\nexport default function StatCard({ label, value }: { label: string; value: string }) { return <Card><p>{label}</p><p>{value}</p></Card> }',
+        }}],
+      }),
+    }
+    const plan = ArchitecturePlanSchema.parse({
+      groups: [],
+      sharedComponents: [{
+        name: 'StatCard', description: 'Metric card',
+        props: '{ label: string; value: string }',
+        usedBy: ['/dashboard'], type: 'widget', shadcnDeps: ['card'],
+      }],
+      pageNotes: {},
+    })
+    const results = await generateSharedComponentsFromPlan(plan, 'dark theme', '/tmp', mockProvider as any)
+    expect(results).toHaveLength(1)
+    expect(results[0].name).toBe('StatCard')
+    expect(results[0].code).toContain('export default')
+  })
+
+  it('skips components that fail generation', async () => {
+    const callCount = { n: 0 }
+    const mockProvider = {
+      parseModification: vi.fn().mockImplementation(() => {
+        callCount.n++
+        if (callCount.n === 1) throw new Error('AI fail')
+        return { requests: [{ type: 'add-page', changes: {
+          name: 'B', pageCode: 'export default function B() { return <div/> }',
+        }}]}
+      }),
+    }
+    const plan = ArchitecturePlanSchema.parse({
+      groups: [],
+      sharedComponents: [
+        { name: 'A', description: 'd', props: '{}', usedBy: ['/x'], type: 'widget' },
+        { name: 'B', description: 'd', props: '{}', usedBy: ['/x'], type: 'widget' },
+      ],
+      pageNotes: {},
+    })
+    const results = await generateSharedComponentsFromPlan(plan, '', '/tmp', mockProvider as any)
+    expect(results).toHaveLength(1)
+    expect(results[0].name).toBe('B')
+  })
+
+  it('rejects code missing export default', async () => {
+    const mockProvider = {
+      parseModification: vi.fn().mockResolvedValue({
+        requests: [{ type: 'add-page', changes: {
+          name: 'Bad', pageCode: 'function Bad() { return <div/> }',
+        }}],
+      }),
+    }
+    const plan = ArchitecturePlanSchema.parse({
+      groups: [],
+      sharedComponents: [{
+        name: 'Bad', description: 'd', props: '{}',
+        usedBy: ['/x'], type: 'widget',
+      }],
+      pageNotes: {},
+    })
+    const results = await generateSharedComponentsFromPlan(plan, '', '/tmp', mockProvider as any)
+    expect(results).toHaveLength(0)
+  })
+})
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+- [ ] **Step 3: Implement generateSharedComponentsFromPlan**
+
+Signature:
+```typescript
+export async function generateSharedComponentsFromPlan(
+  plan: ArchitecturePlan,
+  styleContext: string,
+  projectRoot: string,
+  aiProvider: AIProvider,
+): Promise<Array<{ name: string; code: string; file: string }>>
+```
+
+For each `plan.sharedComponents`: builds a prompt with component name/description/props/shadcnDeps + style context, calls `aiProvider.parseModification`, validates output contains `export default`, writes to `components/shared/<kebab-name>.tsx`. On failure, logs warning and skips component.
+
 - [ ] **Step 4: Run tests to verify they pass**
 - [ ] **Step 5: Commit**
 
 ```bash
-git commit -m "feat: add plan save/load with .coherent/plan.json"
+git commit -m "feat: add generateSharedComponentsFromPlan (Phase 5)"
 ```
 
 ---
@@ -481,6 +617,12 @@ describe('routeToFsPath with plan', () => {
     const result = routeToFsPath('/tmp', '/login', true)
     expect(result).toContain('(auth)')
   })
+
+  it('backward compat: no third arg uses default behavior', () => {
+    const result = routeToFsPath('/tmp', '/dashboard')
+    expect(result).toContain('dashboard')
+    expect(result).toContain('page.tsx')
+  })
 })
 ```
 
@@ -527,7 +669,22 @@ This is the largest task — integrates the plan into the main pipeline.
 
 - [ ] **Step 1: Write failing tests for new pipeline phases**
 
-Test that `splitGeneratePages` calls plan generation, passes plan to downstream, returns plan in result. Test that Phase 6 prompts include page-type constraints. Test fallback when plan generation fails.
+Test that `splitGeneratePages` calls plan generation, passes plan to downstream, returns plan in result. Test that Phase 6 prompts include page-type constraints. Explicit fallback tests:
+
+```typescript
+it('falls back to Phase 3.5 extraction when plan generation returns null', async () => {
+  // Mock generateArchitecturePlan to return null
+  // Verify pipeline completes successfully without plan
+  // Verify existing Phase 3.5 extraction logic runs
+  // Verify no uncaught exceptions escape
+})
+
+it('pipeline produces valid output without a plan', async () => {
+  // Full pipeline test with plan=null
+  // Verify pages are generated with default DESIGN_QUALITY
+  // Verify routeToFsPath works without plan (boolean fallback)
+})
+```
 
 - [ ] **Step 2: Run tests to verify they fail**
 - [ ] **Step 3: Implement new pipeline**
@@ -572,7 +729,7 @@ describe('warnInlineDuplicates with plan', () => {
       pageNotes: {},
     })
     const manifest = { shared: [{ id: 'CID-001', name: 'StatCard', type: 'widget', file: 'components/shared/stat-card.tsx' }] }
-    await warnInlineDuplicates('/tmp', 'Dashboard', 'export default function Page() { return <div>no import</div> }', manifest, plan)
+    await warnInlineDuplicates('/tmp', 'Dashboard', '/dashboard', 'export default function Page() { return <div>no import</div> }', manifest, plan)
     expect(consoleSpy).toHaveBeenCalled()
   })
 
@@ -587,14 +744,17 @@ describe('warnInlineDuplicates with plan', () => {
       pageNotes: {},
     })
     const manifest = { shared: [{ id: 'CID-001', name: 'StatCard', type: 'widget', file: 'components/shared/stat-card.tsx' }] }
-    await warnInlineDuplicates('/tmp', 'Dashboard', 'export default function Page() {}', manifest, plan)
+    await warnInlineDuplicates('/tmp', 'Dashboard', '/dashboard', 'export default function Page() {}', manifest, plan)
     expect(consoleSpy).not.toHaveBeenCalled()
   })
 })
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
-- [ ] **Step 3: Update warnInlineDuplicates to accept optional plan and route, use plan-based logic**
+- [ ] **Step 3: Update warnInlineDuplicates to accept `route` parameter and optional `plan`, use plan-based logic**
+
+New signature: `warnInlineDuplicates(projectRoot, pageName, route, code, manifest, plan?)`
+When `plan` is provided: for each planned component where `route` is in `usedBy`, check if the page code imports the component. If not, warn.
 - [ ] **Step 4: Run tests to verify they pass**
 - [ ] **Step 5: Commit**
 
@@ -604,23 +764,101 @@ git commit -m "feat: plan-aware similarity warnings (replace token overlap)"
 
 ---
 
-### Task 9: Chat.ts Integration (plan threading + save)
+### Task 9: Chat.ts Integration (plan threading + save + incremental updates)
 
 **Files:**
 - Modify: `packages/cli/src/commands/chat.ts`
+- Modify: `packages/cli/src/commands/chat/plan-generator.ts`
+- Modify: `packages/cli/src/commands/chat/plan-generator.test.ts`
 
-- [ ] **Step 1: Update chat.ts to receive plan from splitGeneratePages**
+- [ ] **Step 1: Write failing tests for incremental plan update**
 
-After `splitGeneratePages` returns, save plan to `.coherent/plan.json` via `savePlan()`. Pass plan to `regenerateFiles` and `regenerateLayout`. Load existing plan for incremental updates.
+```typescript
+describe('updateArchitecturePlan', () => {
+  it('sends existing plan as context to AI and returns updated plan', async () => {
+    const existingPlan = ArchitecturePlanSchema.parse({
+      appName: 'MyApp',
+      groups: [{ id: 'app', layout: 'sidebar', pages: ['/dashboard'] }],
+      sharedComponents: [],
+      pageNotes: { dashboard: { type: 'app', sections: ['Stats'] } },
+    })
+    const mockProvider = {
+      parseModification: vi.fn().mockResolvedValue({
+        appName: 'MyApp',
+        groups: [{ id: 'app', layout: 'sidebar', pages: ['/dashboard', '/billing'] }],
+        sharedComponents: [],
+        pageNotes: {
+          dashboard: { type: 'app', sections: ['Stats'] },
+          billing: { type: 'app', sections: ['Plans table'] },
+        },
+      }),
+    }
+    const result = await updateArchitecturePlan(
+      existingPlan,
+      [{ name: 'Billing', id: 'billing', route: '/billing' }],
+      'Add a billing page',
+      mockProvider as any,
+    )
+    expect(result?.groups[0].pages).toContain('/billing')
+    expect(result?.pageNotes['billing']).toBeDefined()
+    expect(mockProvider.parseModification).toHaveBeenCalledWith(
+      expect.stringContaining('"dashboard"'),
+    )
+  })
 
-- [ ] **Step 2: Run full test suite**
+  it('returns existing plan unchanged when AI update fails', async () => {
+    const existingPlan = ArchitecturePlanSchema.parse({
+      groups: [{ id: 'app', layout: 'sidebar', pages: ['/dashboard'] }],
+      sharedComponents: [],
+      pageNotes: {},
+    })
+    const mockProvider = {
+      parseModification: vi.fn().mockRejectedValue(new Error('AI fail')),
+    }
+    const result = await updateArchitecturePlan(
+      existingPlan,
+      [{ name: 'Billing', id: 'billing', route: '/billing' }],
+      'Add billing',
+      mockProvider as any,
+    )
+    expect(result).toEqual(existingPlan)
+  })
+})
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+- [ ] **Step 3: Implement updateArchitecturePlan**
+
+Signature:
+```typescript
+export async function updateArchitecturePlan(
+  existingPlan: ArchitecturePlan,
+  newPages: Array<{ name: string; id: string; route: string }>,
+  userMessage: string,
+  aiProvider: AIProvider,
+): Promise<ArchitecturePlan>
+```
+
+Sends a prompt containing the existing plan JSON + "Update this plan to include these pages: ..." to the AI. Validates response. On failure, returns `existingPlan` unchanged (fallback chain item 1 from spec Section 12).
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+- [ ] **Step 5: Update chat.ts to thread plan**
+
+After `splitGeneratePages` returns:
+1. If a plan was generated, save to `.coherent/plan.json` via `savePlan()`.
+2. Pass plan to `regenerateFiles` and `regenerateLayout`.
+3. On subsequent `coherent chat` calls, load existing plan via `loadPlan()` and pass to `splitGeneratePages` for incremental update.
+
+- [ ] **Step 6: Run full test suite**
 
 Run: `pnpm test`
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git commit -m "feat: thread plan through chat.ts, save to .coherent/plan.json"
+git commit -m "feat: thread plan through chat.ts with incremental updates"
 ```
 
 ---
@@ -644,7 +882,7 @@ if (plan && plan.sharedComponents.length > 0) {
 
 - [ ] **Step 2: Scope normalizePageWrapper to app pages only**
 
-In `modification-handler.ts`, update the guard to use plan when available:
+In `modification-handler.ts`, there are **two call sites** for `normalizePageWrapper` (approx. line 585 and line 792). Update BOTH with the plan-based guard:
 
 ```typescript
 const pageType = plan ? getPageType(route, plan) : (isMarketingRoute(route) ? 'marketing' : isAuth ? 'auth' : 'app')
@@ -668,9 +906,11 @@ git commit -m "feat: pre-install shadcn deps from plan, scope normalizePageWrapp
 **Files:**
 - Modify: `packages/cli/src/agents/page-templates.ts`
 - Modify: `packages/cli/src/commands/chat/utils.ts`
-- Modify: `packages/cli/src/commands/chat/split-generator.test.ts`
+- Modify: `packages/cli/src/commands/chat/utils.test.ts`
 
-- [ ] **Step 1: Write failing test**
+Note: `AUTH_ROUTE_SEGMENTS` lives in `page-templates.ts` and `AUTH_ROUTE_SLUGS` lives in `utils.ts`. Both must be updated. Consider future consolidation into one canonical set re-exported, but for this task adding to both is acceptable.
+
+- [ ] **Step 1: Write failing test in utils.test.ts**
 
 ```typescript
 it('isAuthRoute recognizes sign-in', () => {
@@ -736,6 +976,8 @@ git commit -m "fix: prevent autoFixCode from corrupting JSX inside strings"
 **Files:**
 - Modify: `packages/cli/src/agents/modifier.ts`
 - Modify: `packages/cli/src/commands/chat/split-generator.ts`
+
+**Important:** Do NOT modify `buildModificationPrompt` — it parses user intent, not generates page code. Page-type constraints apply only in Phase 6 page generation prompts, retry prompts (`buildLightweightPagePrompt`), and `editPageCode` flows.
 
 - [ ] **Step 1: Add pageType parameter to buildLightweightPagePrompt**
 
