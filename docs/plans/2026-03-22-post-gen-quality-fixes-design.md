@@ -423,14 +423,78 @@ export function inferRelatedPages(
 
 ---
 
+## Fix G: Auth Pages Too Narrow (max-w-sm → max-w-md)
+
+**Problem**: All auth pages (Login, Register, Sign Up, Forgot Password, Reset Password) render as 384px-wide cards (`max-w-sm`). This makes forms cramped — labels, inputs, and buttons feel squeezed. The constraint is hardcoded in two places.
+
+**Solution**: Change `max-w-sm` to `max-w-md` (448px) in both locations. 448px gives form fields breathing room while keeping the centered card visually cohesive.
+
+### File: `packages/cli/src/agents/design-constraints.ts`
+
+Update `DESIGN_QUALITY_AUTH` (line ~264):
+
+```typescript
+// Before:
+- Card width: w-full max-w-sm
+
+// After:
+- Card width: w-full max-w-md
+```
+
+### File: `packages/cli/src/commands/chat/split-generator.ts`
+
+Update `authNote` (line ~405):
+
+```typescript
+// Before:
+'...inner div className="w-full max-w-sm"...'
+
+// After:
+'...inner div className="w-full max-w-md"...'
+```
+
+### Tests
+
+- `DESIGN_QUALITY_AUTH` contains `max-w-md` (not `max-w-sm`)
+- `authNote` in split-generator contains `max-w-md`
+
+---
+
+## Fix H: Search Input Fills Available Space in Toolbars
+
+**Problem**: On app pages (Tasks, Projects), the search input has a fixed width while dropdown filters sit beside it, leaving ~40% of the toolbar row empty. The AI doesn't know to use `flex-1` on search inputs.
+
+**Solution**: Add a toolbar/filter rule to `DESIGN_QUALITY_APP`.
+
+### File: `packages/cli/src/agents/design-constraints.ts`
+
+Add to `DESIGN_QUALITY_APP` before the closing backtick:
+
+```typescript
+### Toolbars & Filters
+- Filter row: flex flex-wrap items-center gap-2
+- Search input: MUST use flex-1 to fill remaining horizontal space
+- Filters/selects: fixed width (w-[180px] or auto), do NOT flex-grow
+- On mobile (sm:): search full width, filters wrap to next line
+```
+
+### Tests
+
+- `DESIGN_QUALITY_APP` contains "flex-1" and "Search input"
+- `getDesignQualityForType('app')` includes toolbar rules
+
+---
+
 ## Implementation Order
 
 1. **Fix A** (deduplication) — no dependencies, foundational
 2. **Fix F** (inference ordering) — depends on A for synonym awareness
 3. **Fix D** (prompt reinforcement) — standalone, simple
-4. **Fix E** (NO_H1 exempt) — standalone, simple
-5. **Fix B** (sections display) — standalone, simple
-6. **Fix C** (smart href) — most complex, depends on plan data flow
+4. **Fix G** (auth max-w-md) — standalone, simple
+5. **Fix H** (toolbar flex-1) — standalone, simple
+6. **Fix E** (NO_H1 exempt) — standalone, simple
+7. **Fix B** (sections display) — standalone, simple
+8. **Fix C** (smart href) — most complex, depends on plan data flow
 
 ## Summary of File Changes
 
@@ -440,5 +504,6 @@ export function inferRelatedPages(
 | `packages/cli/src/commands/chat/request-parser.ts` | A (AUTH_FLOW_PATTERNS, extractPageNamesFromMessage), F (worklist in inferRelatedPages) |
 | `packages/cli/src/commands/chat/reporting.ts` | B (sections from config) |
 | `packages/cli/src/utils/quality-validator.ts` | C (smart href + resolveHref), E (NO_H1 pageType guard) |
-| `packages/cli/src/agents/design-constraints.ts` | D (CRITICAL rules) |
+| `packages/cli/src/agents/design-constraints.ts` | D (CRITICAL rules), G (auth max-w-md), H (toolbar flex-1) |
 | `packages/cli/src/commands/chat/modification-handler.ts` | C (pass AutoFixContext), E (pass pageType) |
+| `packages/cli/src/commands/chat/split-generator.ts` | G (authNote max-w-md) |
