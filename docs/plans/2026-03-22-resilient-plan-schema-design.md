@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-22
 **Status:** Approved
-**Scope:** `packages/cli/src/commands/chat/plan-generator.ts` + tests
+**Scope:** Plan schema resilience + warning noise reduction
 
 ## Problem
 
@@ -145,13 +145,57 @@ catch (err) {
 
 Both paths log the specific reason before falling through to the deterministic merge fallback. This is a different mechanism from `generateArchitecturePlan`'s collect-and-return pattern because `updateArchitecturePlan` runs without an active spinner.
 
+### 4. Reduce Warning Noise in `warnInlineDuplicates`
+
+When no plan is available (`plan = null`), `warnInlineDuplicates` falls back to a token-overlap algorithm that checks every shared component against every page. The current threshold (`overlap >= 12 && sharedTokens.size >= 10`) is too low — generic UI tokens like `className`, `flex`, `Card`, `Button`, `items-center`, `p-6` trigger false positives on every page.
+
+**Observed in log:** FeatureCard, PricingCard, TestimonialCard warn on **every** page including Login, Reset Password, Dashboard — ~50 false positives per run.
+
+#### Fix: higher threshold + overlap ratio
+
+Replace:
+```typescript
+if (overlap >= 12 && sharedTokens.size >= 10) {
+```
+
+With:
+```typescript
+const overlapRatio = overlap / sharedTokens.size
+if (overlap >= 20 && overlapRatio >= 0.6) {
+```
+
+This requires both a high absolute overlap count (20+) AND that 60%+ of the shared component's tokens appear in the page. Generic UI tokens contribute to `overlap` but the ratio check ensures the match is meaningful.
+
+**Why not filter generic tokens?** Maintaining a stopword list is fragile and would need constant updates as Tailwind/shadcn evolve. The ratio approach is self-calibrating.
+
+### 5. Fix Duplicate Auto-Scaffold Entries
+
+The log shows `Tasks/new → /tasks/new` listed twice in the auto-scaffold report, and both `Register (/register)` and `Signup (/signup)` exist as separate pages.
+
+#### 5a. Deduplicate scaffold report
+
+In the auto-scaffold reporting section of `split-generator.ts`, deduplicate entries by route before printing:
+
+```typescript
+const uniqueScaffolded = [...new Map(scaffolded.map(s => [s.route, s])).values()]
+```
+
+#### 5b. Extend `deduplicatePages` to auto-scaffolded pages
+
+The existing `deduplicatePages` with `AUTH_SYNONYMS` only runs on the initial page list (Phase 1). Auto-scaffolded pages (created via `inferRelatedPages` and auto-scaffold) bypass this check. Apply the same deduplication before creating auto-scaffold pages:
+
+- Before scaffolding, check if a synonym route already exists in the planned pages
+- e.g., if `/register` exists, skip `/signup` (and vice versa)
+
 ## Files Changed
 
 | File | Change |
 |---|---|
 | `packages/cli/src/commands/chat/plan-generator.ts` | Synonym maps, schema transforms, defaults, diagnostic logging, `PlanResult` return type |
-| `packages/cli/src/commands/chat/plan-generator.test.ts` | Tests for synonym normalization, defaults, diagnostic warnings, and `updateArchitecturePlan` schema relaxation |
-| `packages/cli/src/commands/chat/split-generator.ts` | Adapt to `PlanResult` return type, log warnings after spinner |
+| `packages/cli/src/commands/chat/plan-generator.test.ts` | Tests for synonym normalization, defaults, diagnostic warnings, `updateArchitecturePlan` schema relaxation |
+| `packages/cli/src/commands/chat/split-generator.ts` | Adapt to `PlanResult` return type, log warnings after spinner, deduplicate scaffold report |
+| `packages/cli/src/commands/chat/utils.ts` | Raise token-overlap threshold in `warnInlineDuplicates` |
+| `packages/cli/src/commands/chat/utils.test.ts` | Test new overlap threshold behavior |
 
 ## What Does NOT Change
 
@@ -167,9 +211,12 @@ Both paths log the specific reason before falling through to the deterministic m
 4. **Missing fields with defaults** — verify a plan with missing `props`, `description`, `sharedComponents`, `pageNotes` still parses
 5. **Diagnostic warnings** — verify `generateArchitecturePlan` returns warnings array on validation failure
 6. **End-to-end** — verify a realistic Claude response with mixed synonyms parses successfully
-7. **`updateArchitecturePlan` with relaxed schema** — verify that `updateArchitecturePlan` benefits from the same schema relaxations (synonym normalization and defaults)
+7. **`updateArchitecturePlan` with relaxed schema** — verify that `updateArchitecturePlan` benefits from the same schema relaxations
+8. **Token-overlap threshold** — verify that a shared component with 12 generic token matches no longer triggers a warning; verify that 20+ matches with 60%+ ratio still triggers
+9. **Scaffold deduplication** — verify duplicate routes are removed from scaffold report
 
 ## Risks
 
 - **Over-permissive transforms**: A synonym map could incorrectly normalize a legitimate value. Mitigation: maps only contain clearly synonymous terms; unknown values pass through to strict validation.
 - **Future enum values**: If new layout types are added, synonym maps need updating. Mitigation: maps are co-located with the schema definition.
+- **Higher overlap threshold may miss real duplicates**: Raising from 12 to 20 could cause genuine near-duplicates to slip through. Mitigated by: (a) when plan exists, threshold is irrelevant (plan-aware path is used); (b) the 0.6 ratio ensures semantic similarity, not just token count.
