@@ -487,7 +487,7 @@ export async function generateSharedComponentsFromPlan(
 ): Promise<Array<{ name: string; code: string; file: string }>>
 ```
 
-For each `plan.sharedComponents`: builds a prompt with component name/description/props/shadcnDeps + style context, calls `aiProvider.parseModification`, validates output contains `export default`, writes to `components/shared/<kebab-name>.tsx`. On failure, logs warning and skips component.
+Builds a **single batched prompt** listing all `plan.sharedComponents` (name, description, props, shadcnDeps) + style context. Calls `aiProvider.parseModification` once. Response should contain one `add-page` request per component. Validates each output contains `export default` — valid components are written to `components/shared/<kebab-name>.tsx`, invalid ones are skipped with a warning. This is intentionally a single AI call (not N calls) to maximize style consistency across components.
 
 - [ ] **Step 4: Run tests to verify they pass**
 - [ ] **Step 5: Commit**
@@ -806,7 +806,7 @@ describe('updateArchitecturePlan', () => {
     )
   })
 
-  it('returns existing plan unchanged when AI update fails', async () => {
+  it('deterministically merges new pages into existing plan when AI update fails', async () => {
     const existingPlan = ArchitecturePlanSchema.parse({
       groups: [{ id: 'app', layout: 'sidebar', pages: ['/dashboard'] }],
       sharedComponents: [],
@@ -821,7 +821,12 @@ describe('updateArchitecturePlan', () => {
       'Add billing',
       mockProvider as any,
     )
-    expect(result).toEqual(existingPlan)
+    // Fallback: new page appended to largest group, minimal pageNotes entry
+    expect(result.groups[0].pages).toContain('/billing')
+    expect(result.pageNotes['billing']).toBeDefined()
+    expect(result.pageNotes['billing'].type).toBe('app')
+    // Existing pages preserved
+    expect(result.groups[0].pages).toContain('/dashboard')
   })
 })
 ```
@@ -840,7 +845,9 @@ export async function updateArchitecturePlan(
 ): Promise<ArchitecturePlan>
 ```
 
-Sends a prompt containing the existing plan JSON + "Update this plan to include these pages: ..." to the AI. Validates response. On failure, returns `existingPlan` unchanged (fallback chain item 1 from spec Section 12).
+Sends a prompt containing the existing plan JSON + "Update this plan to include these pages: ..." to the AI. Validates response via `ArchitecturePlanSchema.safeParse()`.
+
+On failure (AI error or invalid schema): **deterministic merge** — append new page routes to the largest existing group, add minimal `pageNotes` entries with `type: 'app'` and `sections: []`. This ensures new pages are never lost, per spec Section 12 fallback chain item 1.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -849,7 +856,11 @@ Sends a prompt containing the existing plan JSON + "Update this plan to include 
 After `splitGeneratePages` returns:
 1. If a plan was generated, save to `.coherent/plan.json` via `savePlan()`.
 2. Pass plan to `regenerateFiles` and `regenerateLayout`.
-3. On subsequent `coherent chat` calls, load existing plan via `loadPlan()` and pass to `splitGeneratePages` for incremental update.
+3. On subsequent `coherent chat` calls:
+   a. Load existing plan via `loadPlan(projectRoot)`.
+   b. If existing plan exists, call `updateArchitecturePlan(existingPlan, newPages, userMessage, provider)` to get an updated plan.
+   c. Pass updated plan to `splitGeneratePages`.
+   d. Save the updated plan via `savePlan()` after successful generation.
 
 - [ ] **Step 6: Run full test suite**
 
@@ -882,7 +893,7 @@ if (plan && plan.sharedComponents.length > 0) {
 
 - [ ] **Step 2: Scope normalizePageWrapper to app pages only**
 
-In `modification-handler.ts`, there are **two call sites** for `normalizePageWrapper` (approx. line 585 and line 792). Update BOTH with the plan-based guard:
+In `modification-handler.ts`, there are **two call sites** for `normalizePageWrapper` (approx. line 585 and line 792). Update BOTH with the plan-based guard. The `plan` parameter comes from either a threaded function parameter or `loadPlan(projectRoot)` — see Task 9 for how plan is threaded through the system:
 
 ```typescript
 const pageType = plan ? getPageType(route, plan) : (isMarketingRoute(route) ? 'marketing' : isAuth ? 'auth' : 'app')
