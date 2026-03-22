@@ -1140,7 +1140,7 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
   // Strip border/outline from TabsTrigger — shadcn uses data-[state=active] styling, not borders
   const beforeTabsFix = fixed
   fixed = fixed.replace(
-    /(<TabsTrigger\b[^>]*className=")([^"]*)(">)/g,
+    /(<TabsTrigger\b[^>]*className=")([^"]*)(")/g,
     (_m, pre: string, classes: string, post: string) => {
       const cleaned = classes.replace(/\b(border-input|border\b|outline\b)\s*/g, '').trim()
       if (cleaned !== classes.trim()) return `${pre}${cleaned}${post}`

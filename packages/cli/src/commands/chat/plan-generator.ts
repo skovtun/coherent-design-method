@@ -4,6 +4,7 @@ import { dirname, resolve } from 'path'
 import { mkdir, writeFile } from 'fs/promises'
 import chalk from 'chalk'
 import type { AIProviderInterface } from '../../utils/ai-provider.js'
+import { inferPageTypeFromRoute } from '../../agents/design-constraints.js'
 
 const LAYOUT_SYNONYMS: Record<string, string> = {
   horizontal: 'header',
@@ -113,7 +114,7 @@ export function getPageGroup(route: string, plan: ArchitecturePlan): RouteGroup 
 }
 
 export function getPageType(route: string, plan: ArchitecturePlan): 'marketing' | 'app' | 'auth' {
-  return (plan.pageNotes[routeToKey(route)]?.type as 'marketing' | 'app' | 'auth') ?? 'app'
+  return (plan.pageNotes[routeToKey(route)]?.type as 'marketing' | 'app' | 'auth') ?? inferPageTypeFromRoute(route)
 }
 
 const PLAN_SYSTEM_PROMPT = `You are a UI architect. Given a list of pages for a web application, create a Component Architecture Plan as JSON.
