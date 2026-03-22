@@ -32,7 +32,26 @@ Phase 5: Generate shared component CODE (using plan + styles)
 Phase 6: Generate remaining pages in parallel (with components + styles)
 ```
 
-Phase 3.5 (extraction from Home) is removed entirely. The plan replaces it.
+Phase 3.5 (extraction from Home) is retained as fallback only (behind `if (!plan)` gate).
+
+**Phase 3 clarification**: Home page receives the plan for CONTEXT (so the AI knows which sections are planned and what shared components will exist), but does NOT import shared components — they don't exist as code yet. Home's role is to establish the visual language (style anchor). Shared components inherit this style in Phase 5.
+
+**Phase 5: Shared component code generation**: A single AI call generates code for all planned components in batch. The prompt includes:
+- Component specs from the plan (name, description, props, type, shadcnDeps)
+- Extracted styles from Home (Phase 4 output)
+- Design constraints for the component's primary page type
+
+```typescript
+// plan-generator.ts
+export async function generateSharedComponentsFromPlan(
+  plan: ArchitecturePlan,
+  styleContext: string,
+  projectRoot: string,
+  aiProvider: AIProvider,
+): Promise<GenerateSharedComponentResult[]>
+```
+
+The AI generates one TSX file per component, each with: default export, typed props interface, shadcn/ui imports, and Tailwind classes matching the extracted style context. Output is validated (must contain `export default` and compile as valid TSX). Failed components are skipped with a warning — partial success is acceptable.
 
 ### 2. Plan Step Output Schema
 
@@ -67,6 +86,7 @@ const PageNoteSchema = z.object({
 })
 
 const ArchitecturePlanSchema = z.object({
+  appName: z.string().optional(),  // e.g., "TaskFlow" — updates config.name
   groups: z.array(RouteGroupSchema),
   sharedComponents: z.array(PlannedComponentSchema).max(8),
   pageNotes: z.record(z.string(), PageNoteSchema),  // keyed by routeToKey()
@@ -343,6 +363,83 @@ Fallback chain (ordered):
 1. **Plan update fails** (incremental `coherent chat`): use existing `.coherent/plan.json` unchanged, add new page to it without AI re-planning
 2. **Plan generation fails** (first-time multi-page): fall back to Phase 3.5 extraction from Home + flat nav (current behavior). Phase 3.5 code is retained behind a `if (!plan)` gate, not deleted
 3. **System never crashes** due to plan step failure
+
+### 13. Plan Threading Through the System
+
+The plan is produced inside `splitGeneratePages` and consumed by many downstream functions. Strategy:
+
+1. `splitGeneratePages` returns the plan as part of its result: `{ requests, plan? }`
+2. `chat.ts` receives the plan, saves it to `.coherent/plan.json`, and passes it to downstream calls (`regenerateFiles`, `regenerateLayout`, auto-scaffolding)
+3. Functions that need the plan accept it as an optional parameter (backward compatible)
+4. Functions that don't have the plan in scope (e.g., deep inside `modification-handler.ts`) read it from `.coherent/plan.json` via a cached loader:
+
+```typescript
+// plan-generator.ts
+let cachedPlan: ArchitecturePlan | null = null
+export function loadPlan(projectRoot: string): ArchitecturePlan | null {
+  if (cachedPlan) return cachedPlan
+  const planPath = resolve(projectRoot, '.coherent', 'plan.json')
+  if (!existsSync(planPath)) return null
+  cachedPlan = ArchitecturePlanSchema.safeParse(JSON.parse(readFileSync(planPath, 'utf-8'))).data ?? null
+  return cachedPlan
+}
+```
+
+Key call sites that need plan access:
+- `routeToFsPath` / `routeToRelPath` (utils.ts) — optional plan param
+- `regenerateLayout` (code-generator.ts) — optional plan in options
+- `warnInlineDuplicates` (utils.ts) — optional plan param
+- `applyModification` in modification-handler.ts — reads plan from disk via `loadPlan(projectRoot)`
+- `normalizePageWrapper` guard — uses `loadPlan` to check page type
+
+### 14. Plan Schema Additions
+
+The `ArchitecturePlanSchema` includes an `appName` field (extracted from the user's request) so the config name can be updated:
+
+```typescript
+const ArchitecturePlanSchema = z.object({
+  appName: z.string().optional(),  // e.g., "TaskFlow"
+  groups: z.array(RouteGroupSchema),
+  sharedComponents: z.array(PlannedComponentSchema).max(8),
+  pageNotes: z.record(z.string(), PageNoteSchema),
+})
+```
+
+### 15. Phase 1 → Plan Input Relationship
+
+Phase 1 (parse pages) produces the initial page list: names, routes, and inferred pages (e.g., `/projects/[id]` from "project detail"). This list is the INPUT to the plan step (Phase 2). The relationship:
+
+1. Phase 1: `extractPageNamesFromMessage()` + `inferRelatedPages()` → `pages[]` with `{ name, id, route }`
+2. Phase 2: Plan AI receives this `pages[]` list and organizes it into groups, components, and pageNotes
+3. Phase 1 logic does NOT change — the plan consumes its output, not replaces it
+
+The `navType` (header/sidebar/both) from the user's message is also passed to the plan prompt as a hint for group layout selection.
+
+### 16. Retry Prompts with Page-Type Awareness
+
+When Phase 6 produces empty pages (no `pageCode`), the retry loop uses `buildLightweightPagePrompt`. This function is extended to accept a `pageType` parameter and include the appropriate design constraints:
+
+```typescript
+export function buildLightweightPagePrompt(
+  pageName: string,
+  route: string,
+  styleContext: string,
+  sharedComponentsSummary?: string,
+  pageType?: 'marketing' | 'app' | 'auth',
+): string
+```
+
+When `pageType` is provided, the lightweight prompt includes `getDesignQualityForType(pageType)` instead of no quality guidance.
+
+### 17. Modifier Prompt and Page Type
+
+`buildModificationPrompt` in `modifier.ts` is used for general modification parsing (before routes are known). It continues to use `DESIGN_QUALITY_COMMON` + `DESIGN_QUALITY_APP` as default. Page-type-specific prompts are only used in:
+
+- `split-generator.ts` Phase 6 prompts (where route and plan are known)
+- Retry prompts (`buildLightweightPagePrompt`)
+- `editPageCode` in `modification-handler.ts` (where route is known)
+
+`buildModificationPrompt` does NOT need route/plan because it parses the user's intent, not generates page code.
 
 ## Bugfixes (independent of plan step)
 
