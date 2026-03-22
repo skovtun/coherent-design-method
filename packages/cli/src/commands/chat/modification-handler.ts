@@ -606,7 +606,7 @@ export async function applyModification(
           }
 
           const manifestForAudit = await loadManifest(projectRoot)
-          await warnInlineDuplicates(projectRoot, page.name || page.id || route.slice(1), codeToWrite, manifestForAudit)
+          await warnInlineDuplicates(projectRoot, page.name || page.id || route.slice(1), route, codeToWrite, manifestForAudit)
 
           const relFilePath = routeToRelPath(route, isAuth)
           printPostGenerationReport({
@@ -816,6 +816,7 @@ export async function applyModification(
             await warnInlineDuplicates(
               projectRoot,
               pageDef.name || pageDef.id || route.slice(1),
+              route,
               codeToWrite,
               manifestForAudit,
             )

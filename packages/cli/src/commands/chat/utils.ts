@@ -111,16 +111,36 @@ export function extractComponentIdsFromCode(code: string): Set<string> {
 export async function warnInlineDuplicates(
   projectRoot: string,
   pageName: string,
+  route: string,
   pageCode: string,
   manifest: { shared: Array<{ id: string; name: string; type: string; file: string }> },
+  plan?: ArchitecturePlan,
 ): Promise<void> {
   const sectionOrWidget = manifest.shared.filter(e => e.type === 'section' || e.type === 'widget')
   if (sectionOrWidget.length === 0) return
 
+  // Build a set of component names this page should use (from plan)
+  const plannedForPage = plan
+    ? new Set(plan.sharedComponents.filter((c) => c.usedBy.includes(route)).map((c) => c.name))
+    : null
+
   for (const e of sectionOrWidget) {
+    // If plan exists, only warn about components planned for this page
+    if (plannedForPage && !plannedForPage.has(e.name)) continue
+
     const kebab = e.file.replace(/^components\/shared\//, '').replace(/\.tsx$/, '')
     const hasImport = pageCode.includes(`@/components/shared/${kebab}`)
     if (hasImport) continue
+
+    if (plannedForPage) {
+      console.log(
+        chalk.yellow(
+          `\n⚠ Page "${pageName}" should use shared component ${e.name} (per architecture plan) but it's not imported. Import from @/components/shared/${kebab}`,
+        ),
+      )
+      continue
+    }
+
     const sameNameAsTag = new RegExp(`<\\/?${e.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s>]`).test(pageCode)
     if (sameNameAsTag) {
       console.log(

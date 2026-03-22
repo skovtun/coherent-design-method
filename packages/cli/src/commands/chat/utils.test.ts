@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
@@ -8,6 +8,7 @@ import {
   MIN_ANCHOR_PAGE_CODE_CHARS,
   routeToFsPath,
   routeToRelPath,
+  warnInlineDuplicates,
 } from './utils.js'
 import { ArchitecturePlanSchema } from './plan-generator.js'
 
@@ -119,5 +120,73 @@ describe('routeToRelPath with plan', () => {
   it('backward compat: boolean isAuth still works', () => {
     const result = routeToRelPath('/login', true)
     expect(result).toContain('(auth)')
+  })
+})
+
+describe('warnInlineDuplicates with plan', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('warns when planned component is not imported', async () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const plan = ArchitecturePlanSchema.parse({
+      groups: [],
+      sharedComponents: [
+        {
+          name: 'StatCard',
+          description: 'd',
+          props: '{}',
+          usedBy: ['/dashboard'],
+          type: 'widget',
+        },
+      ],
+      pageNotes: {},
+    })
+    const manifest = {
+      shared: [
+        { id: 'CID-001', name: 'StatCard', type: 'widget', file: 'components/shared/stat-card.tsx' },
+      ],
+    }
+    await warnInlineDuplicates(
+      '/tmp',
+      'Dashboard',
+      '/dashboard',
+      'export default function Page() { return <div>no import</div> }',
+      manifest,
+      plan,
+    )
+    expect(consoleSpy).toHaveBeenCalled()
+  })
+
+  it('does NOT warn when page is not in usedBy', async () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const plan = ArchitecturePlanSchema.parse({
+      groups: [],
+      sharedComponents: [
+        {
+          name: 'StatCard',
+          description: 'd',
+          props: '{}',
+          usedBy: ['/projects'],
+          type: 'widget',
+        },
+      ],
+      pageNotes: {},
+    })
+    const manifest = {
+      shared: [
+        { id: 'CID-001', name: 'StatCard', type: 'widget', file: 'components/shared/stat-card.tsx' },
+      ],
+    }
+    await warnInlineDuplicates(
+      '/tmp',
+      'Dashboard',
+      '/dashboard',
+      'export default function Page() {}',
+      manifest,
+      plan,
+    )
+    expect(consoleSpy).not.toHaveBeenCalled()
   })
 })
