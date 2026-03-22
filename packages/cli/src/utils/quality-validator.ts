@@ -1137,18 +1137,21 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
     fixes.push(...ruleFixes)
   }
 
-  // Strip border/outline from TabsTrigger — shadcn uses data-[state=active] styling, not borders
+  // Add border-0 to TabsTrigger — border-transparent doesn't work in Tailwind v4 @theme inline
   const beforeTabsFix = fixed
   fixed = fixed.replace(
     /(<TabsTrigger\b[^>]*className=")([^"]*)(")/g,
     (_m, pre: string, classes: string, post: string) => {
       const cleaned = classes.replace(/\b(border-input|border\b|outline\b)\s*/g, '').trim()
-      if (cleaned !== classes.trim()) return `${pre}${cleaned}${post}`
+      const withBorder0 = cleaned.includes('border-0') ? cleaned : `${cleaned} border-0`.trim()
+      if (withBorder0 !== classes.trim()) return `${pre}${withBorder0}${post}`
       return _m
     },
   )
+  // Also add border-0 to TabsTrigger without className
+  fixed = fixed.replace(/<TabsTrigger\b(?![^>]*className=)(?![^>]*border-0)/g, '<TabsTrigger className="border-0"')
   if (fixed !== beforeTabsFix) {
-    fixes.push('stripped border from TabsTrigger (shadcn handles active state)')
+    fixes.push('added border-0 to TabsTrigger (Tailwind v4 border-transparent fix)')
   }
 
   // Add variant="line" to TabsList for clean underline style

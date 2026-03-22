@@ -190,6 +190,26 @@ describe('autoFixCode', () => {
     expect(fixed).toContain('variant="default"')
     expect(fixed).not.toContain('variant="line"')
   })
+
+  it('adds border-0 to TabsTrigger className', async () => {
+    const code = `<TabsTrigger value="a" className="flex items-center gap-2">A</TabsTrigger>`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('border-0')
+    expect(fixes.some(f => f.includes('border-0'))).toBe(true)
+  })
+
+  it('adds border-0 to TabsTrigger without className', async () => {
+    const code = `<TabsTrigger value="a">A</TabsTrigger>`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('className="border-0"')
+  })
+
+  it('strips existing border classes from TabsTrigger and adds border-0', async () => {
+    const code = `<TabsTrigger value="a" className="flex border border-input">A</TabsTrigger>`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('border-0')
+    expect(fixed).not.toContain('border-input')
+  })
 })
 
 describe('autoFixCode — native select replacement', () => {
