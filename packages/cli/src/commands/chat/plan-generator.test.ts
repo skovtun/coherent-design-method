@@ -173,6 +173,47 @@ describe('ArchitecturePlanSchema synonym normalization', () => {
   })
 })
 
+describe('ArchitecturePlanSchema safe defaults', () => {
+  it('parses plan with missing sharedComponents and pageNotes', () => {
+    const minimal = {
+      groups: [{ id: 'app', layout: 'sidebar', pages: ['/dashboard'] }],
+    }
+    const result = ArchitecturePlanSchema.safeParse(minimal)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.sharedComponents).toEqual([])
+      expect(result.data.pageNotes).toEqual({})
+    }
+  })
+
+  it('parses shared component with missing props and description', () => {
+    const plan = {
+      groups: [],
+      sharedComponents: [{ name: 'Card', usedBy: ['/dashboard'], type: 'widget' }],
+      pageNotes: {},
+    }
+    const result = ArchitecturePlanSchema.safeParse(plan)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.sharedComponents[0].props).toBe('{}')
+      expect(result.data.sharedComponents[0].description).toBe('')
+    }
+  })
+
+  it('parses pageNote with missing sections', () => {
+    const plan = {
+      groups: [],
+      sharedComponents: [],
+      pageNotes: { home: { type: 'marketing' } },
+    }
+    const result = ArchitecturePlanSchema.safeParse(plan)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.pageNotes['home'].sections).toEqual([])
+    }
+  })
+})
+
 describe('getPageGroup', () => {
   const plan = ArchitecturePlanSchema.parse({
     groups: [
