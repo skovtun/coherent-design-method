@@ -95,6 +95,7 @@ LINKS & INTERACTIVE STATES (consistency is critical):
 - ALL Button variants MUST have: hover: state, focus-visible:ring-2 focus-visible:ring-ring, active: state, disabled:opacity-50.
 - ALL interactive elements MUST have visible hover and focus-visible states.
 - CRITICAL: Every <Link> MUST have an href prop. Missing href causes runtime errors. Never use <Link className="..."> or <Button asChild><Link> without href.
+- When shared components exist (@/components/shared/*), ALWAYS import and use them instead of re-implementing similar patterns inline.
 
 ICONS:
 - Size: ALWAYS size-4 (16px). Color: ALWAYS text-muted-foreground. Import: ALWAYS from lucide-react.

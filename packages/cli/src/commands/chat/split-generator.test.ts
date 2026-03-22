@@ -3,6 +3,7 @@ import {
   parseNavTypeFromPlan,
   extractAppNameFromPrompt,
   buildSharedComponentsSummary,
+  buildSharedComponentsNote,
   extractSharedComponents,
 } from './split-generator.js'
 import { inferPageType } from './modification-handler.js'
@@ -145,6 +146,26 @@ describe('buildSharedComponentsSummary', () => {
     const result = buildSharedComponentsSummary(manifest)!
     expect(result).toContain('CID-003 FeatureCard (section)')
     expect(result).toContain('Props: { icon: React.ReactNode; title: string }')
+  })
+})
+
+describe('buildSharedComponentsNote', () => {
+  it('returns note with summary when provided', () => {
+    const summary = 'CID-001 FeatureCard (section)\n  Import: @/components/shared/feature-card'
+    const result = buildSharedComponentsNote(summary)
+    expect(result).toContain('SHARED COMPONENTS')
+    expect(result).toContain('MANDATORY REUSE')
+    expect(result).toContain('CID-001 FeatureCard')
+  })
+
+  it('returns undefined when summary is undefined', () => {
+    const result = buildSharedComponentsNote(undefined)
+    expect(result).toBeUndefined()
+  })
+
+  it('returns undefined when summary is empty', () => {
+    const result = buildSharedComponentsNote('')
+    expect(result).toBeUndefined()
   })
 })
 

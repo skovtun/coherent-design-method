@@ -202,6 +202,7 @@ For editing an existing shared component use type "modify-layout-block" with tar
   return `You are a design-forward UI architect. Your goal is to create interfaces that are not just functional, but visually distinctive and memorable — while staying within shadcn/ui and Tailwind CSS.
 
 Parse the user's natural language request into structured modification requests.
+${sharedSection}
 ${designThinking}
 ${coreRules}
 ${designQuality}
@@ -226,7 +227,6 @@ LINKING RULES (CRITICAL — prevents broken links):
 - Navigation components should link to ALL existing page routes.
 
 ${componentRegistry}
-${sharedSection}
 
 Available shadcn/ui components (can be auto-installed): ${availableShadcn.join(', ')}
 
