@@ -137,24 +137,42 @@ function getPageType(route: string, plan: ArchitecturePlan): string {
 
 `isAuthRoute()` and `isMarketingRoute()` remain as fallbacks when no plan exists (backward compatibility).
 
-**File system path mapping**: The existing `routeToFsPath()` in `utils.ts` is updated to use the plan's group ID as the Next.js route group directory:
+**File system path mapping**: The existing `routeToFsPath(projectRoot, route, isAuth)` and `routeToRelPath(route, isAuth)` in `utils.ts` are updated to accept an optional plan parameter. The `isAuth` parameter is derived internally from the plan when available:
 
 ```typescript
-function routeToFsPath(route: string, plan?: ArchitecturePlan): string {
+// New signature (backward compatible — plan is optional):
+export function routeToFsPath(projectRoot: string, route: string, isAuthOrPlan?: boolean | ArchitecturePlan): string {
+  const plan = typeof isAuthOrPlan === 'object' ? isAuthOrPlan : undefined
+  const isAuth = typeof isAuthOrPlan === 'boolean' ? isAuthOrPlan : false
+
+  // Root route "/" always stays at app/page.tsx (no group wrapper)
+  if (route === '/') return resolve(projectRoot, 'app', 'page.tsx')
+
+  const slug = route.replace(/^\//, '')
+
   if (plan) {
     const group = getPageGroup(route, plan)
-    if (group && group.id !== 'root') {
+    if (group) {
       // e.g., group.id="app" → app/(app)/dashboard/page.tsx
-      const slug = route.replace(/^\//, '') || ''
-      return `app/(${group.id})/${slug}/page.tsx`
+      return resolve(projectRoot, 'app', `(${group.id})`, slug, 'page.tsx')
     }
   }
-  // Root route "/" → app/page.tsx (no group wrapper)
-  if (route === '/') return 'app/page.tsx'
-  // Fallback to existing regex-based logic
-  return existingRouteFsPath(route)
+
+  // Fallback: existing regex-based logic (isAuth, isMarketingRoute)
+  if (isAuth || (plan && getPageType(route, plan) === 'auth')) {
+    return resolve(projectRoot, 'app', '(auth)', slug || 'login', 'page.tsx')
+  }
+  if (isMarketingRoute(route)) {
+    return resolve(projectRoot, 'app', slug, 'page.tsx')
+  }
+  return resolve(projectRoot, 'app', '(app)', slug, 'page.tsx')
 }
+
+// routeToRelPath mirrors the same logic but returns relative paths
+export function routeToRelPath(route: string, isAuthOrPlan?: boolean | ArchitecturePlan): string
 ```
+
+Callers that currently pass `(projectRoot, route, isAuth)` continue to work unchanged (boolean third arg). Callers with a plan pass `(projectRoot, route, plan)` instead. Migration is incremental — callers without plan access keep using the boolean form.
 
 The root route `/` always stays at `app/page.tsx` (no group wrapper). Other routes are placed inside their group's directory: `app/(public)/features/page.tsx`, `app/(app)/dashboard/page.tsx`, `app/(auth)/login/page.tsx`.
 
@@ -194,9 +212,18 @@ The shared `DESIGN_QUALITY` rules that apply to ALL types (typography scale, col
 The prompt builder in `modifier.ts` selects the right block:
 
 ```typescript
+// inferPageTypeFromRoute: returns 'auth' if isAuthRoute(route), 'marketing' if isMarketingRoute(route), else 'app'
+function inferPageTypeFromRoute(route: string): 'marketing' | 'app' | 'auth' {
+  if (isAuthRoute(route)) return 'auth'
+  if (isMarketingRoute(route)) return 'marketing'
+  return 'app'
+}
+
 const pageType = plan ? getPageType(route, plan) : inferPageTypeFromRoute(route)
 const qualityBlock = `${DESIGN_QUALITY_COMMON}\n${getDesignQualityForType(pageType)}`
 ```
+
+The `PlannedComponentSchema.type` field (`'section'` vs `'widget'`) affects prompt guidance: section components are rendered as full-width page blocks (e.g., HeroSection spans the page width); widget components are used inline within page sections (e.g., StatCard is placed inside a grid).
 
 ### 5. Plan Generation Prompt
 
@@ -262,7 +289,9 @@ Replace `warnInlineDuplicates()` token-overlap logic:
 
 **Current**: Compare 600-char token snippets, fire if 12+ tokens overlap (massive false positives).
 
-**New**: Check against the plan. If the plan says `StatCard.usedBy` includes `"dashboard"` and the Dashboard page does NOT import `@/components/shared/stat-card`, emit a warning. If a page is NOT in a component's `usedBy`, skip the check entirely.
+**New**: Check against the plan. If the plan says `StatCard.usedBy` includes `"/dashboard"` and the Dashboard page does NOT import `@/components/shared/stat-card`, emit a warning. If a page is NOT in a component's `usedBy`, skip the check entirely.
+
+When no plan is available, the existing token-overlap logic runs unchanged (retained behind an `if (!plan)` gate).
 
 ### 8. Pre-Install shadcn Components from Plan
 
@@ -297,7 +326,7 @@ After plan generation, display a summary:
   Total: 13 pages, 2 shared components
 ```
 
-### 11. Remove normalizePageWrapper
+### 11. Scope normalizePageWrapper to App Pages Only
 
 With page-type-aware prompts, AI generates correct wrappers from the start:
 
