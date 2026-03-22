@@ -4,6 +4,7 @@ import { findConfig, exitNotCoherent, warnIfVolatile } from '../../utils/find-co
 import { DesignSystemManager, loadManifest, type DesignSystemConfig } from '@getcoherent/core'
 import { readFile } from '../../utils/files.js'
 import chalk from 'chalk'
+import { type ArchitecturePlan, getPageGroup } from './plan-generator.js'
 
 const MARKETING_ROUTES = new Set(['', 'landing', 'pricing', 'about', 'contact', 'blog', 'features'])
 
@@ -43,31 +44,41 @@ export function isMarketingRoute(route: string): boolean {
   return MARKETING_ROUTES.has(slug)
 }
 
-export function routeToFsPath(projectRoot: string, route: string, isAuth: boolean): string {
+export function routeToFsPath(
+  projectRoot: string,
+  route: string,
+  isAuthOrPlan?: boolean | ArchitecturePlan,
+): string {
+  const plan = typeof isAuthOrPlan === 'object' ? isAuthOrPlan : undefined
+  const isAuth = typeof isAuthOrPlan === 'boolean' ? isAuthOrPlan : false
   const slug = route.replace(/^\//, '')
-  if (isAuth) {
-    return resolve(projectRoot, 'app', '(auth)', slug || 'login', 'page.tsx')
+
+  if (!slug) return resolve(projectRoot, 'app', 'page.tsx')
+
+  if (plan) {
+    const group = getPageGroup(route, plan)
+    if (group) return resolve(projectRoot, 'app', `(${group.id})`, slug, 'page.tsx')
   }
-  if (!slug) {
-    return resolve(projectRoot, 'app', 'page.tsx')
-  }
-  if (isMarketingRoute(route)) {
-    return resolve(projectRoot, 'app', slug, 'page.tsx')
-  }
+
+  if (isAuth) return resolve(projectRoot, 'app', '(auth)', slug || 'login', 'page.tsx')
+  if (isMarketingRoute(route)) return resolve(projectRoot, 'app', slug, 'page.tsx')
   return resolve(projectRoot, 'app', '(app)', slug, 'page.tsx')
 }
 
-export function routeToRelPath(route: string, isAuth: boolean): string {
+export function routeToRelPath(route: string, isAuthOrPlan?: boolean | ArchitecturePlan): string {
+  const plan = typeof isAuthOrPlan === 'object' ? isAuthOrPlan : undefined
+  const isAuth = typeof isAuthOrPlan === 'boolean' ? isAuthOrPlan : false
   const slug = route.replace(/^\//, '')
-  if (isAuth) {
-    return `app/(auth)/${slug || 'login'}/page.tsx`
+
+  if (!slug) return 'app/page.tsx'
+
+  if (plan) {
+    const group = getPageGroup(route, plan)
+    if (group) return `app/(${group.id})/${slug}/page.tsx`
   }
-  if (!slug) {
-    return 'app/page.tsx'
-  }
-  if (isMarketingRoute(route)) {
-    return `app/${slug}/page.tsx`
-  }
+
+  if (isAuth) return `app/(auth)/${slug || 'login'}/page.tsx`
+  if (isMarketingRoute(route)) return `app/${slug}/page.tsx`
   return `app/(app)/${slug}/page.tsx`
 }
 

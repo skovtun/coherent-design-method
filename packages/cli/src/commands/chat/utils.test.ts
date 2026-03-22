@@ -2,7 +2,14 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { inferRouteUsesAuthSegment, readAnchorPageCodeFromDisk, MIN_ANCHOR_PAGE_CODE_CHARS } from './utils.js'
+import {
+  inferRouteUsesAuthSegment,
+  readAnchorPageCodeFromDisk,
+  MIN_ANCHOR_PAGE_CODE_CHARS,
+  routeToFsPath,
+  routeToRelPath,
+} from './utils.js'
+import { ArchitecturePlanSchema } from './plan-generator.js'
 
 describe('inferRouteUsesAuthSegment', () => {
   it('is true for login', () => {
@@ -54,5 +61,63 @@ describe('readAnchorPageCodeFromDisk', () => {
     writeFileSync(join(segment, 'page.tsx'), code, 'utf-8')
     const got = readAnchorPageCodeFromDisk(dir, '/dashboard')
     expect(got).toContain('p-4')
+  })
+})
+
+const testPlan = ArchitecturePlanSchema.parse({
+  groups: [
+    { id: 'public', layout: 'header', pages: ['/features'] },
+    { id: 'app', layout: 'sidebar', pages: ['/dashboard'] },
+    { id: 'auth', layout: 'none', pages: ['/login'] },
+  ],
+  sharedComponents: [],
+  pageNotes: {},
+})
+
+describe('routeToFsPath with plan', () => {
+  it('puts /dashboard in (app) group', () => {
+    const result = routeToFsPath('/tmp', '/dashboard', testPlan)
+    expect(result).toContain('(app)')
+    expect(result).toContain('dashboard')
+  })
+
+  it('puts /login in (auth) group', () => {
+    const result = routeToFsPath('/tmp', '/login', testPlan)
+    expect(result).toContain('(auth)')
+  })
+
+  it('puts /features in (public) group', () => {
+    const result = routeToFsPath('/tmp', '/features', testPlan)
+    expect(result).toContain('(public)')
+  })
+
+  it('root route always goes to app/page.tsx', () => {
+    const result = routeToFsPath('/tmp', '/', testPlan)
+    expect(result).toMatch(/app\/page\.tsx$/)
+    expect(result).not.toContain('(public)')
+  })
+
+  it('backward compat: boolean isAuth still works', () => {
+    const result = routeToFsPath('/tmp', '/login', true)
+    expect(result).toContain('(auth)')
+  })
+
+  it('backward compat: no third arg uses default behavior', () => {
+    const result = routeToFsPath('/tmp', '/dashboard')
+    expect(result).toContain('dashboard')
+    expect(result).toContain('page.tsx')
+  })
+})
+
+describe('routeToRelPath with plan', () => {
+  it('puts /dashboard in (app) group', () => {
+    const result = routeToRelPath('/dashboard', testPlan)
+    expect(result).toContain('(app)')
+    expect(result).toContain('dashboard')
+  })
+
+  it('backward compat: boolean isAuth still works', () => {
+    const result = routeToRelPath('/login', true)
+    expect(result).toContain('(auth)')
   })
 })
