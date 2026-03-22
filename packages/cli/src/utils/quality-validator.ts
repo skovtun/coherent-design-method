@@ -1153,10 +1153,7 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
 
   // Add variant="line" to TabsList for clean underline style
   const beforeTabsListFix = fixed
-  fixed = fixed.replace(
-    /<TabsList\b(?![^>]*variant=)/g,
-    '<TabsList variant="line"',
-  )
+  fixed = fixed.replace(/<TabsList\b(?![^>]*variant=)/g, '<TabsList variant="line"')
   if (fixed !== beforeTabsListFix) {
     fixes.push('added variant="line" to TabsList (clean underline style)')
   }

@@ -326,7 +326,17 @@ export function inferPageTypeFromRoute(route: string): 'marketing' | 'app' | 'au
     'forgot-password',
     'reset-password',
   ])
-  const marketingSlugs = new Set(['pricing', 'features', 'about', 'blog', 'contact', 'terms', 'privacy', 'landing', 'home'])
+  const marketingSlugs = new Set([
+    'pricing',
+    'features',
+    'about',
+    'blog',
+    'contact',
+    'terms',
+    'privacy',
+    'landing',
+    'home',
+  ])
 
   if (authSlugs.has(slug)) return 'auth'
   if (marketingSlugs.has(slug) || slug === '') return 'marketing'
