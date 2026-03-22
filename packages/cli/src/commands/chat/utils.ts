@@ -173,7 +173,8 @@ export async function warnInlineDuplicates(
       for (const t of sharedTokens) {
         if (pageTokens.includes(t)) overlap++
       }
-      if (overlap >= 12 && sharedTokens.size >= 10) {
+      const overlapRatio = sharedTokens.size > 0 ? overlap / sharedTokens.size : 0
+      if (overlap >= 20 && overlapRatio >= 0.6) {
         console.log(
           chalk.yellow(
             `\n⚠ Page "${pageName}" contains inline code similar to ${e.id} (${e.name}). Consider using the shared component instead.`,

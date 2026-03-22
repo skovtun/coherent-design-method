@@ -205,6 +205,56 @@ describe('warnInlineDuplicates with plan', () => {
     expect(consoleSpy).toHaveBeenCalled()
   })
 
+  it('does NOT false-positive warn when overlap is generic UI tokens', async () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const tmpDir = mkdtempSync(join(tmpdir(), 'warn-overlap-'))
+    const sharedDir = join(tmpDir, 'components', 'shared')
+    mkdirSync(sharedDir, { recursive: true })
+    // Realistic shared component with ~25 unique tokens
+    writeFileSync(
+      join(sharedDir, 'feature-card.tsx'),
+      `import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+export default function FeatureCard({ title, description, icon, badge }: Props) {
+  return (
+    <Card className="p-6 flex flex-col items-center text-center rounded-lg border shadow-sm">
+      <CardHeader><CardTitle className="text-lg font-semibold">{title}</CardTitle></CardHeader>
+      <CardDescription>{description}</CardDescription>
+      <CardContent className="flex-1"><Badge>{badge}</Badge></CardContent>
+      <CardFooter><Button variant="outline">Learn More</Button></CardFooter>
+    </Card>
+  )
+}`,
+    )
+    // Login page shares generic tokens (Card, CardContent, Button, import, export, etc.)
+    // but is semantically unrelated to FeatureCard. ~16 overlapping tokens out of ~35 shared tokens.
+    const pageCode = `import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+export default function LoginPage() {
+  return (
+    <Card className="flex">
+      <CardHeader><CardTitle>Login</CardTitle></CardHeader>
+      <CardContent>
+        <Input placeholder="Email" />
+        <Button>Submit</Button>
+      </CardContent>
+    </Card>
+  )
+}`
+    const manifest = {
+      shared: [
+        { id: 'CID-003', name: 'FeatureCard', type: 'widget', file: 'components/shared/feature-card.tsx' },
+      ],
+    }
+    await warnInlineDuplicates(tmpDir, 'Dashboard', '/dashboard', pageCode, manifest)
+    const warnings = consoleSpy.mock.calls.filter(c => String(c[0]).includes('FeatureCard'))
+    expect(warnings).toHaveLength(0)
+    consoleSpy.mockRestore()
+    rmSync(tmpDir, { recursive: true })
+  })
+
   it('does NOT warn when page is not in usedBy', async () => {
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
     const plan = ArchitecturePlanSchema.parse({
