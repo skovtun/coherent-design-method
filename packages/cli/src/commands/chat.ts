@@ -38,13 +38,7 @@ import {
 } from '../utils/self-heal.js'
 
 import { validatePageQuality } from '../utils/quality-validator.js'
-import {
-  requireProject,
-  loadConfig,
-  routeToFsPath,
-  resolveTargetFlags,
-  AUTH_SYNONYMS,
-} from './chat/utils.js'
+import { requireProject, loadConfig, routeToFsPath, resolveTargetFlags, AUTH_SYNONYMS } from './chat/utils.js'
 import { extractInternalLinks, normalizeRequest, applyDefaults, AUTH_FLOW_PATTERNS } from './chat/request-parser.js'
 import { splitGeneratePages, buildSharedComponentsSummary } from './chat/split-generator.js'
 import { savePlan } from './chat/plan-generator.js'
@@ -638,9 +632,10 @@ export async function chatCommand(
       const existingRoutes = new Set(currentConfig.pages.map(p => p.route).filter(Boolean))
       const expandedExisting = new Set(existingRoutes)
       for (const route of existingRoutes) {
-        for (const [synonym, canonical] of Object.entries(AUTH_SYNONYMS)) {
-          if (route === canonical) expandedExisting.add(synonym)
-          if (route === synonym) expandedExisting.add(canonical)
+        const canonical = AUTH_SYNONYMS[route] ?? route
+        expandedExisting.add(canonical)
+        for (const [syn, can] of Object.entries(AUTH_SYNONYMS)) {
+          if (can === canonical) expandedExisting.add(syn)
         }
       }
       const missingRoutes = [...allLinkedRoutes].filter(route => {

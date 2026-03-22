@@ -36,9 +36,12 @@ const PAGE_TYPE_SYNONYMS: Record<string, string> = {
   console: 'app',
   authentication: 'auth',
   login: 'auth',
+  'log-in': 'auth',
   register: 'auth',
   signin: 'auth',
+  'sign-in': 'auth',
   signup: 'auth',
+  'sign-up': 'auth',
 }
 
 const COMPONENT_TYPE_SYNONYMS: Record<string, string> = {
@@ -158,9 +161,7 @@ Navigation type requested: ${layoutHint || 'auto-detect'}`
         `Validation (attempt ${attempt + 1}): ${parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')}`,
       )
     } catch (err) {
-      warnings.push(
-        `Error (attempt ${attempt + 1}): ${err instanceof Error ? err.message : String(err)}`,
-      )
+      warnings.push(`Error (attempt ${attempt + 1}): ${err instanceof Error ? err.message : String(err)}`)
       if (attempt === 1) return { plan: null, warnings }
     }
   }
@@ -189,9 +190,7 @@ Update the existing plan to include these new pages. Keep all existing groups, c
     const issues = parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')
     console.warn(chalk.dim(`  Plan update validation failed: ${issues}`))
   } catch (err) {
-    console.warn(
-      chalk.dim(`  Plan update error: ${err instanceof Error ? err.message : String(err)}`),
-    )
+    console.warn(chalk.dim(`  Plan update error: ${err instanceof Error ? err.message : String(err)}`))
   }
 
   // Deterministic merge: append new pages to the largest group
