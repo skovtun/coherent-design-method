@@ -240,6 +240,7 @@ export const PAGE_TEMPLATES: Record<string, { description: string; sections: str
 const AUTH_ROUTE_SEGMENTS = new Set([
   'login',
   'signin',
+  'sign-in',
   'sign-up',
   'signup',
   'register',

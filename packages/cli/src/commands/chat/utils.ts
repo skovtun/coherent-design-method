@@ -11,7 +11,16 @@ const MARKETING_ROUTES = new Set(['', 'landing', 'pricing', 'about', 'contact', 
 /** Skip placeholder / near-empty root pages when reusing split-generation style anchor */
 export const MIN_ANCHOR_PAGE_CODE_CHARS = 120
 
-const AUTH_ROUTE_SLUGS = new Set(['login', 'register', 'forgot-password', 'reset-password', 'sign-up'])
+const AUTH_ROUTE_SLUGS = new Set([
+  'login',
+  'signin',
+  'sign-in',
+  'register',
+  'sign-up',
+  'signup',
+  'forgot-password',
+  'reset-password',
+])
 
 /**
  * Whether a route lives under `app/(auth)/` (not the same as `requiresAuth` on dashboard pages).

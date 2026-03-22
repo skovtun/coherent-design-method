@@ -17,6 +17,14 @@ describe('inferRouteUsesAuthSegment', () => {
     expect(inferRouteUsesAuthSegment('/login')).toBe(true)
   })
 
+  it('is true for sign-in', () => {
+    expect(inferRouteUsesAuthSegment('/sign-in')).toBe(true)
+  })
+
+  it('is true for signin', () => {
+    expect(inferRouteUsesAuthSegment('/signin')).toBe(true)
+  })
+
   it('is false for root', () => {
     expect(inferRouteUsesAuthSegment('/')).toBe(false)
   })
