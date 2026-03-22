@@ -324,12 +324,22 @@ if (pageType !== 'auth') {
 
 ### File: `packages/cli/src/commands/chat/modification-handler.ts`
 
-At `validatePageQuality` call sites, pass `pageType`. Since existing calls omit `validRoutes`, pass `undefined` explicitly to reach the 3rd parameter:
+There are **5** `validatePageQuality` call sites in this file. ALL must pass `pageType` to suppress NO_H1 on auth pages:
+
+- **Line ~641**: First quality check after page generation (add-page flow)
+- **Line ~655**: Recheck after AI quality fix attempt
+- **Line ~665**: Final recheck after applying fixed code
+- **Line ~864**: Quality check for update-page flow
+- **Line ~899**: Quality check for existing file update flow
+
+For each, derive `pageType` from plan or route heuristic (reuse existing `currentPlan` variable where available). Pass `undefined` for `validRoutes` since existing calls omit it:
 
 ```typescript
 const pageType = currentPlan ? getPageType(route, currentPlan) : inferPageTypeFromRoute(route)
 const issues = validatePageQuality(codeToWrite, undefined, pageType)
 ```
+
+Lines ~655 and ~665 must use the same `pageType` as ~641 (same page, same route). Lines ~864 and ~899 need their own `pageType` derivation from the `route` variable available in those branches.
 
 ### Tests
 
