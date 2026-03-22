@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   ArchitecturePlanSchema,
   routeToKey,
   getPageGroup,
   getPageType,
+  generateArchitecturePlan,
 } from './plan-generator.js'
 
 describe('routeToKey', () => {
@@ -122,5 +123,45 @@ describe('getPageType', () => {
 
   it('defaults to app for unknown page', () => {
     expect(getPageType('/unknown', plan)).toBe('app')
+  })
+})
+
+describe('generateArchitecturePlan', () => {
+  it('returns parsed plan from AI response', async () => {
+    const mockProvider = {
+      parseModification: vi.fn().mockResolvedValue({
+        appName: 'TestApp',
+        groups: [{ id: 'app', layout: 'sidebar', pages: ['/dashboard'] }],
+        sharedComponents: [],
+        pageNotes: { dashboard: { type: 'app', sections: ['Stats'] } },
+      }),
+    }
+
+    const result = await generateArchitecturePlan(
+      [{ name: 'Dashboard', id: 'dashboard', route: '/dashboard' }],
+      'Create a dashboard app',
+      mockProvider as any,
+      'sidebar',
+    )
+    expect(result?.appName).toBe('TestApp')
+    expect(result?.groups[0].id).toBe('app')
+  })
+
+  it('returns null on AI failure', async () => {
+    const mockProvider = {
+      parseModification: vi.fn().mockRejectedValue(new Error('fail')),
+    }
+
+    const result = await generateArchitecturePlan([], 'test', mockProvider as any, null)
+    expect(result).toBeNull()
+  })
+
+  it('returns null on invalid schema', async () => {
+    const mockProvider = {
+      parseModification: vi.fn().mockResolvedValue({ invalid: true }),
+    }
+
+    const result = await generateArchitecturePlan([], 'test', mockProvider as any, null)
+    expect(result).toBeNull()
   })
 })
