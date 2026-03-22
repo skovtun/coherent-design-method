@@ -615,12 +615,14 @@ export async function applyModification(
           }
 
           const manifestForAudit = await loadManifest(projectRoot)
+          const planForAudit = loadPlan(projectRoot)
           await warnInlineDuplicates(
             projectRoot,
             page.name || page.id || route.slice(1),
             route,
             codeToWrite,
             manifestForAudit,
+            planForAudit ?? undefined,
           )
 
           const relFilePath = routeToRelPath(route, isAuth)
@@ -836,12 +838,14 @@ export async function applyModification(
             }
 
             const manifestForAudit = await loadManifest(projectRoot)
+            const planForAudit2 = loadPlan(projectRoot)
             await warnInlineDuplicates(
               projectRoot,
               pageDef.name || pageDef.id || route.slice(1),
               route,
               codeToWrite,
               manifestForAudit,
+              planForAudit2 ?? undefined,
             )
 
             const relFilePath = routeToRelPath(route, isAuth)

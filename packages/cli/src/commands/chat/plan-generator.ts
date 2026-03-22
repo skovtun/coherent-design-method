@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
-import { resolve } from 'path'
+import { dirname, resolve } from 'path'
+import { mkdir, writeFile } from 'fs/promises'
 import type { AIProviderInterface } from '../../utils/ai-provider.js'
 
 export const RouteGroupSchema = z.object({
@@ -82,8 +83,7 @@ Navigation type requested: ${layoutHint || 'auto-detect'}`
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const raw = await aiProvider.parseModification(userPrompt)
-      const data = Array.isArray(raw) ? raw : raw
-      const parsed = ArchitecturePlanSchema.safeParse(data)
+      const parsed = ArchitecturePlanSchema.safeParse(raw)
       if (parsed.success) return parsed.data
     } catch {
       if (attempt === 1) return null
@@ -218,15 +218,11 @@ Return JSON with { requests: [{ type: "add-page", changes: { name: "ComponentNam
       )
       const code = (match?.changes as Record<string, string>)?.pageCode
       if (code && code.includes('export default')) {
-        results.push({
-          name: comp.name,
-          code,
-          file: `components/shared/${toKebabCase(comp.name)}.tsx`,
-        })
+        const file = `components/shared/${toKebabCase(comp.name)}.tsx`
+        results.push({ name: comp.name, code, file })
       }
     }
   } catch {
-    // batch call failed — try individual components
     for (const comp of plan.sharedComponents) {
       try {
         const singlePrompt = `Generate a React component: ${comp.name} — ${comp.description}. Props: ${comp.props}. shadcn deps: ${comp.shadcnDeps.join(', ') || 'none'}. Style: ${styleContext || 'default'}. Return { requests: [{ type: "add-page", changes: { name: "${comp.name}", pageCode: "..." } }] }`
@@ -237,16 +233,19 @@ Return JSON with { requests: [{ type: "add-page", changes: { name: "ComponentNam
         )
         const code = match?.changes?.pageCode
         if (code && code.includes('export default')) {
-          results.push({
-            name: comp.name,
-            code,
-            file: `components/shared/${toKebabCase(comp.name)}.tsx`,
-          })
+          const file = `components/shared/${toKebabCase(comp.name)}.tsx`
+          results.push({ name: comp.name, code, file })
         }
       } catch {
         // skip this component
       }
     }
+  }
+
+  for (const comp of results) {
+    const fullPath = resolve(projectRoot, comp.file)
+    await mkdir(dirname(fullPath), { recursive: true })
+    await writeFile(fullPath, comp.code, 'utf-8')
   }
 
   return results
