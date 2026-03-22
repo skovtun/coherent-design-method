@@ -28,20 +28,22 @@ Each enum field gets a synonym map. Pattern: `z.string().transform(normalize).pi
 
 ```
 Synonyms → Canonical:
-  "horizontal", "top", "nav", "navbar"      → "header"
-  "vertical", "left", "side"                → "sidebar"
-  "full", "combined"                        → "both"
-  "empty", "minimal", "clean"               → "none"
+  "horizontal", "top", "nav", "navbar", "topbar", "top-bar" → "header"
+  "vertical", "left", "side", "drawer"                      → "sidebar"
+  "full", "combined"                                        → "both"
+  "empty", "minimal", "clean"                               → "none"
 ```
 
 #### `PageNoteSchema.type`
 
 ```
 Synonyms → Canonical:
-  "landing", "public", "home", "website"    → "marketing"
-  "application", "dashboard", "admin", "panel" → "app"
+  "landing", "public", "home", "website", "static"          → "marketing"
+  "application", "dashboard", "admin", "panel", "console"   → "app"
   "authentication", "login", "register", "signin", "signup" → "auth"
 ```
+
+Note: `"public"` maps to `"marketing"` because in the plan context it refers to unauthenticated landing/marketing pages, not "public API". This is the dominant AI interpretation given the prompt context.
 
 #### `PlannedComponentSchema.type`
 
@@ -51,7 +53,9 @@ Synonyms → Canonical:
   "page-section", "hero", "feature", "area" → "section"
 ```
 
-Each map is a `Record<string, string>`. The normalize function: `(v: string) => MAP[v.toLowerCase()] ?? v.toLowerCase()`. If the value is already canonical, it passes through. If it's an unknown synonym not in the map, `z.enum().pipe()` will still reject it — but the most common AI variations are covered.
+Each map is a `Record<string, string>`. The normalize function: `(v: string) => MAP[v.trim().toLowerCase()] ?? v.trim().toLowerCase()`. The `.trim()` guards against whitespace-padded values. If the value is already canonical, it passes through unchanged. If it's an unknown synonym not in the map, the downstream `z.enum()` inside `.pipe()` will still reject it — but the most common AI variations are covered.
+
+The Zod chain works as: input string → `.transform(normalize)` produces a normalized string → `.pipe(z.enum([...]))` validates the normalized string against the allowed values.
 
 ### 2. Safe Defaults
 
@@ -68,50 +72,89 @@ These defaults mean a partially valid AI response can still produce a usable pla
 
 ### 3. Diagnostic Logging
 
-Inside `generateArchitecturePlan`, when `safeParse` fails:
+Diagnostics are collected as strings and returned alongside the result, rather than emitting `console.warn` directly. This avoids garbled output when an `ora` spinner is active in the caller (`split-generator.ts`).
+
+#### Approach: collect-and-return
+
+`generateArchitecturePlan` returns `{ plan, warnings }` instead of just `plan`:
 
 ```typescript
-if (!parsed.success) {
-  const issues = parsed.error.issues
-    .map(i => `${i.path.join('.')}: ${i.message}`)
-    .join('; ')
-  console.warn(chalk.dim(`  Plan validation (attempt ${attempt + 1}): ${issues}`))
+interface PlanResult {
+  plan: ArchitecturePlan | null
+  warnings: string[]
 }
 ```
 
-Inside the `catch` block:
+Inside the function, warnings accumulate:
+
+```typescript
+const warnings: string[] = []
+
+// on safeParse failure:
+if (!parsed.success) {
+  warnings.push(`Validation (attempt ${attempt + 1}): ${parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')}`)
+}
+
+// on catch:
+catch (err) {
+  warnings.push(`Error (attempt ${attempt + 1}): ${err instanceof Error ? err.message : String(err)}`)
+}
+
+return { plan, warnings }
+```
+
+The caller in `split-generator.ts` logs warnings **after** stopping the spinner:
+
+```typescript
+const { plan: generatedPlan, warnings } = await generateArchitecturePlan(...)
+plan = generatedPlan
+if (plan) {
+  spinner.succeed('Phase 2/6 — Architecture plan created')
+} else {
+  spinner.warn('Phase 2/6 — Plan generation failed (continuing without plan)')
+}
+for (const w of warnings) {
+  console.log(chalk.dim(`  ${w}`))
+}
+```
+
+This ensures no output during spinner animation.
+
+#### `updateArchitecturePlan`
+
+Same pattern: the `catch` block before the deterministic merge logs a warning. Since `updateArchitecturePlan` always returns a plan (via merge fallback), warnings are informational:
 
 ```typescript
 catch (err) {
-  const msg = err instanceof Error ? err.message : String(err)
-  console.warn(chalk.dim(`  Plan generation error (attempt ${attempt + 1}): ${msg}`))
-  if (attempt === 1) return null
+  console.warn(chalk.dim(`  Plan update via AI failed, using deterministic merge: ${err instanceof Error ? err.message : String(err)}`))
 }
 ```
 
-This uses `chalk.dim` for quiet output that doesn't alarm users but provides essential diagnostics for debugging. `ora` spinners support interleaved `console.warn` output.
+`updateArchitecturePlan` is called outside of a spinner context, so direct `console.warn` is safe here.
 
 ## Files Changed
 
 | File | Change |
 |---|---|
-| `packages/cli/src/commands/chat/plan-generator.ts` | Synonym maps, schema transforms, defaults, diagnostic logging |
-| `packages/cli/src/commands/chat/plan-generator.test.ts` | Tests for synonym normalization, defaults, and diagnostic paths |
+| `packages/cli/src/commands/chat/plan-generator.ts` | Synonym maps, schema transforms, defaults, diagnostic logging, `PlanResult` return type |
+| `packages/cli/src/commands/chat/plan-generator.test.ts` | Tests for synonym normalization, defaults, diagnostic warnings, and `updateArchitecturePlan` schema relaxation |
+| `packages/cli/src/commands/chat/split-generator.ts` | Adapt to `PlanResult` return type, log warnings after spinner |
 
 ## What Does NOT Change
 
-- `split-generator.ts` — no changes needed; the `catch` block there remains as backup
 - `ArchitecturePlan` TypeScript type — output types remain identical (transforms normalize inputs, not outputs)
 - All consumers of `loadPlan`, `savePlan`, `getPageType`, `getPageGroup` — unchanged
 - The `PLAN_SYSTEM_PROMPT` — unchanged; transforms handle AI non-compliance
 
 ## Testing
 
-1. **Synonym normalization** — verify each synonym map entry normalizes correctly
-2. **Unknown values** — verify that truly invalid values (e.g., `layout: "foobar"`) still fail validation
-3. **Missing fields with defaults** — verify a plan with missing `props`, `description`, `sharedComponents` still parses
-4. **Diagnostic logging** — verify `console.warn` is called on validation failure
-5. **End-to-end** — verify a realistic Claude response with mixed synonyms parses successfully
+1. **Synonym normalization** — verify each synonym map entry normalizes correctly (all three enums)
+2. **Whitespace trimming** — verify `" sidebar "` normalizes to `"sidebar"`
+3. **Unknown values** — verify that truly invalid values (e.g., `layout: "foobar"`) still fail validation
+4. **Missing fields with defaults** — verify a plan with missing `props`, `description`, `sharedComponents`, `pageNotes` still parses
+5. **Diagnostic warnings** — verify `generateArchitecturePlan` returns warnings array on validation failure
+6. **End-to-end** — verify a realistic Claude response with mixed synonyms parses successfully
+7. **`updateArchitecturePlan` with relaxed schema** — verify that `updateArchitecturePlan` benefits from the same schema relaxations (synonym normalization and defaults)
 
 ## Risks
 
