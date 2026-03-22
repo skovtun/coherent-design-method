@@ -9,7 +9,7 @@ import {
   generateSharedComponent,
 } from '@getcoherent/core'
 import type { GenerateSharedComponentResult } from '@getcoherent/core'
-import { parseModification } from '../../agents/modifier.js'
+import { parseModification, buildLightweightPagePrompt } from '../../agents/modifier.js'
 import { summarizePageAnalysis } from '../../utils/page-analyzer.js'
 import { extractPageNamesFromMessage, inferRelatedPages, impliesFullWebsite } from './request-parser.js'
 import { deduplicatePages, readAnchorPageCodeFromDisk } from './utils.js'
@@ -359,11 +359,17 @@ export async function splitGeneratePages(
       const pageName = (page.name as string) || (page.id as string) || 'page'
       const pageRoute = (page.route as string) || `/${pageName.toLowerCase()}`
       try {
+        const lightweightPrompt = buildLightweightPagePrompt(
+          pageName,
+          pageRoute,
+          styleContext || '',
+          parseOpts.sharedComponentsSummary,
+        )
         const retryResult = await parseModification(
-          `Create ONE page called "${pageName}" at route "${pageRoute}". Context: ${message}. Generate complete pageCode for this single page only.`,
+          lightweightPrompt,
           modCtx,
           provider,
-          parseOpts,
+          { ...parseOpts, lightweight: true },
         )
         const codePage = retryResult.requests.find((r: ModificationRequest) => r.type === 'add-page')
         if (codePage && (codePage.changes as Record<string, unknown>)?.pageCode) {

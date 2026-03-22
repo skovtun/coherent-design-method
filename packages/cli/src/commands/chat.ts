@@ -42,7 +42,7 @@ import { requireProject, loadConfig, routeToFsPath, resolveTargetFlags } from '.
 import { extractInternalLinks, normalizeRequest, applyDefaults, AUTH_FLOW_PATTERNS } from './chat/request-parser.js'
 import { splitGeneratePages, buildSharedComponentsSummary } from './chat/split-generator.js'
 import { applyModification } from './chat/modification-handler.js'
-import { regenerateFiles } from './chat/code-generator.js'
+import { regenerateFiles, scanAndInstallSharedDeps } from './chat/code-generator.js'
 import { takeNavSnapshot, hasNavChanged } from '../utils/nav-snapshot.js'
 import { loadHashes, saveHashes, computeFileHash } from '../utils/file-hashes.js'
 import { showPreview, getChangeDescription } from './chat/reporting.js'
@@ -807,6 +807,11 @@ export async function chatCommand(
       spinner.start('Regenerating affected files...')
       await regenerateFiles(Array.from(allModified), updatedConfig, projectRoot, { navChanged, storedHashes })
       spinner.succeed('Files regenerated')
+    }
+
+    const finalDeps = await scanAndInstallSharedDeps(projectRoot)
+    if (finalDeps.length > 0) {
+      console.log(chalk.dim(`  Auto-installed shared deps: ${finalDeps.join(', ')}`))
     }
 
     try {

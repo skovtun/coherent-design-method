@@ -37,6 +37,7 @@ export interface ParseModificationResult {
 export interface ParseModificationOptions {
   sharedComponentsSummary?: string
   planOnly?: boolean
+  lightweight?: boolean
 }
 
 export async function parseModification(
@@ -53,6 +54,12 @@ export async function parseModification(
     const requestsArray = Array.isArray(raw) ? raw : (raw?.requests ?? [])
     const navigation = !Array.isArray(raw) && raw?.navigation ? (raw.navigation as { type: string }) : undefined
     return { requests: requestsArray as ModificationRequest[], uxRecommendations: undefined, navigation }
+  }
+
+  if (options?.lightweight) {
+    const raw = await ai.parseModification(message)
+    const requestsArray = Array.isArray(raw) ? raw : (raw?.requests ?? [])
+    return { requests: requestsArray as ModificationRequest[], uxRecommendations: undefined }
   }
 
   const componentRegistry = buildComponentRegistry(context.componentManager)
