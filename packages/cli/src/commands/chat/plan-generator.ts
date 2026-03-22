@@ -115,7 +115,7 @@ export function getPageType(route: string, plan: ArchitecturePlan): 'marketing' 
   return (plan.pageNotes[routeToKey(route)]?.type as 'marketing' | 'app' | 'auth') ?? 'app'
 }
 
-const PLAN_SYSTEM_PROMPT = `You are a UI architect. Given a list of pages for a web application, create a Component Architecture Plan.
+const PLAN_SYSTEM_PROMPT = `You are a UI architect. Given a list of pages for a web application, create a Component Architecture Plan as JSON.
 
 Your task:
 1. Group pages by navigation context (e.g., public marketing pages, authenticated app pages, auth flows)
@@ -131,7 +131,31 @@ Rules:
 - Cross-page links: map link labels to target routes (e.g., {"Sign in": "/login"})
 - Maximum 8 shared components
 
-Respond with valid JSON matching the schema.`
+Respond with EXACTLY this JSON structure (use these exact field names):
+
+{
+  "appName": "MyApp",
+  "groups": [
+    { "id": "public", "layout": "header", "pages": ["/", "/pricing"] },
+    { "id": "app", "layout": "sidebar", "pages": ["/dashboard", "/settings"] },
+    { "id": "auth", "layout": "none", "pages": ["/login", "/register"] }
+  ],
+  "sharedComponents": [
+    {
+      "name": "StatCard",
+      "description": "Displays a single metric with label and value",
+      "props": "{ label: string; value: string; icon?: React.ReactNode }",
+      "usedBy": ["/dashboard", "/projects"],
+      "type": "widget",
+      "shadcnDeps": ["card"]
+    }
+  ],
+  "pageNotes": {
+    "home": { "type": "marketing", "sections": ["Hero", "Features", "Pricing"], "links": { "Sign in": "/login" } },
+    "dashboard": { "type": "app", "sections": ["Stats row", "Recent tasks", "Activity feed"] },
+    "login": { "type": "auth", "sections": ["Login form"] }
+  }
+}`
 
 export interface PlanResult {
   plan: ArchitecturePlan | null
