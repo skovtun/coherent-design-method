@@ -1,10 +1,15 @@
 import { describe, it, expect, vi } from 'vitest'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs'
+import { join } from 'path'
+import { tmpdir } from 'os'
 import {
   ArchitecturePlanSchema,
   routeToKey,
   getPageGroup,
   getPageType,
   generateArchitecturePlan,
+  savePlan,
+  loadPlan,
 } from './plan-generator.js'
 
 describe('routeToKey', () => {
@@ -163,5 +168,56 @@ describe('generateArchitecturePlan', () => {
 
     const result = await generateArchitecturePlan([], 'test', mockProvider as any, null)
     expect(result).toBeNull()
+  })
+})
+
+describe('savePlan / loadPlan', () => {
+  it('saves and loads plan from .coherent/plan.json', () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), 'plan-'))
+    mkdirSync(join(tmpDir, '.coherent'), { recursive: true })
+    const plan = ArchitecturePlanSchema.parse({
+      groups: [{ id: 'app', layout: 'sidebar', pages: ['/dash'] }],
+      sharedComponents: [],
+      pageNotes: {},
+    })
+    savePlan(tmpDir, plan)
+    const loaded = loadPlan(tmpDir)
+    expect(loaded?.groups[0].id).toBe('app')
+    rmSync(tmpDir, { recursive: true })
+  })
+
+  it('loadPlan returns null when file missing', () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), 'plan-missing-'))
+    expect(loadPlan(tmpDir)).toBeNull()
+    rmSync(tmpDir, { recursive: true })
+  })
+
+  it('loadPlan returns null on corrupt JSON', () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), 'plan-corrupt-'))
+    mkdirSync(join(tmpDir, '.coherent'), { recursive: true })
+    writeFileSync(join(tmpDir, '.coherent', 'plan.json'), 'not json')
+    expect(loadPlan(tmpDir)).toBeNull()
+    rmSync(tmpDir, { recursive: true })
+  })
+
+  it('savePlan clears cached plan', () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), 'plan-cache-'))
+    mkdirSync(join(tmpDir, '.coherent'), { recursive: true })
+    const planV1 = ArchitecturePlanSchema.parse({
+      groups: [{ id: 'v1', layout: 'sidebar', pages: ['/a'] }],
+      sharedComponents: [],
+      pageNotes: {},
+    })
+    const planV2 = ArchitecturePlanSchema.parse({
+      groups: [{ id: 'v2', layout: 'header', pages: ['/b'] }],
+      sharedComponents: [],
+      pageNotes: {},
+    })
+    savePlan(tmpDir, planV1)
+    loadPlan(tmpDir) // populates cache
+    savePlan(tmpDir, planV2) // must clear cache
+    const loaded = loadPlan(tmpDir)
+    expect(loaded?.groups[0].id).toBe('v2')
+    rmSync(tmpDir, { recursive: true })
   })
 })

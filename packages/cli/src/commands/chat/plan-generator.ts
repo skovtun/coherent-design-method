@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { resolve } from 'path'
 import type { AIProviderInterface } from '../../utils/ai-provider.js'
 
 export const RouteGroupSchema = z.object({
@@ -88,4 +90,31 @@ Navigation type requested: ${layoutHint || 'auto-detect'}`
     }
   }
   return null
+}
+
+let cachedPlan: { path: string; plan: ArchitecturePlan } | null = null
+
+export function savePlan(projectRoot: string, plan: ArchitecturePlan): void {
+  cachedPlan = null
+  const dir = resolve(projectRoot, '.coherent')
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(resolve(dir, 'plan.json'), JSON.stringify(plan, null, 2))
+}
+
+export function loadPlan(projectRoot: string): ArchitecturePlan | null {
+  const planPath = resolve(projectRoot, '.coherent', 'plan.json')
+
+  if (cachedPlan?.path === planPath) return cachedPlan.plan
+
+  if (!existsSync(planPath)) return null
+
+  try {
+    const raw = JSON.parse(readFileSync(planPath, 'utf-8'))
+    const parsed = ArchitecturePlanSchema.safeParse(raw)
+    if (!parsed.success) return null
+    cachedPlan = { path: planPath, plan: parsed.data }
+    return parsed.data
+  } catch {
+    return null
+  }
 }
