@@ -282,7 +282,7 @@ export default function AppLayout({
 `
 }
 
-export function buildGroupLayoutCode(layout: string, pages: string[]): string {
+export function buildGroupLayoutCode(layout: string, _pages: string[]): string {
   if (layout === 'sidebar' || layout === 'both') {
     return `import { Sidebar } from '@/components/shared/sidebar'
 

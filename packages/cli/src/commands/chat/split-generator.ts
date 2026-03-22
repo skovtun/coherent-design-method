@@ -18,6 +18,7 @@ import { createAIProvider, type AIProvider } from '../../utils/ai-provider.js'
 import { getComponentProvider } from '../../providers/index.js'
 import { autoFixCode } from '../../utils/quality-validator.js'
 import { isAuthRoute } from '../../agents/page-templates.js'
+import chalk from 'chalk'
 import { getDesignQualityForType, inferPageTypeFromRoute } from '../../agents/design-constraints.js'
 import type { ArchitecturePlan } from './plan-generator.js'
 import { generateArchitecturePlan, getPageType } from './plan-generator.js'
@@ -135,11 +136,9 @@ ${sharedComponentsSummary}`
 export function formatPlanSummary(plan: ArchitecturePlan): string {
   if (plan.groups.length === 0) return ''
 
-  const groupLines = plan.groups.map(
-    (g) => `  Group "${g.id}" (layout: ${g.layout}): ${g.pages.join(', ')}`,
-  )
+  const groupLines = plan.groups.map(g => `  Group "${g.id}" (layout: ${g.layout}): ${g.pages.join(', ')}`)
   const compLines = plan.sharedComponents.map(
-    (c) => `  ${c.name} (${c.type}) — ${c.description}; usedBy: ${c.usedBy.join(', ')}`,
+    c => `  ${c.name} (${c.type}) — ${c.description}; usedBy: ${c.usedBy.join(', ')}`,
   )
 
   const parts = [`ARCHITECTURE PLAN:\nGroups:\n${groupLines.join('\n')}`]
@@ -206,7 +205,7 @@ export async function splitGeneratePages(
   }
   if (pageNames.length === 0) {
     spinner.fail('Could not determine pages to create')
-    return []
+    return { requests: [], plan: null }
   }
 
   pageNames = deduplicatePages(pageNames)
@@ -243,9 +242,10 @@ export async function splitGeneratePages(
       plan = await generateArchitecturePlan(pageNames, message, ai, layoutHint)
       if (plan) {
         const groupsSummary = plan.groups.map(g => `${g.id} (${g.layout}, ${g.pages.length} pages)`).join(', ')
-        const sharedSummary = plan.sharedComponents.length > 0
-          ? plan.sharedComponents.map(c => `${c.name} → ${c.usedBy.join(', ')}`).join(' | ')
-          : ''
+        const sharedSummary =
+          plan.sharedComponents.length > 0
+            ? plan.sharedComponents.map(c => `${c.name} → ${c.usedBy.join(', ')}`).join(' | ')
+            : ''
         const totalPages = plan.groups.reduce((sum, g) => sum + g.pages.length, 0)
         spinner.succeed(`Phase 2/6 — Architecture plan created`)
         console.log(chalk.dim(`  Groups: ${groupsSummary}`))

@@ -53,11 +53,7 @@ export function isMarketingRoute(route: string): boolean {
   return MARKETING_ROUTES.has(slug)
 }
 
-export function routeToFsPath(
-  projectRoot: string,
-  route: string,
-  isAuthOrPlan?: boolean | ArchitecturePlan,
-): string {
+export function routeToFsPath(projectRoot: string, route: string, isAuthOrPlan?: boolean | ArchitecturePlan): string {
   const plan = typeof isAuthOrPlan === 'object' ? isAuthOrPlan : undefined
   const isAuth = typeof isAuthOrPlan === 'boolean' ? isAuthOrPlan : false
   const slug = route.replace(/^\//, '')
@@ -130,7 +126,7 @@ export async function warnInlineDuplicates(
 
   // Build a set of component names this page should use (from plan)
   const plannedForPage = plan
-    ? new Set(plan.sharedComponents.filter((c) => c.usedBy.includes(route)).map((c) => c.name))
+    ? new Set(plan.sharedComponents.filter(c => c.usedBy.includes(route)).map(c => c.name))
     : null
 
   for (const e of sectionOrWidget) {

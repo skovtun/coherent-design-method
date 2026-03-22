@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import {
-  getDesignQualityForType,
-  inferPageTypeFromRoute,
-  DESIGN_QUALITY_COMMON,
-} from './design-constraints.js'
+import { getDesignQualityForType, inferPageTypeFromRoute, DESIGN_QUALITY_COMMON } from './design-constraints.js'
 
 describe('getDesignQualityForType', () => {
   it('returns marketing constraints with generous spacing', () => {

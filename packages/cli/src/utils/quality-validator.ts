@@ -645,7 +645,7 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
   }
   fixed = fixed
     .split('\n')
-    .map((line) => {
+    .map(line => {
       let l = line
       l = l.replace(/&lt;=/g, (m, offset) => (isInsideAttrValue(line, offset) ? m : '<='))
       l = l.replace(/&gt;=/g, (m, offset) => (isInsideAttrValue(line, offset) ? m : '>='))

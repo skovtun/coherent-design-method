@@ -40,7 +40,7 @@ export function routeToKey(route: string): string {
 }
 
 export function getPageGroup(route: string, plan: ArchitecturePlan): RouteGroup | undefined {
-  return plan.groups.find((g) => g.pages.includes(route))
+  return plan.groups.find(g => g.pages.includes(route))
 }
 
 export function getPageType(route: string, plan: ArchitecturePlan): 'marketing' | 'app' | 'auth' {
@@ -73,7 +73,7 @@ export async function generateArchitecturePlan(
 ): Promise<ArchitecturePlan | null> {
   const userPrompt = `${PLAN_SYSTEM_PROMPT}
 
-Pages: ${pages.map((p) => `${p.name} (${p.route})`).join(', ')}
+Pages: ${pages.map(p => `${p.name} (${p.route})`).join(', ')}
 
 User's request: "${userMessage}"
 
@@ -103,7 +103,7 @@ export async function updateArchitecturePlan(
 Existing plan:
 ${JSON.stringify(existingPlan, null, 2)}
 
-New pages to integrate: ${newPages.map((p) => `${p.name} (${p.route})`).join(', ')}
+New pages to integrate: ${newPages.map(p => `${p.name} (${p.route})`).join(', ')}
 
 User's request: "${userMessage}"
 
@@ -125,7 +125,7 @@ Update the existing plan to include these new pages. Keep all existing groups, c
   )
 
   for (const page of newPages) {
-    const alreadyPlaced = merged.groups.some((g) => g.pages.includes(page.route))
+    const alreadyPlaced = merged.groups.some(g => g.pages.includes(page.route))
     if (!alreadyPlaced && largestGroup) {
       largestGroup.pages.push(page.route)
     }
@@ -185,7 +185,7 @@ export async function generateSharedComponentsFromPlan(
 
   const componentSpecs = plan.sharedComponents
     .map(
-      (c) =>
+      c =>
         `- ${c.name}: ${c.description}. Props: ${c.props}. Type: ${c.type}. shadcn deps: ${c.shadcnDeps.join(', ') || 'none'}`,
     )
     .join('\n')
@@ -214,7 +214,7 @@ Return JSON with { requests: [{ type: "add-page", changes: { name: "ComponentNam
 
     for (const comp of plan.sharedComponents) {
       const match = (requests as Array<{ type: string; changes: Record<string, unknown> }>).find(
-        (r) => r.type === 'add-page' && (r.changes as Record<string, string>)?.name === comp.name,
+        r => r.type === 'add-page' && (r.changes as Record<string, string>)?.name === comp.name,
       )
       const code = (match?.changes as Record<string, string>)?.pageCode
       if (code && code.includes('export default')) {
@@ -233,7 +233,7 @@ Return JSON with { requests: [{ type: "add-page", changes: { name: "ComponentNam
         const raw = await aiProvider.parseModification(singlePrompt)
         const requests = Array.isArray(raw) ? raw : (raw?.requests ?? [])
         const match = (requests as Array<{ type: string; changes: Record<string, string> }>).find(
-          (r) => r.type === 'add-page' && r.changes?.name === comp.name,
+          r => r.type === 'add-page' && r.changes?.name === comp.name,
         )
         const code = match?.changes?.pageCode
         if (code && code.includes('export default')) {

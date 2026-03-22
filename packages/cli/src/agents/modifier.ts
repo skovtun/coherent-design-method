@@ -469,9 +469,7 @@ export function buildLightweightPagePrompt(
   sharedComponentsSummary?: string,
   pageType?: 'marketing' | 'app' | 'auth',
 ): string {
-  const designConstraints = pageType
-    ? getDesignQualityForType(pageType)
-    : ''
+  const designConstraints = pageType ? getDesignQualityForType(pageType) : ''
   return [
     `Generate complete pageCode for a page called "${pageName}" at route "${route}".`,
     `Output valid TSX with a default export React component.`,

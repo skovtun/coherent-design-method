@@ -152,9 +152,7 @@ describe('warnInlineDuplicates with plan', () => {
       pageNotes: {},
     })
     const manifest = {
-      shared: [
-        { id: 'CID-001', name: 'StatCard', type: 'widget', file: 'components/shared/stat-card.tsx' },
-      ],
+      shared: [{ id: 'CID-001', name: 'StatCard', type: 'widget', file: 'components/shared/stat-card.tsx' }],
     }
     await warnInlineDuplicates(
       '/tmp',
@@ -183,18 +181,9 @@ describe('warnInlineDuplicates with plan', () => {
       pageNotes: {},
     })
     const manifest = {
-      shared: [
-        { id: 'CID-001', name: 'StatCard', type: 'widget', file: 'components/shared/stat-card.tsx' },
-      ],
+      shared: [{ id: 'CID-001', name: 'StatCard', type: 'widget', file: 'components/shared/stat-card.tsx' }],
     }
-    await warnInlineDuplicates(
-      '/tmp',
-      'Dashboard',
-      '/dashboard',
-      'export default function Page() {}',
-      manifest,
-      plan,
-    )
+    await warnInlineDuplicates('/tmp', 'Dashboard', '/dashboard', 'export default function Page() {}', manifest, plan)
     expect(consoleSpy).not.toHaveBeenCalled()
   })
 })
