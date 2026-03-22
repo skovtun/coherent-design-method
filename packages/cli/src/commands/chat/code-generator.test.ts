@@ -4,10 +4,13 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import {
   buildAppLayoutCode,
+  buildGroupLayoutCode,
   ensureAppRouteGroupLayout,
+  ensurePlanGroupLayouts,
   regenerateComponent,
   scanAndInstallSharedDeps,
 } from './code-generator.js'
+import { ArchitecturePlanSchema } from './plan-generator.js'
 
 vi.mock('../../providers/index.js', () => ({
   getComponentProvider: vi.fn(() => ({
@@ -187,5 +190,62 @@ describe('scanAndInstallSharedDeps', () => {
 
     const result = await scanAndInstallSharedDeps(tmpDir)
     expect(result).toEqual([])
+  })
+})
+
+describe('buildGroupLayoutCode', () => {
+  it('generates header layout for header group', () => {
+    const code = buildGroupLayoutCode('header', ['/features', '/pricing'])
+    expect(code).toContain('max-w-7xl')
+    expect(code).not.toContain('Sidebar')
+  })
+
+  it('generates sidebar layout for sidebar group', () => {
+    const code = buildGroupLayoutCode('sidebar', ['/dashboard', '/tasks'])
+    expect(code).toContain('Sidebar')
+    expect(code).toContain('flex')
+  })
+
+  it('generates centered wrapper for none layout', () => {
+    const code = buildGroupLayoutCode('none', ['/login'])
+    expect(code).toContain('children')
+    expect(code).not.toContain('Sidebar')
+    expect(code).not.toContain('max-w-7xl')
+  })
+})
+
+describe('ensurePlanGroupLayouts', () => {
+  let tmpDir: string
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'plan-layout-'))
+  })
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true })
+  })
+
+  it('creates layout files for each plan group', async () => {
+    const plan = ArchitecturePlanSchema.parse({
+      groups: [
+        { id: 'public', layout: 'header', pages: ['/features'] },
+        { id: 'app', layout: 'sidebar', pages: ['/dashboard'] },
+        { id: 'auth', layout: 'none', pages: ['/login'] },
+      ],
+      sharedComponents: [],
+      pageNotes: {},
+    })
+
+    await ensurePlanGroupLayouts(tmpDir, plan)
+
+    const publicLayout = readFileSync(join(tmpDir, 'app', '(public)', 'layout.tsx'), 'utf-8')
+    expect(publicLayout).toContain('max-w-7xl')
+
+    const appLayout = readFileSync(join(tmpDir, 'app', '(app)', 'layout.tsx'), 'utf-8')
+    expect(appLayout).toContain('Sidebar')
+
+    const authLayout = readFileSync(join(tmpDir, 'app', '(auth)', 'layout.tsx'), 'utf-8')
+    expect(authLayout).toContain('children')
+    expect(authLayout).not.toContain('Sidebar')
   })
 })

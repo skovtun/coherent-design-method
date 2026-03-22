@@ -13,6 +13,7 @@ import {
   type PageDefinition,
 } from '@getcoherent/core'
 import { isAuthRoute } from '../../agents/page-templates.js'
+import type { ArchitecturePlan } from './plan-generator.js'
 import { integrateSharedLayoutIntoRootLayout, generateSharedComponent } from '@getcoherent/core'
 import { ensureAuthRouteGroup } from '../../utils/auth-route-group.js'
 import chalk from 'chalk'
@@ -279,6 +280,65 @@ export default function AppLayout({
   )
 }
 `
+}
+
+export function buildGroupLayoutCode(layout: string, pages: string[]): string {
+  if (layout === 'sidebar' || layout === 'both') {
+    return `import { Sidebar } from '@/components/shared/sidebar'
+
+export default function GroupLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex min-h-[calc(100vh-3.5rem)]">
+      <Sidebar />
+      <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6">
+        {children}
+      </main>
+    </div>
+  )
+}
+`
+  }
+
+  if (layout === 'none') {
+    return `export default function GroupLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return <>{children}</>
+}
+`
+  }
+
+  // header (default)
+  return `export default function GroupLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <main className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+      {children}
+    </main>
+  )
+}
+`
+}
+
+export async function ensurePlanGroupLayouts(projectRoot: string, plan: ArchitecturePlan): Promise<void> {
+  const { mkdir: mkdirAsync } = await import('fs/promises')
+
+  for (const group of plan.groups) {
+    const groupDir = resolve(projectRoot, 'app', `(${group.id})`)
+    await mkdirAsync(groupDir, { recursive: true })
+    const layoutPath = resolve(groupDir, 'layout.tsx')
+    const code = buildGroupLayoutCode(group.layout, group.pages)
+    await writeFile(layoutPath, code)
+  }
 }
 
 export async function regenerateFiles(
