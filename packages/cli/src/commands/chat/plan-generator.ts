@@ -72,9 +72,7 @@ export async function generateArchitecturePlan(
   aiProvider: AIProviderInterface,
   layoutHint: string | null,
 ): Promise<ArchitecturePlan | null> {
-  const userPrompt = `${PLAN_SYSTEM_PROMPT}
-
-Pages: ${pages.map(p => `${p.name} (${p.route})`).join(', ')}
+  const userPrompt = `Pages: ${pages.map(p => `${p.name} (${p.route})`).join(', ')}
 
 User's request: "${userMessage}"
 
@@ -82,7 +80,7 @@ Navigation type requested: ${layoutHint || 'auto-detect'}`
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const raw = await aiProvider.parseModification(userPrompt)
+      const raw = await aiProvider.generateJSON(PLAN_SYSTEM_PROMPT, userPrompt)
       const parsed = ArchitecturePlanSchema.safeParse(raw)
       if (parsed.success) return parsed.data
     } catch {
@@ -98,9 +96,7 @@ export async function updateArchitecturePlan(
   userMessage: string,
   aiProvider: AIProviderInterface,
 ): Promise<ArchitecturePlan> {
-  const prompt = `${PLAN_SYSTEM_PROMPT}
-
-Existing plan:
+  const userPrompt = `Existing plan:
 ${JSON.stringify(existingPlan, null, 2)}
 
 New pages to integrate: ${newPages.map(p => `${p.name} (${p.route})`).join(', ')}
@@ -110,7 +106,7 @@ User's request: "${userMessage}"
 Update the existing plan to include these new pages. Keep all existing groups, components, and pageNotes. Add the new pages to appropriate groups and add pageNotes for them.`
 
   try {
-    const raw = await aiProvider.parseModification(prompt)
+    const raw = await aiProvider.generateJSON(PLAN_SYSTEM_PROMPT, userPrompt)
     const parsed = ArchitecturePlanSchema.safeParse(raw)
     if (parsed.success) return parsed.data
   } catch {

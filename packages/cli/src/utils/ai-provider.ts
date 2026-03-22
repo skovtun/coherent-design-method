@@ -37,6 +37,8 @@ export interface SharedExtractionItem {
 export interface AIProviderInterface {
   generateConfig(discovery: DiscoveryResult): Promise<DesignSystemConfig>
   parseModification(prompt: string): Promise<ParseModificationOutput>
+  /** Send a system+user prompt and return raw parsed JSON (no requests wrapper). */
+  generateJSON(systemPrompt: string, userPrompt: string): Promise<unknown>
   testConnection(): Promise<boolean>
   /** Edit shared component source by instruction (Epic 2). Returns full new file content. */
   editSharedComponentCode?(currentCode: string, instruction: string, componentName: string): Promise<string>

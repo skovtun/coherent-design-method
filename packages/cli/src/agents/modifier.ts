@@ -336,7 +336,7 @@ pageCode rules (shadcn/ui blocks quality):
 - Full Next.js App Router page. Imports from '@/components/ui/...' for registry components.
 - Follow ALL design constraints above: text-sm base, semantic colors only, restricted spacing, weight-based hierarchy.
 - Stat card pattern: Card > CardHeader(flex flex-row items-center justify-between space-y-0 pb-2) > CardTitle(text-sm font-medium) + Icon(size-4 text-muted-foreground) ; CardContent > metric(text-2xl font-bold) + change(text-xs text-muted-foreground).
-- Login/form pattern: outer div(flex min-h-svh flex-col items-center justify-center p-6 md:p-10) > inner div(w-full max-w-sm) > Card with form.
+- Login/form pattern: outer div(flex min-h-svh flex-col items-center justify-center p-6 md:p-10) > inner div(w-full max-w-md) > Card with form.
 - Dashboard pattern: div(space-y-6) > page header(h1 text-2xl font-bold tracking-tight + p text-sm text-muted-foreground) > stats grid(grid gap-4 md:grid-cols-2 lg:grid-cols-4) > content cards. No <main> wrapper — the layout provides it.
 - No placeholders: real contextual copy only. Use the EXACT text, language, and content from the user's request.
 - IMAGES: For avatar/profile photos, use https://i.pravatar.cc/150?u=<unique-seed> (e.g. ?u=sarah.johnson). For hero/product images, use https://picsum.photos/800/400?random=N. Use standard <img> tags with className, NOT Next.js <Image>. Always provide alt text.

@@ -9,8 +9,48 @@ import {
   routeToFsPath,
   routeToRelPath,
   warnInlineDuplicates,
+  deduplicatePages,
 } from './utils.js'
 import { ArchitecturePlanSchema } from './plan-generator.js'
+
+describe('deduplicatePages', () => {
+  it('deduplicates /signup and /register to a single page (signup first)', () => {
+    const pages = [
+      { name: 'Signup', id: 'signup', route: '/signup' },
+      { name: 'Register', id: 'register', route: '/register' },
+    ]
+    const out = deduplicatePages(pages)
+    expect(out).toHaveLength(1)
+    expect(out[0]!.route).toBe('/signup')
+  })
+
+  it('deduplicates /sign-up and /registration', () => {
+    const pages = [
+      { name: 'Sign Up', id: 'sign-up', route: '/sign-up' },
+      { name: 'Registration', id: 'registration', route: '/registration' },
+    ]
+    const out = deduplicatePages(pages)
+    expect(out).toHaveLength(1)
+  })
+
+  it('deduplicates /login and /signin to a single page (login first)', () => {
+    const pages = [
+      { name: 'Login', id: 'login', route: '/login' },
+      { name: 'Signin', id: 'signin', route: '/signin' },
+    ]
+    const out = deduplicatePages(pages)
+    expect(out).toHaveLength(1)
+    expect(out[0]!.route).toBe('/login')
+  })
+
+  it('does not merge distinct non-auth routes', () => {
+    const pages = [
+      { name: 'About', id: 'about', route: '/about' },
+      { name: 'Dashboard', id: 'dashboard', route: '/dashboard' },
+    ]
+    expect(deduplicatePages(pages)).toHaveLength(2)
+  })
+})
 
 describe('inferRouteUsesAuthSegment', () => {
   it('is true for login', () => {

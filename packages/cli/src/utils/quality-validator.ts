@@ -94,7 +94,11 @@ function checkLines(
   return issues
 }
 
-export function validatePageQuality(code: string, validRoutes?: string[]): QualityIssue[] {
+export function validatePageQuality(
+  code: string,
+  validRoutes?: string[],
+  pageType?: 'marketing' | 'app' | 'auth',
+): QualityIssue[] {
   const issues: QualityIssue[] = []
 
   // Skip RAW_COLOR inside terminal/code block contexts
@@ -281,22 +285,24 @@ export function validatePageQuality(code: string, validRoutes?: string[]): Quali
     ),
   )
 
-  // NO_H1: page should have exactly one h1
-  const h1Matches = code.match(/<h1[\s>]/g)
-  if (!h1Matches || h1Matches.length === 0) {
-    issues.push({
-      line: 0,
-      type: 'NO_H1',
-      message: 'Page has no <h1> — every page should have exactly one h1 heading',
-      severity: 'warning',
-    })
-  } else if (h1Matches.length > 1) {
-    issues.push({
-      line: 0,
-      type: 'MULTIPLE_H1',
-      message: `Page has ${h1Matches.length} <h1> elements — use exactly one per page`,
-      severity: 'warning',
-    })
+  // NO_H1: page should have exactly one h1 (auth pages use CardTitle etc.)
+  if (pageType !== 'auth') {
+    const h1Matches = code.match(/<h1[\s>]/g)
+    if (!h1Matches || h1Matches.length === 0) {
+      issues.push({
+        line: 0,
+        type: 'NO_H1',
+        message: 'Page has no <h1> — every page should have exactly one h1 heading',
+        severity: 'warning',
+      })
+    } else if (h1Matches.length > 1) {
+      issues.push({
+        line: 0,
+        type: 'MULTIPLE_H1',
+        message: `Page has ${h1Matches.length} <h1> elements — use exactly one per page`,
+        severity: 'warning',
+      })
+    }
   }
 
   // SKIPPED_HEADING: detect heading level gaps (h1→h3 without h2)
@@ -509,6 +515,34 @@ export function validatePageQuality(code: string, validRoutes?: string[]): Quali
   return issues
 }
 
+export interface AutoFixContext {
+  currentRoute?: string
+  knownRoutes?: string[]
+  linkMap?: Record<string, string>
+}
+
+function resolveHref(linkText: string, context?: AutoFixContext): string {
+  if (!context) return '/'
+  const text = linkText.trim().toLowerCase()
+
+  if (context.linkMap) {
+    for (const [label, route] of Object.entries(context.linkMap)) {
+      if (label.toLowerCase() === text) return route
+    }
+  }
+
+  if (context.knownRoutes) {
+    const cleaned = text.replace(/^(back\s+to|go\s+to|view\s+all|see\s+all|return\s+to)\s+/i, '').trim()
+    for (const route of context.knownRoutes) {
+      const slug = route.split('/').filter(Boolean).pop() || ''
+      const routeName = slug.replace(/[-_]/g, ' ')
+      if (routeName && cleaned === routeName) return route
+    }
+  }
+
+  return '/'
+}
+
 function replaceRawColors(classes: string, colorMap: Record<string, string>): { result: string; changed: boolean } {
   let changed = false
   let result = classes
@@ -611,7 +645,7 @@ function replaceRawColors(classes: string, colorMap: Record<string, string>): { 
  * Auto-fix simple, safe issues in generated code.
  * Returns { code, fixes } where fixes lists what was changed.
  */
-export async function autoFixCode(code: string): Promise<{ code: string; fixes: string[] }> {
+export async function autoFixCode(code: string, context?: AutoFixContext): Promise<{ code: string; fixes: string[] }> {
   const fixes: string[] = []
   let fixed = code
 
@@ -1084,11 +1118,16 @@ export async function autoFixCode(code: string): Promise<{ code: string; fixes: 
     fixes.push('added inline-flex to Button asChild children (base-ui compat)')
   }
 
-  // Fix <Link> and <a> without href — add href="/" as safe default
+  // Fix <Link> and <a> without href — smart resolution with fallback to "/"
   const beforeLinkHrefFix = fixed
-  fixed = fixed.replace(/<(Link|a)\b(?![^>]*\bhref\s*=)([^>]*)>/g, '<$1 href="/"$2>')
+  fixed = fixed.replace(/<(Link|a)\b(?![^>]*\bhref\s*=)([^>]*)>([\s\S]*?)<\/\1>/g, (_match, tag, attrs, children) => {
+    const textContent = children.replace(/<[^>]*>/g, '').trim()
+    const href = resolveHref(textContent, context)
+    return `<${tag} href="${href}"${attrs}>${children}</${tag}>`
+  })
+  fixed = fixed.replace(/<(Link|a)\b(?![^>]*\bhref\s*=)([^>]*)\/?>/g, '<$1 href="/"$2>')
   if (fixed !== beforeLinkHrefFix) {
-    fixes.push('added href="/" to <Link>/<a> missing href')
+    fixes.push('added href to <Link>/<a> missing href')
   }
 
   // Fix shadcn component variant misuse (e.g. Button without variant="ghost" in nav)

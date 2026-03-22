@@ -402,7 +402,7 @@ export async function splitGeneratePages(
       const pageType = plan ? getPageType(route, plan) : inferPageTypeFromRoute(route)
       const designConstraints = getDesignQualityForType(pageType)
       const authNote = isAuth
-        ? 'For this auth page: use centered card layout with outer div className="flex min-h-svh flex-col items-center justify-center p-6 md:p-10" and inner div className="w-full max-w-sm". Do NOT use section containers or full-width wrappers. The auth layout provides centering — just output the card content.'
+        ? 'For this auth page: use centered card layout with outer div className="flex min-h-svh flex-col items-center justify-center p-6 md:p-10" and inner div className="w-full max-w-md". Do NOT use section containers or full-width wrappers. The auth layout provides centering — just output the card content.'
         : undefined
 
       const prompt = [

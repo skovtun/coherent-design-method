@@ -149,6 +149,30 @@ CRITICAL: All string values in JSON must be on one line. Escape double quotes in
     }
   }
 
+  async generateJSON(systemPrompt: string, userPrompt: string): Promise<unknown> {
+    const response = await this.client.chat.completions.create({
+      model: this.defaultModel,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.3,
+      max_tokens: 16384,
+    })
+
+    if (response.choices[0]?.finish_reason === 'length') {
+      const err = new Error('AI response truncated (max_tokens reached)')
+      ;(err as any).code = 'RESPONSE_TRUNCATED'
+      throw err
+    }
+
+    const content = response.choices[0]?.message?.content
+    if (!content) throw new Error('Empty response from OpenAI API')
+
+    return JSON.parse(this.extractJSON(content))
+  }
+
   /**
    * Test API connection
    */

@@ -21,7 +21,12 @@ import { isAuthRoute } from '../../agents/page-templates.js'
 import { ensureAuthRouteGroup } from '../../utils/auth-route-group.js'
 import { createAIProvider } from '../../utils/ai-provider.js'
 import { readFile, writeFile } from '../../utils/files.js'
-import { CORE_CONSTRAINTS, DESIGN_QUALITY, selectContextualRules } from '../../agents/design-constraints.js'
+import {
+  CORE_CONSTRAINTS,
+  DESIGN_QUALITY,
+  selectContextualRules,
+  inferPageTypeFromRoute,
+} from '../../agents/design-constraints.js'
 import { getComponentProvider } from '../../providers/index.js'
 import {
   validatePageQuality,
@@ -29,6 +34,7 @@ import {
   autoFixCode,
   checkDesignConsistency,
   verifyIncrementalEdit,
+  type AutoFixContext,
 } from '../../utils/quality-validator.js'
 import { writeCursorRules } from '../../utils/cursor-rules.js'
 import { analyzePageCode } from '../../utils/page-analyzer.js'
@@ -48,7 +54,7 @@ import {
   printPromoteAndLinkReport,
 } from './reporting.js'
 import { buildExistingPagesContext } from './split-generator.js'
-import { loadPlan, getPageType } from './plan-generator.js'
+import { loadPlan, getPageType, routeToKey } from './plan-generator.js'
 
 const DEBUG = process.env.COHERENT_DEBUG === '1'
 
@@ -570,7 +576,18 @@ export async function applyModification(
             isPage: true,
           })
           let codeToWrite = fixedCode
-          const { code: autoFixed, fixes: autoFixes } = await autoFixCode(codeToWrite)
+          const currentPlan = projectRoot ? loadPlan(projectRoot) : null
+          const autoFixCtx: AutoFixContext | undefined = route
+            ? {
+                currentRoute: route,
+                knownRoutes: dsm
+                  .getConfig()
+                  .pages.map((p: any) => p.route)
+                  .filter(Boolean),
+                linkMap: currentPlan?.pageNotes[routeToKey(route)]?.links,
+              }
+            : undefined
+          const { code: autoFixed, fixes: autoFixes } = await autoFixCode(codeToWrite, autoFixCtx)
           codeToWrite = autoFixed
           const hasDashboardPage = dsm.getConfig().pages.some((p: any) => p.route === '/dashboard')
           if (!hasDashboardPage) {
@@ -582,7 +599,7 @@ export async function applyModification(
           }
           const { code: layoutStripped, stripped } = stripInlineLayoutElements(codeToWrite)
           codeToWrite = layoutStripped
-          const currentPlan = projectRoot ? loadPlan(projectRoot) : null
+          const qualityPageType = currentPlan ? getPageType(route, currentPlan) : inferPageTypeFromRoute(route)
           const pageType = currentPlan
             ? getPageType(route, currentPlan)
             : isMarketingRoute(route)
@@ -638,7 +655,7 @@ export async function applyModification(
             allShared: manifestForAudit.shared,
           })
 
-          let issues = validatePageQuality(codeToWrite)
+          let issues = validatePageQuality(codeToWrite, undefined, qualityPageType)
           const errors = issues.filter(i => i.severity === 'error')
 
           if (errors.length >= 2 && aiProvider) {
@@ -652,17 +669,17 @@ export async function applyModification(
                 const instruction = `Fix these quality issues:\n${errorList}\n\nRules:\n- Replace raw Tailwind colors (bg-emerald-500, text-zinc-400, etc.) with semantic tokens (bg-primary, text-muted-foreground, bg-muted, etc.)\n- Ensure heading hierarchy (h1 → h2 → h3, no skipping)\n- Add Label components for form inputs\n- Keep all existing functionality and layout intact`
                 const fixedCode = await ai.editPageCode(codeToWrite, instruction, page.name || page.id || 'Page')
                 if (fixedCode && fixedCode.length > 100 && /export\s+default/.test(fixedCode)) {
-                  const recheck = validatePageQuality(fixedCode)
+                  const recheck = validatePageQuality(fixedCode, undefined, qualityPageType)
                   const recheckErrors = recheck.filter(i => i.severity === 'error')
                   if (recheckErrors.length < errors.length) {
                     codeToWrite = fixedCode
-                    const { code: reFixed, fixes: reFixes } = await autoFixCode(codeToWrite)
+                    const { code: reFixed, fixes: reFixes } = await autoFixCode(codeToWrite, autoFixCtx)
                     if (reFixes.length > 0) {
                       codeToWrite = reFixed
                       postFixes.push(...reFixes)
                     }
                     await writeFile(filePath, codeToWrite)
-                    issues = validatePageQuality(codeToWrite)
+                    issues = validatePageQuality(codeToWrite, undefined, qualityPageType)
                     const finalErrors = issues.filter(i => i.severity === 'error').length
                     console.log(chalk.green(`   ✔ Quality fix: ${errors.length} → ${finalErrors} errors`))
                   }
@@ -793,7 +810,18 @@ export async function applyModification(
               isPage: true,
             })
             let codeToWrite = fixedCode
-            const { code: autoFixed, fixes: autoFixes } = await autoFixCode(codeToWrite)
+            const currentPlan2 = projectRoot ? loadPlan(projectRoot) : null
+            const autoFixCtx2: AutoFixContext | undefined = route
+              ? {
+                  currentRoute: route,
+                  knownRoutes: dsm
+                    .getConfig()
+                    .pages.map((p: any) => p.route)
+                    .filter(Boolean),
+                  linkMap: currentPlan2?.pageNotes[routeToKey(route)]?.links,
+                }
+              : undefined
+            const { code: autoFixed, fixes: autoFixes } = await autoFixCode(codeToWrite, autoFixCtx2)
             codeToWrite = autoFixed
             const hasDashboardPage = dsm.getConfig().pages.some((p: any) => p.route === '/dashboard')
             if (!hasDashboardPage) {
@@ -805,7 +833,7 @@ export async function applyModification(
             }
             const { code: layoutStripped, stripped } = stripInlineLayoutElements(codeToWrite)
             codeToWrite = layoutStripped
-            const currentPlan2 = projectRoot ? loadPlan(projectRoot) : null
+            const qualityPageType2 = currentPlan2 ? getPageType(route, currentPlan2) : inferPageTypeFromRoute(route)
             const pageType2 = currentPlan2
               ? getPageType(route, currentPlan2)
               : isMarketingRoute(route)
@@ -861,7 +889,7 @@ export async function applyModification(
               layoutShared: manifestForAudit.shared.filter(c => c.type === 'layout'),
             })
 
-            const issues = validatePageQuality(codeToWrite)
+            const issues = validatePageQuality(codeToWrite, undefined, qualityPageType2)
             const report = formatIssues(issues)
             if (report) {
               console.log(chalk.yellow(`\n🔍 Quality check for ${pageDef.name || pageDef.id}:`))
@@ -876,7 +904,18 @@ export async function applyModification(
           } else {
             try {
               let code = await readFile(absPath)
-              const { code: fixed, fixes } = await autoFixCode(code)
+              const currentPlanForElse = projectRoot ? loadPlan(projectRoot) : null
+              const autoFixCtxElse: AutoFixContext | undefined = route
+                ? {
+                    currentRoute: route,
+                    knownRoutes: dsm
+                      .getConfig()
+                      .pages.map((p: any) => p.route)
+                      .filter(Boolean),
+                    linkMap: currentPlanForElse?.pageNotes[routeToKey(route)]?.links,
+                  }
+                : undefined
+              const { code: fixed, fixes } = await autoFixCode(code, autoFixCtxElse)
               if (fixes.length > 0) {
                 code = fixed
                 await writeFile(absPath, code)
@@ -896,7 +935,11 @@ export async function applyModification(
                 layoutShared: manifest.shared.filter(c => c.type === 'layout'),
               })
 
-              const issues = validatePageQuality(code)
+              const currentPlanForQuality = currentPlanForElse
+              const pageTypeForQuality = currentPlanForQuality
+                ? getPageType(route, currentPlanForQuality)
+                : inferPageTypeFromRoute(route)
+              const issues = validatePageQuality(code, undefined, pageTypeForQuality)
               const report = formatIssues(issues)
               if (report) {
                 console.log(chalk.yellow(`\n🔍 Quality check for ${pageDef.name || pageDef.id}:`))

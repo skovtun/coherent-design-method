@@ -1,8 +1,8 @@
 import type { ModificationRequest, DesignSystemConfig, ComponentDefinition, PageDefinition } from '@getcoherent/core'
 
 export const AUTH_FLOW_PATTERNS: Record<string, string[]> = {
-  '/login': ['/register', '/forgot-password'],
-  '/signin': ['/register', '/forgot-password'],
+  '/login': ['/signup', '/forgot-password'],
+  '/signin': ['/signup', '/forgot-password'],
   '/signup': ['/login'],
   '/register': ['/login'],
   '/forgot-password': ['/login', '/reset-password'],
@@ -53,8 +53,12 @@ export function inferRelatedPages(
 ): Array<{ name: string; id: string; route: string }> {
   const plannedRoutes = new Set(plannedPages.map(p => p.route))
   const inferred: Array<{ name: string; id: string; route: string }> = []
+  const queue = [...plannedPages]
+  let i = 0
 
-  for (const { route } of plannedPages) {
+  while (i < queue.length) {
+    const { route } = queue[i++]
+
     const authRelated = AUTH_FLOW_PATTERNS[route]
     if (authRelated) {
       for (const rel of authRelated) {
@@ -64,7 +68,9 @@ export function inferRelatedPages(
             .split('-')
             .map(w => w.charAt(0).toUpperCase() + w.slice(1))
             .join(' ')
-          inferred.push({ id: slug, name, route: rel })
+          const page = { id: slug, name, route: rel }
+          inferred.push(page)
+          queue.push(page)
           plannedRoutes.add(rel)
         }
       }
@@ -75,6 +81,7 @@ export function inferRelatedPages(
         for (const rel of rule.related) {
           if (!plannedRoutes.has(rel.route)) {
             inferred.push(rel)
+            queue.push(rel)
             plannedRoutes.add(rel.route)
           }
         }
@@ -105,7 +112,7 @@ export function extractPageNamesFromMessage(message: string): Array<{ name: stri
     settings: '/settings',
     account: '/account',
     'personal account': '/account',
-    registration: '/registration',
+    registration: '/signup',
     signup: '/signup',
     'sign up': '/signup',
     login: '/login',

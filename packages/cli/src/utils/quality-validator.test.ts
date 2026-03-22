@@ -42,6 +42,34 @@ describe('validatePageQuality', () => {
     const issues = validatePageQuality(code)
     expect(issues.some(i => i.type === 'TEXT_BASE')).toBe(true)
   })
+
+  it('does not report NO_H1 for auth pages', () => {
+    const code = `export default function LoginPage() {
+  return (
+    <div className="flex min-h-svh items-center justify-center">
+      <Card><CardTitle>Sign In</CardTitle></Card>
+    </div>
+  )
+}`
+    const issues = validatePageQuality(code, undefined, 'auth')
+    expect(issues.find(i => i.type === 'NO_H1')).toBeUndefined()
+  })
+
+  it('still reports NO_H1 for app pages without h1', () => {
+    const code = `export default function DashboardPage() {
+  return <div><p>Dashboard content</p></div>
+}`
+    const issues = validatePageQuality(code, undefined, 'app')
+    expect(issues.find(i => i.type === 'NO_H1')).toBeDefined()
+  })
+
+  it('still reports NO_H1 when pageType is omitted (backward compat)', () => {
+    const code = `export default function Page() {
+  return <div><p>Content</p></div>
+}`
+    const issues = validatePageQuality(code)
+    expect(issues.find(i => i.type === 'NO_H1')).toBeDefined()
+  })
 })
 
 describe('autoFixCode', () => {
@@ -566,6 +594,46 @@ export default function Page() {
     const { code: fixed } = await autoFixCode(code)
     expect(fixed).toContain('inline-flex')
     expect(fixed).toContain('items-center')
+  })
+})
+
+describe('smart href resolution', () => {
+  it('resolves href from linkMap', async () => {
+    const code = '<Link>Sign in</Link>'
+    const { code: fixed } = await autoFixCode(code, {
+      linkMap: { 'Sign in': '/login' },
+    })
+    expect(fixed).toContain('href="/login"')
+  })
+
+  it('resolves href from known routes by page name', async () => {
+    const code = '<Link>Dashboard</Link>'
+    const { code: fixed } = await autoFixCode(code, {
+      knownRoutes: ['/dashboard', '/tasks'],
+    })
+    expect(fixed).toContain('href="/dashboard"')
+  })
+
+  it('strips "Back to" prefix when matching routes', async () => {
+    const code = '<Link>Back to Projects</Link>'
+    const { code: fixed } = await autoFixCode(code, {
+      knownRoutes: ['/projects', '/dashboard'],
+    })
+    expect(fixed).toContain('href="/projects"')
+  })
+
+  it('falls back to / when no context provided', async () => {
+    const code = '<Link>Click here</Link>'
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('href="/"')
+  })
+
+  it('falls back to / when no match found in context', async () => {
+    const code = '<Link>Something random</Link>'
+    const { code: fixed } = await autoFixCode(code, {
+      knownRoutes: ['/dashboard'],
+    })
+    expect(fixed).toContain('href="/"')
   })
 })
 

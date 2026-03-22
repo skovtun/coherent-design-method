@@ -194,7 +194,9 @@ export function showPreview(
       const route = page.route || '/'
       console.log(chalk.white(`   ✨ ${page.name || 'Page'}`))
       console.log(chalk.gray(`      Route: ${route}`))
-      console.log(chalk.gray(`      Sections: ${page.sections?.length ?? 0}`))
+      const configPage = config.pages?.find((p: any) => p.id === page.id || p.route === (page.route || '/'))
+      const sectionCount = (configPage as any)?.pageAnalysis?.sections?.length ?? page.sections?.length ?? 0
+      console.log(chalk.gray(`      Sections: ${sectionCount}`))
     })
     console.log('')
   }

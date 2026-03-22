@@ -73,7 +73,7 @@ LAYOUT PATTERNS:
 - Stats/KPI grid: grid gap-4 md:grid-cols-2 lg:grid-cols-4
 - Card grid (3 col): grid gap-4 md:grid-cols-3
 - Full-height page: min-h-svh (not min-h-screen)
-- Centered form (login/signup): flex min-h-svh flex-col items-center justify-center p-6 md:p-10 → div w-full max-w-sm
+- Centered form (login/signup): flex min-h-svh flex-col items-center justify-center p-6 md:p-10 → div w-full max-w-md
 - Page content wrapper: flex flex-1 flex-col gap-4 p-4 lg:p-6
 - Responsive: primary md: and lg:. Use sm:/xl: only when genuinely needed. Avoid 2xl:. NEVER arbitrary like min-[800px].
 
@@ -249,6 +249,12 @@ const DESIGN_QUALITY_APP = `
 - Stats grid: grid gap-4 md:grid-cols-2 lg:grid-cols-4
 - Content: functional, scannable, data-dense
 
+### Toolbars & Filters
+- Filter row: flex flex-wrap items-center gap-2
+- Search input: MUST use flex-1 to fill remaining horizontal space
+- Filters/selects: fixed width (w-[180px] or auto), do NOT flex-grow
+- On mobile (sm:): search full width, filters wrap to next line
+
 NEVER include marketing sections (hero, pricing, testimonials) on app pages.
 `
 
@@ -261,12 +267,21 @@ const DESIGN_QUALITY_AUTH = `
 
 ### Layout
 - Centered card: flex min-h-svh items-center justify-center p-6 md:p-10
-- Card width: w-full max-w-sm
+- Card width: w-full max-w-md
 - No navigation, no section containers, no sidebar
 - Single focused form with clear CTA
 - Card → CardHeader (title + description) → CardContent (form) → CardFooter (link to other auth page)
 
 NEVER include navigation bars, sidebars, or multi-section layouts on auth pages.
+`
+
+const DESIGN_QUALITY_CRITICAL = `
+## CRITICAL CODE RULES (violations will be auto-corrected)
+- Every lucide-react icon MUST have className="... shrink-0" to prevent flex squishing
+- Button with asChild wrapping Link: the inner element MUST have className="inline-flex items-center gap-2"
+- NEVER use raw Tailwind colors (bg-blue-500, text-gray-600). ONLY semantic tokens: bg-primary, text-muted-foreground, etc.
+- <Link> and <a> MUST always have an href attribute. Never omit href.
+- CardTitle: NEVER add text-xl, text-2xl, text-lg. CardTitle is text-sm font-medium by default.
 `
 
 /**
@@ -276,11 +291,11 @@ NEVER include navigation bars, sidebars, or multi-section layouts on auth pages.
 export function getDesignQualityForType(type: 'marketing' | 'app' | 'auth'): string {
   switch (type) {
     case 'marketing':
-      return DESIGN_QUALITY_MARKETING
+      return DESIGN_QUALITY_MARKETING + DESIGN_QUALITY_CRITICAL
     case 'app':
-      return DESIGN_QUALITY_APP
+      return DESIGN_QUALITY_APP + DESIGN_QUALITY_CRITICAL
     case 'auth':
-      return DESIGN_QUALITY_AUTH
+      return DESIGN_QUALITY_AUTH + DESIGN_QUALITY_CRITICAL
   }
 }
 

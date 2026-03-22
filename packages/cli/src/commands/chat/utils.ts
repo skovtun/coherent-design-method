@@ -87,10 +87,19 @@ export function routeToRelPath(route: string, isAuthOrPlan?: boolean | Architect
   return `app/(app)/${slug}/page.tsx`
 }
 
+const AUTH_SYNONYMS: Record<string, string> = {
+  '/register': '/signup',
+  '/registration': '/signup',
+  '/sign-up': '/signup',
+  '/signin': '/login',
+  '/sign-in': '/login',
+}
+
 export function deduplicatePages(
   pages: Array<{ name: string; id: string; route: string }>,
 ): Array<{ name: string; id: string; route: string }> {
-  const normalize = (route: string) => route.replace(/\/$/, '').replace(/s$/, '').replace(/ue$/, '')
+  const canonicalize = (route: string) => AUTH_SYNONYMS[route] || route
+  const normalize = (route: string) => canonicalize(route).replace(/\/$/, '').replace(/s$/, '').replace(/ue$/, '')
   const seen = new Map<string, number>()
   return pages.filter((page, idx) => {
     const norm = normalize(page.route)

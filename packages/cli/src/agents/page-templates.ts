@@ -19,7 +19,7 @@ export const PAGE_TEMPLATES: Record<string, { description: string; sections: str
   login: {
     description: 'Login page with centered card form',
     sections: [
-      'Centered layout: outer div className="flex min-h-svh flex-col items-center justify-center p-6 md:p-10". Inner div className="w-full max-w-sm".',
+      'Centered layout: outer div className="flex min-h-svh flex-col items-center justify-center p-6 md:p-10". Inner div className="w-full max-w-md".',
       'Card with CardHeader: CardTitle "Sign in" (text-2xl font-bold), CardDescription "Enter your credentials to access your account" (text-sm text-muted-foreground).',
       'CardContent with form: email Input (type="email", placeholder="you@example.com"), password Input (type="password"), a "Forgot password?" link (text-sm text-muted-foreground hover:text-foreground), and a Button "Sign in" (w-full).',
       'CardFooter: text "Don\'t have an account?" with a Sign up link. All text is text-sm text-muted-foreground.',
@@ -41,7 +41,7 @@ export const PAGE_TEMPLATES: Record<string, { description: string; sections: str
   register: {
     description: 'Registration page with centered card form',
     sections: [
-      'Centered layout: outer div className="flex min-h-svh flex-col items-center justify-center p-6 md:p-10". Inner div className="w-full max-w-sm".',
+      'Centered layout: outer div className="flex min-h-svh flex-col items-center justify-center p-6 md:p-10". Inner div className="w-full max-w-md".',
       'Card with CardHeader: CardTitle "Create an account" (text-2xl font-bold), CardDescription "Enter your details to get started" (text-sm text-muted-foreground).',
       'CardContent with form: name Input, email Input (type="email"), password Input (type="password"), confirm password Input (type="password"), and a Button "Create account" (w-full).',
       'CardFooter: text "Already have an account?" with a Sign in link. All text is text-sm text-muted-foreground.',
@@ -226,7 +226,7 @@ export const PAGE_TEMPLATES: Record<string, { description: string; sections: str
   'reset-password': {
     description: 'Reset password page with centered card form',
     sections: [
-      'Centered layout: outer div className="flex min-h-svh flex-col items-center justify-center p-6 md:p-10". Inner div className="w-full max-w-sm".',
+      'Centered layout: outer div className="flex min-h-svh flex-col items-center justify-center p-6 md:p-10". Inner div className="w-full max-w-md".',
       'Card with CardHeader: CardTitle "Reset Password" (text-xl), CardDescription.',
       'CardContent with form: new password Input (type="password"), confirm password Input (type="password"), Button "Reset password" (w-full).',
       'Footer text: "Remember your password?" with Sign in link.',

@@ -162,6 +162,26 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
     return jsonText.trim()
   }
 
+  async generateJSON(systemPrompt: string, userPrompt: string): Promise<unknown> {
+    const response = await this.client.messages.create({
+      model: this.defaultModel,
+      max_tokens: 16384,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
+    })
+
+    if (response.stop_reason === 'max_tokens') {
+      const err = new Error('AI response truncated (max_tokens reached)')
+      ;(err as any).code = 'RESPONSE_TRUNCATED'
+      throw err
+    }
+
+    const content = response.content[0]
+    if (content.type !== 'text') throw new Error('Unexpected response type from Claude API')
+
+    return JSON.parse(this.extractJSON(content.text))
+  }
+
   /**
    * Test API connection
    */

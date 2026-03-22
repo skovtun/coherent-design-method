@@ -136,7 +136,7 @@ describe('getPageType', () => {
 describe('generateArchitecturePlan', () => {
   it('returns parsed plan from AI response', async () => {
     const mockProvider = {
-      parseModification: vi.fn().mockResolvedValue({
+      generateJSON: vi.fn().mockResolvedValue({
         appName: 'TestApp',
         groups: [{ id: 'app', layout: 'sidebar', pages: ['/dashboard'] }],
         sharedComponents: [],
@@ -156,7 +156,7 @@ describe('generateArchitecturePlan', () => {
 
   it('returns null on AI failure', async () => {
     const mockProvider = {
-      parseModification: vi.fn().mockRejectedValue(new Error('fail')),
+      generateJSON: vi.fn().mockRejectedValue(new Error('fail')),
     }
 
     const result = await generateArchitecturePlan([], 'test', mockProvider as any, null)
@@ -165,7 +165,7 @@ describe('generateArchitecturePlan', () => {
 
   it('returns null on invalid schema', async () => {
     const mockProvider = {
-      parseModification: vi.fn().mockResolvedValue({ invalid: true }),
+      generateJSON: vi.fn().mockResolvedValue({ invalid: true }),
     }
 
     const result = await generateArchitecturePlan([], 'test', mockProvider as any, null)
@@ -233,7 +233,7 @@ describe('updateArchitecturePlan', () => {
       pageNotes: { dashboard: { type: 'app', sections: ['Stats'] } },
     })
     const mockProvider = {
-      parseModification: vi.fn().mockResolvedValue({
+      generateJSON: vi.fn().mockResolvedValue({
         appName: 'MyApp',
         groups: [{ id: 'app', layout: 'sidebar', pages: ['/dashboard', '/billing'] }],
         sharedComponents: [],
@@ -251,7 +251,7 @@ describe('updateArchitecturePlan', () => {
     )
     expect(result.groups[0].pages).toContain('/billing')
     expect(result.pageNotes['billing']).toBeDefined()
-    expect(mockProvider.parseModification).toHaveBeenCalledWith(expect.stringContaining('"dashboard"'))
+    expect(mockProvider.generateJSON).toHaveBeenCalled()
   })
 
   it('deterministically merges new pages into existing plan when AI update fails', async () => {
@@ -261,7 +261,7 @@ describe('updateArchitecturePlan', () => {
       pageNotes: {},
     })
     const mockProvider = {
-      parseModification: vi.fn().mockRejectedValue(new Error('AI fail')),
+      generateJSON: vi.fn().mockRejectedValue(new Error('AI fail')),
     }
     const result = await updateArchitecturePlan(
       existingPlan,

@@ -18,7 +18,7 @@ describe('getDesignQualityForType', () => {
 
   it('returns auth constraints with centered card', () => {
     const result = getDesignQualityForType('auth')
-    expect(result).toContain('max-w-sm')
+    expect(result).toContain('max-w-md')
     expect(result).not.toContain('py-20')
   })
 })
@@ -44,6 +44,42 @@ describe('inferPageTypeFromRoute', () => {
   })
   it('returns app for /settings', () => {
     expect(inferPageTypeFromRoute('/settings')).toBe('app')
+  })
+})
+
+describe('DESIGN_QUALITY_CRITICAL', () => {
+  it('is appended to marketing constraints', () => {
+    const result = getDesignQualityForType('marketing')
+    expect(result).toContain('CRITICAL CODE RULES')
+    expect(result).toContain('shrink-0')
+  })
+
+  it('is appended to app constraints', () => {
+    const result = getDesignQualityForType('app')
+    expect(result).toContain('CRITICAL CODE RULES')
+    expect(result).toContain('NEVER use raw Tailwind colors')
+  })
+
+  it('is appended to auth constraints', () => {
+    const result = getDesignQualityForType('auth')
+    expect(result).toContain('CRITICAL CODE RULES')
+    expect(result).toContain('shrink-0')
+  })
+})
+
+describe('Fix G: auth max-w-md', () => {
+  it('DESIGN_QUALITY_AUTH uses max-w-md not max-w-sm', () => {
+    const result = getDesignQualityForType('auth')
+    expect(result).toContain('max-w-md')
+    expect(result).not.toContain('max-w-sm')
+  })
+})
+
+describe('Fix H: toolbar flex-1', () => {
+  it('DESIGN_QUALITY_APP includes toolbar rules', () => {
+    const result = getDesignQualityForType('app')
+    expect(result).toContain('flex-1')
+    expect(result).toContain('Search input')
   })
 })
 
