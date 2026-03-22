@@ -257,7 +257,7 @@ describe('getPageType', () => {
 })
 
 describe('generateArchitecturePlan', () => {
-  it('returns parsed plan from AI response', async () => {
+  it('returns plan and empty warnings on success', async () => {
     const mockProvider = {
       generateJSON: vi.fn().mockResolvedValue({
         appName: 'TestApp',
@@ -267,32 +267,37 @@ describe('generateArchitecturePlan', () => {
       }),
     }
 
-    const result = await generateArchitecturePlan(
+    const { plan, warnings } = await generateArchitecturePlan(
       [{ name: 'Dashboard', id: 'dashboard', route: '/dashboard' }],
       'Create a dashboard app',
       mockProvider as any,
       'sidebar',
     )
-    expect(result?.appName).toBe('TestApp')
-    expect(result?.groups[0].id).toBe('app')
+    expect(plan?.appName).toBe('TestApp')
+    expect(plan?.groups[0].id).toBe('app')
+    expect(warnings).toEqual([])
   })
 
-  it('returns null on AI failure', async () => {
+  it('returns null plan with warnings on AI failure', async () => {
     const mockProvider = {
-      generateJSON: vi.fn().mockRejectedValue(new Error('fail')),
+      generateJSON: vi.fn().mockRejectedValue(new Error('API timeout')),
     }
 
-    const result = await generateArchitecturePlan([], 'test', mockProvider as any, null)
-    expect(result).toBeNull()
+    const { plan, warnings } = await generateArchitecturePlan([], 'test', mockProvider as any, null)
+    expect(plan).toBeNull()
+    expect(warnings.length).toBeGreaterThan(0)
+    expect(warnings.some(w => w.includes('API timeout'))).toBe(true)
   })
 
-  it('returns null on invalid schema', async () => {
+  it('returns null plan with validation warnings on invalid schema', async () => {
     const mockProvider = {
       generateJSON: vi.fn().mockResolvedValue({ invalid: true }),
     }
 
-    const result = await generateArchitecturePlan([], 'test', mockProvider as any, null)
-    expect(result).toBeNull()
+    const { plan, warnings } = await generateArchitecturePlan([], 'test', mockProvider as any, null)
+    expect(plan).toBeNull()
+    expect(warnings.length).toBeGreaterThan(0)
+    expect(warnings[0]).toContain('Validation')
   })
 })
 

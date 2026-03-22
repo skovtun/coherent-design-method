@@ -130,28 +130,41 @@ Rules:
 
 Respond with valid JSON matching the schema.`
 
+export interface PlanResult {
+  plan: ArchitecturePlan | null
+  warnings: string[]
+}
+
 export async function generateArchitecturePlan(
   pages: Array<{ name: string; id: string; route: string }>,
   userMessage: string,
   aiProvider: AIProviderInterface,
   layoutHint: string | null,
-): Promise<ArchitecturePlan | null> {
+): Promise<PlanResult> {
   const userPrompt = `Pages: ${pages.map(p => `${p.name} (${p.route})`).join(', ')}
 
 User's request: "${userMessage}"
 
 Navigation type requested: ${layoutHint || 'auto-detect'}`
 
+  const warnings: string[] = []
+
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const raw = await aiProvider.generateJSON(PLAN_SYSTEM_PROMPT, userPrompt)
       const parsed = ArchitecturePlanSchema.safeParse(raw)
-      if (parsed.success) return parsed.data
-    } catch {
-      if (attempt === 1) return null
+      if (parsed.success) return { plan: parsed.data, warnings }
+      warnings.push(
+        `Validation (attempt ${attempt + 1}): ${parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')}`,
+      )
+    } catch (err) {
+      warnings.push(
+        `Error (attempt ${attempt + 1}): ${err instanceof Error ? err.message : String(err)}`,
+      )
+      if (attempt === 1) return { plan: null, warnings }
     }
   }
-  return null
+  return { plan: null, warnings }
 }
 
 export async function updateArchitecturePlan(
@@ -173,8 +186,12 @@ Update the existing plan to include these new pages. Keep all existing groups, c
     const raw = await aiProvider.generateJSON(PLAN_SYSTEM_PROMPT, userPrompt)
     const parsed = ArchitecturePlanSchema.safeParse(raw)
     if (parsed.success) return parsed.data
-  } catch {
-    // fall through to deterministic merge
+    const issues = parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')
+    console.warn(chalk.dim(`  Plan update validation failed: ${issues}`))
+  } catch (err) {
+    console.warn(
+      chalk.dim(`  Plan update error: ${err instanceof Error ? err.message : String(err)}`),
+    )
   }
 
   // Deterministic merge: append new pages to the largest group
