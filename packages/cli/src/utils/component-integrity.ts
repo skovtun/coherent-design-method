@@ -44,11 +44,17 @@ export function extractExportedComponentNames(code: string): string[] {
   return [...new Set(names)]
 }
 
-export function inferComponentType(name: string, code: string): 'layout' | 'section' | 'widget' {
+export function inferComponentType(name: string, code: string): 'layout' | 'navigation' | 'data-display' | 'form' | 'feedback' | 'section' | 'widget' {
   const lower = name.toLowerCase()
-  if (/header|footer|sidebar|nav|layout|appbar|topbar/.test(lower)) return 'layout'
+  if (/header|footer|layout|appbar|topbar/.test(lower)) return 'layout'
+  if (/sidebar|nav|menu|breadcrumb|tabs/.test(lower)) return 'navigation'
+  if (/table|chart|stats|metric|list|grid|card/.test(lower)) return 'data-display'
+  if (/form|input|filter|search|select|picker/.test(lower)) return 'form'
+  if (/alert|toast|modal|dialog|notification|error|snackbar/.test(lower)) return 'feedback'
   if (/section|hero|pricing|testimonial|features|cta|banner/.test(lower)) return 'section'
   if (/<header[\s>]/.test(code) || /<footer[\s>]/.test(code)) return 'layout'
+  if (/<nav[\s>]/.test(code)) return 'navigation'
+  if (/<form[\s>]/.test(code)) return 'form'
   if (/<section[\s>]/.test(code)) return 'section'
   return 'widget'
 }
@@ -348,6 +354,8 @@ export function reconcileComponents(
       usedIn: comp.usedIn,
       description: `Auto-registered by sync from ${comp.file}`,
       createdAt: new Date().toISOString(),
+      dependencies: [],
+      source: 'extracted' as const,
     })
     m.nextId++
     result.added.push({ id, name: comp.name, file: comp.file, type: comp.type })
