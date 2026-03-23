@@ -664,7 +664,9 @@ export async function applyModification(
           for (let attempt = 0; attempt < MAX_QUALITY_FIX_ATTEMPTS && currentErrors.length > 0; attempt++) {
             if (!aiProvider) break
             console.log(
-              chalk.yellow(`\n🔄 ${currentErrors.length} quality errors — attempting AI fix${attempt > 0 ? ` (retry ${attempt + 1})` : ''} for ${page.name || page.id}...`),
+              chalk.yellow(
+                `\n🔄 ${currentErrors.length} quality errors — attempting AI fix${attempt > 0 ? ` (retry ${attempt + 1})` : ''} for ${page.name || page.id}...`,
+              ),
             )
             try {
               const ai = await createAIProvider(aiProvider)

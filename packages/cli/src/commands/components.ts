@@ -168,7 +168,11 @@ export function createComponentsCommand(): Command {
   sharedCmd
     .command('add <name>')
     .description('Create a shared component (layout/section/widget) and register in manifest')
-    .option('-t, --type <type>', 'Type: layout | navigation | data-display | form | feedback | section | widget', 'layout')
+    .option(
+      '-t, --type <type>',
+      'Type: layout | navigation | data-display | form | feedback | section | widget',
+      'layout',
+    )
     .option('-d, --description <desc>', 'Description')
     .action(async (name: string, opts: { type?: string; description?: string }) => {
       const project = findConfig()

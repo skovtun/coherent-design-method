@@ -263,7 +263,7 @@ export function detectPageType(pageName: string): string | null {
 
   if (/dashboard|admin|overview/.test(normalized)) return 'dashboard'
   if (/login|signin|sign-in/.test(normalized)) return 'login'
-  if (/register|signup|sign.?up/.test(normalized)) return 'register'
+  if (/regist(?:er|ration)|signup|sign.?up/.test(normalized)) return 'register'
   if (/pricing|plans|subscription/.test(normalized)) return 'pricing'
   if (/about|company/.test(normalized)) return 'about'
   if (/contact|support|help/.test(normalized)) return 'contact'

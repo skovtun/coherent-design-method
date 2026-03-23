@@ -15,13 +15,19 @@ import {
 import type { GenerateSharedComponentResult } from '@getcoherent/core'
 import { parseModification, buildLightweightPagePrompt } from '../../agents/modifier.js'
 import { summarizePageAnalysis } from '../../utils/page-analyzer.js'
-import { extractPageNamesFromMessage, inferRelatedPages, impliesFullWebsite } from './request-parser.js'
+import {
+  extractPageNamesFromMessage,
+  inferRelatedPages,
+  impliesFullWebsite,
+  detectExplicitRootPage,
+  isAppOnlyRequest,
+} from './request-parser.js'
 import { deduplicatePages, readAnchorPageCodeFromDisk } from './utils.js'
 import { pMap } from '../../utils/concurrency.js'
 import { createAIProvider, type AIProvider } from '../../utils/ai-provider.js'
 import { getComponentProvider } from '../../providers/index.js'
 import { autoFixCode } from '../../utils/quality-validator.js'
-import { isAuthRoute } from '../../agents/page-templates.js'
+import { isAuthRoute, detectPageType } from '../../agents/page-templates.js'
 import chalk from 'chalk'
 import { getDesignQualityForType, inferPageTypeFromRoute } from '../../agents/design-constraints.js'
 import type { ArchitecturePlan } from './plan-generator.js'
@@ -271,6 +277,30 @@ export function buildLayoutNote(layoutType?: string): string {
   }
 }
 
+export function buildAnchorPagePrompt(
+  homePage: { name: string; route: string },
+  message: string,
+  allPagesList: string,
+  allRoutes: string,
+  plan: ArchitecturePlan | null,
+): string {
+  const pageType = detectPageType(homePage.name) || detectPageType(homePage.route)
+  const authPageTypes = new Set(['login', 'register', 'reset-password'])
+  const isAuth = isAuthRoute(homePage.route) || isAuthRoute(homePage.name) || authPageTypes.has(pageType || '')
+
+  if (isAuth) {
+    return `Create ONE page called "${homePage.name}" at route "${homePage.route}". Context: ${message}. This is the application's entry point — a clean, centered authentication form. Generate complete pageCode. Do NOT include site-wide <header>, <nav>, or <footer> — this page has its own minimal layout. Make it visually polished with proper form validation UI — this page sets the design direction for the entire site. Do not generate other pages.`
+  }
+
+  const groupLayout = plan?.groups.find(g => g.pages.includes(homePage.route))?.layout
+
+  if (groupLayout === 'sidebar' || pageType === 'dashboard') {
+    return `Create ONE page called "${homePage.name}" at route "${homePage.route}". Context: ${message}. This REPLACES the default placeholder page — generate a complete application page. Generate complete pageCode. Do NOT include a sidebar or top navigation — these are handled by the layout. Focus on the main content area. Make it visually polished — this page sets the design direction for the entire site. Do not generate other pages.`
+  }
+
+  return `Create ONE page called "${homePage.name}" at route "${homePage.route}". Context: ${message}. This REPLACES the default placeholder page — generate a complete, content-rich landing page for the project described above. Generate complete pageCode. Include a branded site-wide <header> with navigation links to ALL these pages: ${allPagesList}. Use these EXACT routes in navigation: ${allRoutes}. Include a <footer> at the bottom. Make it visually polished — this page sets the design direction for the entire site. Do not generate other pages.`
+}
+
 function getGroupLayoutForRoute(route: string, plan: ArchitecturePlan | null): string | undefined {
   if (!plan) return undefined
   const group = plan.groups.find(g => g.pages.includes(route))
@@ -364,7 +394,12 @@ export async function splitGeneratePages(
       (p: any) => p.id !== 'home' && p.id !== 'new' && p.route !== '/',
     )
     const isFreshProject = userPages.length === 0
-    if (isFreshProject || impliesFullWebsite(message)) {
+
+    const explicitRootId = detectExplicitRootPage(message, pageNames)
+    if (explicitRootId) {
+      const rootPage = pageNames.find(p => p.id === explicitRootId)
+      if (rootPage) rootPage.route = '/'
+    } else if (!isAppOnlyRequest(pageNames) && (isFreshProject || impliesFullWebsite(message))) {
       pageNames.unshift({ name: 'Home', id: 'home', route: '/' })
     }
   }
@@ -456,12 +491,8 @@ export async function splitGeneratePages(
   if (!reusedExistingAnchor) {
     spinner.start(`Phase 3/6 — Generating ${homePage.name} page (sets design direction)...`)
     try {
-      const homeResult = await parseModification(
-        `Create ONE page called "${homePage.name}" at route "${homePage.route}". Context: ${message}. This REPLACES the default placeholder page — generate a complete, content-rich landing page for the project described above. Generate complete pageCode. Include a branded site-wide <header> with navigation links to ALL these pages: ${allPagesList}. Use these EXACT routes in navigation: ${allRoutes}. Include a <footer> at the bottom. Make it visually polished — this page sets the design direction for the entire site. Do not generate other pages.`,
-        modCtx,
-        provider,
-        parseOpts,
-      )
+      const anchorPrompt = buildAnchorPagePrompt(homePage, message, allPagesList, allRoutes, plan)
+      const homeResult = await parseModification(anchorPrompt, modCtx, provider, parseOpts)
       const codePage = homeResult.requests.find((r: ModificationRequest) => r.type === 'add-page')
       if (codePage) {
         homeRequest = codePage

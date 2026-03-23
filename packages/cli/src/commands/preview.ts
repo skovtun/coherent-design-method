@@ -241,7 +241,7 @@ async function fixMissingComponentExports(projectRoot: string): Promise<void> {
       } catch {
         /* best-effort */
       }
-      } else {
+    } else {
       const def = getShadcnComponent(componentId)
       if (!def) continue
       try {
@@ -261,7 +261,10 @@ async function fixMissingComponentExports(projectRoot: string): Promise<void> {
     const sharedImportRe = /import\s*\{([^}]+)\}\s*from\s*['"]@\/components\/shared\/([^'"]+)['"]/g
     let sm
     while ((sm = sharedImportRe.exec(content)) !== null) {
-      const names = sm[1].split(',').map(s => s.trim()).filter(Boolean)
+      const names = sm[1]
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
       const componentId = sm[2]
       if (!neededSharedExports.has(componentId)) neededSharedExports.set(componentId, new Set())
       for (const name of names) neededSharedExports.get(componentId)!.add(name)
@@ -278,7 +281,18 @@ async function fixMissingComponentExports(projectRoot: string): Promise<void> {
     let em
     while ((em = exportRe.exec(content)) !== null) {
       if (em[1]) existingExports.add(em[1])
-      if (em[2]) em[2].split(',').map(s => s.trim().split(/\s+as\s+/).pop()!).filter(Boolean).forEach(n => existingExports.add(n))
+      if (em[2])
+        em[2]
+          .split(',')
+          .map(
+            s =>
+              s
+                .trim()
+                .split(/\s+as\s+/)
+                .pop()!,
+          )
+          .filter(Boolean)
+          .forEach(n => existingExports.add(n))
     }
 
     const missing = [...needed].filter(n => !existingExports.has(n))

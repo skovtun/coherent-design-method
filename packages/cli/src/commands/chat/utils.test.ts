@@ -265,7 +265,14 @@ export default function LoginPage() {
     const manifest = {
       shared: [{ id: 'CID-003', name: 'StatCard', type: 'data-display', file: 'components/shared/stat-card.tsx' }],
     }
-    await warnInlineDuplicates('/tmp', 'Dashboard', '/dashboard', 'export default function Page() { return <div/> }', manifest, plan)
+    await warnInlineDuplicates(
+      '/tmp',
+      'Dashboard',
+      '/dashboard',
+      'export default function Page() { return <div/> }',
+      manifest,
+      plan,
+    )
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('StatCard'))
     consoleSpy.mockRestore()
   })

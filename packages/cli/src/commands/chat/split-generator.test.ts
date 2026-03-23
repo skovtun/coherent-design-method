@@ -8,6 +8,7 @@ import {
   extractSharedComponents,
   formatPlanSummary,
   readExistingAppPageForReference,
+  buildAnchorPagePrompt,
   buildLayoutNote,
 } from './split-generator.js'
 import { ArchitecturePlanSchema } from './plan-generator.js'
@@ -628,5 +629,63 @@ describe('buildTieredComponentsPrompt', () => {
 
   it('returns undefined for empty manifest', () => {
     expect(buildTieredComponentsPrompt({ shared: [], nextId: 1 }, 'app')).toBeUndefined()
+  })
+})
+
+describe('buildAnchorPagePrompt', () => {
+  it('returns auth prompt for login page', () => {
+    const prompt = buildAnchorPagePrompt(
+      { name: 'Login', route: '/login' },
+      'create app with login',
+      'Login (/login)',
+      '/login',
+      null,
+    )
+    expect(prompt).toContain('authentication')
+    expect(prompt).not.toContain('content-rich landing page')
+    expect(prompt).not.toContain('Include a branded site-wide <header>')
+  })
+
+  it('returns auth prompt for registration page', () => {
+    const prompt = buildAnchorPagePrompt(
+      { name: 'Registration', route: '/' },
+      'create app with registration as main page',
+      'Registration (/)',
+      '/',
+      null,
+    )
+    expect(prompt).toContain('authentication')
+    expect(prompt).not.toContain('content-rich landing page')
+  })
+
+  it('returns app prompt for dashboard in sidebar layout', () => {
+    const plan = {
+      groups: [{ id: 'app', layout: 'sidebar', pages: ['/dashboard'] }],
+      sharedComponents: [],
+      pageNotes: {},
+    }
+    const prompt = buildAnchorPagePrompt(
+      { name: 'Dashboard', route: '/dashboard' },
+      'create CRM',
+      'Dashboard (/dashboard)',
+      '/dashboard',
+      plan as any,
+    )
+    expect(prompt).not.toContain('content-rich landing page')
+    expect(prompt).not.toContain('<header>')
+    expect(prompt).toContain('Do NOT include a sidebar')
+  })
+
+  it('returns marketing prompt for Home page', () => {
+    const prompt = buildAnchorPagePrompt(
+      { name: 'Home', route: '/' },
+      'create a marketing website',
+      'Home (/), About (/about)',
+      '/, /about',
+      null,
+    )
+    expect(prompt).toContain('content-rich landing page')
+    expect(prompt).toContain('<header>')
+    expect(prompt).toContain('<footer>')
   })
 })

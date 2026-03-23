@@ -1701,3 +1701,250 @@ pnpm test && pnpm typecheck
 git add -A
 git commit -m "fix: validate and auto-fix shared component exports in preview pre-flight"
 ```
+
+---
+
+### Task 18: Flexible Home Page — No Forced Landing
+
+**Problem:** Three hardcoded behaviors force every project to start with a marketing landing page:
+
+1. `split-generator.ts:361-369` auto-inserts `{ name: 'Home', route: '/' }` for every fresh project or when `impliesFullWebsite` — even if the user explicitly wants an auth form or dashboard as the root.
+2. `split-generator.ts:460` anchor prompt always says "content-rich landing page… Include header… Include footer" — wrong for auth pages (no header/footer) and app pages (sidebar layout).
+3. `request-parser.ts:115-116` hardcodes `registration → /signup`, so user can never naturally request a registration page at `/`.
+
+**Goal:** The platform should be flexible: apps without a landing page (auth-first, dashboard-first) and multi-page marketing sites should both work correctly.
+
+**Files:**
+- Modify: `packages/cli/src/commands/chat/request-parser.ts`
+- Modify: `packages/cli/src/commands/chat/split-generator.ts`
+- Test: `packages/cli/src/commands/chat/request-parser.test.ts`
+- Test: `packages/cli/src/commands/chat/split-generator.test.ts`
+
+- [ ] **Step 1: Write failing tests for detectExplicitRootPage**
+
+Add to `packages/cli/src/commands/chat/request-parser.test.ts`:
+
+```typescript
+import { detectExplicitRootPage, isAppOnlyRequest, impliesFullWebsite, extractPageNamesFromMessage } from './request-parser.js'
+
+describe('detectExplicitRootPage', () => {
+  it('detects "main page is registration"', () => {
+    const pages = [
+      { name: 'Registration', id: 'signup', route: '/signup' },
+      { name: 'Dashboard', id: 'dashboard', route: '/dashboard' },
+    ]
+    expect(detectExplicitRootPage('main page is registration', pages)).toBe('signup')
+  })
+
+  it('detects "start with login page"', () => {
+    const pages = [
+      { name: 'Login', id: 'login', route: '/login' },
+      { name: 'Dashboard', id: 'dashboard', route: '/dashboard' },
+    ]
+    expect(detectExplicitRootPage('create an app, start with login page', pages)).toBe('login')
+  })
+
+  it('returns null when no explicit root', () => {
+    const pages = [
+      { name: 'Dashboard', id: 'dashboard', route: '/dashboard' },
+      { name: 'Settings', id: 'settings', route: '/settings' },
+    ]
+    expect(detectExplicitRootPage('create a dashboard app', pages)).toBeNull()
+  })
+})
+
+describe('isAppOnlyRequest', () => {
+  it('returns true for all-auth pages', () => {
+    const pages = [
+      { name: 'Login', id: 'login', route: '/login' },
+      { name: 'Dashboard', id: 'dashboard', route: '/dashboard' },
+    ]
+    expect(isAppOnlyRequest(pages)).toBe(true)
+  })
+
+  it('returns false when marketing pages exist', () => {
+    const pages = [
+      { name: 'Pricing', id: 'pricing', route: '/pricing' },
+      { name: 'About', id: 'about', route: '/about' },
+    ]
+    expect(isAppOnlyRequest(pages)).toBe(false)
+  })
+
+  it('returns true for single auth page', () => {
+    const pages = [{ name: 'Login', id: 'login', route: '/login' }]
+    expect(isAppOnlyRequest(pages)).toBe(true)
+  })
+})
+```
+
+- [ ] **Step 2: Write failing tests for buildAnchorPagePrompt**
+
+Add to `packages/cli/src/commands/chat/split-generator.test.ts`:
+
+```typescript
+import { buildAnchorPagePrompt } from './split-generator.js'
+
+describe('buildAnchorPagePrompt', () => {
+  it('returns auth prompt for login page', () => {
+    const prompt = buildAnchorPagePrompt(
+      { name: 'Login', route: '/login' },
+      'create app with login',
+      'Login (/login)',
+      '/login',
+      null,
+    )
+    expect(prompt).toContain('authentication')
+    expect(prompt).not.toContain('content-rich landing page')
+    expect(prompt).not.toContain('Include a branded site-wide <header>')
+  })
+
+  it('returns app prompt for dashboard in sidebar layout', () => {
+    const plan = {
+      groups: [{ id: 'app', layout: 'sidebar', pages: ['/dashboard'] }],
+      sharedComponents: [],
+      pageNotes: {},
+    }
+    const prompt = buildAnchorPagePrompt(
+      { name: 'Dashboard', route: '/dashboard' },
+      'create CRM',
+      'Dashboard (/dashboard)',
+      '/dashboard',
+      plan as any,
+    )
+    expect(prompt).not.toContain('content-rich landing page')
+    expect(prompt).not.toContain('<header>')
+    expect(prompt).toContain('Do NOT include a sidebar')
+  })
+
+  it('returns marketing prompt for Home page', () => {
+    const prompt = buildAnchorPagePrompt(
+      { name: 'Home', route: '/' },
+      'create a marketing website',
+      'Home (/), About (/about)',
+      '/, /about',
+      null,
+    )
+    expect(prompt).toContain('content-rich landing page')
+    expect(prompt).toContain('<header>')
+    expect(prompt).toContain('<footer>')
+  })
+})
+```
+
+- [ ] **Step 3: Implement detectExplicitRootPage + isAppOnlyRequest**
+
+In `packages/cli/src/commands/chat/request-parser.ts`, add:
+
+```typescript
+export function detectExplicitRootPage(
+  message: string,
+  pageNames: Array<{ name: string; id: string; route: string }>,
+): string | null {
+  const lower = message.toLowerCase()
+  const patterns = [
+    /(?:main|start|home|root|first|entry|primary|стартов\w*|главн\w*|начальн\w*)\s*(?:page|screen|view|страниц\w*|экран\w*)\s*(?:is|should be|:|—|–|-|будет|это)\s*([a-zа-яё\s]+)/i,
+    /([a-zа-яё\s]+)\s*(?:as|for|как|в качестве)\s*(?:the\s+)?(?:main|start|home|root|primary|стартов\w*|главн\w*)\s*(?:page|screen|страниц\w*)/i,
+    /(?:start|begin|начат\w*|начин\w*)\s*(?:with|from|с|со)\s*(?:a\s+|an\s+)?([a-zа-яё\s]+?)(?:\s*page|\s*screen|\s*form|\s*страниц\w*|\s*форм\w*)?(?:\s*$|[,.])/i,
+  ]
+
+  for (const pattern of patterns) {
+    const match = lower.match(pattern)
+    if (match) {
+      const keyword = match[1].trim()
+      const found = pageNames.find(
+        p =>
+          p.name.toLowerCase().includes(keyword) ||
+          keyword.includes(p.name.toLowerCase()) ||
+          p.id.includes(keyword.replace(/\s+/g, '-')),
+      )
+      if (found) return found.id
+    }
+  }
+
+  return null
+}
+
+const MARKETING_ROUTES = new Set(['/', '/pricing', '/features', '/about', '/contact', '/blog', '/faq', '/team', '/services'])
+const AUTH_ROUTES = new Set(['/login', '/signin', '/signup', '/register', '/forgot-password', '/reset-password'])
+const APP_ROUTES = new Set(['/dashboard', '/settings', '/account', '/tasks', '/profile'])
+
+export function isAppOnlyRequest(
+  pageNames: Array<{ name: string; id: string; route: string }>,
+): boolean {
+  if (pageNames.length === 0) return false
+  return pageNames.every(p => AUTH_ROUTES.has(p.route) || APP_ROUTES.has(p.route) || p.route.startsWith('/dashboard'))
+}
+```
+
+- [ ] **Step 4: Implement buildAnchorPagePrompt**
+
+In `packages/cli/src/commands/chat/split-generator.ts`, add and export:
+
+```typescript
+export function buildAnchorPagePrompt(
+  homePage: { name: string; route: string },
+  message: string,
+  allPagesList: string,
+  allRoutes: string,
+  plan: ArchitecturePlan | null,
+): string {
+  const isAuth = isAuthRoute(homePage.route) || isAuthRoute(homePage.name)
+
+  if (isAuth) {
+    return `Create ONE page called "${homePage.name}" at route "${homePage.route}". Context: ${message}. This is the application's entry point — a clean, centered authentication form. Generate complete pageCode. Do NOT include site-wide <header>, <nav>, or <footer> — this page has its own minimal layout. Make it visually polished with proper form validation UI — this page sets the design direction for the entire site. Do not generate other pages.`
+  }
+
+  const groupLayout = plan?.groups.find(g => g.pages.includes(homePage.route))?.layout
+  const pageType = detectPageType(homePage.name) || detectPageType(homePage.route)
+
+  if (groupLayout === 'sidebar' || pageType === 'dashboard') {
+    return `Create ONE page called "${homePage.name}" at route "${homePage.route}". Context: ${message}. This REPLACES the default placeholder page — generate a complete application page. Generate complete pageCode. Do NOT include a sidebar or top navigation — these are handled by the layout. Focus on the main content area. Make it visually polished — this page sets the design direction for the entire site. Do not generate other pages.`
+  }
+
+  return `Create ONE page called "${homePage.name}" at route "${homePage.route}". Context: ${message}. This REPLACES the default placeholder page — generate a complete, content-rich landing page for the project described above. Generate complete pageCode. Include a branded site-wide <header> with navigation links to ALL these pages: ${allPagesList}. Use these EXACT routes in navigation: ${allRoutes}. Include a <footer> at the bottom. Make it visually polished — this page sets the design direction for the entire site. Do not generate other pages.`
+}
+```
+
+- [ ] **Step 5: Update auto-insert logic in split-generator.ts**
+
+Replace lines 361-370:
+
+```typescript
+const hasHomePage = pageNames.some(p => p.route === '/')
+if (!hasHomePage) {
+  const userPages = (modCtx.config.pages || []).filter(
+    (p: any) => p.id !== 'home' && p.id !== 'new' && p.route !== '/',
+  )
+  const isFreshProject = userPages.length === 0
+
+  const explicitRootId = detectExplicitRootPage(message, pageNames)
+  if (explicitRootId) {
+    const rootPage = pageNames.find(p => p.id === explicitRootId)
+    if (rootPage) rootPage.route = '/'
+  } else if (!isAppOnlyRequest(pageNames) && (isFreshProject || impliesFullWebsite(message))) {
+    pageNames.unshift({ name: 'Home', id: 'home', route: '/' })
+  }
+}
+```
+
+- [ ] **Step 6: Replace hardcoded anchor prompt**
+
+Replace the hardcoded prompt at line ~460:
+
+```typescript
+const anchorPrompt = buildAnchorPagePrompt(homePage, message, allPagesList, allRoutes, plan)
+const homeResult = await parseModification(anchorPrompt, modCtx, provider, parseOpts)
+```
+
+- [ ] **Step 7: Run tests + typecheck + build**
+
+```bash
+pnpm test && pnpm typecheck && pnpm build && pnpm format:check
+```
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add -A
+git commit -m "feat: flexible home page — no forced landing, adaptive anchor prompt"
+```

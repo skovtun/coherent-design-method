@@ -142,6 +142,71 @@ export function extractPageNamesFromMessage(message: string): Array<{ name: stri
   return pages
 }
 
+/**
+ * Detects if the user explicitly indicates a specific page should be the root (/).
+ * Returns the page id if found, null otherwise.
+ */
+export function detectExplicitRootPage(
+  message: string,
+  pageNames: Array<{ name: string; id: string; route: string }>,
+): string | null {
+  const lower = message.toLowerCase()
+  const w = '[a-zа-яёA-ZА-ЯЁ0-9_]'
+  const patterns = [
+    new RegExp(
+      `(?:main|start|home|root|first|entry|primary|стартов${w}*|главн${w}*|начальн${w}*)\\s*(?:page|screen|view|страниц${w}*|экран${w}*)\\s*(?:is|should be|:|—|–|-|будет|это)\\s*([a-zа-яёA-ZА-ЯЁ\\s]+)`,
+      'i',
+    ),
+    new RegExp(
+      `([a-zа-яёA-ZА-ЯЁ\\s]+)\\s*(?:as|for|как|в качестве)\\s*(?:the\\s+)?(?:main|start|home|root|primary|стартов${w}*|главн${w}*)\\s*(?:page|screen|страниц${w}*)`,
+      'i',
+    ),
+    new RegExp(
+      `(?:start|begin|начат${w}*|начин${w}*)\\s*(?:with|from|с|со)\\s*(?:a\\s+|an\\s+)?([a-zа-яёA-ZА-ЯЁ\\s]+?)(?:\\s+page|\\s+screen|\\s+form|\\s+страниц${w}*|\\s+форм${w}*)?(?:\\s*$|[,.])`,
+      'i',
+    ),
+  ]
+
+  for (const pattern of patterns) {
+    const match = lower.match(pattern)
+    if (match) {
+      const keyword = match[1].trim()
+      const found = pageNames.find(
+        p =>
+          p.name.toLowerCase().includes(keyword) ||
+          keyword.includes(p.name.toLowerCase()) ||
+          p.id.includes(keyword.replace(/\s+/g, '-')),
+      )
+      if (found) return found.id
+    }
+  }
+
+  return null
+}
+
+const NON_MARKETING_ROUTES = new Set([
+  '/login',
+  '/signin',
+  '/signup',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
+  '/dashboard',
+  '/settings',
+  '/account',
+  '/tasks',
+  '/profile',
+])
+
+/**
+ * Returns true when every page is an auth or app page (no marketing/landing).
+ * Used to skip auto-inserting a Home landing page.
+ */
+export function isAppOnlyRequest(pageNames: Array<{ name: string; id: string; route: string }>): boolean {
+  if (pageNames.length === 0) return false
+  return pageNames.every(p => NON_MARKETING_ROUTES.has(p.route) || p.route.startsWith('/dashboard'))
+}
+
 export function normalizeRequest(
   request: ModificationRequest,
   config: DesignSystemConfig,
