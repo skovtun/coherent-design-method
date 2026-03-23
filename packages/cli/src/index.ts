@@ -57,6 +57,8 @@ program
   .option('--component <name>', 'Target a specific component by name or CID')
   .option('--page <name>', 'Target a specific page by name, id, or route')
   .option('--token <name>', 'Target a specific design token')
+  .option('--new-component <name>', 'Create a new shared component with the given name')
+  .option('--type <type>', 'Component type for --new-component: layout, navigation, data-display, form, feedback, section')
   .option('-i, --interactive', 'Interactive chat mode')
   .action(chatCommand)
 

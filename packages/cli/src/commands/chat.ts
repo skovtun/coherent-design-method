@@ -60,6 +60,8 @@ export async function chatCommand(
     page?: string
     token?: string
     interactive?: boolean
+    newComponent?: string
+    type?: string
     _throwOnError?: boolean
   },
 ) {
@@ -139,6 +141,63 @@ export async function chatCommand(
     spinner.succeed('Configuration loaded')
 
     message = await resolveTargetFlags(message!, options, config, projectRoot)
+
+    // --new-component: create a shared component directly
+    if (options.newComponent) {
+      const componentName = options.newComponent
+      spinner.start(`Creating shared component: ${componentName}...`)
+
+      const { createAIProvider } = await import('../utils/ai-provider.js')
+      const { generateSharedComponent } = await import('@getcoherent/core')
+      const { autoFixCode } = await import('../utils/quality-validator.js')
+      const { extractPropsInterface, extractDependencies } = await import('../utils/component-extractor.js')
+
+      const aiProvider = await createAIProvider((provider ?? 'auto') as 'claude' | 'openai' | 'auto')
+      const prompt = `Generate a React component called "${componentName}". Description: ${message}.
+Use shadcn/ui components and Tailwind CSS semantic tokens. Export the component as a named export.
+Include a TypeScript props interface.`
+
+      const result = await aiProvider.generateCode(prompt)
+      const { code: fixedCode } = await autoFixCode(result)
+
+      const props = extractPropsInterface(fixedCode)
+      const deps = extractDependencies(fixedCode)
+      const componentType = (options.type as string) || 'section'
+
+      const genResult = await generateSharedComponent(projectRoot, {
+        name: componentName,
+        type: componentType as 'layout' | 'navigation' | 'data-display' | 'form' | 'feedback' | 'section' | 'widget',
+        code: fixedCode,
+        description: message,
+        propsInterface: props ?? undefined,
+        dependencies: deps,
+        source: 'manual',
+      })
+
+      if (!options.type) {
+        try {
+          const { classifyComponents } = await import('../utils/ai-classifier.js')
+          const classifications = await classifyComponents(
+            [{ name: componentName, signature: props || componentName }],
+            (p) => aiProvider.generateCode(p),
+          )
+          if (classifications.length > 0) {
+            let manifest = await loadManifest(projectRoot)
+            manifest = updateEntry(manifest, genResult.id, {
+              type: classifications[0].type as 'layout' | 'navigation' | 'data-display' | 'form' | 'feedback' | 'section' | 'widget',
+              description: classifications[0].description || message,
+            })
+            await saveManifest(projectRoot, manifest)
+          }
+        } catch {
+          // classification is best-effort
+        }
+      }
+
+      spinner.succeed(`Created ${genResult.name} (${genResult.id}) at ${genResult.file}`)
+      releaseLock?.()
+      return
+    }
 
     // Dark/light mode shortcut intents
     const isPageGenRequest =
