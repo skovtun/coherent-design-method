@@ -243,6 +243,28 @@ export async function fixCommand(opts: FixOptions = {}) {
       const layoutTypes = plan.groups.map(g => `${g.id}:${g.layout}`).join(', ')
       fixes.push(`Verified group layouts (${layoutTypes})`)
       console.log(chalk.green(`  ✔ Verified group layouts: ${layoutTypes}`))
+
+      const hasSidebar = plan.groups.some(g => g.layout === 'sidebar' || g.layout === 'both')
+      const sidebarPath = resolve(projectRoot, 'components', 'shared', 'sidebar.tsx')
+      if (hasSidebar && !existsSync(sidebarPath) && !dryRun) {
+        if (!dsm) {
+          dsm = new DesignSystemManager(project.configPath)
+          await dsm.load()
+        }
+        const { PageGenerator, generateSharedComponent } = await import('@getcoherent/core')
+        const generator = new PageGenerator(dsm.getConfig())
+        const sidebarCode = generator.generateSharedSidebarCode()
+        await generateSharedComponent(projectRoot, {
+          name: 'AppSidebar',
+          type: 'layout',
+          code: sidebarCode,
+          description: 'Application sidebar using shadcn/ui Sidebar components',
+          usedIn: ['app/(app)/layout.tsx'],
+          overwrite: true,
+        })
+        fixes.push('Generated AppSidebar shared component')
+        console.log(chalk.green('  ✔ Generated AppSidebar shared component'))
+      }
     }
   } catch {
     /* no plan or layout error — skip */
