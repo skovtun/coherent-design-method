@@ -251,19 +251,13 @@ export async function fixCommand(opts: FixOptions = {}) {
           dsm = new DesignSystemManager(project.configPath)
           await dsm.load()
         }
-        const { PageGenerator, generateSharedComponent } = await import('@getcoherent/core')
+        const { PageGenerator } = await import('@getcoherent/core')
         const generator = new PageGenerator(dsm.getConfig())
         const sidebarCode = generator.generateSharedSidebarCode()
-        await generateSharedComponent(projectRoot, {
-          name: 'AppSidebar',
-          type: 'layout',
-          code: sidebarCode,
-          description: 'Application sidebar using shadcn/ui Sidebar components',
-          usedIn: ['app/(app)/layout.tsx'],
-          overwrite: true,
-        })
-        fixes.push('Generated AppSidebar shared component')
-        console.log(chalk.green('  ✔ Generated AppSidebar shared component'))
+        mkdirSync(resolve(projectRoot, 'components', 'shared'), { recursive: true })
+        writeFileSync(sidebarPath, sidebarCode, 'utf-8')
+        fixes.push('Generated AppSidebar component (components/shared/sidebar.tsx)')
+        console.log(chalk.green('  ✔ Generated AppSidebar component'))
       }
     }
   } catch {

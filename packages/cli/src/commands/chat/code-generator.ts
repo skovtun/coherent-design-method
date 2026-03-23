@@ -188,14 +188,10 @@ export async function regenerateLayout(
       if (navType === 'sidebar' || navType === 'both') {
         if (await canOverwriteShared(projectRoot, 'components/shared/sidebar.tsx', hashes)) {
           const sidebarCode = generator.generateSharedSidebarCode()
-          await generateSharedComponent(projectRoot, {
-            name: 'AppSidebar',
-            type: 'layout',
-            code: sidebarCode,
-            description: 'Application sidebar using shadcn/ui Sidebar components',
-            usedIn: ['app/(app)/layout.tsx'],
-            overwrite: true,
-          })
+          const sidebarPath = resolve(projectRoot, 'components', 'shared', 'sidebar.tsx')
+          const { mkdir, writeFile } = await import('fs/promises')
+          await mkdir(resolve(projectRoot, 'components', 'shared'), { recursive: true })
+          await writeFile(sidebarPath, sidebarCode, 'utf-8')
         }
       }
     }
