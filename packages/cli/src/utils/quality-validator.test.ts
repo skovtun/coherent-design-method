@@ -127,6 +127,29 @@ describe('autoFixCode', () => {
     expect(fixed).toContain('<input')
   })
 
+  it('does not re-escape < in JS expressions (arrow function + comparison)', async () => {
+    const code = `'use client'\nexport default function Page() {\n  const items = data.filter(t => !t.done && new Date(t.due) < new Date()).length\n  return <div>{items}</div>\n}`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('< new Date()')
+    expect(fixed).not.toContain('&lt;')
+  })
+
+  it('still escapes < in actual JSX text content', async () => {
+    const code = `'use client'\nexport default function Page() { return <p>Response time: <50ms</p> }`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('&lt;50ms')
+    expect(fixes.some(f => f.includes('escaped'))).toBe(true)
+  })
+
+  it('does not duplicate aliased lucide icon import', async () => {
+    const code = `'use client'\nimport { Settings as SettingsIcon, Save } from "lucide-react"\nexport default function Page() { return <div><SettingsIcon className="size-4" /><Save className="size-4" /></div> }`
+    const { code: fixed } = await autoFixCode(code)
+    const matches = fixed.match(/SettingsIcon/g) || []
+    expect(matches.length).toBe(2)
+    expect(fixed).not.toMatch(/SettingsIcon,\s*SettingsIcon/)
+    expect(fixed).not.toMatch(/SettingsIcon\s*}\s*from/)
+  })
+
   it('adds use client when hooks are detected', async () => {
     const code = `import { useState } from 'react'\nexport default function Page() { const [x, setX] = useState(0); return <div>{x}</div> }`
     const { code: fixed, fixes } = await autoFixCode(code)

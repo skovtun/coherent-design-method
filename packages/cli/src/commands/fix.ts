@@ -233,6 +233,21 @@ export async function fixCommand(opts: FixOptions = {}) {
     console.log(chalk.green(`  ✔ ${verb} syntax: ${syntaxFixed} file(s) (use client, metadata, quotes)`))
   }
 
+  // ─── Step 4b: Repair group layouts from saved plan ──────────────────
+  try {
+    const { loadPlan } = await import('./chat/plan-generator.js')
+    const { ensurePlanGroupLayouts } = await import('./chat/code-generator.js')
+    const plan = loadPlan(projectRoot)
+    if (plan) {
+      await ensurePlanGroupLayouts(projectRoot, plan)
+      const layoutTypes = plan.groups.map(g => `${g.id}:${g.layout}`).join(', ')
+      fixes.push(`Verified group layouts (${layoutTypes})`)
+      console.log(chalk.green(`  ✔ Verified group layouts: ${layoutTypes}`))
+    }
+  } catch {
+    /* no plan or layout error — skip */
+  }
+
   // ─── Step 5: Auto-fix quality issues ────────────────────────────────
   if (!skipQuality) {
     let qualityFixCount = 0

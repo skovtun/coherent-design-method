@@ -672,9 +672,11 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
 
   // Fix unescaped < in JSX text content (AI generates e.g. "<50ms" which is invalid JSX)
   // Only match within a single line, skip content with braces (JSX expressions / JS code)
+  // Guard: if text between > and < contains JS expression chars, it's code not JSX text
+  const isJsExpr = (text: string) => /[().;=&|!?]/.test(text)
   const beforeLtFix = fixed
-  fixed = fixed.replace(/>([^<{}\n]*)<(\d)/g, '>$1&lt;$2')
-  fixed = fixed.replace(/>([^<{}\n]*)<([^/a-zA-Z!{>\n])/g, '>$1&lt;$2')
+  fixed = fixed.replace(/>([^<{}\n]*)<(\d)/g, (m, text, d) => (isJsExpr(text) ? m : `>${text}&lt;${d}`))
+  fixed = fixed.replace(/>([^<{}\n]*)<([^/a-zA-Z!{>\n])/g, (m, text, ch) => (isJsExpr(text) ? m : `>${text}&lt;${ch}`))
   if (fixed !== beforeLtFix) {
     fixes.push('escaped < in JSX text content')
   }
@@ -1153,14 +1155,20 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
       /* skip */
     }
     if (lucideExports2) {
-      // Collect ALL imported names from ALL import statements (not just lucide)
+      // Collect ALL imported local names from ALL import statements (resolving aliases)
       const allImportedNames = new Set<string>()
       for (const m of fixed.matchAll(/import\s*\{([^}]+)\}\s*from/g)) {
         m[1]
           .split(',')
           .map(s => s.trim())
           .filter(Boolean)
-          .forEach(n => allImportedNames.add(n))
+          .forEach(n => {
+            const alias = n
+              .split(/\s+as\s+/)
+              .pop()!
+              .trim()
+            allImportedNames.add(alias)
+          })
       }
       for (const m of fixed.matchAll(/import\s+([A-Z]\w+)\s+from/g)) {
         allImportedNames.add(m[1])

@@ -204,7 +204,12 @@ export async function regenerateLayout(
   try {
     await integrateSharedLayoutIntoRootLayout(projectRoot)
     await ensureAuthRouteGroup(projectRoot)
-    await ensureAppRouteGroupLayout(projectRoot, config.navigation?.type, options.navChanged, options.groupLayouts)
+    await ensureAppRouteGroupLayout(
+      projectRoot,
+      config.navigation?.type,
+      options.navChanged,
+      options.groupLayouts ?? config.groupLayouts,
+    )
   } catch (err) {
     if (process.env.COHERENT_DEBUG === '1') {
       console.log(chalk.dim('Layout integration warning:', err))
