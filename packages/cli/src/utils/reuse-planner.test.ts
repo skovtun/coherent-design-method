@@ -249,3 +249,67 @@ describe('verifyReusePlan', () => {
     expect(result.retryDirective).toBeUndefined()
   })
 })
+
+describe('graceful degradation', () => {
+  it('buildReusePlan handles empty sections gracefully', () => {
+    const plan = buildReusePlan({
+      pageName: 'Empty',
+      pageType: 'app',
+      sections: [],
+      manifest: mockManifest,
+      existingPageCode: {},
+      userRequest: '',
+    })
+    expect(plan.reuse).toHaveLength(0)
+    expect(plan.reusePatterns).toHaveLength(0)
+  })
+
+  it('buildReusePlan handles manifest with missing optional fields', () => {
+    const sparseManifest = SharedComponentsManifestSchema.parse({
+      shared: [
+        {
+          id: 'CID-001',
+          name: 'Card',
+          type: 'widget',
+          file: 'components/shared/card.tsx',
+          description: 'A card',
+          usedIn: [],
+          dependencies: [],
+        },
+      ],
+    })
+    const plan = buildReusePlan({
+      pageName: 'Page',
+      pageType: 'app',
+      sections: ['Card grid'],
+      manifest: sparseManifest,
+      existingPageCode: {},
+      userRequest: 'test',
+    })
+    expect(plan.reuse.length).toBe(1)
+    expect(plan.reuse[0].usageExample).toBe('<Card />')
+  })
+
+  it('verifyReusePlan handles empty reuse list', () => {
+    const result = verifyReusePlan('any code', {
+      pageName: 'P',
+      reuse: [],
+      createNew: [],
+      reusePatterns: [],
+    })
+    expect(result.passed).toHaveLength(0)
+    expect(result.missed).toHaveLength(0)
+    expect(result.retryDirective).toBeUndefined()
+  })
+
+  it('buildReusePlanDirective returns empty string for empty plan', () => {
+    expect(
+      buildReusePlanDirective({
+        pageName: 'P',
+        reuse: [],
+        createNew: [],
+        reusePatterns: [],
+      }),
+    ).toBe('')
+  })
+})
