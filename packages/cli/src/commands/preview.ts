@@ -241,7 +241,7 @@ async function fixMissingComponentExports(projectRoot: string): Promise<void> {
       } catch {
         /* best-effort */
       }
-    } else {
+      } else {
       const def = getShadcnComponent(componentId)
       if (!def) continue
       try {
@@ -251,6 +251,44 @@ async function fixMissingComponentExports(projectRoot: string): Promise<void> {
       } catch {
         /* best-effort */
       }
+    }
+  }
+
+  const neededSharedExports = new Map<string, Set<string>>()
+
+  for (const file of pages) {
+    const content = readFileSync(file, 'utf-8')
+    const sharedImportRe = /import\s*\{([^}]+)\}\s*from\s*['"]@\/components\/shared\/([^'"]+)['"]/g
+    let sm
+    while ((sm = sharedImportRe.exec(content)) !== null) {
+      const names = sm[1].split(',').map(s => s.trim()).filter(Boolean)
+      const componentId = sm[2]
+      if (!neededSharedExports.has(componentId)) neededSharedExports.set(componentId, new Set())
+      for (const name of names) neededSharedExports.get(componentId)!.add(name)
+    }
+  }
+
+  for (const [componentId, needed] of neededSharedExports) {
+    const componentFile = join(sharedDir, `${componentId}.tsx`)
+    if (!existsSync(componentFile)) continue
+
+    let content = readFileSync(componentFile, 'utf-8')
+    const exportRe = /export\s+(?:const|function|class)\s+(\w+)|export\s*\{([^}]+)\}/g
+    const existingExports = new Set<string>()
+    let em
+    while ((em = exportRe.exec(content)) !== null) {
+      if (em[1]) existingExports.add(em[1])
+      if (em[2]) em[2].split(',').map(s => s.trim().split(/\s+as\s+/).pop()!).filter(Boolean).forEach(n => existingExports.add(n))
+    }
+
+    const missing = [...needed].filter(n => !existingExports.has(n))
+    if (missing.length === 0) continue
+
+    const defaultExportMatch = content.match(/export\s+default\s+function\s+(\w+)/)
+    if (defaultExportMatch && missing.includes(defaultExportMatch[1])) {
+      content = content.replace(/export\s+default\s+function\s+(\w+)/, 'export function $1')
+      writeFileSync(componentFile, content, 'utf-8')
+      console.log(chalk.dim(`   ✔ Fixed export in ${componentId}.tsx (default → named)`))
     }
   }
 }
