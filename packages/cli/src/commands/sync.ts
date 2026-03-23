@@ -362,6 +362,22 @@ function extractReusablePatterns(code: string) {
     .slice(0, 10)
 }
 
+function mergeReusablePatternsToStylePatterns(
+  patterns: { pattern: string; count: number }[],
+  existing: StylePatterns,
+): StylePatterns {
+  const result = { ...existing }
+  for (const p of patterns) {
+    if (p.pattern.includes('rounded') && p.pattern.includes('border') && !result.card) {
+      result.card = p.pattern
+    }
+    if (p.pattern.includes('py-') && p.pattern.includes('px-') && !result.section) {
+      result.section = p.pattern
+    }
+  }
+  return result
+}
+
 // ── Main Command ─────────────────────────────────────────────────
 
 export async function syncCommand(options: SyncOptions = {}) {
@@ -631,6 +647,9 @@ export async function syncCommand(options: SyncOptions = {}) {
     // Reusable patterns
     const reusable = extractReusablePatterns(allPageCode)
     if (reusable.length > 0) {
+      if (!dryRun) {
+        config.stylePatterns = mergeReusablePatternsToStylePatterns(reusable, config.stylePatterns || {})
+      }
       console.log('')
       console.log(chalk.blue(`🔁 Repeating patterns (${reusable.length} — potential reusable components):`))
       for (const p of reusable.slice(0, 5)) {
