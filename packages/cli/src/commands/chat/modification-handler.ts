@@ -23,7 +23,8 @@ import { createAIProvider } from '../../utils/ai-provider.js'
 import { readFile, writeFile } from '../../utils/files.js'
 import {
   CORE_CONSTRAINTS,
-  DESIGN_QUALITY,
+  DESIGN_QUALITY_COMMON,
+  getDesignQualityForType,
   selectContextualRules,
   inferPageTypeFromRoute,
 } from '../../agents/design-constraints.js'
@@ -756,7 +757,9 @@ export async function applyModification(
               if (ai.editPageCode) {
                 console.log(chalk.dim('  ✏️  Applying changes to existing page...'))
                 const coreRules = CORE_CONSTRAINTS
-                const qualityRules = DESIGN_QUALITY
+                const pageRoute = pageDef.route || `/${pageDef.id}`
+                const pageType = inferPageTypeFromRoute(pageRoute)
+                const qualityRules = `${DESIGN_QUALITY_COMMON}\n${getDesignQualityForType(pageType)}`
                 const contextualRules = selectContextualRules(instruction)
                 const existingRoutes = dsm
                   .getConfig()
