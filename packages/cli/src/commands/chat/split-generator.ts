@@ -8,6 +8,7 @@ import {
   type ModificationRequest,
   type SharedComponentsManifest,
   loadManifest,
+  saveManifest,
   generateSharedComponent,
 } from '@getcoherent/core'
 import type { GenerateSharedComponentResult } from '@getcoherent/core'
@@ -276,6 +277,27 @@ function getGroupLayoutForRoute(route: string, plan: ArchitecturePlan | null): s
 }
 
 export { buildExistingPagesContext, extractStyleContext }
+
+let manifestLock = Promise.resolve()
+
+async function updateManifestSafe(
+  projectRoot: string,
+  fn: (m: SharedComponentsManifest) => SharedComponentsManifest,
+): Promise<void> {
+  const timeoutMs = 5000
+  const update = manifestLock.then(async () => {
+    const m = await loadManifest(projectRoot)
+    const updated = fn(m)
+    await saveManifest(projectRoot, updated)
+  })
+  manifestLock = update.catch(() => {})
+  await Promise.race([
+    update,
+    new Promise<void>((_, reject) =>
+      setTimeout(() => reject(new Error('manifest sync timeout')), timeoutMs),
+    ),
+  ]).catch(() => {})
+}
 
 export type SplitGenerateParseOpts = {
   sharedComponentsSummary?: string
@@ -637,6 +659,24 @@ export async function splitGeneratePages(
                 /* retry failed, keep original */
               }
             }
+          }
+        }
+
+        if (projectRoot && codePage && currentManifest) {
+          const finalPageCode = (codePage.changes as Record<string, unknown>)?.pageCode as string
+          if (finalPageCode) {
+            await updateManifestSafe(projectRoot, m => {
+              const updatedShared = m.shared.map(entry => {
+                const isUsed =
+                  finalPageCode.includes(`{ ${entry.name} }`) ||
+                  finalPageCode.includes(`{ ${entry.name},`)
+                if (isUsed && !entry.usedIn.includes(route)) {
+                  return { ...entry, usedIn: [...entry.usedIn, route] }
+                }
+                return entry
+              })
+              return { ...m, shared: updatedShared }
+            })
           }
         }
 
