@@ -124,6 +124,16 @@ describe('DESIGN_QUALITY_APP reference snippets', () => {
   })
 })
 
+describe('DESIGN_QUALITY_AUTH reference snippet', () => {
+  it('contains auth card snippet with form pattern', () => {
+    const quality = getDesignQualityForType('auth')
+    expect(quality).toContain('w-full max-w-md')
+    expect(quality).toContain('<CardHeader className="space-y-1">')
+    expect(quality).toContain('<form className="space-y-4">')
+    expect(quality).toContain('underline-offset-4')
+  })
+})
+
 describe('DESIGN_QUALITY_COMMON', () => {
   it('contains typography rules', () => {
     expect(DESIGN_QUALITY_COMMON).toContain('font')

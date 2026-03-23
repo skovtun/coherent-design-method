@@ -369,20 +369,45 @@ NEVER include marketing sections (hero, pricing, testimonials) on app pages.
 const DESIGN_QUALITY_AUTH = `
 ## DESIGN QUALITY — AUTH PAGES
 
-### Layout
-- The auth layout ALREADY provides centering (flex items-center justify-center min-h-svh). Do NOT add your own centering wrapper or min-h-svh.
-- Just output: <div className="w-full max-w-md"> containing a Card
+### Reference Pattern (COPY this exact pattern)
+
+AUTH CARD:
+\`\`\`
+<div className="w-full max-w-md">
+  <Card>
+    <CardHeader className="space-y-1">
+      <CardTitle className="font-bold text-center">Welcome back</CardTitle>
+      <p className="text-sm text-muted-foreground text-center">Enter your credentials</p>
+    </CardHeader>
+    <CardContent>
+      <form className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="email">Email</Label>
+          <Input id="email" type="email" placeholder="Enter your email" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="password">Password</Label>
+          <Input id="password" type="password" placeholder="Enter your password" />
+        </div>
+        <Button type="submit" className="w-full">Sign in</Button>
+      </form>
+    </CardContent>
+    <CardFooter className="text-center">
+      <p className="text-sm text-muted-foreground">
+        Don't have an account?{' '}
+        <Link href="/register" className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors">Sign up</Link>
+      </p>
+    </CardFooter>
+  </Card>
+</div>
+\`\`\`
+
+### Rules
+- The auth layout ALREADY provides centering (flex items-center justify-center min-h-svh). Do NOT add your own centering wrapper.
 - Card width: w-full max-w-md
-- No navigation, no section containers, no sidebar
-- Single focused form with clear CTA
-- Card → CardHeader (title + description) → CardContent (form with space-y-4) → CardFooter (link to other auth page)
-
-### Form Spacing
 - Form fields inside CardContent: space-y-4 between field groups
-- Ensure visible gap between the last input field and the submit button (use space-y-4 or space-y-6)
 - Each field group (Label + Input): space-y-2
-
-NEVER include navigation bars, sidebars, or multi-section layouts on auth pages.
+- No navigation bars, sidebars, or multi-section layouts on auth pages.
 `
 
 const DESIGN_QUALITY_CRITICAL = `
