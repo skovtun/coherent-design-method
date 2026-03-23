@@ -296,7 +296,7 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
 
     const SPLIT_THRESHOLD = 4
     const parseOpts = { sharedComponentsSummary, projectRoot }
-    const modCtx = { config, componentManager: cm }
+    const modCtx = { config: dsm.getConfig(), componentManager: cm }
 
     const multiPageHint =
       /\b(pages?|sections?)\s*[:]\s*\w/i.test(message) ||
