@@ -150,6 +150,14 @@ describe('autoFixCode', () => {
     expect(fixed).not.toMatch(/SettingsIcon\s*}\s*from/)
   })
 
+  it('removes existing duplicate lucide import (Settings as SettingsIcon + SettingsIcon)', async () => {
+    const code = `'use client'\nimport { User, Bell, Settings as SettingsIcon, Save, Trash2, SettingsIcon } from "lucide-react"\nexport default function Page() { return <div><SettingsIcon className="size-4" /></div> }`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).not.toMatch(/SettingsIcon,\s*SettingsIcon/)
+    expect(fixed).toContain('Settings as SettingsIcon')
+    expect(fixes.some(f => f.includes('duplicate'))).toBe(true)
+  })
+
   it('adds use client when hooks are detected', async () => {
     const code = `import { useState } from 'react'\nexport default function Page() { const [x, setX] = useState(0); return <div>{x}</div> }`
     const { code: fixed, fixes } = await autoFixCode(code)

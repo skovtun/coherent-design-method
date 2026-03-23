@@ -1057,10 +1057,34 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
           .forEach(n => nonLucideImports.add(n))
       }
 
-      const rawIconEntries = lucideImportMatch[1]
+      let rawIconEntries = lucideImportMatch[1]
         .split(',')
         .map(s => s.trim())
         .filter(Boolean)
+
+      // Step 0: Deduplicate entries that resolve to the same local name (keep alias version)
+      const seenLocals = new Map<string, number>()
+      for (let i = 0; i < rawIconEntries.length; i++) {
+        const local = rawIconEntries[i]
+          .split(/\s+as\s+/)
+          .pop()!
+          .trim()
+        if (seenLocals.has(local)) {
+          const prevIdx = seenLocals.get(local)!
+          const prevHasAlias = rawIconEntries[prevIdx].includes(' as ')
+          const curHasAlias = rawIconEntries[i].includes(' as ')
+          if (curHasAlias && !prevHasAlias) {
+            rawIconEntries[prevIdx] = ''
+          } else {
+            rawIconEntries[i] = ''
+          }
+          fixes.push(`removed duplicate import ${local}`)
+        } else {
+          seenLocals.set(local, i)
+        }
+      }
+      rawIconEntries = rawIconEntries.filter(Boolean)
+
       const iconNames = rawIconEntries.map(entry => {
         const parts = entry.split(/\s+as\s+/)
         return parts[0].trim()
@@ -1074,7 +1098,7 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
           .trim()
         return nonLucideImports.has(alias)
       })
-      let newImport = lucideImportMatch[1]
+      let newImport = rawIconEntries.join(', ')
       for (const dup of duplicates) {
         const escaped = dup.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
         newImport = newImport.replace(new RegExp(`${escaped},?\\s*`), '')
@@ -1125,7 +1149,8 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
         fixes.push(`invalid lucide icons: ${replacements.join(', ')}`)
       }
 
-      if (duplicates.length > 0 || invalid.length > 0) {
+      const dedupHappened = seenLocals.size < lucideImportMatch[1].split(',').filter(s => s.trim()).length
+      if (duplicates.length > 0 || invalid.length > 0 || dedupHappened) {
         const importedNames = [
           ...new Set(
             newImport
