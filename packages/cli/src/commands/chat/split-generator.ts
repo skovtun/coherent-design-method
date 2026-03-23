@@ -501,6 +501,7 @@ export async function splitGeneratePages(
   const sharedLayoutNote =
     'Header and Footer are shared components rendered by the root layout. Do NOT include any site-wide <header>, <nav>, or <footer> in this page. Start with the main content directly.'
   const sharedComponentsNote = buildSharedComponentsNote(parseOpts.sharedComponentsSummary)
+  const currentManifest = projectRoot ? await loadManifest(projectRoot) : null
   const routeNote = `EXISTING ROUTES in this project: ${allRoutes}. All internal links MUST point to one of these routes. If a target doesn't exist, use href="#".`
   const alignmentNote =
     'CRITICAL LAYOUT RULE: Every <section> must wrap its content in a container div matching the header width. Use the EXACT same container classes as shown in the style context (e.g. className="container max-w-6xl px-4" or className="max-w-6xl mx-auto px-4"). Inner content can use narrower max-w for text centering, but the outer section container MUST match.'
@@ -526,6 +527,9 @@ export async function splitGeneratePages(
         ? 'For this auth page: the auth layout already provides centering (flex items-center justify-center min-h-svh). Do NOT add your own centering wrapper or min-h-svh. Just output a div with className="w-full max-w-md" containing the Card. Do NOT use section containers or full-width wrappers.'
         : undefined
 
+      const tieredNote = currentManifest
+        ? buildTieredComponentsPrompt(currentManifest, pageType as 'marketing' | 'app' | 'auth')
+        : undefined
       const prompt = [
         `Create ONE page called "${name}" at route "${route}".`,
         `Context: ${message}.`,
@@ -533,7 +537,7 @@ export async function splitGeneratePages(
         `PAGE TYPE: ${pageType}`,
         designConstraints,
         sharedLayoutNote,
-        sharedComponentsNote,
+        tieredNote || sharedComponentsNote,
         routeNote,
         alignmentNote,
         authNote,
@@ -575,12 +579,16 @@ export async function splitGeneratePages(
       const pageRoute = (page.route as string) || `/${pageName.toLowerCase()}`
       try {
         const retryPageType = plan ? getPageType(pageRoute, plan) : inferPageTypeFromRoute(pageRoute)
+        const retryTieredNote = currentManifest
+          ? buildTieredComponentsPrompt(currentManifest, retryPageType as 'marketing' | 'app' | 'auth')
+          : undefined
         const lightweightPrompt = buildLightweightPagePrompt(
           pageName,
           pageRoute,
           styleContext || '',
           parseOpts.sharedComponentsSummary,
           retryPageType,
+          retryTieredNote,
         )
         const retryResult = await parseModification(lightweightPrompt, modCtx, provider, {
           ...parseOpts,

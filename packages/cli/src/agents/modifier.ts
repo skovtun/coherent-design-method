@@ -37,6 +37,7 @@ export interface ParseModificationResult {
 
 export interface ParseModificationOptions {
   sharedComponentsSummary?: string
+  tieredComponentsPrompt?: string
   planOnly?: boolean
   lightweight?: boolean
 }
@@ -84,6 +85,7 @@ export async function parseModification(
   const prompt = buildModificationPrompt(enhancedMessage, context.config, componentRegistry, {
     isExpandedPageRequest,
     sharedComponentsSummary: options?.sharedComponentsSummary,
+    tieredComponentsPrompt: options?.tieredComponentsPrompt,
   })
 
   const raw = await ai.parseModification(prompt)
@@ -174,15 +176,21 @@ function buildModificationPrompt(
   message: string,
   config: DesignSystemConfig,
   componentRegistry: string,
-  options?: { isExpandedPageRequest?: boolean; sharedComponentsSummary?: string },
+  options?: {
+    isExpandedPageRequest?: boolean
+    sharedComponentsSummary?: string
+    tieredComponentsPrompt?: string
+  },
 ): string {
   const now = new Date().toISOString()
   const expandedHint =
     options?.isExpandedPageRequest === true
       ? '\nIMPORTANT: The user request has been expanded with best practices. Use ALL the details provided when generating sections and content.\n\n'
       : ''
-  const sharedSection = options?.sharedComponentsSummary
-    ? `
+  const sharedSection = options?.tieredComponentsPrompt
+    ? `\n\n## SHARED COMPONENTS (MANDATORY REUSE)\n\n${options.tieredComponentsPrompt}\n\nFor editing an existing shared component use type "modify-layout-block" with target "CID-XXX" or name.\n`
+    : options?.sharedComponentsSummary
+      ? `
 
 ## SHARED COMPONENTS (MANDATORY REUSE)
 
@@ -197,7 +205,7 @@ If the shared component needs minor adaptation (e.g., different props), use its 
 
 For editing an existing shared component use type "modify-layout-block" with target "CID-XXX" or name.
 `
-    : ''
+      : ''
   const availableShadcn = getComponentProvider().listNames()
 
   const designThinking = DESIGN_THINKING
@@ -468,8 +476,10 @@ export function buildLightweightPagePrompt(
   styleContext: string,
   sharedComponentsSummary?: string,
   pageType?: 'marketing' | 'app' | 'auth',
+  tieredComponentsPrompt?: string,
 ): string {
   const designConstraints = pageType ? getDesignQualityForType(pageType) : ''
+  const sharedNote = tieredComponentsPrompt || (sharedComponentsSummary ? `Available shared components:\n${sharedComponentsSummary}` : '')
   return [
     `Generate complete pageCode for a page called "${pageName}" at route "${route}".`,
     `Output valid TSX with a default export React component.`,
@@ -477,7 +487,7 @@ export function buildLightweightPagePrompt(
     pageType ? `PAGE TYPE: ${pageType}` : '',
     designConstraints,
     styleContext ? `Follow this style context:\n${styleContext}` : '',
-    sharedComponentsSummary ? `Available shared components:\n${sharedComponentsSummary}` : '',
+    sharedNote,
   ]
     .filter(Boolean)
     .join('\n\n')
