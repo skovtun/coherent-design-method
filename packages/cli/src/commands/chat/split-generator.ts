@@ -1,3 +1,5 @@
+import { existsSync, readFileSync, readdirSync, statSync } from 'fs'
+import { resolve } from 'path'
 import type ora from 'ora'
 import { z } from 'zod'
 import {
@@ -155,6 +157,51 @@ export function formatPlanSummary(plan: ArchitecturePlan): string {
   }
 
   return parts.join('\n')
+}
+
+export function readExistingAppPageForReference(
+  projectRoot: string | null,
+  plan: ArchitecturePlan | null,
+): string | null {
+  if (!projectRoot) return null
+
+  if (plan?.pageNotes) {
+    for (const [key, note] of Object.entries(plan.pageNotes)) {
+      if (note.type !== 'app') continue
+      for (const group of ['(app)', '(admin)', '(dashboard)']) {
+        const filePath = resolve(projectRoot, 'app', group, key, 'page.tsx')
+        if (existsSync(filePath)) {
+          const code = readFileSync(filePath, 'utf-8')
+          const lines = code.split('\n')
+          return lines.slice(0, 200).join('\n')
+        }
+      }
+    }
+  }
+
+  const appDir = resolve(projectRoot, 'app')
+  if (!existsSync(appDir)) return null
+  try {
+    const entries = readdirSync(appDir)
+    for (const entry of entries) {
+      if (!entry.startsWith('(') || entry === '(auth)') continue
+      const groupDir = resolve(appDir, entry)
+      if (!statSync(groupDir).isDirectory()) continue
+      const subDirs = readdirSync(groupDir)
+      for (const sub of subDirs) {
+        const pagePath = resolve(groupDir, sub, 'page.tsx')
+        if (existsSync(pagePath)) {
+          const code = readFileSync(pagePath, 'utf-8')
+          const lines = code.split('\n')
+          return lines.slice(0, 200).join('\n')
+        }
+      }
+    }
+  } catch {
+    return null
+  }
+
+  return null
 }
 
 export { buildExistingPagesContext, extractStyleContext }
@@ -408,6 +455,11 @@ export async function splitGeneratePages(
     'CRITICAL LAYOUT RULE: Every <section> must wrap its content in a container div matching the header width. Use the EXACT same container classes as shown in the style context (e.g. className="container max-w-6xl px-4" or className="max-w-6xl mx-auto px-4"). Inner content can use narrower max-w for text centering, but the outer section container MUST match.'
   const planSummaryNote = plan ? formatPlanSummary(plan) : ''
 
+  const existingAppPageCode = readExistingAppPageForReference(parseOpts?.projectRoot ?? null, plan)
+  const existingAppPageNote = existingAppPageCode
+    ? `\nEXISTING APP PAGE (match these UI patterns for consistency):\n\`\`\`\n${existingAppPageCode}\n\`\`\`\n`
+    : ''
+
   const existingPagesContext = buildExistingPagesContext(modCtx.config)
 
   const AI_CONCURRENCY = 3
@@ -435,6 +487,7 @@ export async function splitGeneratePages(
         alignmentNote,
         authNote,
         planSummaryNote,
+        existingAppPageNote,
         existingPagesContext,
         styleContext,
       ]

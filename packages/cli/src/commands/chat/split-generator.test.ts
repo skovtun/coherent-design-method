@@ -6,6 +6,7 @@ import {
   buildSharedComponentsNote,
   extractSharedComponents,
   formatPlanSummary,
+  readExistingAppPageForReference,
 } from './split-generator.js'
 import { ArchitecturePlanSchema } from './plan-generator.js'
 import { inferPageType } from './modification-handler.js'
@@ -478,5 +479,17 @@ describe('formatPlanSummary', () => {
     expect(summary).toContain('Page Sections:')
     expect(summary).toContain('dashboard: Stats row, Activity feed')
     expect(summary).toContain('tasks: Filter toolbar, Task list')
+  })
+})
+
+describe('readExistingAppPageForReference', () => {
+  it('returns null when no project root', () => {
+    const result = readExistingAppPageForReference(null, null)
+    expect(result).toBeNull()
+  })
+
+  it('returns null when no plan', () => {
+    const result = readExistingAppPageForReference('/tmp/nonexistent', null)
+    expect(result).toBeNull()
   })
 })
