@@ -4,6 +4,7 @@ import {
   extractAppNameFromPrompt,
   buildSharedComponentsSummary,
   buildSharedComponentsNote,
+  buildTieredComponentsPrompt,
   extractSharedComponents,
   formatPlanSummary,
   readExistingAppPageForReference,
@@ -508,5 +509,83 @@ describe('readExistingAppPageForReference', () => {
     }
     const result = readExistingAppPageForReference('/tmp/nonexistent', plan)
     expect(result).toBeNull()
+  })
+})
+
+const mockManifest = {
+  shared: [
+    {
+      id: 'CID-001',
+      name: 'Header',
+      type: 'layout' as const,
+      file: 'components/shared/header.tsx',
+      usedIn: ['app/layout.tsx'],
+      description: 'Main site header',
+      propsInterface: '{ logo?: string }',
+      usageExample: '<Header logo="/logo.svg" />',
+      dependencies: [],
+    },
+    {
+      id: 'CID-002',
+      name: 'StatsCard',
+      type: 'data-display' as const,
+      file: 'components/shared/stats-card.tsx',
+      usedIn: ['app/dashboard/page.tsx'],
+      description: 'Metric card with trend',
+      propsInterface: '{ icon: LucideIcon; value: string; label: string }',
+      usageExample: '<StatsCard icon={Users} value="1,234" label="Total" />',
+      dependencies: ['lucide-react'],
+    },
+    {
+      id: 'CID-003',
+      name: 'FilterToolbar',
+      type: 'form' as const,
+      file: 'components/shared/filter-toolbar.tsx',
+      usedIn: [],
+      description: 'Search and filter controls',
+      propsInterface: '{ onFilter: (q: string) => void }',
+      usageExample: '<FilterToolbar onFilter={handleFilter} />',
+      dependencies: [],
+    },
+    {
+      id: 'CID-004',
+      name: 'PricingCard',
+      type: 'section' as const,
+      file: 'components/shared/pricing-card.tsx',
+      usedIn: ['app/pricing/page.tsx'],
+      description: 'Pricing tier card',
+      propsInterface: '{ title: string; price: number }',
+      usageExample: '<PricingCard title="Pro" price={29} />',
+      dependencies: [],
+    },
+  ],
+  nextId: 5,
+}
+
+describe('buildTieredComponentsPrompt', () => {
+  it('includes all components in Level 1 (one-line summaries)', () => {
+    const result = buildTieredComponentsPrompt(mockManifest, 'app')
+    expect(result).toContain('CID-001 Header (layout)')
+    expect(result).toContain('CID-002 StatsCard (data-display)')
+    expect(result).toContain('CID-003 FilterToolbar (form)')
+    expect(result).toContain('CID-004 PricingCard (section)')
+  })
+
+  it('includes detailed Level 2 for relevant types only', () => {
+    const result = buildTieredComponentsPrompt(mockManifest, 'app')
+    expect(result).toContain('Props: { icon: LucideIcon; value: string; label: string }')
+    expect(result).toContain('<StatsCard icon={Users}')
+    expect(result).toContain('<FilterToolbar onFilter={handleFilter}')
+    expect(result).not.toContain('Props: { title: string; price: number }')
+  })
+
+  it('selects section types for marketing pages', () => {
+    const result = buildTieredComponentsPrompt(mockManifest, 'marketing')
+    expect(result).toContain('<PricingCard title="Pro"')
+    expect(result).not.toContain('<StatsCard icon={Users}')
+  })
+
+  it('returns undefined for empty manifest', () => {
+    expect(buildTieredComponentsPrompt({ shared: [], nextId: 1 }, 'app')).toBeUndefined()
   })
 })

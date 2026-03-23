@@ -135,6 +135,57 @@ Before implementing any section, check this list. Import and use matching compon
 ${sharedComponentsSummary}`
 }
 
+const RELEVANT_TYPES: Record<string, string[]> = {
+  app: ['data-display', 'form', 'navigation', 'feedback'],
+  auth: ['form', 'feedback'],
+  marketing: ['section', 'layout'],
+}
+
+export function buildTieredComponentsPrompt(
+  manifest: SharedComponentsManifest,
+  pageType: 'marketing' | 'app' | 'auth',
+): string | undefined {
+  if (manifest.shared.length === 0) return undefined
+
+  const relevantTypes = new Set(RELEVANT_TYPES[pageType] || RELEVANT_TYPES.app)
+
+  const level1Lines = manifest.shared.map((e) => {
+    const desc = e.description ? ` — ${e.description}` : ''
+    return `- ${e.id} ${e.name} (${e.type})${desc}`
+  })
+
+  const relevantComponents = manifest.shared.filter((e) => relevantTypes.has(e.type))
+  const level2Blocks = relevantComponents
+    .filter((e) => e.propsInterface || e.usageExample)
+    .map((e) => {
+      const importPath = e.file.replace(/^components\/shared\//, '').replace(/\.tsx$/, '')
+      const lines = [`### ${e.name} (${e.id})`]
+      if (e.propsInterface) lines.push(`Props: ${e.propsInterface}`)
+      if (e.usageExample) lines.push(`Usage: ${e.usageExample}`)
+      lines.push(`Import: import { ${e.name} } from '@/components/shared/${importPath}'`)
+      return lines.join('\n')
+    })
+
+  const sections = [
+    `SHARED COMPONENTS — MANDATORY REUSE:`,
+    `Before implementing any section, check this list. Import and use matching components. Do NOT re-implement these patterns inline.`,
+    ``,
+    `Available components:`,
+    ...level1Lines,
+  ]
+
+  if (level2Blocks.length > 0) {
+    sections.push(``, `Components to use on this page (detailed API):`, ...level2Blocks)
+  }
+
+  sections.push(
+    ``,
+    `If you need a component from the list above that isn't detailed below, import it by path — the system will validate usage post-generation.`,
+  )
+
+  return sections.join('\n')
+}
+
 export function formatPlanSummary(plan: ArchitecturePlan): string {
   if (plan.groups.length === 0) return ''
 
