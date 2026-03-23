@@ -564,9 +564,7 @@ MULTI-SELECT / TAG INPUT:
 export const RULES_DATA_DISPLAY = `
 DATA DISPLAY RULES:
 
-STAT / METRIC CARDS:
-- Pattern: Card > CardHeader(flex flex-row items-center justify-between space-y-0 pb-2) > CardTitle(text-sm font-medium) + Icon(size-4 text-muted-foreground) ; CardContent > metric(text-2xl font-bold) + change(text-xs text-muted-foreground).
-- Grid: grid gap-4 md:grid-cols-2 lg:grid-cols-4.
+STAT / METRIC CARDS: See the Stats Grid reference pattern in DESIGN QUALITY — APP PAGES. Follow that exact pattern.
 - Trend up: text-emerald-600 (light) / text-emerald-400 (dark) — exception to semantic-only rule for trend indicators.
 - Trend down: text-destructive.
 - Trend icon: ArrowUp / ArrowDown className="size-3 inline mr-1".
@@ -587,12 +585,7 @@ PAGINATION:
 - Placement: below the list/table, centered. <div className="flex justify-center mt-4">
 - For short lists (<20 items): no pagination. For feeds: "Load more" button (variant="outline" className="w-full").
 
-EMPTY STATES:
-- Pattern: <div className="flex flex-col items-center justify-center py-12 text-center">
-- Icon: size-12 text-muted-foreground mb-4 (larger than normal icons — exception).
-- Title: <h3 className="text-lg font-semibold">No projects yet</h3>
-- Description: <p className="text-sm text-muted-foreground mt-1 max-w-sm">Create your first project to get started.</p>
-- CTA: <Button className="mt-4">Create project</Button>
+EMPTY STATES: See the Empty State reference pattern in DESIGN QUALITY — APP PAGES. Follow that exact pattern.
 - Search empty: "No results for 'query'. Try different keywords." + clear search button.
 - Filtered empty: "No items match your filters." + reset filters button.
 
@@ -629,9 +622,7 @@ TRUNCATION:
 - When to truncate: card descriptions (2 lines), table cells (single line), list item subtitles (1-2 lines).
 - Always set title={fullText} for accessibility on truncated text.
 
-SEARCH INPUT:
-- Pattern: <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" /><Input placeholder="Search..." className="pl-9" /></div>
-- Placement: top of the list/table it filters, max-w-sm.
+SEARCH INPUT: See the Filter Toolbar reference pattern in DESIGN QUALITY — APP PAGES. Always use the compound Select pattern shown there.
 - Clear button: X icon on right when value is not empty.
 - Debounce: 300ms on keystroke. No search button.
 `
