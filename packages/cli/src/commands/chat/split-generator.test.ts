@@ -8,6 +8,7 @@ import {
   extractSharedComponents,
   formatPlanSummary,
   readExistingAppPageForReference,
+  buildLayoutNote,
 } from './split-generator.js'
 import { ArchitecturePlanSchema } from './plan-generator.js'
 import { inferPageType } from './modification-handler.js'
@@ -42,6 +43,35 @@ vi.mock('@getcoherent/core', async importOriginal => {
 vi.mock('../../utils/quality-validator.js', () => ({
   autoFixCode: vi.fn(async (code: string) => ({ code, fixes: [] })),
 }))
+
+describe('buildLayoutNote', () => {
+  it('returns sidebar note for sidebar layout', () => {
+    const note = buildLayoutNote('sidebar')
+    expect(note).toContain('SIDEBAR layout')
+    expect(note).toContain('Do NOT create your own sidebar')
+  })
+
+  it('returns header note for header layout', () => {
+    const note = buildLayoutNote('header')
+    expect(note).toContain('Header and Footer')
+    expect(note).not.toContain('SIDEBAR')
+  })
+
+  it('returns both note for both layout', () => {
+    const note = buildLayoutNote('both')
+    expect(note).toContain('sidebar and a header')
+  })
+
+  it('returns none note for none layout', () => {
+    const note = buildLayoutNote('none')
+    expect(note).toContain('no shared navigation')
+  })
+
+  it('defaults to header for undefined', () => {
+    const note = buildLayoutNote(undefined)
+    expect(note).toContain('Header and Footer')
+  })
+})
 
 describe('parseNavTypeFromPlan', () => {
   it('extracts sidebar navType from plan response', () => {

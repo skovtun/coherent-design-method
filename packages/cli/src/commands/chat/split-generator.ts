@@ -255,6 +255,25 @@ export function readExistingAppPageForReference(
   return null
 }
 
+export function buildLayoutNote(layoutType?: string): string {
+  switch (layoutType) {
+    case 'sidebar':
+      return 'This page uses a SIDEBAR layout. The sidebar navigation is already rendered by the group layout. Do NOT create your own sidebar or side navigation. Start with the main content area directly. The page content appears to the right of the sidebar.'
+    case 'both':
+      return 'This page has both a sidebar and a header rendered by the group layout. Do NOT include any site-wide header, nav, sidebar, or footer in this page. Start with the main content directly.'
+    case 'none':
+      return 'This page has no shared navigation from the layout. Include any needed navigation within the page itself.'
+    default:
+      return 'Header and Footer are shared components rendered by the root layout. Do NOT include any site-wide <header>, <nav>, or <footer> in this page. Start with the main content directly.'
+  }
+}
+
+function getGroupLayoutForRoute(route: string, plan: ArchitecturePlan | null): string | undefined {
+  if (!plan) return undefined
+  const group = plan.groups.find(g => g.pages.includes(route))
+  return group?.layout
+}
+
 export { buildExistingPagesContext, extractStyleContext }
 
 export type SplitGenerateParseOpts = {
@@ -498,8 +517,6 @@ export async function splitGeneratePages(
 
   spinner.start(`Phase 5/6 — Generating ${remainingPages.length} pages in parallel...`)
 
-  const sharedLayoutNote =
-    'Header and Footer are shared components rendered by the root layout. Do NOT include any site-wide <header>, <nav>, or <footer> in this page. Start with the main content directly.'
   const sharedComponentsNote = buildSharedComponentsNote(parseOpts.sharedComponentsSummary)
   const currentManifest = projectRoot ? await loadManifest(projectRoot) : null
   const routeNote = `EXISTING ROUTES in this project: ${allRoutes}. All internal links MUST point to one of these routes. If a target doesn't exist, use href="#".`
@@ -527,6 +544,8 @@ export async function splitGeneratePages(
         ? 'For this auth page: the auth layout already provides centering (flex items-center justify-center min-h-svh). Do NOT add your own centering wrapper or min-h-svh. Just output a div with className="w-full max-w-md" containing the Card. Do NOT use section containers or full-width wrappers.'
         : undefined
 
+      const layoutForPage = getGroupLayoutForRoute(route, plan)
+      const layoutNote = buildLayoutNote(layoutForPage)
       const tieredNote = currentManifest
         ? buildTieredComponentsPrompt(currentManifest, pageType as 'marketing' | 'app' | 'auth')
         : undefined
@@ -536,7 +555,7 @@ export async function splitGeneratePages(
         `Generate complete pageCode for this single page only. Do not generate other pages.`,
         `PAGE TYPE: ${pageType}`,
         designConstraints,
-        sharedLayoutNote,
+        layoutNote,
         tieredNote || sharedComponentsNote,
         routeNote,
         alignmentNote,
