@@ -42,6 +42,8 @@ import { validatePageQuality } from '../utils/quality-validator.js'
 import { requireProject, loadConfig, routeToFsPath, resolveTargetFlags, AUTH_SYNONYMS } from './chat/utils.js'
 import { extractInternalLinks, normalizeRequest, applyDefaults, AUTH_FLOW_PATTERNS } from './chat/request-parser.js'
 import { splitGeneratePages, buildSharedComponentsSummary } from './chat/split-generator.js'
+import { buildReusePlan, buildReusePlanDirective } from '../utils/reuse-planner.js'
+import { inferPageTypeFromRoute } from '../agents/design-constraints.js'
 import { savePlan } from './chat/plan-generator.js'
 import { applyModification } from './chat/modification-handler.js'
 import { regenerateFiles, scanAndInstallSharedDeps, ensurePlanGroupLayouts } from './chat/code-generator.js'
@@ -351,8 +353,26 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
         }
       }
     } else {
+      let reusePlanDirective: string | undefined
       try {
-        const result = await parseModification(message, modCtx, provider, parseOpts)
+        const singlePageManifest = await loadManifest(projectRoot)
+        if (singlePageManifest.shared.length > 0) {
+          const reusePlan = buildReusePlan({
+            pageName: 'page',
+            pageType: inferPageTypeFromRoute('/') as 'marketing' | 'app' | 'auth',
+            sections: [],
+            manifest: singlePageManifest,
+            existingPageCode: {},
+            userRequest: message,
+          })
+          reusePlanDirective = buildReusePlanDirective(reusePlan) || undefined
+        }
+      } catch {
+        /* graceful degradation */
+      }
+
+      try {
+        const result = await parseModification(message, modCtx, provider, { ...parseOpts, reusePlanDirective })
         requests = result.requests
         uxRecommendations = result.uxRecommendations
 

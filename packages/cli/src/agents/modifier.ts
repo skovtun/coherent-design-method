@@ -38,6 +38,7 @@ export interface ParseModificationResult {
 export interface ParseModificationOptions {
   sharedComponentsSummary?: string
   tieredComponentsPrompt?: string
+  reusePlanDirective?: string
   planOnly?: boolean
   lightweight?: boolean
 }
@@ -86,6 +87,7 @@ export async function parseModification(
     isExpandedPageRequest,
     sharedComponentsSummary: options?.sharedComponentsSummary,
     tieredComponentsPrompt: options?.tieredComponentsPrompt,
+    reusePlanDirective: options?.reusePlanDirective,
   })
 
   const raw = await ai.parseModification(prompt)
@@ -180,6 +182,7 @@ function buildModificationPrompt(
     isExpandedPageRequest?: boolean
     sharedComponentsSummary?: string
     tieredComponentsPrompt?: string
+    reusePlanDirective?: string
   },
 ): string {
   const now = new Date().toISOString()
@@ -187,10 +190,12 @@ function buildModificationPrompt(
     options?.isExpandedPageRequest === true
       ? '\nIMPORTANT: The user request has been expanded with best practices. Use ALL the details provided when generating sections and content.\n\n'
       : ''
-  const sharedSection = options?.tieredComponentsPrompt
-    ? `\n\n## SHARED COMPONENTS (MANDATORY REUSE)\n\n${options.tieredComponentsPrompt}\n\nFor editing an existing shared component use type "modify-layout-block" with target "CID-XXX" or name.\n`
-    : options?.sharedComponentsSummary
-      ? `
+  const sharedSection = options?.reusePlanDirective
+    ? `\n\n## COMPONENT REUSE DIRECTIVE\n\n${options.reusePlanDirective}\n\nFor editing an existing shared component use type "modify-layout-block" with target "CID-XXX" or name.\n`
+    : options?.tieredComponentsPrompt
+      ? `\n\n## SHARED COMPONENTS (MANDATORY REUSE)\n\n${options.tieredComponentsPrompt}\n\nFor editing an existing shared component use type "modify-layout-block" with target "CID-XXX" or name.\n`
+      : options?.sharedComponentsSummary
+        ? `
 
 ## SHARED COMPONENTS (MANDATORY REUSE)
 
@@ -477,9 +482,11 @@ export function buildLightweightPagePrompt(
   sharedComponentsSummary?: string,
   pageType?: 'marketing' | 'app' | 'auth',
   tieredComponentsPrompt?: string,
+  reusePlanDirective?: string,
 ): string {
   const designConstraints = pageType ? getDesignQualityForType(pageType) : ''
   const sharedNote =
+    reusePlanDirective ||
     tieredComponentsPrompt ||
     (sharedComponentsSummary ? `Available shared components:\n${sharedComponentsSummary}` : '')
   return [
