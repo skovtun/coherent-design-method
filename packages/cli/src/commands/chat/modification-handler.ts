@@ -262,7 +262,8 @@ export async function applyModification(
           modified: [],
         }
       }
-      const pageFilePath = routeToFsPath(projectRoot, route, false)
+      const readPlan = projectRoot ? loadPlan(projectRoot) : null
+      const pageFilePath = routeToFsPath(projectRoot, route, readPlan || false)
       let pageCode: string
       try {
         pageCode = await readFile(pageFilePath)
@@ -571,13 +572,13 @@ export async function applyModification(
           if (isAuth) {
             await ensureAuthRouteGroup(projectRoot)
           }
-          const filePath = routeToFsPath(projectRoot, route, isAuth)
+          const currentPlan = projectRoot ? loadPlan(projectRoot) : null
+          const filePath = routeToFsPath(projectRoot, route, currentPlan || isAuth)
           await mkdir(dirname(filePath), { recursive: true })
           const { fixedCode, fixes: postFixes } = await validateAndFixGeneratedCode(projectRoot, finalPageCode, {
             isPage: true,
           })
           let codeToWrite = fixedCode
-          const currentPlan = projectRoot ? loadPlan(projectRoot) : null
           const autoFixCtx: AutoFixContext | undefined = route
             ? {
                 currentRoute: route,
@@ -752,7 +753,8 @@ export async function applyModification(
         if (pageDef?.route) {
           const route = pageDef.route
           const isAuth = isAuthRoute(route) || isAuthRoute(pageDef.name || pageDef.id || '')
-          const absPath = routeToFsPath(projectRoot, route, isAuth)
+          const updatePlan = projectRoot ? loadPlan(projectRoot) : null
+          const absPath = routeToFsPath(projectRoot, route, updatePlan || isAuth)
 
           if (!resolvedPageCode && instruction) {
             let currentCode: string | undefined
@@ -901,7 +903,47 @@ export async function applyModification(
               layoutShared: manifestForAudit.shared.filter(c => c.type === 'layout'),
             })
 
-            const issues = validatePageQuality(codeToWrite, undefined, qualityPageType2)
+            let issues = validatePageQuality(codeToWrite, undefined, qualityPageType2)
+            let qualityErrors = issues.filter(i => i.severity === 'error')
+            const MAX_UPDATE_QUALITY_FIX_ATTEMPTS = 2
+            for (let attempt = 0; attempt < MAX_UPDATE_QUALITY_FIX_ATTEMPTS && qualityErrors.length > 0; attempt++) {
+              if (!aiProvider) break
+              try {
+                const ai = await createAIProvider(aiProvider)
+                if (!ai.editPageCode) break
+                const errorList = qualityErrors.map(e => `Line ${e.line}: [${e.type}] ${e.message}`).join('\n')
+                const fixInstruction = `Fix these quality issues:\n${errorList}\n\nRules:\n- Replace raw Tailwind colors with semantic tokens (bg-primary, text-muted-foreground, etc.)\n- Replace placeholder content with realistic contextual content\n- Ensure heading hierarchy\n- Keep all existing functionality and layout intact`
+                const qFixedCode = await ai.editPageCode(
+                  codeToWrite,
+                  fixInstruction,
+                  pageDef.name || pageDef.id || 'Page',
+                )
+                if (qFixedCode && qFixedCode.length > 100 && /export\s+(default\s+)?function/.test(qFixedCode)) {
+                  const recheck = validatePageQuality(qFixedCode, undefined, qualityPageType2)
+                  const recheckErrors = recheck.filter(i => i.severity === 'error')
+                  if (recheckErrors.length < qualityErrors.length) {
+                    codeToWrite = qFixedCode
+                    const { code: reFixed } = await autoFixCode(codeToWrite, autoFixCtx2)
+                    codeToWrite = reFixed
+                    await writeFile(absPath, codeToWrite)
+                    qualityErrors = recheckErrors
+                    console.log(
+                      chalk.green(
+                        `   ✔ Quality fix: ${qualityErrors.length + (qualityErrors.length - recheckErrors.length)} → ${recheckErrors.length} errors`,
+                      ),
+                    )
+                    if (qualityErrors.length === 0) break
+                  } else {
+                    break
+                  }
+                } else {
+                  break
+                }
+              } catch {
+                break
+              }
+            }
+            issues = validatePageQuality(codeToWrite, undefined, qualityPageType2)
             const report = formatIssues(issues)
             if (report) {
               console.log(chalk.yellow(`\n🔍 Quality check for ${pageDef.name || pageDef.id}:`))

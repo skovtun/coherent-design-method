@@ -114,7 +114,9 @@ export async function regeneratePage(pageId: string, config: DesignSystemConfig,
 
   const route = page.route || '/'
   const isAuth = isAuthRoute(route) || isAuthRoute(page.name || page.id || '')
-  const filePath = routeToFsPath(projectRoot, route, isAuth)
+  const { loadPlan: loadPlanForPath } = await import('./plan-generator.js')
+  const planForPath = loadPlanForPath(projectRoot)
+  const filePath = routeToFsPath(projectRoot, route, planForPath || isAuth)
 
   await mkdir(dirname(filePath), { recursive: true })
   await writeFile(filePath, code)
@@ -254,7 +256,8 @@ export async function ensureAppRouteGroupLayout(
 export function buildAppLayoutCode(navType?: string): string {
   const hasSidebar = navType === 'sidebar' || navType === 'both'
   if (hasSidebar) {
-    return `import { Sidebar } from '@/components/shared/sidebar'
+    return `import { AppSidebar } from '@/components/shared/sidebar'
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 
 export default function AppLayout({
   children,
@@ -262,12 +265,14 @@ export default function AppLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex min-h-[calc(100vh-3.5rem)]">
-      <Sidebar />
-      <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6">
-        {children}
-      </main>
-    </div>
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset>
+        <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6">
+          {children}
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }
 `
@@ -288,7 +293,8 @@ export default function AppLayout({
 
 export function buildGroupLayoutCode(layout: string, _pages: string[]): string {
   if (layout === 'sidebar' || layout === 'both') {
-    return `import { Sidebar } from '@/components/shared/sidebar'
+    return `import { AppSidebar } from '@/components/shared/sidebar'
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 
 export default function GroupLayout({
   children,
@@ -296,12 +302,14 @@ export default function GroupLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex min-h-[calc(100vh-3.5rem)]">
-      <Sidebar />
-      <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6">
-        {children}
-      </main>
-    </div>
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset>
+        <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6">
+          {children}
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }
 `

@@ -359,7 +359,7 @@ export interface NavigationItem {
  */
 export const NavigationSchema = z.object({
   enabled: z.boolean().default(true),
-  type: z.enum(['header', 'sidebar', 'both']).default('header'),
+  type: z.enum(['header', 'sidebar', 'both', 'none']).default('header'),
   items: z.array(NavigationItemSchema),
   logo: z
     .object({

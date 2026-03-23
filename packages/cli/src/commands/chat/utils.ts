@@ -99,7 +99,7 @@ export function deduplicatePages(
   pages: Array<{ name: string; id: string; route: string }>,
 ): Array<{ name: string; id: string; route: string }> {
   const canonicalize = (route: string) => AUTH_SYNONYMS[route] || route
-  const normalize = (route: string) => canonicalize(route).replace(/\/$/, '').replace(/s$/, '').replace(/ue$/, '')
+  const normalize = (route: string) => canonicalize(route).replace(/\/$/, '')
   const seen = new Map<string, number>()
   return pages.filter((page, idx) => {
     const norm = normalize(page.route)

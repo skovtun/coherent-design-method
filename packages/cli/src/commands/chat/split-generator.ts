@@ -114,12 +114,12 @@ function extractStyleContext(pageCode: string): string {
 ${lines.map(l => `  - ${l}`).join('\n')}`
 }
 
-const VALID_NAV_TYPES = new Set(['header', 'sidebar', 'both'])
+const VALID_NAV_TYPES = new Set(['header', 'sidebar', 'both', 'none'])
 
-export function parseNavTypeFromPlan(planResult: Record<string, unknown>): 'header' | 'sidebar' | 'both' {
+export function parseNavTypeFromPlan(planResult: Record<string, unknown>): 'header' | 'sidebar' | 'both' | 'none' {
   const nav = planResult.navigation as Record<string, unknown> | undefined | null
   if (nav && typeof nav.type === 'string' && VALID_NAV_TYPES.has(nav.type)) {
-    return nav.type as 'header' | 'sidebar' | 'both'
+    return nav.type as 'header' | 'sidebar' | 'both' | 'none'
   }
   return 'header'
 }

@@ -233,7 +233,7 @@ describe('PageGenerator', () => {
       const sidebar = gen.generateSharedSidebarCode()
       expect(sidebar).toContain("'use client'")
       expect(sidebar).toContain('export function AppSidebar()')
-      expect(sidebar).toContain('SidebarProvider')
+      expect(sidebar).not.toContain('SidebarProvider')
       expect(sidebar).toContain('SidebarMenu')
       expect(sidebar).toContain('SidebarMenuItem')
       expect(sidebar).toContain('SidebarMenuButton')

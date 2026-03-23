@@ -1067,7 +1067,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarProvider,
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 
@@ -1077,21 +1076,19 @@ export function AppSidebar() {
   if (pathname?.startsWith('/design-system')) return null
 
   return (
-    <SidebarProvider>
-      <Sidebar>
-        <SidebarHeader>
-          <div className="flex items-center justify-between px-2 py-1">
-            <Link href="/" className="text-sm font-semibold text-foreground truncate">
-              ${appName}
-            </Link>
-            <SidebarTrigger />
-          </div>
-        </SidebarHeader>
-        <SidebarContent>
+    <Sidebar>
+      <SidebarHeader>
+        <div className="flex items-center justify-between px-2 py-1">
+          <Link href="/" className="text-sm font-semibold text-foreground truncate">
+            ${appName}
+          </Link>
+          <SidebarTrigger />
+        </div>
+      </SidebarHeader>
+      <SidebarContent>
 ${allGroups}
-        </SidebarContent>
-      </Sidebar>
-    </SidebarProvider>
+      </SidebarContent>
+    </Sidebar>
   )
 }
 `
