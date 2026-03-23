@@ -54,7 +54,10 @@ export function printPostGenerationReport(opts: PostGenerationReportOpts): void 
   if (inCodeShared.length > 0) {
     console.log(chalk.dim(`  Shared:      ${inCodeShared.map(s => `${s.id} (${s.name})`).join(', ')}`))
   }
-  if (layoutShared.length > 0) {
+  const isAuthPage =
+    route &&
+    (/^\/(login|signin|signup|register|forgot-password|reset-password)\b/.test(route) || filePath.includes('(auth)'))
+  if (layoutShared.length > 0 && !isAuthPage) {
     console.log(chalk.dim(`  Layout:      ${layoutShared.map(l => `${l.id} (${l.name})`).join(', ')} via layout.tsx`))
   }
   if (iconCount > 0) {

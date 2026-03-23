@@ -678,6 +678,7 @@ export async function splitGeneratePages(
         `Create ONE page called "${name}" at route "${route}".`,
         `Context: ${message}.`,
         `Generate complete pageCode for this single page only. Do not generate other pages.`,
+        `FORBIDDEN in pageCode: <header>, <nav>, <footer>, site-wide navigation, copyright footers. The layout provides all of these.`,
         `PAGE TYPE: ${pageType}`,
         designConstraints,
         layoutNote,
