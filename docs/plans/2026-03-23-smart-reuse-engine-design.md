@@ -40,7 +40,7 @@ interface ReusePlanEntry {
   targetSection: string    // "Stats row"
   reason: string           // "Dashboard uses same pattern"
   importPath: string       // "@/components/shared/stat-card"
-  exampleUsage: string     // "<StatCard label='...' value='...' />"
+  usageExample: string     // "<StatCard label='...' value='...' />"
 }
 
 interface NewComponentEntry {
@@ -85,7 +85,7 @@ interface ReusePlan {
 | chart, graph | data-display |
 | alert, toast, banner | feedback |
 
-For each match: check if a component with overlapping props exists in manifest. If found → add to `reuse` array with `exampleUsage` from manifest.
+For each match: check if a component with overlapping props exists in manifest. If found → add to `reuse` array with `usageExample` from manifest (same field name as `SharedComponentEntrySchema`).
 
 **Step 2 — Code pattern extraction.** Scan existing page TSX files for recurring inline patterns:
 
@@ -110,7 +110,8 @@ If AI call fails → skip, use deterministic result only. Reuse planner must nev
 
 - `tieredNote` (replaced by `reuse` array with specific directives)
 - `sharedComponentsNote` (covered by `reuse` entries)
-- `sharedLayoutNote` (covered by infrastructure fix 2d)
+
+The layout-aware prompt from Section 2d is a **separate** prompt section, injected independently alongside the reuse directive. It is NOT replaced by `buildReusePlanDirective`.
 
 Result: prompt may be **shorter** than current while being more specific.
 
@@ -147,28 +148,29 @@ It produces the same `ReusePlan` output. Section mapping comes from analyzing th
 After page generation, compare generated code against the `ReusePlan`:
 
 1. For each `reuse` entry: check if the component is imported in the generated code.
-2. If a MUST USE component is missing: retry generation once with strengthened directive.
+2. If a MUST USE component is missing: retry generation once with strengthened directive. The strengthened directive prepends: `CRITICAL: Your previous output failed to import {component} from {importPath}. You MUST import and use this component for the "{targetSection}" section. Do NOT re-implement it inline.`
 3. If retry also fails: log warning (don't block pipeline).
 4. Report verification results to user via spinner/console output.
 
-#### Pattern Graduation
+#### Pattern Graduation (Future Enhancement)
 
-After all pages in a batch are generated:
-
-1. Scan generated page files for inline patterns that appear on 2+ pages.
-2. For each qualifying pattern: create a shared component automatically.
-3. Update manifest with the new component.
-4. The next generation cycle (or next batch page via incremental sync) benefits from the new component.
-
-Timing: runs in auto-sync phase, after generation, before final manifest save.
+> **Note:** Pattern graduation is deferred to a future spec. The reuse planner's `reusePatterns` array captures pattern data needed for graduation, but automatic extraction of inline patterns into shared components requires additional design work (naming strategy, minimum complexity threshold, conflict resolution, props extraction). The data collected by the reuse planner will inform this future work.
 
 ### Section 2: Infrastructure Fixes
 
 #### 2a. Config Unification
 
-In `chat.ts`: remove standalone `const config = loadConfig(configPath)` (line 110). Use `dsm.getConfig()` for `modCtx` and all config reads. Single source of truth.
+In `chat.ts`, `config` is loaded at line 110 via `loadConfig(configPath)` and used for early checks (version mismatch at line 112, `fixGlobalsCss` at line 125, `ComponentManager` at line 138). The DSM is created later at line 135.
 
-Impact: when `split-generator.ts` mutates `modCtx.config.navigation.type`, the change is visible to `regenerateLayout` because it reads from the same DSM instance.
+**Fix:** Keep `loadConfig` for these early reads. But change `modCtx` (line 299) to use `dsm.getConfig()` instead of the standalone `config`:
+
+```typescript
+const modCtx = { config: dsm.getConfig(), componentManager: cm }
+```
+
+Also change `regenerateFiles` call (line 931) to use `dsm.getConfig()` — it already does this via `updatedConfig = dsm.getConfig()`.
+
+Impact: when `split-generator.ts` mutates `modCtx.config.navigation.type`, the change is visible to `regenerateLayout` because `modCtx.config` IS `dsm.getConfig()` — the same object.
 
 #### 2b. `groupLayouts` in Config
 
@@ -178,7 +180,7 @@ Add to `DesignSystemConfig` schema:
 groupLayouts?: Record<string, 'header' | 'sidebar' | 'both' | 'none'>
 ```
 
-Written by `ensurePlanGroupLayouts`. Read by `regenerateLayout` → `ensureAppRouteGroupLayout`.
+Written by `ensurePlanGroupLayouts` — after writing layout files, the function also populates `config.groupLayouts` from `plan.groups` via the DSM config reference. The config is saved during the normal config save at end of pipeline (`dsm.save()`). Read by `regenerateLayout` → `ensureAppRouteGroupLayout`.
 
 When `ensureAppRouteGroupLayout` runs:
 1. Check `config.groupLayouts?.['app']` first
@@ -189,9 +191,22 @@ Zod schema: `.optional()` with no default (undefined = use old behavior).
 
 #### 2c. Safe Layout Writes
 
-`ensurePlanGroupLayouts` must check before overwriting:
+Update function signature to accept stored hashes:
 
-1. If layout file exists: compute hash, compare with stored hash
+```typescript
+async function ensurePlanGroupLayouts(
+  projectRoot: string,
+  plan: ArchitecturePlan,
+  storedHashes: Record<string, string>,
+  config: DesignSystemConfig // for writing groupLayouts
+): Promise<void>
+```
+
+Both call sites in `chat.ts` (lines 315 and 398) must pass `storedHashes` and `dsm.getConfig()`.
+
+Before overwriting each layout:
+
+1. If layout file exists: compute hash, compare with `storedHashes[relativePath]`
 2. If hashes differ (user edited manually): skip overwrite, log warning
 3. If hashes match or file doesn't exist: write and store new hash
 
@@ -203,6 +218,7 @@ Dynamic `sharedLayoutNote` in `split-generator.ts` based on group layout:
 
 - `sidebar`: "This page is inside a SIDEBAR layout. Navigation is handled by the sidebar component. Do NOT create your own sidebar, side nav, or navigation menu. The page content occupies the main area next to the sidebar. Start with main content directly."
 - `header`: "Header and Footer are shared components rendered by the root layout. Do NOT include any site-wide header, nav, or footer. Start with main content directly."
+- `both`: "This page has both a sidebar and a header for navigation. Do NOT create your own navigation elements. The page content occupies the main area. Start with main content directly."
 - `none`: "This page has no shared navigation. Include navigation only if the page design requires it."
 
 Source: `plan.groups.find(g => g.pages.includes(route))?.layout` or `config.groupLayouts`.
@@ -244,7 +260,7 @@ async function updateManifestSafe(fn: (m: Manifest) => Manifest) {
 }
 ```
 
-This ensures the reuse planner for page N+1 sees components used/created by page N.
+**Reuse planner manifest reads:** The reuse planner at step 5a must read manifest fresh from disk (not a stale in-memory copy) to benefit from incremental updates. With `AI_CONCURRENCY = 3`, pages 1-3 start simultaneously with the same initial manifest — this is expected. Page 4+ will see updates from pages 1-3. This is a best-effort optimization; the system works correctly without it (just with fewer reuse suggestions).
 
 ### Section 3: Integration
 
@@ -263,23 +279,23 @@ coherent chat:
     Phase 4: ensurePlanGroupLayouts() [FIXED: hash check + groupLayouts]
     Phase 5: For each page:
       5a. buildReusePlan(request, manifest, existingPages, plan, pageType) [NEW]
-      5b. Convert ReusePlan → prompt directive (REPLACES tiered/shared/layout notes)
-      5c. Generate page code with layout-aware prompt [FIXED]
+      5b. Convert ReusePlan → prompt directive (REPLACES tiered + shared notes)
+      5c. Add layout-aware prompt from 2d (SEPARATE from reuse directive) [FIXED]
+      5c'. Generate page code
       5d. Post-gen verify: compare code vs ReusePlan [NEW]
       5e. If MUST USE ignored → retry once [NEW]
       5f. Incremental manifest sync [FIXED: per-page with mutex]
-    Phase 6: Pattern graduation scan [NEW]
 
   IF single-page (parseModification):
     4a. buildReusePlan(request, manifest, existingPages, null, pageType) [NEW]
-    4b. Inject ReusePlan into modification prompt (REPLACES tiered/shared notes)
-    4c. Generate/modify page with layout-aware prompt [FIXED]
+    4b. Inject ReusePlan into modification prompt (REPLACES tiered + shared notes)
+    4b'. Add layout-aware prompt from 2d (SEPARATE section) [FIXED]
+    4c. Generate/modify page
     4d. Post-gen verify + retry if needed [NEW]
 
   ALWAYS after generation:
     - regenerateFiles() with groupLayouts-aware config [FIXED]
     - Auto-sync manifest (existing behavior)
-    - Pattern graduation (if batch > 1 page) [NEW]
     - Save config + manifest
 ```
 
@@ -310,10 +326,10 @@ Or on retry:
 #### Graceful Degradation
 
 If reuse planner fails at any step:
-- Deterministic mapping throws → fall back to existing tiered prompts
+- Deterministic mapping throws → fall back to existing `buildTieredComponentsPrompt`
 - AI refinement fails → use deterministic result only
 - Post-gen verification fails → skip retry, continue normally
-- Manifest mutex deadlocks → 5s timeout, skip sync for this page
+- Manifest mutex hangs → 5s timeout via `Promise.race([manifestLock, timeoutPromise(5000)])`, skip sync for this page, reset lock
 
 The entire reuse planner is an enhancement. Pipeline must work without it.
 
@@ -337,10 +353,11 @@ The entire reuse planner is an enhancement. Pipeline must work without it.
 | Safe layout writes | Unit tests with hash comparison |
 | Plan persistence | Unit tests: loadPlan → updateArchitecturePlan flow |
 | Incremental manifest sync | Unit tests: mutex behavior, manifest state after concurrent updates |
-| Pattern graduation | Unit tests: inline pattern detection across multiple TSX strings |
+| Graceful degradation | Unit tests: reuse-planner throws → verify `buildTieredComponentsPrompt` fallback; verification failure → verify no retry and pipeline continues; mutex timeout → verify generation proceeds |
 
 ### Future Enhancements (Out of Scope)
 
+- Pattern graduation: auto-extract inline patterns from 2+ pages into shared components
 - `coherent check` with reuse planner for richer diagnostics
 - Component versioning/variants (StatCard → StatCardWithTrend)
 - Learning from user edits (feedback loop)
@@ -353,8 +370,9 @@ New:
 - `packages/cli/src/utils/reuse-planner.test.ts`
 
 Modified:
-- `packages/cli/src/commands/chat.ts` — config unification, reuse planner integration for single-page
+- `packages/cli/src/commands/chat.ts` — config unification (`modCtx` uses `dsm.getConfig()`), reuse planner integration for single-page
 - `packages/cli/src/commands/chat/split-generator.ts` — reuse planner integration, layout-aware prompt, incremental sync
-- `packages/cli/src/commands/chat/code-generator.ts` — safe layout writes, groupLayouts-aware ensureAppRouteGroupLayout
-- `packages/cli/src/commands/chat/plan-generator.ts` — call updateArchitecturePlan when plan exists
+- `packages/cli/src/commands/chat/code-generator.ts` — safe layout writes (hash check + updated signature), groupLayouts-aware `ensureAppRouteGroupLayout`, `ensurePlanGroupLayouts` writes `groupLayouts` to config
+- `packages/cli/src/commands/chat/plan-generator.ts` — call `updateArchitecturePlan` when plan exists
+- `packages/cli/src/agents/modifier.ts` — accept `reusePlanDirective` in `buildModificationPrompt` and `ParseModificationOptions`, inject into prompt (replaces tiered/shared notes)
 - `packages/core/src/types/design-system.ts` — add `groupLayouts` to schema
