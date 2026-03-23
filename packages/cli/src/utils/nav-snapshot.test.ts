@@ -41,4 +41,18 @@ describe('nav-snapshot', () => {
     expect(hasNavChanged(takeNavSnapshot([]), takeNavSnapshot([]))).toBe(false)
     expect(hasNavChanged(takeNavSnapshot(undefined), takeNavSnapshot([{ label: 'A', href: '/a' }]))).toBe(true)
   })
+
+  it('detects change when navigation type changes (header → sidebar)', () => {
+    const items = [{ label: 'Dashboard', href: '/dashboard' }]
+    const before = takeNavSnapshot(items, 'header')
+    const after = takeNavSnapshot(items, 'sidebar')
+    expect(hasNavChanged(before, after)).toBe(true)
+  })
+
+  it('detects no change when navigation type is the same', () => {
+    const items = [{ label: 'Dashboard', href: '/dashboard' }]
+    const before = takeNavSnapshot(items, 'sidebar')
+    const after = takeNavSnapshot(items, 'sidebar')
+    expect(hasNavChanged(before, after)).toBe(false)
+  })
 })

@@ -456,6 +456,19 @@ ${sections}
     return ' ' + propsArray.join(' ')
   }
 
+  private isSidebarNav(): boolean {
+    const navType = this.config.navigation?.type || 'header'
+    return navType === 'sidebar' || navType === 'both'
+  }
+
+  private getBodyClasses(): string {
+    const base = 'bg-background text-foreground antialiased'
+    if (this.isSidebarNav()) {
+      return `min-h-svh ${base}`
+    }
+    return `min-h-screen flex flex-col ${base}`
+  }
+
   /**
    * Get container class based on layout type
    */
@@ -536,8 +549,8 @@ export default function RootLayout({
       <head>
         <style dangerouslySetInnerHTML={{ __html: ${JSON.stringify(cssVars)} }} />
       </head>
-      <body className="min-h-screen flex flex-col bg-background text-foreground antialiased">
-${navEnabled ? `        ${navRendered}\n        ` : ''}        <div className="flex-1 flex flex-col">{children}</div>
+      <body className="${this.getBodyClasses()}">
+${navEnabled ? `        ${navRendered}\n        ` : ''}        <div className="flex-1${this.isSidebarNav() ? '' : ' flex flex-col'}">{children}</div>
       </body>
     </html>
   )
@@ -1018,7 +1031,7 @@ ${companyColumn}
 
     const menuItem = (item: { route: string; label: string }) =>
       `              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "${item.route}"}>
+                <SidebarMenuButton asChild isActive={pathname?.startsWith("${item.route}")}>
                   <Link href="${item.route}">${item.label}</Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>`

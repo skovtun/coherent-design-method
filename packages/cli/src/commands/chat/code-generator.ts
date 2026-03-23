@@ -197,14 +197,46 @@ export async function regenerateLayout(
     }
   }
 
+  const effectiveNavType = config.navigation?.type || 'header'
+  const isSidebar = effectiveNavType === 'sidebar' || effectiveNavType === 'both'
+
   try {
-    await integrateSharedLayoutIntoRootLayout(projectRoot)
-    await ensureAuthRouteGroup(projectRoot)
+    if (!isSidebar) {
+      await integrateSharedLayoutIntoRootLayout(projectRoot)
+      await ensureAuthRouteGroup(projectRoot)
+    } else {
+      const { mkdir: mkdirAsync, writeFile: writeFileAsync } = await import('fs/promises')
+
+      const publicLayoutPath = resolve(projectRoot, 'app', '(public)', 'layout.tsx')
+      if (!existsSync(publicLayoutPath) || options.navChanged) {
+        await mkdirAsync(resolve(projectRoot, 'app', '(public)'), { recursive: true })
+        await writeFileAsync(publicLayoutPath, buildPublicLayoutCodeForSidebar(), 'utf-8')
+      }
+
+      const themeTogglePath = resolve(projectRoot, 'components', 'shared', 'theme-toggle.tsx')
+      if (!existsSync(themeTogglePath)) {
+        await mkdirAsync(resolve(projectRoot, 'components', 'shared'), { recursive: true })
+        await writeFileAsync(themeTogglePath, generateThemeToggleCode(), 'utf-8')
+      }
+
+      const provider = getComponentProvider()
+      for (const cid of ['separator', 'sidebar']) {
+        const uiPath = resolve(projectRoot, 'components', 'ui', `${cid}.tsx`)
+        if (!existsSync(uiPath) && provider.has(cid)) {
+          try {
+            await provider.installComponent(cid, projectRoot)
+          } catch {
+            /* best-effort */
+          }
+        }
+      }
+    }
     await ensureAppRouteGroupLayout(
       projectRoot,
       config.navigation?.type,
       options.navChanged,
       options.groupLayouts ?? config.groupLayouts,
+      config.name,
     )
   } catch (err) {
     if (process.env.COHERENT_DEBUG === '1') {
@@ -244,34 +276,61 @@ export async function ensureAppRouteGroupLayout(
   navType?: string,
   forceUpdate = false,
   groupLayouts?: Record<string, string>,
+  appName?: string,
 ): Promise<void> {
   const effectiveNavType = groupLayouts?.['app'] || navType
   const layoutPath = resolve(projectRoot, 'app', '(app)', 'layout.tsx')
   if (existsSync(layoutPath) && !forceUpdate) return
   const { mkdir: mkdirAsync } = await import('fs/promises')
   await mkdirAsync(resolve(projectRoot, 'app', '(app)'), { recursive: true })
-  const code = buildAppLayoutCode(effectiveNavType)
+  const code = buildAppLayoutCode(effectiveNavType, appName)
   await writeFile(layoutPath, code)
 }
 
-export function buildAppLayoutCode(navType?: string): string {
+export function buildAppLayoutCode(navType?: string, appName?: string): string {
   const hasSidebar = navType === 'sidebar' || navType === 'both'
+  const name = appName || 'My App'
+  const year = new Date().getFullYear()
   if (hasSidebar) {
-    return `import { AppSidebar } from '@/components/shared/sidebar'
-import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
+    return `'use client'
+
+import { AppSidebar } from '@/components/shared/sidebar'
+import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar'
+import { Separator } from '@/components/ui/separator'
+import { usePathname } from 'next/navigation'
+import { ThemeToggle } from '@/components/shared/theme-toggle'
+
+function getBreadcrumb(pathname: string): string {
+  const segments = pathname.replace(/^\\//, '').split('/')
+  const page = segments[0] || 'dashboard'
+  return page.charAt(0).toUpperCase() + page.slice(1)
+}
 
 export default function AppLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const pathname = usePathname()
+
   return (
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
+          <div className="flex items-center gap-2">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            <span className="text-sm text-muted-foreground">{getBreadcrumb(pathname)}</span>
+          </div>
+          <ThemeToggle />
+        </header>
+        <main className="flex-1 px-4 py-6 lg:px-6">
           {children}
         </main>
+        <footer className="border-t px-4 py-3 text-xs text-muted-foreground">
+          \\u00A9 ${year} ${name}
+        </footer>
       </SidebarInset>
     </SidebarProvider>
   )
@@ -292,28 +351,57 @@ export default function AppLayout({
 `
 }
 
-export function buildGroupLayoutCode(layout: string, _pages: string[]): string {
-  if (layout === 'sidebar' || layout === 'both') {
-    return `import { AppSidebar } from '@/components/shared/sidebar'
-import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
+export function generateThemeToggleCode(): string {
+  return `'use client'
 
-export default function GroupLayout({
+import { Moon, Sun } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+
+export function ThemeToggle() {
+  const toggle = () => {
+    document.documentElement.classList.toggle('dark')
+  }
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={toggle}
+      aria-label="Toggle theme"
+      className="relative"
+    >
+      <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+      <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+    </Button>
+  )
+}
+`
+}
+
+export function buildPublicLayoutCodeForSidebar(): string {
+  return `import { Header } from '@/components/shared/header'
+import { Footer } from '@/components/shared/footer'
+
+export default function PublicLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6">
-          {children}
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+    <>
+      <Header />
+      <main className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+        {children}
+      </main>
+      <Footer />
+    </>
   )
 }
 `
+}
+
+export function buildGroupLayoutCode(layout: string, _pages: string[], appName?: string): string {
+  if (layout === 'sidebar' || layout === 'both') {
+    return buildAppLayoutCode('sidebar', appName)
   }
 
   if (layout === 'none') {
@@ -370,7 +458,12 @@ export async function ensurePlanGroupLayouts(
       }
     }
 
-    const code = buildGroupLayoutCode(group.layout, group.pages)
+    const planHasSidebar = plan.groups.some(g => g.layout === 'sidebar' || g.layout === 'both')
+    const isPublicWithSidebar =
+      planHasSidebar && group.id === 'public' && (group.layout === 'header' || !group.layout)
+    const code = isPublicWithSidebar
+      ? buildPublicLayoutCodeForSidebar()
+      : buildGroupLayoutCode(group.layout, group.pages, config?.name)
     await writeFile(layoutPath, code)
   }
 

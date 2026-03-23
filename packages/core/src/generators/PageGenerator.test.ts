@@ -24,13 +24,14 @@ const DARK = {
   border: '#27272a',
 }
 
-function makeConfig(navItems: Array<{ route: string; label: string }>, name = 'Test'): DesignSystemConfig {
+function makeConfig(navItems: Array<{ route: string; label: string }>, name = 'Test', navType?: string): DesignSystemConfig {
   return {
     version: '1.0.0',
     name,
     projectName: name,
     navigation: {
       enabled: true,
+      type: navType,
       items: navItems,
     },
     pages: [],
@@ -103,6 +104,32 @@ describe('PageGenerator', () => {
       const gen = new PageGenerator(config)
       const layout = await gen.generateLayout('centered', 'multi-page')
       expect(layout).toContain('AppNav')
+    })
+  })
+
+  describe('generateLayout body classes', () => {
+    it('uses min-h-svh without flex-col when nav type is sidebar', async () => {
+      const config = makeConfig(
+        [{ route: '/dashboard', label: 'Dashboard' }],
+        'TestApp',
+        'sidebar',
+      )
+      const gen = new PageGenerator(config)
+      const layout = await gen.generateLayout('centered', 'multi-page', { skipNav: true })
+      expect(layout).toContain('min-h-svh')
+      expect(layout).not.toContain('flex flex-col')
+    })
+
+    it('uses min-h-screen with flex-col when nav type is header', async () => {
+      const config = makeConfig(
+        [{ route: '/dashboard', label: 'Dashboard' }],
+        'TestApp',
+        'header',
+      )
+      const gen = new PageGenerator(config)
+      const layout = await gen.generateLayout('centered', 'multi-page', { skipNav: true })
+      expect(layout).toContain('min-h-screen')
+      expect(layout).toContain('flex flex-col')
     })
   })
 
@@ -279,6 +306,19 @@ describe('PageGenerator', () => {
       const sidebar = gen.generateSharedSidebarCode()
       expect(sidebar).toContain("pathname?.startsWith('/design-system')")
       expect(sidebar).toContain('return null')
+    })
+
+    it('uses startsWith for isActive to support nested routes', () => {
+      const config = makeConfig([
+        { route: '/tasks', label: 'Tasks' },
+        { route: '/dashboard', label: 'Dashboard' },
+      ])
+      const gen = new PageGenerator(config)
+      const sidebar = gen.generateSharedSidebarCode()
+      expect(sidebar).toContain('pathname?.startsWith("/tasks")')
+      expect(sidebar).toContain('pathname?.startsWith("/dashboard")')
+      expect(sidebar).not.toContain('pathname === "/tasks"')
+      expect(sidebar).not.toContain('pathname === "/dashboard"')
     })
   })
 

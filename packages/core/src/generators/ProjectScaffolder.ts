@@ -457,7 +457,10 @@ export function cn(...inputs: ClassValue[]) {
         })
       }
 
-      await integrateSharedLayoutIntoRootLayout(this.projectRoot)
+      const isSidebar = navType === 'sidebar' || navType === 'both'
+      if (!isSidebar) {
+        await integrateSharedLayoutIntoRootLayout(this.projectRoot)
+      }
     }
   }
 

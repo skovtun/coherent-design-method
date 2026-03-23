@@ -259,6 +259,50 @@ export async function fixCommand(opts: FixOptions = {}) {
         fixes.push('Generated AppSidebar component (components/shared/sidebar.tsx)')
         console.log(chalk.green('  ✔ Generated AppSidebar component'))
       }
+
+      if (hasSidebar && !dryRun) {
+        const rootLayoutPath = resolve(projectRoot, 'app', 'layout.tsx')
+        if (existsSync(rootLayoutPath)) {
+          let rootCode = readFileSync(rootLayoutPath, 'utf-8')
+          if (rootCode.includes('<Header')) {
+            rootCode = rootCode
+              .replace(/import\s*\{[^}]*Header[^}]*\}[^;\n]*[;\n]?\s*/g, '')
+              .replace(/import\s*\{[^}]*Footer[^}]*\}[^;\n]*[;\n]?\s*/g, '')
+              .replace(/import\s+ShowWhenNotAuthRoute[^;\n]*[;\n]?\s*/g, '')
+              .replace(/<ShowWhenNotAuthRoute>[\s\S]*?<\/ShowWhenNotAuthRoute>/g, (match) => {
+                const inner = match.replace(/<\/?ShowWhenNotAuthRoute>/g, '').trim()
+                return inner
+              })
+              .replace(/\s*<Header\s*\/>\s*/g, '\n')
+              .replace(/\s*<Footer\s*\/>\s*/g, '\n')
+            rootCode = rootCode.replace(/min-h-screen flex flex-col/g, 'min-h-svh')
+            rootCode = rootCode.replace(/"flex-1 flex flex-col"/g, '"flex-1"')
+            writeFileSync(rootLayoutPath, rootCode, 'utf-8')
+            fixes.push('Stripped Header/Footer from root layout (sidebar mode)')
+            console.log(chalk.green('  ✔ Stripped Header/Footer from root layout (sidebar mode)'))
+          }
+        }
+
+        const publicLayoutPath = resolve(projectRoot, 'app', '(public)', 'layout.tsx')
+        const publicExists = existsSync(publicLayoutPath)
+        const needsPublicLayout = !publicExists || !readFileSync(publicLayoutPath, 'utf-8').includes('<Header')
+        if (needsPublicLayout) {
+          const { buildPublicLayoutCodeForSidebar } = await import('./chat/code-generator.js')
+          mkdirSync(resolve(projectRoot, 'app', '(public)'), { recursive: true })
+          writeFileSync(publicLayoutPath, buildPublicLayoutCodeForSidebar(), 'utf-8')
+          fixes.push('Added Header/Footer to (public) layout')
+          console.log(chalk.green('  ✔ Added Header/Footer to (public) layout'))
+        }
+
+        const themeTogglePath = resolve(projectRoot, 'components', 'shared', 'theme-toggle.tsx')
+        if (!existsSync(themeTogglePath)) {
+          const { generateThemeToggleCode } = await import('./chat/code-generator.js')
+          mkdirSync(resolve(projectRoot, 'components', 'shared'), { recursive: true })
+          writeFileSync(themeTogglePath, generateThemeToggleCode(), 'utf-8')
+          fixes.push('Generated ThemeToggle component (components/shared/theme-toggle.tsx)')
+          console.log(chalk.green('  ✔ Generated ThemeToggle component'))
+        }
+      }
     }
   } catch {
     /* no plan or layout error — skip */

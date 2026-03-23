@@ -39,6 +39,11 @@ export async function integrateSharedLayoutIntoRootLayout(projectRoot: string): 
   const layoutComponents = manifest.shared.filter(e => e.type === 'layout')
   if (layoutComponents.length === 0) return false
 
+  const hasSidebar = manifest.shared.some(
+    e => e.name === 'AppSidebar' || e.name === 'app-sidebar' || e.name === 'Sidebar',
+  )
+  if (hasSidebar) return false
+
   const layoutPath = join(projectRoot, LAYOUT_PATH)
   let content: string
   try {

@@ -251,6 +251,16 @@ async function stripCoherentArtifacts(outputDir: string): Promise<string[]> {
     await writeFile(sharedHeaderPath, header, 'utf-8')
   }
 
+  // Clean root layout — remove Design System FAB link (sidebar mode puts it here)
+  if (existsSync(layoutPath)) {
+    let rootLayout = await readFile(layoutPath, 'utf-8')
+    const before = rootLayout
+    rootLayout = rootLayout.replace(/<Link\s[^>]*href="\/design-system"[^>]*>[\s\S]*?<\/Link>/g, '')
+    if (rootLayout !== before) {
+      await writeFile(layoutPath, rootLayout, 'utf-8')
+    }
+  }
+
   // Clean ShowWhenNotAuthRoute — remove /design-system from hidden paths
   const guardPath = join(outputDir, 'app', 'ShowWhenNotAuthRoute.tsx')
   if (existsSync(guardPath)) {

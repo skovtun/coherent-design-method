@@ -5,6 +5,8 @@ import { tmpdir } from 'os'
 import {
   buildAppLayoutCode,
   buildGroupLayoutCode,
+  buildPublicLayoutCodeForSidebar,
+  generateThemeToggleCode,
   ensureAppRouteGroupLayout,
   ensurePlanGroupLayouts,
   regenerateComponent,
@@ -37,14 +39,71 @@ describe('buildAppLayoutCode', () => {
   it('generates sidebar layout for navType "sidebar"', () => {
     const code = buildAppLayoutCode('sidebar')
     expect(code).toContain('Sidebar')
-    expect(code).toContain('flex')
     expect(code).not.toContain('max-w-7xl')
   })
 
   it('generates sidebar layout for navType "both"', () => {
     const code = buildAppLayoutCode('both')
     expect(code).toContain('Sidebar')
-    expect(code).toContain('flex')
+  })
+
+  it('sidebar layout includes SidebarTrigger and breadcrumbs', () => {
+    const code = buildAppLayoutCode('sidebar', 'TestApp')
+    expect(code).toContain('SidebarTrigger')
+    expect(code).toContain('getBreadcrumb')
+    expect(code).toContain('usePathname')
+    expect(code).toContain("'use client'")
+  })
+
+  it('sidebar layout includes ThemeToggle', () => {
+    const code = buildAppLayoutCode('sidebar', 'TestApp')
+    expect(code).toContain('ThemeToggle')
+    expect(code).toContain('@/components/shared/theme-toggle')
+  })
+
+  it('sidebar layout includes mini footer with app name', () => {
+    const code = buildAppLayoutCode('sidebar', 'TestApp')
+    expect(code).toContain('TestApp')
+    expect(code).toContain('<footer')
+    expect(code).toContain('border-t')
+  })
+
+  it('sidebar layout includes Separator', () => {
+    const code = buildAppLayoutCode('sidebar', 'TestApp')
+    expect(code).toContain('Separator')
+    expect(code).toContain('@/components/ui/separator')
+  })
+})
+
+describe('generateThemeToggleCode', () => {
+  it('generates a ThemeToggle component with dark mode toggle', () => {
+    const code = generateThemeToggleCode()
+    expect(code).toContain("'use client'")
+    expect(code).toContain('export function ThemeToggle()')
+    expect(code).toContain('dark')
+    expect(code).toContain('aria-label')
+  })
+})
+
+describe('buildPublicLayoutCodeForSidebar', () => {
+  it('includes Header and Footer imports', () => {
+    const code = buildPublicLayoutCodeForSidebar()
+    expect(code).toContain("from '@/components/shared/header'")
+    expect(code).toContain("from '@/components/shared/footer'")
+  })
+
+  it('includes max-w-7xl content wrapper', () => {
+    const code = buildPublicLayoutCodeForSidebar()
+    expect(code).toContain('max-w-7xl')
+  })
+
+  it('renders Header before main and Footer after', () => {
+    const code = buildPublicLayoutCodeForSidebar()
+    const headerIdx = code.indexOf('<Header')
+    const mainIdx = code.indexOf('<main')
+    const footerIdx = code.indexOf('<Footer')
+    expect(headerIdx).toBeLessThan(mainIdx)
+    expect(mainIdx).toBeLessThan(footerIdx)
   })
 })
 
@@ -242,6 +301,8 @@ describe('ensurePlanGroupLayouts', () => {
 
     const publicLayout = readFileSync(join(tmpDir, 'app', '(public)', 'layout.tsx'), 'utf-8')
     expect(publicLayout).toContain('max-w-7xl')
+    expect(publicLayout).toContain('Header')
+    expect(publicLayout).toContain('Footer')
 
     const appLayout = readFileSync(join(tmpDir, 'app', '(app)', 'layout.tsx'), 'utf-8')
     expect(appLayout).toContain('Sidebar')

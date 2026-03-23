@@ -666,6 +666,7 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
 
     const navBefore = takeNavSnapshot(
       config.navigation?.items?.map(i => ({ label: i.label, href: i.route || `/${i.label.toLowerCase()}` })),
+      config.navigation?.type,
     )
 
     // Apply modifications
@@ -947,6 +948,7 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
         label: i.label,
         href: i.route || `/${i.label.toLowerCase()}`,
       })),
+      updatedConfig.navigation?.type,
     )
     const navChanged = hasNavChanged(navBefore, navAfter)
 
