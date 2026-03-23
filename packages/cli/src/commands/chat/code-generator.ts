@@ -341,6 +341,7 @@ export async function ensurePlanGroupLayouts(
   projectRoot: string,
   plan: ArchitecturePlan,
   storedHashes: Record<string, string> = {},
+  config?: DesignSystemConfig,
 ): Promise<void> {
   const { mkdir: mkdirAsync } = await import('fs/promises')
   const { createHash } = await import('crypto')
@@ -362,6 +363,14 @@ export async function ensurePlanGroupLayouts(
 
     const code = buildGroupLayoutCode(group.layout, group.pages)
     await writeFile(layoutPath, code)
+  }
+
+  if (config) {
+    const layouts: Record<string, 'header' | 'sidebar' | 'both' | 'none'> = {}
+    for (const group of plan.groups) {
+      layouts[group.id] = group.layout
+    }
+    config.groupLayouts = layouts
   }
 }
 
