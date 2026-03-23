@@ -1212,6 +1212,28 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
     fixes.push('placeholder images → working URLs (picsum/pravatar)')
   }
 
+  const beforePlaceholder = fixed
+  fixed = fixed.replace(
+    />(\s*)Lorem ipsum[^<]*/gi,
+    '>$1Streamline your workflow with intelligent automation and real-time collaboration tools',
+  )
+  fixed = fixed.replace(/>(\s*)Card content(\s*)</gi, '>$1View details$2<')
+  fixed = fixed.replace(/>(\s*)Your (?:text|content) here(\s*)</gi, '>$1Get started today$2<')
+  fixed = fixed.replace(/>(\s*)Description(\s*)</g, '>$1Overview$2<')
+  fixed = fixed.replace(/>\s*Title\s*</g, '>Page Title<')
+  fixed = fixed.replace(/placeholder\s*text/gi, 'contextual content')
+  fixed = fixed.replace(/"John Doe"/g, '"Alex Thompson"')
+  fixed = fixed.replace(/'John Doe'/g, "'Alex Thompson'")
+  fixed = fixed.replace(/"Jane Doe"/g, '"Sarah Chen"')
+  fixed = fixed.replace(/'Jane Doe'/g, "'Sarah Chen'")
+  fixed = fixed.replace(/"user@example\.com"/g, '"alex@company.com"')
+  fixed = fixed.replace(/'user@example\.com'/g, "'alex@company.com'")
+  fixed = fixed.replace(/"test@example\.com"/g, '"team@company.com"')
+  fixed = fixed.replace(/'test@example\.com'/g, "'team@company.com'")
+  if (fixed !== beforePlaceholder) {
+    fixes.push('placeholder content → contextual content')
+  }
+
   return { code: fixed, fixes }
 }
 

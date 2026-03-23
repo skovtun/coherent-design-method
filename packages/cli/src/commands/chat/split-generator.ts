@@ -697,7 +697,7 @@ export async function splitGeneratePages(
         const result = await parseModification(prompt, modCtx, provider, parseOpts)
         phase5Done++
         spinner.text = `Phase 5/6 — ${phase5Done}/${remainingPages.length} pages generated...`
-        let codePage = result.requests.find((r: ModificationRequest) => r.type === 'add-page')
+        const codePage = result.requests.find((r: ModificationRequest) => r.type === 'add-page')
 
         if (currentReusePlan && currentReusePlan.reuse.length > 0 && codePage) {
           const pageCode = (codePage.changes as Record<string, unknown>)?.pageCode as string
@@ -710,19 +710,27 @@ export async function splitGeneratePages(
               )
             }
 
-            if (verification.missed.length > 0 && verification.retryDirective) {
-              console.log(
-                chalk.yellow(
-                  `  ⚠ Missed reuse in "${name}": ${verification.missed.map(m => m.component).join(', ')} — retrying...`,
-                ),
-              )
+            if (verification.missed.length > 0) {
+              const missedNames = verification.missed.map(m => m.component)
+              console.log(chalk.yellow(`  ⚠ Missed reuse in "${name}": ${missedNames.join(', ')} — patching...`))
               try {
-                const retryPrompt = [prompt, verification.retryDirective].join('\n\n')
-                const retryResult = await parseModification(retryPrompt, modCtx, provider, parseOpts)
-                const retryPage = retryResult.requests.find((r: ModificationRequest) => r.type === 'add-page')
-                if (retryPage) codePage = retryPage
+                const ai = await createAIProvider(provider)
+                if (ai.editPageCode) {
+                  const patchLines = verification.missed.map(m => {
+                    const importPath =
+                      m.importPath ||
+                      `@/components/shared/${m.component.replace(/([A-Z])/g, (_, c, i) => (i ? '-' : '') + c.toLowerCase()).replace(/^-/, '')}`
+                    return `- Add: import { ${m.component} } from '${importPath}'\n  Then find any inline implementation of ${m.component} and replace with <${m.component} />`
+                  })
+                  const patchInstruction = `Add these shared components to this page:\n${patchLines.join('\n')}\n\nKeep all existing functionality. Only add imports and replace inline duplicates.`
+                  const patched = await ai.editPageCode(pageCode, patchInstruction, name)
+                  if (patched && patched.length > 100 && /export\s+(default\s+)?function/.test(patched)) {
+                    ;(codePage.changes as Record<string, unknown>).pageCode = patched
+                    console.log(chalk.dim(`  ✓ Patched ${missedNames.join(', ')} into "${name}"`))
+                  }
+                }
               } catch {
-                /* retry failed, keep original */
+                /* patch failed, keep original */
               }
             }
           }
