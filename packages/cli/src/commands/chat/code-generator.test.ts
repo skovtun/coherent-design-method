@@ -250,4 +250,50 @@ describe('ensurePlanGroupLayouts', () => {
     expect(authLayout).toContain('children')
     expect(authLayout).not.toContain('Sidebar')
   })
+
+  it('skips overwrite when layout was manually edited (hash mismatch)', async () => {
+    const layoutDir = join(tmpDir, 'app', '(app)')
+    mkdirSync(layoutDir, { recursive: true })
+    const originalCode = 'export default function CustomLayout() { return <div>Custom</div> }'
+    writeFileSync(join(layoutDir, 'layout.tsx'), originalCode)
+
+    const storedHashes: Record<string, string> = {
+      'app/(app)/layout.tsx': 'different-hash-than-actual-file',
+    }
+
+    const plan = ArchitecturePlanSchema.parse({
+      groups: [{ id: 'app', layout: 'sidebar', pages: ['/dashboard'] }],
+      sharedComponents: [],
+      pageNotes: {},
+    })
+
+    await ensurePlanGroupLayouts(tmpDir, plan, storedHashes)
+
+    const content = readFileSync(join(layoutDir, 'layout.tsx'), 'utf-8')
+    expect(content).toBe(originalCode)
+  })
+
+  it('writes layout when hash matches (generated layout, not manually edited)', async () => {
+    const layoutDir = join(tmpDir, 'app', '(app)')
+    mkdirSync(layoutDir, { recursive: true })
+    const generatedCode = buildGroupLayoutCode('header', ['/dashboard'])
+    writeFileSync(join(layoutDir, 'layout.tsx'), generatedCode)
+
+    const { createHash } = await import('crypto')
+    const hash = createHash('md5').update(generatedCode).digest('hex')
+    const storedHashes: Record<string, string> = {
+      'app/(app)/layout.tsx': hash,
+    }
+
+    const plan = ArchitecturePlanSchema.parse({
+      groups: [{ id: 'app', layout: 'sidebar', pages: ['/dashboard'] }],
+      sharedComponents: [],
+      pageNotes: {},
+    })
+
+    await ensurePlanGroupLayouts(tmpDir, plan, storedHashes)
+
+    const content = readFileSync(join(layoutDir, 'layout.tsx'), 'utf-8')
+    expect(content).toContain('Sidebar')
+  })
 })

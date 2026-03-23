@@ -139,7 +139,9 @@ async function canOverwriteShared(
 export async function regenerateLayout(
   config: DesignSystemConfig,
   projectRoot: string,
-  options: { navChanged: boolean; storedHashes?: Record<string, string> } = { navChanged: false },
+  options: { navChanged: boolean; storedHashes?: Record<string, string>; groupLayouts?: Record<string, string> } = {
+    navChanged: false,
+  },
 ): Promise<void> {
   const appType = config.settings.appType || 'multi-page'
   const generator = new PageGenerator(config)
@@ -200,7 +202,7 @@ export async function regenerateLayout(
   try {
     await integrateSharedLayoutIntoRootLayout(projectRoot)
     await ensureAuthRouteGroup(projectRoot)
-    await ensureAppRouteGroupLayout(projectRoot, config.navigation?.type, options.navChanged)
+    await ensureAppRouteGroupLayout(projectRoot, config.navigation?.type, options.navChanged, options.groupLayouts)
   } catch (err) {
     if (process.env.COHERENT_DEBUG === '1') {
       console.log(chalk.dim('Layout integration warning:', err))
@@ -238,12 +240,14 @@ export async function ensureAppRouteGroupLayout(
   projectRoot: string,
   navType?: string,
   forceUpdate = false,
+  groupLayouts?: Record<string, string>,
 ): Promise<void> {
+  const effectiveNavType = groupLayouts?.['app'] || navType
   const layoutPath = resolve(projectRoot, 'app', '(app)', 'layout.tsx')
   if (existsSync(layoutPath) && !forceUpdate) return
   const { mkdir: mkdirAsync } = await import('fs/promises')
   await mkdirAsync(resolve(projectRoot, 'app', '(app)'), { recursive: true })
-  const code = buildAppLayoutCode(navType)
+  const code = buildAppLayoutCode(effectiveNavType)
   await writeFile(layoutPath, code)
 }
 
@@ -333,13 +337,29 @@ export default function GroupLayout({
 `
 }
 
-export async function ensurePlanGroupLayouts(projectRoot: string, plan: ArchitecturePlan): Promise<void> {
+export async function ensurePlanGroupLayouts(
+  projectRoot: string,
+  plan: ArchitecturePlan,
+  storedHashes: Record<string, string> = {},
+): Promise<void> {
   const { mkdir: mkdirAsync } = await import('fs/promises')
+  const { createHash } = await import('crypto')
 
   for (const group of plan.groups) {
     const groupDir = resolve(projectRoot, 'app', `(${group.id})`)
     await mkdirAsync(groupDir, { recursive: true })
     const layoutPath = resolve(groupDir, 'layout.tsx')
+    const relPath = `app/(${group.id})/layout.tsx`
+
+    if (existsSync(layoutPath)) {
+      const currentContent = readFileSync(layoutPath, 'utf-8')
+      const currentHash = createHash('md5').update(currentContent).digest('hex')
+      const storedHash = storedHashes[relPath]
+      if (storedHash && storedHash !== currentHash) {
+        continue
+      }
+    }
+
     const code = buildGroupLayoutCode(group.layout, group.pages)
     await writeFile(layoutPath, code)
   }

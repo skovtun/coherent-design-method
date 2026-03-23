@@ -312,7 +312,7 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
         requests = splitResult.requests
         if (splitResult.plan && projectRoot) {
           savePlan(projectRoot, splitResult.plan)
-          await ensurePlanGroupLayouts(projectRoot, splitResult.plan)
+          await ensurePlanGroupLayouts(projectRoot, splitResult.plan, storedHashes)
         }
         uxRecommendations = undefined
       } catch {
@@ -395,7 +395,7 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
             requests = splitResult.requests
             if (splitResult.plan && projectRoot) {
               savePlan(projectRoot, splitResult.plan)
-              await ensurePlanGroupLayouts(projectRoot, splitResult.plan)
+              await ensurePlanGroupLayouts(projectRoot, splitResult.plan, storedHashes)
             }
             uxRecommendations = undefined
           } catch {
