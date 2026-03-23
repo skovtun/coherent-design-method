@@ -293,9 +293,7 @@ async function updateManifestSafe(
   manifestLock = update.catch(() => {})
   await Promise.race([
     update,
-    new Promise<void>((_, reject) =>
-      setTimeout(() => reject(new Error('manifest sync timeout')), timeoutMs),
-    ),
+    new Promise<void>((_, reject) => setTimeout(() => reject(new Error('manifest sync timeout')), timeoutMs)),
   ]).catch(() => {})
 }
 
@@ -672,9 +670,7 @@ export async function splitGeneratePages(
               try {
                 const retryPrompt = [prompt, verification.retryDirective].join('\n\n')
                 const retryResult = await parseModification(retryPrompt, modCtx, provider, parseOpts)
-                const retryPage = retryResult.requests.find(
-                  (r: ModificationRequest) => r.type === 'add-page',
-                )
+                const retryPage = retryResult.requests.find((r: ModificationRequest) => r.type === 'add-page')
                 if (retryPage) codePage = retryPage
               } catch {
                 /* retry failed, keep original */
@@ -688,9 +684,7 @@ export async function splitGeneratePages(
           if (finalPageCode) {
             await updateManifestSafe(projectRoot, m => {
               const updatedShared = m.shared.map(entry => {
-                const isUsed =
-                  finalPageCode.includes(`{ ${entry.name} }`) ||
-                  finalPageCode.includes(`{ ${entry.name},`)
+                const isUsed = finalPageCode.includes(`{ ${entry.name} }`) || finalPageCode.includes(`{ ${entry.name},`)
                 if (isUsed && !entry.usedIn.includes(route)) {
                   return { ...entry, usedIn: [...entry.usedIn, route] }
                 }

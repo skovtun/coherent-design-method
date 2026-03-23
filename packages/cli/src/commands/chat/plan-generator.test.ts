@@ -527,7 +527,13 @@ describe('generateSharedComponentsFromPlan', () => {
       groups: [],
       sharedComponents: [
         { name: 'Unused', description: 'd', props: '{}', usedBy: ['/x'], type: 'widget' },
-        { name: 'FilterBar', description: 'Filter bar', props: '{ filters: string[] }', usedBy: ['/tasks'], type: 'form' },
+        {
+          name: 'FilterBar',
+          description: 'Filter bar',
+          props: '{ filters: string[] }',
+          usedBy: ['/tasks'],
+          type: 'form',
+        },
       ],
       pageNotes: {},
     })

@@ -210,7 +210,7 @@ If the shared component needs minor adaptation (e.g., different props), use its 
 
 For editing an existing shared component use type "modify-layout-block" with target "CID-XXX" or name.
 `
-      : ''
+        : ''
   const availableShadcn = getComponentProvider().listNames()
 
   const designThinking = DESIGN_THINKING

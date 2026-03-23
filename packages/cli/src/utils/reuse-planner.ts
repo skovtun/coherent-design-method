@@ -91,9 +91,7 @@ export function buildReusePlan(input: BuildReusePlanInput): ReusePlan {
         component: entry.name,
         targetSection: section,
         reason:
-          entry.usedIn.length > 0
-            ? `Used on ${entry.usedIn.length} page(s)`
-            : `Matches section type (${entry.type})`,
+          entry.usedIn.length > 0 ? `Used on ${entry.usedIn.length} page(s)` : `Matches section type (${entry.type})`,
         importPath: componentFilenameToImportPath(entry.file),
         usageExample: entry.usageExample || `<${entry.name} />`,
       })
@@ -107,10 +105,7 @@ export function buildReusePlan(input: BuildReusePlanInput): ReusePlan {
   return { pageName, reuse, createNew: [], reusePatterns }
 }
 
-function extractCodePatterns(
-  existingPageCode: Record<string, string>,
-  _sections: string[],
-): PatternEntry[] {
+function extractCodePatterns(existingPageCode: Record<string, string>, _sections: string[]): PatternEntry[] {
   const patterns: PatternEntry[] = []
   const gridPatterns = new Map<string, string[]>()
 
