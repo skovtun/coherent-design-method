@@ -24,12 +24,19 @@ export function needsGlobalsFix(projectRoot: string): boolean {
   const content = readFileSync(globalsPath, 'utf-8')
 
   if (isTailwindV4(projectRoot)) {
-    // v4: fix if missing @theme inline (color utilities won't work without it)
     if (!content.includes('@theme inline')) return true
-    // v4: fix if still using v3 directives
     if (content.includes('@tailwind base')) return true
-    // v4: fix if missing --color-transparent (border-transparent won't work without it)
-    if (!content.includes('--color-transparent')) return true
+    const REQUIRED_V4_TOKENS = [
+      '--color-transparent',
+      '--color-sidebar-background',
+      '--color-chart-1',
+      '--color-black',
+      '--color-white',
+      '--radius-xs',
+    ]
+    for (const token of REQUIRED_V4_TOKENS) {
+      if (!content.includes(token)) return true
+    }
     return false
   }
 
