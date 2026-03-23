@@ -237,28 +237,127 @@ NEVER include app-style elements (sidebar widgets, data tables, filters) on mark
 const DESIGN_QUALITY_APP = `
 ## DESIGN QUALITY — APP PAGES
 
+### Reference Patterns (COPY these exact patterns)
+
+PAGE HEADER:
+\`\`\`
+<div className="flex items-center justify-between">
+  <div className="space-y-1">
+    <h1 className="text-2xl font-bold tracking-tight">Page Title</h1>
+    <p className="text-sm text-muted-foreground">Page description</p>
+  </div>
+  <Button><Plus className="size-4 mr-2 shrink-0" />New Item</Button>
+</div>
+\`\`\`
+
+FILTER TOOLBAR (search + dropdowns + action):
+\`\`\`
+<div className="flex flex-wrap items-center gap-2">
+  <div className="relative flex-1">
+    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground shrink-0" />
+    <Input placeholder="Search..." className="pl-9" />
+  </div>
+  <Select>
+    <SelectTrigger className="w-[180px]">
+      <SelectValue placeholder="All Status" />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="all">All Status</SelectItem>
+      <SelectItem value="active">Active</SelectItem>
+    </SelectContent>
+  </Select>
+  <Button><Plus className="size-4 mr-2 shrink-0" />New Item</Button>
+</div>
+\`\`\`
+CRITICAL: NEVER use <Select> with native <option> elements. Always use the shadcn compound pattern above (SelectTrigger + SelectValue + SelectContent + SelectItem).
+Do NOT add standalone filter icon buttons. The Select dropdowns ARE the filters.
+
+STATS GRID:
+\`\`\`
+<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+  <Card>
+    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardTitle className="text-sm font-medium">Metric Name</CardTitle>
+      <TrendingUp className="size-4 text-muted-foreground shrink-0" />
+    </CardHeader>
+    <CardContent>
+      <div className="text-2xl font-bold">1,234</div>
+      <p className="text-xs text-muted-foreground">+12% from last month</p>
+    </CardContent>
+  </Card>
+</div>
+\`\`\`
+
+DATA TABLE:
+\`\`\`
+<div className="overflow-x-auto">
+  <Table>
+    <TableHeader>
+      <TableRow>
+        <TableHead>Name</TableHead>
+        <TableHead>Status</TableHead>
+        <TableHead className="w-[50px]"></TableHead>
+      </TableRow>
+    </TableHeader>
+    <TableBody>
+      <TableRow className="hover:bg-muted/50">
+        <TableCell className="font-medium">Item name</TableCell>
+        <TableCell><Badge variant="default">Active</Badge></TableCell>
+        <TableCell>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon"><MoreHorizontal className="size-4 shrink-0" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem>Edit</DropdownMenuItem>
+              <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </TableCell>
+      </TableRow>
+    </TableBody>
+  </Table>
+</div>
+\`\`\`
+
+EMPTY STATE (when list/table has zero items):
+\`\`\`
+<div className="flex flex-col items-center justify-center py-12 text-center">
+  <Inbox className="size-12 text-muted-foreground mb-4 shrink-0" />
+  <h3 className="text-lg font-semibold">No items yet</h3>
+  <p className="text-sm text-muted-foreground mt-1 max-w-sm">Create your first item to get started.</p>
+  <Button className="mt-4"><Plus className="size-4 mr-2 shrink-0" />Create Item</Button>
+</div>
+\`\`\`
+
+DATA CARD GRID:
+\`\`\`
+<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+  <Card className="hover:border-border/30 transition-colors">
+    <CardHeader className="flex flex-row items-start justify-between space-y-0">
+      <div className="space-y-1">
+        <CardTitle>Item Name</CardTitle>
+        <p className="text-sm text-muted-foreground">Description</p>
+      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon"><MoreHorizontal className="size-4 shrink-0" /></Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem>Edit</DropdownMenuItem>
+          <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </CardHeader>
+    <CardContent>...</CardContent>
+  </Card>
+</div>
+\`\`\`
+
 ### Spacing
 - gap-4 md:gap-6 between sections
 - p-4 lg:p-6 content padding
-- Within cards: p-4 to p-6 (compact)
-- Between cards in grid: gap-4 (tight)
-
-### Layout
-- Data tables, card grids, filters, stat rows
 - Page wrapper: flex flex-1 flex-col gap-4 p-4 lg:p-6
-- Stats grid: grid gap-4 md:grid-cols-2 lg:grid-cols-4
-- Content: functional, scannable, data-dense
-
-### Toolbars & Filters
-- Filter row: flex flex-wrap items-center gap-2 (plain div, NOT inside a Card)
-- Search input: MUST use flex-1 to fill remaining horizontal space. NEVER fixed-width search.
-- Filters/selects: fixed width (w-[180px] or auto), do NOT flex-grow
-- On mobile (sm:): search full width, filters wrap to next line
-- Do NOT wrap search/filter toolbars in Card components. They are plain flex rows above content.
-
-### Tabs
-- Always use <TabsList variant="line"> for a clean underline style (not the pill/segmented control default)
-- The variant="line" prop removes the bg-muted pill container and uses an underline indicator instead
 
 NEVER include marketing sections (hero, pricing, testimonials) on app pages.
 `

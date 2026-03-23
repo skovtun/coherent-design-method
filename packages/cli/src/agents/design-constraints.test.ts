@@ -13,7 +13,6 @@ describe('getDesignQualityForType', () => {
     const result = getDesignQualityForType('app')
     expect(result).toContain('gap-4')
     expect(result).not.toContain('py-20')
-    expect(result).not.toContain('max-w-sm')
   })
 
   it('returns auth constraints with centered card', () => {
@@ -85,7 +84,43 @@ describe('Fix H: toolbar flex-1', () => {
   it('DESIGN_QUALITY_APP includes toolbar rules', () => {
     const result = getDesignQualityForType('app')
     expect(result).toContain('flex-1')
-    expect(result).toContain('Search input')
+    expect(result).toContain('FILTER TOOLBAR')
+  })
+})
+
+describe('DESIGN_QUALITY_APP reference snippets', () => {
+  it('contains SelectTrigger snippet (not native select)', () => {
+    const quality = getDesignQualityForType('app')
+    expect(quality).toContain('<SelectTrigger')
+    expect(quality).toContain('<SelectContent>')
+    expect(quality).toContain('<SelectItem')
+  })
+
+  it('contains filter toolbar snippet', () => {
+    const quality = getDesignQualityForType('app')
+    expect(quality).toContain('flex flex-wrap items-center gap-2')
+    expect(quality).toContain('relative flex-1')
+  })
+
+  it('contains page header snippet', () => {
+    const quality = getDesignQualityForType('app')
+    expect(quality).toContain('text-2xl font-bold tracking-tight')
+    expect(quality).toContain('space-y-1')
+  })
+
+  it('contains empty state snippet', () => {
+    const quality = getDesignQualityForType('app')
+    expect(quality).toContain('flex flex-col items-center justify-center py-12')
+  })
+
+  it('warns against native option elements', () => {
+    const quality = getDesignQualityForType('app')
+    expect(quality).toContain('NEVER use <Select> with native <option>')
+  })
+
+  it('warns against standalone filter icon buttons', () => {
+    const quality = getDesignQualityForType('app')
+    expect(quality).toContain('Do NOT add standalone filter icon buttons')
   })
 })
 
