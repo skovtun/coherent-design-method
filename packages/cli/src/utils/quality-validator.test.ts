@@ -232,6 +232,35 @@ export default function Page() {
     expect(fixed).toContain('SelectItem')
     expect(fixes.some(f => f.includes('select'))).toBe(true)
   })
+
+  it('adds missing sub-imports for composite shadcn components', async () => {
+    const code = `import { Select } from '@/components/ui/select'
+export function Page() {
+  return (
+    <Select>
+      <SelectTrigger><SelectValue placeholder="Pick" /></SelectTrigger>
+      <SelectContent><SelectItem value="a">A</SelectItem></SelectContent>
+    </Select>
+  )
+}`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('SelectTrigger')
+    expect(fixed).toContain('SelectValue')
+    expect(fixed).toContain('SelectContent')
+    expect(fixed).toContain('SelectItem')
+    expect(fixed).toMatch(/import\s*\{[^}]*SelectTrigger[^}]*\}\s*from\s*'@\/components\/ui\/select'/)
+    expect(fixes.some(f => f.includes('sub-imports'))).toBe(true)
+  })
+
+  it('does not duplicate existing sub-imports', async () => {
+    const code = `import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select'
+export function Page() {
+  return <Select><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="a">A</SelectItem></SelectContent></Select>
+}`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixes.every(f => !f.includes('sub-imports'))).toBe(true)
+    expect(fixed).toBe(code)
+  })
 })
 
 describe('design system consistency', () => {

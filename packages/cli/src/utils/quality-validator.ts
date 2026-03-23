@@ -655,15 +655,9 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
     .split('\n')
     .map(line => {
       let l = line
-      l = l.replace(/&lt;=/g, (m, offset) => (isInsideAttrValue(line, offset) ? m : '<='))
-      l = l.replace(/&gt;=/g, (m, offset) => (isInsideAttrValue(line, offset) ? m : '>='))
-      l = l.replace(/&amp;&amp;/g, (m, offset) => (isInsideAttrValue(line, offset) ? m : '&&'))
-      l = l.replace(/([\w)\]])\s*&lt;\s*([\w(])/g, (m, p1, p2, offset) =>
-        isInsideAttrValue(line, offset) ? m : `${p1} < ${p2}`,
-      )
-      l = l.replace(/([\w)\]])\s*&gt;\s*([\w(])/g, (m, p1, p2, offset) =>
-        isInsideAttrValue(line, offset) ? m : `${p1} > ${p2}`,
-      )
+      l = l.replace(/&lt;/g, (m, offset) => (isInsideAttrValue(line, offset) ? m : '<'))
+      l = l.replace(/&gt;/g, (m, offset) => (isInsideAttrValue(line, offset) ? m : '>'))
+      l = l.replace(/&amp;/g, (m, offset) => (isInsideAttrValue(line, offset) ? m : '&'))
       return l
     })
     .join('\n')
@@ -780,6 +774,102 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
       }
     }
     fixes.push('<button> → <Button> (with import)')
+  }
+
+  // Auto-complete missing sub-imports for shadcn composite components
+  const compositeComponents: Record<string, string[]> = {
+    select: [
+      'Select',
+      'SelectContent',
+      'SelectItem',
+      'SelectTrigger',
+      'SelectValue',
+      'SelectGroup',
+      'SelectLabel',
+      'SelectSeparator',
+      'SelectScrollUpButton',
+      'SelectScrollDownButton',
+    ],
+    dialog: [
+      'Dialog',
+      'DialogContent',
+      'DialogDescription',
+      'DialogFooter',
+      'DialogHeader',
+      'DialogTitle',
+      'DialogTrigger',
+      'DialogClose',
+      'DialogOverlay',
+      'DialogPortal',
+    ],
+    dropdown_menu: [
+      'DropdownMenu',
+      'DropdownMenuContent',
+      'DropdownMenuItem',
+      'DropdownMenuLabel',
+      'DropdownMenuSeparator',
+      'DropdownMenuTrigger',
+      'DropdownMenuCheckboxItem',
+      'DropdownMenuGroup',
+      'DropdownMenuRadioGroup',
+      'DropdownMenuRadioItem',
+      'DropdownMenuShortcut',
+      'DropdownMenuSub',
+      'DropdownMenuSubContent',
+      'DropdownMenuSubTrigger',
+    ],
+    table: ['Table', 'TableBody', 'TableCaption', 'TableCell', 'TableFooter', 'TableHead', 'TableHeader', 'TableRow'],
+    tabs: ['Tabs', 'TabsContent', 'TabsList', 'TabsTrigger'],
+    card: ['Card', 'CardContent', 'CardDescription', 'CardFooter', 'CardHeader', 'CardTitle'],
+    alert_dialog: [
+      'AlertDialog',
+      'AlertDialogAction',
+      'AlertDialogCancel',
+      'AlertDialogContent',
+      'AlertDialogDescription',
+      'AlertDialogFooter',
+      'AlertDialogHeader',
+      'AlertDialogTitle',
+      'AlertDialogTrigger',
+    ],
+    popover: ['Popover', 'PopoverContent', 'PopoverTrigger'],
+    command: [
+      'Command',
+      'CommandDialog',
+      'CommandEmpty',
+      'CommandGroup',
+      'CommandInput',
+      'CommandItem',
+      'CommandList',
+      'CommandSeparator',
+      'CommandShortcut',
+    ],
+    form: ['Form', 'FormControl', 'FormDescription', 'FormField', 'FormItem', 'FormLabel', 'FormMessage'],
+  }
+  const beforeSubImportFix = fixed
+  for (const [uiName, allExports] of Object.entries(compositeComponents)) {
+    const importPath = `@/components/ui/${uiName.replace(/_/g, '-')}`
+    const importRe = new RegExp(`import\\s*\\{([^}]+)\\}\\s*from\\s*['"]${importPath.replace(/[-/]/g, '\\$&')}['"]`)
+    const importMatch = fixed.match(importRe)
+    if (!importMatch) continue
+    const imported = new Set(
+      importMatch[1]
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean),
+    )
+    const usedInCode = allExports.filter(e => {
+      if (imported.has(e)) return false
+      return new RegExp(`<${e}[\\s/>]`).test(fixed) || new RegExp(`</${e}>`).test(fixed)
+    })
+    if (usedInCode.length > 0) {
+      const merged = [...imported, ...usedInCode]
+      const newImport = `import { ${merged.join(', ')} } from '${importPath}'`
+      fixed = fixed.replace(importRe, newImport)
+    }
+  }
+  if (fixed !== beforeSubImportFix) {
+    fixes.push('added missing sub-imports for composite components')
   }
 
   // Raw Tailwind colors → semantic tokens (context-aware: skip terminal/code blocks)

@@ -295,6 +295,44 @@ function toKebabCase(name: string): string {
   return name.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()
 }
 
+function extractPropsInterface(code: string, componentName: string): string | undefined {
+  const interfaceRe = new RegExp(`interface\\s+${componentName}Props\\s*\\{([^}]+)\\}`, 's')
+  const match = code.match(interfaceRe)
+  if (match) {
+    return match[1]
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => l && !l.startsWith('//'))
+      .join('; ')
+  }
+  const typeRe = new RegExp(`type\\s+${componentName}Props\\s*=\\s*\\{([^}]+)\\}`, 's')
+  const typeMatch = code.match(typeRe)
+  if (typeMatch) {
+    return typeMatch[1]
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => l && !l.startsWith('//'))
+      .join('; ')
+  }
+  return undefined
+}
+
+function extractUsageExample(code: string, componentName: string): string | undefined {
+  const funcMatch = code.match(new RegExp(`export function ${componentName}\\s*\\(\\{([^}]+)\\}`, 's'))
+  if (!funcMatch) return undefined
+  const props = funcMatch[1]
+    .split(',')
+    .map(p => p.split(':')[0].trim())
+    .filter(Boolean)
+  const example = props
+    .map(p => {
+      if (p.startsWith('...')) return `${p.slice(3)}={{}}`
+      return `${p}={...}`
+    })
+    .join(' ')
+  return `<${componentName} ${example} />`
+}
+
 export async function generateSharedComponentsFromPlan(
   plan: ArchitecturePlan,
   styleContext: string,
@@ -371,6 +409,8 @@ Return JSON with { requests: [{ type: "add-page", changes: { name: "ComponentNam
 
   for (const comp of results) {
     const planned = plan.sharedComponents.find(c => c.name === comp.name)
+    const propsInterface = extractPropsInterface(comp.code, comp.name)
+    const usageExample = extractUsageExample(comp.code, comp.name)
     await generateSharedComponent(projectRoot, {
       name: comp.name,
       type: planned?.type ?? 'section',
@@ -379,6 +419,8 @@ Return JSON with { requests: [{ type: "add-page", changes: { name: "ComponentNam
       usedIn: planned?.usedBy ?? [],
       source: 'generated',
       overwrite: true,
+      propsInterface,
+      usageExample,
     })
   }
 

@@ -119,6 +119,12 @@ export async function generateSharedComponent(
     const code = input.code ?? getDefaultTemplate(componentName, input.type, existing.name)
     await mkdir(dirname(fullPath), { recursive: true })
     await writeFile(fullPath, code, 'utf-8')
+    if (input.propsInterface || input.usageExample || input.description) {
+      if (input.propsInterface) existing.propsInterface = input.propsInterface
+      if (input.usageExample) existing.usageExample = input.usageExample
+      if (input.description) existing.description = input.description
+      await saveManifest(projectRoot, manifest)
+    }
     return { id: existing.id, name: existing.name, file: existing.file }
   }
 

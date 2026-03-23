@@ -31,10 +31,21 @@ export interface PostGenerationReportOpts {
   postFixes?: string[]
   layoutShared?: Array<{ id: string; name: string; type: string }>
   allShared?: Array<{ id: string; name: string; type: string }>
+  groupLayout?: string
 }
 
 export function printPostGenerationReport(opts: PostGenerationReportOpts): void {
-  const { action, pageTitle, filePath, code, route, postFixes = [], layoutShared = [], allShared = [] } = opts
+  const {
+    action,
+    pageTitle,
+    filePath,
+    code,
+    route,
+    postFixes = [],
+    layoutShared = [],
+    allShared = [],
+    groupLayout,
+  } = opts
   const uiComponents = extractImportsFrom(code, '@/components/ui')
   const sharedImportNames = extractImportsFrom(code, '@/components/shared/')
   const inCodeShared = allShared.filter(s => sharedImportNames.some(n => n === s.name))
@@ -57,8 +68,14 @@ export function printPostGenerationReport(opts: PostGenerationReportOpts): void 
   const isAuthPage =
     route &&
     (/^\/(login|signin|signup|register|forgot-password|reset-password)\b/.test(route) || filePath.includes('(auth)'))
-  if (layoutShared.length > 0 && !isAuthPage) {
-    console.log(chalk.dim(`  Layout:      ${layoutShared.map(l => `${l.id} (${l.name})`).join(', ')} via layout.tsx`))
+  const isSidebarPage = groupLayout === 'sidebar' || filePath.includes('(app)')
+  const filteredLayout = isAuthPage
+    ? []
+    : isSidebarPage
+      ? layoutShared.filter(l => /sidebar/i.test(l.name))
+      : layoutShared
+  if (filteredLayout.length > 0) {
+    console.log(chalk.dim(`  Layout:      ${filteredLayout.map(l => `${l.id} (${l.name})`).join(', ')} via layout.tsx`))
   }
   if (iconCount > 0) {
     console.log(chalk.dim(`  Icons:       ${iconCount} from lucide-react`))
