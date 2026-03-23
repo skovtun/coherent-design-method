@@ -990,8 +990,10 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
               .filter(Boolean),
           ),
         ]
-        const originalImportLine = lucideImportMatch[0]
-        fixed = fixed.replace(originalImportLine, `import { ${importedNames.join(', ')} } from "lucide-react"`)
+        const currentLucideImport = fixed.match(/import\s*\{([^}]+)\}\s*from\s*["']lucide-react["']/)
+        if (currentLucideImport) {
+          fixed = fixed.replace(currentLucideImport[0], `import { ${importedNames.join(', ')} } from "lucide-react"`)
+        }
       }
     }
   }

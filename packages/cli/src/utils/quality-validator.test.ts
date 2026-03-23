@@ -559,6 +559,31 @@ export default function Page() {
   })
 })
 
+describe('autoFixCode — deduplicate fallback icons', () => {
+  it('replaces multiple invalid icons with a single Circle import', async () => {
+    const code = `import { ArrowRight, Star, Github, Twitter, Linkedin } from "lucide-react"
+export default function Page() {
+  return (
+    <div>
+      <ArrowRight />
+      <Star />
+      <Github className="size-4" />
+      <Twitter className="size-4" />
+      <Linkedin className="size-4" />
+    </div>
+  )
+}`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    const circleImports = fixed.match(/import\s*\{([^}]+)\}\s*from\s*["']lucide-react["']/)
+    expect(circleImports).toBeTruthy()
+    const names = circleImports![1].split(',').map(s => s.trim())
+    const circleCount = names.filter(n => n === 'Circle').length
+    expect(circleCount).toBe(1)
+    expect(fixed).toContain('<Circle className="size-4')
+    expect(fixes.some(f => f.includes('invalid lucide icons'))).toBe(true)
+  })
+})
+
 describe('autoFixCode — DOM nesting fix', () => {
   it('adds asChild when Button is inside Link', async () => {
     const code = `import Link from 'next/link'
