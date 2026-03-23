@@ -5,6 +5,7 @@ import { DesignSystemManager, loadManifest, type DesignSystemConfig } from '@get
 import { readFile } from '../../utils/files.js'
 import chalk from 'chalk'
 import { type ArchitecturePlan, getPageGroup } from './plan-generator.js'
+import { isAuthRoute } from '../../agents/page-templates.js'
 
 const MARKETING_ROUTES = new Set(['', 'landing', 'pricing', 'about', 'contact', 'blog', 'features'])
 
@@ -60,12 +61,13 @@ export function routeToFsPath(projectRoot: string, route: string, isAuthOrPlan?:
 
   if (!slug) return resolve(projectRoot, 'app', 'page.tsx')
 
+  if (isAuth || isAuthRoute(route)) return resolve(projectRoot, 'app', '(auth)', slug || 'login', 'page.tsx')
+
   if (plan) {
     const group = getPageGroup(route, plan)
     if (group) return resolve(projectRoot, 'app', `(${group.id})`, slug, 'page.tsx')
   }
 
-  if (isAuth) return resolve(projectRoot, 'app', '(auth)', slug || 'login', 'page.tsx')
   if (isMarketingRoute(route)) return resolve(projectRoot, 'app', slug, 'page.tsx')
   return resolve(projectRoot, 'app', '(app)', slug, 'page.tsx')
 }
@@ -77,12 +79,13 @@ export function routeToRelPath(route: string, isAuthOrPlan?: boolean | Architect
 
   if (!slug) return 'app/page.tsx'
 
+  if (isAuth || isAuthRoute(route)) return `app/(auth)/${slug || 'login'}/page.tsx`
+
   if (plan) {
     const group = getPageGroup(route, plan)
     if (group) return `app/(${group.id})/${slug}/page.tsx`
   }
 
-  if (isAuth) return `app/(auth)/${slug || 'login'}/page.tsx`
   if (isMarketingRoute(route)) return `app/${slug}/page.tsx`
   return `app/(app)/${slug}/page.tsx`
 }

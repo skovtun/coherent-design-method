@@ -5,6 +5,8 @@ import chalk from 'chalk'
 import { generateSharedComponent } from '@getcoherent/core'
 import type { AIProviderInterface } from '../../utils/ai-provider.js'
 import { inferPageTypeFromRoute, getDesignQualityForType, CORE_CONSTRAINTS } from '../../agents/design-constraints.js'
+import { findMissingPackagesInCode, installPackages } from '../../utils/self-heal.js'
+import { autoFixCode } from '../../utils/quality-validator.js'
 
 const LAYOUT_SYNONYMS: Record<string, string> = {
   horizontal: 'header',
@@ -409,12 +411,15 @@ Return JSON with { requests: [{ type: "add-page", changes: { name: "ComponentNam
 
   for (const comp of results) {
     const planned = plan.sharedComponents.find(c => c.name === comp.name)
-    const propsInterface = extractPropsInterface(comp.code, comp.name)
-    const usageExample = extractUsageExample(comp.code, comp.name)
+    const { code: fixedCode } = await autoFixCode(comp.code)
+    const missing = findMissingPackagesInCode(fixedCode, projectRoot)
+    if (missing.length > 0) await installPackages(projectRoot, missing)
+    const propsInterface = extractPropsInterface(fixedCode, comp.name)
+    const usageExample = extractUsageExample(fixedCode, comp.name)
     await generateSharedComponent(projectRoot, {
       name: comp.name,
       type: planned?.type ?? 'section',
-      code: comp.code,
+      code: fixedCode,
       description: planned?.description,
       usedIn: planned?.usedBy ?? [],
       source: 'generated',
