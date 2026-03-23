@@ -89,6 +89,24 @@ export function generateV4GlobalsCss(config: DesignSystemConfig): string {
   --color-warning: var(--warning);
   --color-error: var(--error);
   --color-info: var(--info);
+  --color-black: #000;
+  --color-white: #fff;
+  --color-sidebar-background: var(--sidebar-background);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-muted-foreground: var(--sidebar-muted-foreground);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-xs: 0.125rem;
   --radius-sm: ${radius.sm || '0.25rem'};
   --radius-md: ${radius.md || '0.5rem'};
   --radius-lg: ${radius.lg || '0.75rem'};
@@ -120,6 +138,21 @@ export function generateV4GlobalsCss(config: DesignSystemConfig): string {
   --warning: ${light.warning};
   --error: ${light.error};
   --info: ${light.info || light.primary};
+  --sidebar-background: ${light.background};
+  --sidebar-foreground: ${light.foreground};
+  --sidebar-primary: ${light.primary};
+  --sidebar-primary-foreground: ${contrastFg(light.primary)};
+  --sidebar-accent: ${light.accent || light.muted};
+  --sidebar-accent-foreground: ${light.foreground};
+  --sidebar-border: ${light.border};
+  --sidebar-ring: ${light.primary};
+  --sidebar-muted: ${light.muted};
+  --sidebar-muted-foreground: ${blendColors(light.foreground, light.background, 0.45)};
+  --chart-1: ${light.primary};
+  --chart-2: ${light.success};
+  --chart-3: ${light.warning};
+  --chart-4: ${light.error};
+  --chart-5: ${light.info || light.primary};
 }
 
 .dark {
@@ -146,6 +179,21 @@ export function generateV4GlobalsCss(config: DesignSystemConfig): string {
   --warning: ${dark.warning};
   --error: ${dark.error};
   --info: ${dark.info || dark.primary};
+  --sidebar-background: ${dark.background};
+  --sidebar-foreground: ${dark.foreground};
+  --sidebar-primary: ${dark.primary};
+  --sidebar-primary-foreground: ${contrastFg(dark.primary)};
+  --sidebar-accent: ${dark.accent || dark.muted};
+  --sidebar-accent-foreground: ${dark.foreground};
+  --sidebar-border: ${dark.border};
+  --sidebar-ring: ${dark.primary};
+  --sidebar-muted: ${dark.muted};
+  --sidebar-muted-foreground: ${blendColors(dark.foreground, dark.background, 0.45)};
+  --chart-1: ${dark.primary};
+  --chart-2: ${dark.success};
+  --chart-3: ${dark.warning};
+  --chart-4: ${dark.error};
+  --chart-5: ${dark.info || dark.primary};
 }
 
 * {
