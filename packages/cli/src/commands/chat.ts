@@ -155,10 +155,21 @@ export async function chatCommand(
       const aiProvider = await createAIProvider((provider ?? 'auto') as 'claude' | 'openai' | 'auto')
       const prompt = `Generate a React component called "${componentName}". Description: ${message}.
 Use shadcn/ui components and Tailwind CSS semantic tokens. Export the component as a named export.
-Include a TypeScript props interface.`
+Include a TypeScript props interface.
+Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${componentName}", "pageCode": "...full TSX..." } }] }`
 
-      const result = await aiProvider.generateCode(prompt)
-      const { code: fixedCode } = await autoFixCode(result)
+      const raw = await aiProvider.parseModification(prompt)
+      const requests = Array.isArray(raw) ? raw : (raw?.requests ?? [])
+      const codeMatch = (requests as Array<{ changes?: { pageCode?: string } }>).find(
+        r => (r.changes as Record<string, unknown>)?.pageCode,
+      )
+      const rawCode = (codeMatch?.changes?.pageCode as string) || ''
+      if (!rawCode) {
+        spinner.fail(`Could not generate component ${componentName}`)
+        releaseLock?.()
+        return
+      }
+      const { code: fixedCode } = await autoFixCode(rawCode)
 
       const props = extractPropsInterface(fixedCode)
       const deps = extractDependencies(fixedCode)
@@ -179,12 +190,19 @@ Include a TypeScript props interface.`
           const { classifyComponents } = await import('../utils/ai-classifier.js')
           const classifications = await classifyComponents(
             [{ name: componentName, signature: props || componentName }],
-            (p) => aiProvider.generateCode(p),
+            async p => JSON.stringify(await aiProvider.generateJSON('You are a component classifier.', p)),
           )
           if (classifications.length > 0) {
             let manifest = await loadManifest(projectRoot)
             manifest = updateEntry(manifest, genResult.id, {
-              type: classifications[0].type as 'layout' | 'navigation' | 'data-display' | 'form' | 'feedback' | 'section' | 'widget',
+              type: classifications[0].type as
+                | 'layout'
+                | 'navigation'
+                | 'data-display'
+                | 'form'
+                | 'feedback'
+                | 'section'
+                | 'widget',
               description: classifications[0].description || message,
             })
             await saveManifest(projectRoot, manifest)
@@ -949,9 +967,8 @@ Include a TypeScript props interface.`
 
     // Lightweight auto-sync: update manifest with metadata from generated files
     try {
-      const { extractPropsInterface, extractDependencies, extractUsageExample } = await import(
-        '../utils/component-extractor.js'
-      )
+      const { extractPropsInterface, extractDependencies, extractUsageExample } =
+        await import('../utils/component-extractor.js')
       let currentManifest = await loadManifest(projectRoot)
       let manifestChanged = false
 
@@ -971,7 +988,7 @@ Include a TypeScript props interface.`
         }
       }
 
-      const pageFiles = Array.from(allModified).filter((f) => f.startsWith('app/') && f.endsWith('page.tsx'))
+      const pageFiles = Array.from(allModified).filter(f => f.startsWith('app/') && f.endsWith('page.tsx'))
       for (const pageFile of pageFiles) {
         const fullPath = resolve(projectRoot, pageFile)
         if (!existsSync(fullPath)) continue

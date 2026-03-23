@@ -14,9 +14,17 @@ function buildSharedComponentsListForClaude(manifest: SharedComponentsManifest):
   if (!manifest.shared || manifest.shared.length === 0) {
     return 'No shared components yet. Register with: coherent components shared add <name> --type layout|section|widget'
   }
-  const order = { layout: 0, section: 1, widget: 2 }
+  const order: Record<string, number> = {
+    layout: 0,
+    navigation: 1,
+    'data-display': 2,
+    form: 3,
+    feedback: 4,
+    section: 5,
+    widget: 6,
+  }
   const sorted = [...manifest.shared].sort(
-    (a, b) => order[a.type as keyof typeof order] - order[b.type as keyof typeof order] || a.name.localeCompare(b.name),
+    (a, b) => (order[a.type] ?? 9) - (order[b.type] ?? 9) || a.name.localeCompare(b.name),
   )
   return sorted
     .map(e => {

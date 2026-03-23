@@ -350,6 +350,8 @@ export async function fixCommand(opts: FixOptions = {}) {
           usedIn: comp.usedIn,
           description: 'Auto-registered by fix',
           createdAt: new Date().toISOString(),
+          dependencies: [],
+          source: 'extracted' as const,
         })
         manifest.nextId++
         console.log(chalk.green(`  ✔ Registered ${id} (${comp.name}) from ${comp.file}`))

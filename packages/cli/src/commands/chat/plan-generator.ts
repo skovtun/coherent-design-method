@@ -367,7 +367,7 @@ Return JSON with { requests: [{ type: "add-page", changes: { name: "ComponentNam
   }
 
   for (const comp of results) {
-    const planned = plan.sharedComponents.find((c) => c.name === comp.name)
+    const planned = plan.sharedComponents.find(c => c.name === comp.name)
     await generateSharedComponent(projectRoot, {
       name: comp.name,
       type: planned?.type ?? 'section',

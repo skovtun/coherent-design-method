@@ -373,7 +373,12 @@ export async function checkCommand(opts: CheckOptions = {}) {
         for (const file of pageFiles) {
           const code = readFileSync(file, 'utf-8')
           const relativePath = file.replace(projectRoot + '/', '')
-          const route = '/' + relativePath.replace(/^app\//, '').replace(/\/page\.tsx$/, '').replace(/^\(.*?\)\//, '')
+          const route =
+            '/' +
+            relativePath
+              .replace(/^app\//, '')
+              .replace(/\/page\.tsx$/, '')
+              .replace(/^\(.*?\)\//, '')
           const pageType = inferPageTypeFromRoute(route)
           const warnings = validateReuse(manifest, code, pageType)
 

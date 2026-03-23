@@ -49,7 +49,15 @@ export function createComponentsCommand(): Command {
       if (manifest.shared.length === 0) {
         console.log(chalk.gray('   None yet. Generate pages with header/footer to create them.\n'))
       } else {
-        const order: Record<string, number> = { layout: 0, section: 1, widget: 2 }
+        const order: Record<string, number> = {
+          layout: 0,
+          navigation: 1,
+          'data-display': 2,
+          form: 3,
+          feedback: 4,
+          section: 5,
+          widget: 6,
+        }
         const sorted = [...manifest.shared].sort(
           (a, b) => (order[a.type] ?? 9) - (order[b.type] ?? 9) || a.name.localeCompare(b.name),
         )
@@ -124,9 +132,18 @@ export function createComponentsCommand(): Command {
         return
       }
 
-      // Order: layout first, then section, then widget
-      const order = { layout: 0, section: 1, widget: 2 }
-      const sorted = [...manifest.shared].sort((a, b) => order[a.type] - order[b.type] || a.name.localeCompare(b.name))
+      const order: Record<string, number> = {
+        layout: 0,
+        navigation: 1,
+        'data-display': 2,
+        form: 3,
+        feedback: 4,
+        section: 5,
+        widget: 6,
+      }
+      const sorted = [...manifest.shared].sort(
+        (a, b) => (order[a.type] ?? 9) - (order[b.type] ?? 9) || a.name.localeCompare(b.name),
+      )
 
       sorted.forEach(entry => {
         const usedIn =

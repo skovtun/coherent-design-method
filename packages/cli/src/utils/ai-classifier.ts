@@ -37,7 +37,7 @@ export function parseClassificationResponse(response: string): ClassificationRes
   const parsed = ClassificationSchema.safeParse(JSON.parse(jsonMatch[0]))
   if (!parsed.success) return []
 
-  return parsed.data.map((item) => ({
+  return parsed.data.map(item => ({
     name: item.name,
     type: VALID_TYPES.includes(item.type as (typeof VALID_TYPES)[number])
       ? (item.type as (typeof VALID_TYPES)[number])

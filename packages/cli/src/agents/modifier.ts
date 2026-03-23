@@ -479,7 +479,9 @@ export function buildLightweightPagePrompt(
   tieredComponentsPrompt?: string,
 ): string {
   const designConstraints = pageType ? getDesignQualityForType(pageType) : ''
-  const sharedNote = tieredComponentsPrompt || (sharedComponentsSummary ? `Available shared components:\n${sharedComponentsSummary}` : '')
+  const sharedNote =
+    tieredComponentsPrompt ||
+    (sharedComponentsSummary ? `Available shared components:\n${sharedComponentsSummary}` : '')
   return [
     `Generate complete pageCode for a page called "${pageName}" at route "${route}".`,
     `Output valid TSX with a default export React component.`,

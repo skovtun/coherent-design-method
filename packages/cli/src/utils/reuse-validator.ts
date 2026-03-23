@@ -47,7 +47,7 @@ export function validateReuse(
       const requiredProps = parseProps(comp.propsInterface)
       const usageMatch = generatedCode.match(new RegExp(`<${comp.name}\\s([^>]*?)/?>`))
       if (usageMatch) {
-        const usedProps = new Set((usageMatch[1].match(/(\w+)=/g) || []).map((p) => p.replace('=', '')))
+        const usedProps = new Set((usageMatch[1].match(/(\w+)=/g) || []).map(p => p.replace('=', '')))
         for (const req of requiredProps) {
           if (!usedProps.has(req) && !comp.propsInterface.includes(`${req}?`)) {
             warnings.push({
@@ -88,7 +88,7 @@ export function validateReuse(
 
 function parseProps(propsStr: string): Set<string> {
   const names = propsStr.match(/(\w+)\s*[?:]?\s*:/g) || []
-  return new Set(names.map((n) => n.replace(/[?:\s]/g, '')))
+  return new Set(names.map(n => n.replace(/[?:\s]/g, '')))
 }
 
 function propOverlap(a: Set<string>, b: Set<string>): number {

@@ -33,7 +33,7 @@ export default function Dashboard() {
   return <Card><div className="text-2xl font-bold">1,234</div><p>Total Users</p></Card>
 }`
     const warnings = validateReuse(manifest, code, 'app')
-    const missed = warnings.filter((w) => w.type === 'missed-reuse')
+    const missed = warnings.filter(w => w.type === 'missed-reuse')
     expect(missed.length).toBeGreaterThan(0)
     expect(missed[0].componentId).toBe('CID-001')
   })
@@ -44,13 +44,13 @@ export default function Dashboard() {
   return <StatsCard icon={Users} value="1,234" label="Total" />
 }`
     const warnings = validateReuse(manifest, code, 'app')
-    expect(warnings.filter((w) => w.type === 'missed-reuse')).toHaveLength(0)
+    expect(warnings.filter(w => w.type === 'missed-reuse')).toHaveLength(0)
   })
 
   it('does not warn for irrelevant component types', () => {
     const code = `export default function Dashboard() { return <div>Dashboard</div> }`
     const warnings = validateReuse(manifest, code, 'app')
-    const headerWarnings = warnings.filter((w) => w.componentId === 'CID-002')
+    const headerWarnings = warnings.filter(w => w.componentId === 'CID-002')
     expect(headerWarnings).toHaveLength(0)
   })
 
@@ -65,7 +65,7 @@ export default function Dashboard() {
       },
     ]
     const warnings = validateReuse(manifest, code, 'app', newFiles)
-    const dupes = warnings.filter((w) => w.type === 'duplicate-creation')
+    const dupes = warnings.filter(w => w.type === 'duplicate-creation')
     expect(dupes.length).toBeGreaterThan(0)
     expect(dupes[0].message).toContain('StatsCard')
   })

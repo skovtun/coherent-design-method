@@ -93,7 +93,15 @@ export async function interactiveChat(
         console.log(chalk.gray('\n  No shared components yet.\n'))
       } else {
         console.log('')
-        const order: Record<string, number> = { layout: 0, section: 1, widget: 2 }
+        const order: Record<string, number> = {
+          layout: 0,
+          navigation: 1,
+          'data-display': 2,
+          form: 3,
+          feedback: 4,
+          section: 5,
+          widget: 6,
+        }
         const sorted = [...manifest.shared].sort((a, b) => (order[a.type] ?? 9) - (order[b.type] ?? 9))
         sorted.forEach(entry => {
           const usage = entry.usedIn.includes('app/layout.tsx')

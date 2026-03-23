@@ -19,12 +19,18 @@ When you create reusable blocks (headers, footers, repeated sections),
 register them: coherent components shared add <Name> --type layout|section|widget`
   }
   const typeOrder: Record<string, number> = {
-    layout: 0, navigation: 1, 'data-display': 2, form: 3, feedback: 4, section: 5, widget: 6,
+    layout: 0,
+    navigation: 1,
+    'data-display': 2,
+    form: 3,
+    feedback: 4,
+    section: 5,
+    widget: 6,
   }
   const sorted = [...manifest.shared].sort(
     (a, b) => (typeOrder[a.type] ?? 9) - (typeOrder[b.type] ?? 9) || a.name.localeCompare(b.name),
   )
-  const lines = sorted.map((entry) => {
+  const lines = sorted.map(entry => {
     const usedIn =
       entry.usedIn.length === 0
         ? '(not used yet)'

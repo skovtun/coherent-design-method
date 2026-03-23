@@ -149,15 +149,15 @@ export function buildTieredComponentsPrompt(
 
   const relevantTypes = new Set(RELEVANT_TYPES[pageType] || RELEVANT_TYPES.app)
 
-  const level1Lines = manifest.shared.map((e) => {
+  const level1Lines = manifest.shared.map(e => {
     const desc = e.description ? ` — ${e.description}` : ''
     return `- ${e.id} ${e.name} (${e.type})${desc}`
   })
 
-  const relevantComponents = manifest.shared.filter((e) => relevantTypes.has(e.type))
+  const relevantComponents = manifest.shared.filter(e => relevantTypes.has(e.type))
   const level2Blocks = relevantComponents
-    .filter((e) => e.propsInterface || e.usageExample)
-    .map((e) => {
+    .filter(e => e.propsInterface || e.usageExample)
+    .map(e => {
       const importPath = e.file.replace(/^components\/shared\//, '').replace(/\.tsx$/, '')
       const lines = [`### ${e.name} (${e.id})`]
       if (e.propsInterface) lines.push(`Props: ${e.propsInterface}`)

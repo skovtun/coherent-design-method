@@ -326,6 +326,7 @@ describe('splitGeneratePages — Phase 3.5 shared component extraction', () => {
                 usedIn: [],
                 description: 'A feature card',
                 propsInterface: '{ title: string }',
+                dependencies: [],
               },
             ],
             nextId: 2,

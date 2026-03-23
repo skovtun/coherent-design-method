@@ -122,6 +122,7 @@ describe('buildSharedComponentsSummary', () => {
           file: 'components/shared/header.tsx',
           usedIn: [],
           description: 'Main header',
+          dependencies: [],
         },
       ],
       nextId: 2,
@@ -143,6 +144,7 @@ describe('buildSharedComponentsSummary', () => {
           usedIn: [],
           description: 'Feature card',
           propsInterface: '{ icon: React.ReactNode; title: string }',
+          dependencies: [],
         },
       ],
       nextId: 4,
@@ -329,7 +331,16 @@ describe('extractSharedComponents', () => {
     const { loadManifest } = await import('@getcoherent/core')
 
     vi.mocked(loadManifest).mockResolvedValue({
-      shared: [{ id: 'CID-001', name: 'Header', type: 'layout', file: 'components/shared/header.tsx', usedIn: [] }],
+      shared: [
+        {
+          id: 'CID-001',
+          name: 'Header',
+          type: 'layout',
+          file: 'components/shared/header.tsx',
+          usedIn: [],
+          dependencies: [],
+        },
+      ],
       nextId: 2,
     })
 

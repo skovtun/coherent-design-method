@@ -15,8 +15,8 @@ export function extractPropsInterface(code: string): string | null {
   if (interfaceMatch) {
     const fields = interfaceMatch[1]
       .split('\n')
-      .map((l) => l.trim().replace(/;?\s*$/, ''))
-      .filter((l) => l && !l.startsWith('//'))
+      .map(l => l.trim().replace(/;?\s*$/, ''))
+      .filter(l => l && !l.startsWith('//'))
     return `{ ${fields.join('; ')} }`
   }
 

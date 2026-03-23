@@ -21,7 +21,7 @@ export interface ReconcileResult {
 export interface UnregisteredComponent {
   name: string
   file: string
-  type: 'layout' | 'section' | 'widget'
+  type: 'layout' | 'navigation' | 'data-display' | 'form' | 'feedback' | 'section' | 'widget'
   usedIn: string[]
 }
 
@@ -44,7 +44,10 @@ export function extractExportedComponentNames(code: string): string[] {
   return [...new Set(names)]
 }
 
-export function inferComponentType(name: string, code: string): 'layout' | 'navigation' | 'data-display' | 'form' | 'feedback' | 'section' | 'widget' {
+export function inferComponentType(
+  name: string,
+  code: string,
+): 'layout' | 'navigation' | 'data-display' | 'form' | 'feedback' | 'section' | 'widget' {
   const lower = name.toLowerCase()
   if (/header|footer|layout|appbar|topbar/.test(lower)) return 'layout'
   if (/sidebar|nav|menu|breadcrumb|tabs/.test(lower)) return 'navigation'
