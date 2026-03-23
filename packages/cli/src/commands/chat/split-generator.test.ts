@@ -464,4 +464,19 @@ describe('formatPlanSummary', () => {
     const summary = formatPlanSummary(plan)
     expect(summary).toBe('')
   })
+
+  it('formatPlanSummary includes pageNotes sections', () => {
+    const plan = {
+      groups: [{ id: 'app', layout: 'sidebar' as const, pages: ['/dashboard', '/tasks'] }],
+      sharedComponents: [],
+      pageNotes: {
+        dashboard: { type: 'app' as const, sections: ['Stats row', 'Activity feed'] },
+        tasks: { type: 'app' as const, sections: ['Filter toolbar', 'Task list'] },
+      },
+    }
+    const summary = formatPlanSummary(plan)
+    expect(summary).toContain('Page Sections:')
+    expect(summary).toContain('dashboard: Stats row, Activity feed')
+    expect(summary).toContain('tasks: Filter toolbar, Task list')
+  })
 })

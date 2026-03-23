@@ -145,6 +145,15 @@ export function formatPlanSummary(plan: ArchitecturePlan): string {
   if (compLines.length > 0) {
     parts.push(`Shared Components:\n${compLines.join('\n')}`)
   }
+
+  const noteEntries = Object.entries(plan.pageNotes || {}).filter(
+    ([, note]) => note.sections && note.sections.length > 0,
+  )
+  if (noteEntries.length > 0) {
+    const noteLines = noteEntries.map(([key, note]) => `  ${key}: ${note.sections.join(', ')}`)
+    parts.push(`Page Sections:\n${noteLines.join('\n')}`)
+  }
+
   return parts.join('\n')
 }
 
