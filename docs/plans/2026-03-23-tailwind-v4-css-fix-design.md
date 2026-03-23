@@ -140,6 +140,11 @@ Add to `autoFixCode()`:
 | `packages/cli/src/commands/preview.ts` | Call `validateGlobalsCss` before starting dev server |
 | `packages/cli/src/utils/quality-validator.ts` | Add `-0` class removal to `autoFixCode` |
 
+## Additional notes
+
+- `coherent init` (`init.ts:254-259`) also calls `generateV4GlobalsCss` directly. Our fix to this function covers the init path automatically.
+- `fixGlobalsCss` is called twice in `chat.ts`: conditionally at the start (lines 119-127) and unconditionally at the end (lines 836-840). After our fix, the final unconditional call writes a complete file, so overwriting is no longer destructive.
+
 ## Out of scope
 
 - Merge strategy for globals.css (making `generateV4GlobalsCss` complete is simpler and sufficient)
