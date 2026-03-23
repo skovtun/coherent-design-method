@@ -186,6 +186,22 @@ describe('autoFixCode', () => {
     expect(fixes.some(f => f.includes('TabsTrigger'))).toBe(true)
   })
 
+  it('removes className="-0" junk class from AI output', async () => {
+    const code = `<TabsList className="-0 border-0"><TabsTrigger value="a">A</TabsTrigger></TabsList>`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).not.toContain('"-0 ')
+    expect(fixed).not.toContain(' -0"')
+    expect(fixed).not.toContain(' -0 ')
+    expect(fixes.some(f => f.includes('junk'))).toBe(true)
+  })
+
+  it('removes standalone -0 but keeps border-0', async () => {
+    const code = `<div className="flex -0 border-0 p-4">Content</div>`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('border-0')
+    expect(fixed).not.toMatch(/\s-0[\s"]/)
+  })
+
   it('does not modify TabsTrigger without border classes', async () => {
     const code = `<TabsTrigger value="a" className="flex items-center gap-2">A</TabsTrigger>`
     const { code: fixed } = await autoFixCode(code)

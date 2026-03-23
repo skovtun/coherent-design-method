@@ -1151,6 +1151,16 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
     fixes.push('stripped border from TabsTrigger (shadcn handles active state)')
   }
 
+  const beforeJunkFix = fixed
+  fixed = fixed.replace(/className="([^"]*)"/g, (_match, classes: string) => {
+    const cleaned = classes.split(/\s+/).filter(c => c !== '-0').join(' ')
+    if (cleaned !== classes.trim()) return `className="${cleaned}"`
+    return _match
+  })
+  if (fixed !== beforeJunkFix) {
+    fixes.push('removed junk classes (-0)')
+  }
+
   // Clean up double spaces in className that may result from previous fixes
   fixed = fixed.replace(/className="([^"]*)"/g, (_match, inner: string) => {
     const cleaned = inner.replace(/\s{2,}/g, ' ').trim()
