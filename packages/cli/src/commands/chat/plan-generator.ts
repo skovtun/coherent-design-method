@@ -327,6 +327,7 @@ Requirements:
 - Use Tailwind CSS classes matching the style context
 - TypeScript with proper props interface
 - Each component is a standalone file
+- Icon props MUST use \`icon: React.ElementType\` (NOT React.ReactNode) and render as \`<Icon className="size-4" />\` where \`const Icon = icon\`. Lucide icons are forwardRef components, not elements.
 
 Return JSON with { requests: [{ type: "add-page", changes: { name: "ComponentName", pageCode: "..." } }, ...] }`
 

@@ -1245,6 +1245,12 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
     fixes.push('placeholder content → contextual content')
   }
 
+  const beforeIconProp = fixed
+  fixed = fixed.replace(/(\bicon\s*:\s*)React\.ReactNode\b/g, '$1React.ElementType')
+  if (fixed !== beforeIconProp) {
+    fixes.push('icon prop: ReactNode → ElementType (forwardRef compat)')
+  }
+
   return { code: fixed, fixes }
 }
 

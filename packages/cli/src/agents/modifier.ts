@@ -338,6 +338,12 @@ PAGE WRAPPER (CRITICAL — the layout provides width/padding automatically):
 - ALL app pages must follow this exact same structure so content aligns consistently across pages
 - Landing/marketing pages are an exception: they render outside the app layout and should use full-width <section> elements with inner "mx-auto max-w-6xl" for content.
 
+ICON PROPS (CRITICAL — prevents runtime crash):
+- When passing lucide-react icons as props, the component prop MUST be typed as \`React.ElementType\` (NOT React.ReactNode).
+- Render icon props as: \`const Icon = props.icon; <Icon className="size-4" />\`
+- Pass icons as: \`icon={FolderOpen}\` (component reference, not JSX element)
+- Lucide icons are forwardRef components — passing them as ReactNode causes "Objects are not valid as a React child" error.
+
 PAGE CONTENT (CRITICAL — prevents empty or duplicate pages):
 - Every page MUST have substantial content. NEVER generate a page with only metadata and an empty <main> element.
 - NEVER create an inline preview/demo of another page (e.g., embedding a "dashboard view" inside the landing page with a toggle). Each page should be its own route.
