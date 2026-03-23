@@ -252,8 +252,9 @@ export function fixEscapedClosingQuotes(code: string): string {
 /** Fix unescaped < in JSX text content (AI generates e.g. "<50ms" as literal text, invalid JSX).
  *  Must NOT touch valid JSX: <Component, </Component>, <>, {expression} */
 export function fixUnescapedLtInJsx(code: string): string {
+  const isJsExpr = (text: string) => /[().;=&|!?]/.test(text)
   let out = code
-  out = out.replace(/>([^<\n]*)<(\d)/g, '>$1&lt;$2')
-  out = out.replace(/>([^<\n]*)<([^/a-zA-Z!{>\n])/g, '>$1&lt;$2')
+  out = out.replace(/>([^<{}\n]*)<(\d)/g, (m, text, d) => (isJsExpr(text) ? m : `>${text}&lt;${d}`))
+  out = out.replace(/>([^<{}\n]*)<([^/a-zA-Z!{>\n])/g, (m, text, ch) => (isJsExpr(text) ? m : `>${text}&lt;${ch}`))
   return out
 }
