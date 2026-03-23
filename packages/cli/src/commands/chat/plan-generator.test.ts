@@ -437,7 +437,8 @@ describe('generateSharedComponentsFromPlan', () => {
     const results = await generateSharedComponentsFromPlan(plan, 'dark theme', '/tmp', mockProvider as any)
     expect(results).toHaveLength(1)
     expect(results[0].name).toBe('StatCard')
-    expect(results[0].code).toContain('export default')
+    expect(results[0].code).toContain('export function StatCard')
+    expect(results[0].code).not.toContain('export default')
   })
 
   it('skips components that fail generation', async () => {
@@ -472,7 +473,7 @@ describe('generateSharedComponentsFromPlan', () => {
     expect(results[0].name).toBe('B')
   })
 
-  it('rejects code missing export default', async () => {
+  it('rejects code missing any export', async () => {
     const mockProvider = {
       parseModification: vi.fn().mockResolvedValue({
         requests: [
@@ -501,5 +502,38 @@ describe('generateSharedComponentsFromPlan', () => {
     })
     const results = await generateSharedComponentsFromPlan(plan, '', '/tmp', mockProvider as any)
     expect(results).toHaveLength(0)
+  })
+
+  it('converts export default to named export in fallback path', async () => {
+    let callCount = 0
+    const mockProvider = {
+      parseModification: vi.fn().mockImplementation(() => {
+        callCount++
+        if (callCount === 1) throw new Error('batch fail')
+        return {
+          requests: [
+            {
+              type: 'add-page',
+              changes: {
+                name: 'FilterBar',
+                pageCode: 'export default function FilterBar({ filters }: { filters: string[] }) { return <div/> }',
+              },
+            },
+          ],
+        }
+      }),
+    }
+    const plan = ArchitecturePlanSchema.parse({
+      groups: [],
+      sharedComponents: [
+        { name: 'Unused', description: 'd', props: '{}', usedBy: ['/x'], type: 'widget' },
+        { name: 'FilterBar', description: 'Filter bar', props: '{ filters: string[] }', usedBy: ['/tasks'], type: 'form' },
+      ],
+      pageNotes: {},
+    })
+    const results = await generateSharedComponentsFromPlan(plan, '', '/tmp', mockProvider as any)
+    expect(results).toHaveLength(1)
+    expect(results[0].code).toContain('export function FilterBar')
+    expect(results[0].code).not.toContain('export default')
   })
 })

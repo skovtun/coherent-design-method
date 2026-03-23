@@ -322,7 +322,7 @@ Style context: ${styleContext || 'default'}
 ${designRules}
 
 Requirements:
-- Each component MUST have \`export default function ComponentName\`
+- Each component MUST use a NAMED export: \`export function ComponentName\` (NOT export default)
 - Use shadcn/ui imports from @/components/ui/*
 - Use Tailwind CSS classes matching the style context
 - TypeScript with proper props interface
@@ -341,9 +341,10 @@ Return JSON with { requests: [{ type: "add-page", changes: { name: "ComponentNam
         r => r.type === 'add-page' && (r.changes as Record<string, string>)?.name === comp.name,
       )
       const code = (match?.changes as Record<string, string>)?.pageCode
-      if (code && code.includes('export default')) {
+      if (code && (code.includes('export function') || code.includes('export default'))) {
+        const fixedCode = code.replace(/export default function (\w+)/g, 'export function $1')
         const file = `components/shared/${toKebabCase(comp.name)}.tsx`
-        results.push({ name: comp.name, code, file })
+        results.push({ name: comp.name, code: fixedCode, file })
       }
     }
   } catch {
@@ -356,9 +357,10 @@ Return JSON with { requests: [{ type: "add-page", changes: { name: "ComponentNam
           r => r.type === 'add-page' && r.changes?.name === comp.name,
         )
         const code = match?.changes?.pageCode
-        if (code && code.includes('export default')) {
+        if (code && (code.includes('export function') || code.includes('export default'))) {
+          const fixedCode = code.replace(/export default function (\w+)/g, 'export function $1')
           const file = `components/shared/${toKebabCase(comp.name)}.tsx`
-          results.push({ name: comp.name, code, file })
+          results.push({ name: comp.name, code: fixedCode, file })
         }
       } catch {
         // skip this component

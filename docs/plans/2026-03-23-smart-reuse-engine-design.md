@@ -12,9 +12,13 @@ The coherent platform generates UI pages but fails to reuse existing shared comp
 |---|-----|-----------|
 | 0 | Sidebar layout never works | `config` (line 110) and `dsm.getConfig()` (line 135) in `chat.ts` are separate objects. `split-generator.ts` mutates `modCtx.config.navigation.type = 'sidebar'` but `dsm` never sees it. Later `ensureAppRouteGroupLayout(projectRoot, dsm.getConfig().navigation.type, navChanged)` overwrites sidebar layout with header layout. |
 | A | Group layouts lost between sessions | Plan stores per-group layouts (`app: sidebar`, `public: header`) but config only has global `navigation.type`. No persistence. |
+| D | Shared components use `export default` but pages use named imports | `plan-generator.ts` prompt says "MUST have export default function ComponentName". Pages import with `{ StatCard }`. Named imports fail on default exports. **Fixed pre-plan** in plan-generator.ts and split-generator.ts. |
 | E | AI doesn't know page is inside sidebar | `sharedLayoutNote` hardcoded: "Header and Footer are shared components." No mention of sidebar. AI generates inline navigation. |
 | F | Manual layout edits overwritten | `ensurePlanGroupLayouts` writes all layouts unconditionally — no hash check, no existence check. |
 | G | Plan regenerated from scratch | `updateArchitecturePlan` exists but is never called in production. Second `coherent chat` loses previous plan. |
+| I | Type taxonomy fragmented | `SharedComponentTypeSchema` has 7 types but 8 CLI locations hardcode `section \| widget`. Components with new types invisible to reuse warnings. |
+| J | Quality fix loop single-shot | AI quality fix tries once. Remaining errors (RAW_COLOR, PLACEHOLDER) written as-is. |
+| K | Preview pre-flight ignores shared exports | `fixMissingComponentExports` validates UI exports but not shared component exports. Named import crashes discovered only at runtime. |
 
 ### Architecture Gaps
 
@@ -355,6 +359,26 @@ The entire reuse planner is an enhancement. Pipeline must work without it.
 | Incremental manifest sync | Unit tests: mutex behavior, manifest state after concurrent updates |
 | Graceful degradation | Unit tests: reuse-planner throws → verify `buildTieredComponentsPrompt` fallback; verification failure → verify no retry and pipeline continues; mutex timeout → verify generation proceeds |
 
+### Section 4: Hardening Fixes (Added 2026-03-23)
+
+#### 4a. Type Taxonomy Unification
+
+`SharedComponentTypeSchema` defines 7 types but `section | widget` is hardcoded in 8 CLI locations: `warnInlineDuplicates`, `SharedExtractionItemSchema`, `SharedExtractionItem` type, `DetectedComponent` in sync, CLI `add` command, AI extraction prompts (claude + openai), and help text (cursor-rules, claude-code). This causes components like StatCard (`data-display`) and FilterBar (`form`) to be invisible to reuse warnings and incorrectly classified during extraction.
+
+**Fix:** Replace all hardcoded type unions with `SharedComponentTypeSchema` / `SharedComponentType` import from `@getcoherent/core`. Update `warnInlineDuplicates` to check all non-layout components.
+
+#### 4b. Quality Fix Retry Loop
+
+Current quality fix in `modification-handler.ts` makes one AI attempt. If errors remain (5→2), code is written as-is. RAW_COLOR and PLACEHOLDER errors persist.
+
+**Fix:** Wrap AI fix in `for (attempt = 0; attempt < 2; ...)` loop. Second attempt includes specific remaining error lines. Exit early on zero errors.
+
+#### 4c. Shared Component Export Validation
+
+`fixMissingComponentExports` in `preview.ts` validates `@/components/ui/*` exports but ignores `@/components/shared/*`. Pages crash at runtime if shared component uses `export default` instead of named export.
+
+**Fix:** Add `@/components/shared/*` import scanning to `fixMissingComponentExports`. Auto-convert `export default function Foo` → `export function Foo` when a page expects `{ Foo }`.
+
 ### Future Enhancements (Out of Scope)
 
 - Pattern graduation: auto-extract inline patterns from 2+ pages into shared components
@@ -371,8 +395,18 @@ New:
 
 Modified:
 - `packages/cli/src/commands/chat.ts` — config unification (`modCtx` uses `dsm.getConfig()`), reuse planner integration for single-page
-- `packages/cli/src/commands/chat/split-generator.ts` — reuse planner integration, layout-aware prompt, incremental sync
+- `packages/cli/src/commands/chat/split-generator.ts` — reuse planner integration, layout-aware prompt, incremental sync, fix SharedExtractionItemSchema types
 - `packages/cli/src/commands/chat/code-generator.ts` — safe layout writes (hash check + updated signature), groupLayouts-aware `ensureAppRouteGroupLayout`, `ensurePlanGroupLayouts` writes `groupLayouts` to config
 - `packages/cli/src/commands/chat/plan-generator.ts` — call `updateArchitecturePlan` when plan exists
 - `packages/cli/src/agents/modifier.ts` — accept `reusePlanDirective` in `buildModificationPrompt` and `ParseModificationOptions`, inject into prompt (replaces tiered/shared notes)
 - `packages/core/src/types/design-system.ts` — add `groupLayouts` to schema
+- `packages/cli/src/commands/chat/utils.ts` — fix `warnInlineDuplicates` type filter
+- `packages/cli/src/utils/ai-provider.ts` — fix `SharedExtractionItem` type
+- `packages/cli/src/commands/sync.ts` — fix `DetectedComponent` type
+- `packages/cli/src/commands/components.ts` — expand CLI `add` type options
+- `packages/cli/src/utils/claude.ts` — update extraction prompt types
+- `packages/cli/src/utils/openai-provider.ts` — update extraction prompt types
+- `packages/cli/src/utils/cursor-rules.ts` — update help text types
+- `packages/cli/src/utils/claude-code.ts` — update help text types
+- `packages/cli/src/commands/chat/modification-handler.ts` — quality fix retry loop
+- `packages/cli/src/commands/preview.ts` — shared component export validation

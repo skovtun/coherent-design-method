@@ -673,7 +673,8 @@ export async function extractSharedComponents(
 
   for (const item of filtered) {
     try {
-      const { code: fixedCode } = await autoFixCode(item.code)
+      let { code: fixedCode } = await autoFixCode(item.code)
+      fixedCode = fixedCode.replace(/export default function (\w+)/g, 'export function $1')
 
       const shadcnImports = [...fixedCode.matchAll(/from\s+["']@\/components\/ui\/(.+?)["']/g)]
       for (const match of shadcnImports) {

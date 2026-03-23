@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Fix sidebar/layout bugs and add intelligent pre-generation component reuse planning to the coherent CLI.
+**Goal:** Fix sidebar/layout bugs, add intelligent pre-generation component reuse planning, unify type taxonomy, and improve generation reliability.
 
-**Architecture:** Two phases — infrastructure fixes (config unification, groupLayouts, safe layout writes, plan persistence, layout-aware prompts) followed by the Smart Reuse Engine (deterministic mapping, code pattern extraction, post-gen verification). The reuse planner produces a `ReusePlan` that replaces the existing tiered prompt with specific "use Component X for Section Y" directives.
+**Architecture:** Three phases — infrastructure fixes (config unification, groupLayouts, safe layout writes, plan persistence, layout-aware prompts), the Smart Reuse Engine (deterministic mapping, code pattern extraction, post-gen verification), and hardening fixes (type taxonomy unification, quality fix retry, shared export validation).
 
 **Tech Stack:** TypeScript, Zod, vitest, @getcoherent/core + @getcoherent/cli
 
@@ -1413,4 +1413,291 @@ Expected: PASS (run `npx prettier --write` on failing files if needed)
 ```bash
 git add -A
 git commit -m "chore: format fixes for smart reuse engine"
+```
+
+---
+
+## Phase 3: Hardening Fixes
+
+### Task 15: Type Taxonomy Unification
+
+**Problem:** `SharedComponentTypeSchema` in `@getcoherent/core` defines 7 types (`layout`, `navigation`, `data-display`, `form`, `feedback`, `section`, `widget`), but 8 locations in CLI still hardcode `section | widget`, causing components like StatCard (`data-display`) and FilterBar (`form`) to be invisible to reuse warnings and incorrectly classified during extraction.
+
+**Files:**
+- Modify: `packages/cli/src/commands/chat/utils.ts`
+- Modify: `packages/cli/src/commands/chat/split-generator.ts`
+- Modify: `packages/cli/src/utils/ai-provider.ts`
+- Modify: `packages/cli/src/commands/sync.ts`
+- Modify: `packages/cli/src/commands/components.ts`
+- Modify: `packages/cli/src/utils/claude.ts`
+- Modify: `packages/cli/src/utils/openai-provider.ts`
+- Modify: `packages/cli/src/utils/cursor-rules.ts`
+- Modify: `packages/cli/src/utils/claude-code.ts`
+- Test: `packages/cli/src/commands/chat/utils.test.ts`
+
+- [ ] **Step 1: Fix `warnInlineDuplicates` filter**
+
+In `packages/cli/src/commands/chat/utils.ts`, line ~133:
+
+```typescript
+// BEFORE:
+const sectionOrWidget = manifest.shared.filter(e => e.type === 'section' || e.type === 'widget')
+if (sectionOrWidget.length === 0) return
+
+// AFTER:
+const reusable = manifest.shared.filter(e => e.type !== 'layout')
+if (reusable.length === 0) return
+```
+
+Update the loop variable from `sectionOrWidget` to `reusable` (line ~141).
+
+- [ ] **Step 2: Fix `SharedExtractionItemSchema` in split-generator**
+
+In `packages/cli/src/commands/chat/split-generator.ts`, line ~615:
+
+```typescript
+// BEFORE:
+const SharedExtractionItemSchema = z.object({
+  name: z.string().min(2).max(50),
+  type: z.enum(['section', 'widget']),
+  ...
+})
+
+// AFTER:
+import { SharedComponentTypeSchema } from '@getcoherent/core'
+
+const SharedExtractionItemSchema = z.object({
+  name: z.string().min(2).max(50),
+  type: SharedComponentTypeSchema,
+  ...
+})
+```
+
+- [ ] **Step 3: Fix `SharedExtractionItem` in ai-provider.ts**
+
+In `packages/cli/src/utils/ai-provider.ts`, line ~31:
+
+```typescript
+// BEFORE:
+type: 'section' | 'widget'
+
+// AFTER:
+import type { SharedComponentType } from '@getcoherent/core'
+// ...
+type: SharedComponentType
+```
+
+- [ ] **Step 4: Fix `DetectedComponent` in sync.ts**
+
+In `packages/cli/src/commands/sync.ts`, line ~43:
+
+```typescript
+// BEFORE:
+type: 'layout' | 'section' | 'widget'
+
+// AFTER:
+import type { SharedComponentType } from '@getcoherent/core'
+// ...
+type: SharedComponentType
+```
+
+- [ ] **Step 5: Fix CLI `components shared add` command**
+
+In `packages/cli/src/commands/components.ts`, line ~170-175:
+
+```typescript
+// BEFORE:
+.option('-t, --type <type>', 'Type: layout | section | widget', 'layout')
+// ...
+const type = (opts.type === 'section' || opts.type === 'widget' ? opts.type : 'layout') as ...
+
+// AFTER:
+.option('-t, --type <type>', 'Type: layout | navigation | data-display | form | feedback | section | widget', 'layout')
+// ...
+const validTypes = ['layout', 'navigation', 'data-display', 'form', 'feedback', 'section', 'widget']
+const type = (validTypes.includes(opts.type ?? '') ? opts.type : 'layout') as SharedComponentType
+```
+
+- [ ] **Step 6: Fix AI extraction prompts**
+
+In `packages/cli/src/utils/claude.ts` line ~477 and `packages/cli/src/utils/openai-provider.ts` line ~439:
+
+```
+// BEFORE:
+Each component object: "name" (PascalCase), "type" ("section"|"widget"), ...
+
+// AFTER:
+Each component object: "name" (PascalCase), "type" ("layout"|"navigation"|"data-display"|"form"|"feedback"|"section"|"widget"), ...
+```
+
+- [ ] **Step 7: Fix help text in cursor-rules.ts and claude-code.ts**
+
+Update `--type layout|section|widget` to `--type layout|navigation|data-display|form|feedback|section|widget` in both files.
+
+- [ ] **Step 8: Add test for warnInlineDuplicates with new types**
+
+In `packages/cli/src/commands/chat/utils.test.ts`, add:
+
+```typescript
+it('warns for data-display components not imported', async () => {
+  const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+  const plan = ArchitecturePlanSchema.parse({
+    groups: [{ name: 'app', layout: 'sidebar', pages: ['/dashboard'] }],
+    sharedComponents: [
+      { name: 'StatCard', description: 'Metric card', props: '{}', usedBy: ['/dashboard'], type: 'data-display' },
+    ],
+    pageNotes: {},
+  })
+  const manifest = {
+    shared: [{ id: 'CID-003', name: 'StatCard', type: 'data-display', file: 'components/shared/stat-card.tsx' }],
+  }
+  await warnInlineDuplicates('/tmp', 'Dashboard', '/dashboard', 'export default function Page() { return <div/> }', manifest, plan)
+  expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('StatCard'))
+  consoleSpy.mockRestore()
+})
+```
+
+- [ ] **Step 9: Run tests and commit**
+
+```bash
+pnpm test && pnpm typecheck
+git add -A
+git commit -m "fix: unify component type taxonomy across CLI"
+```
+
+---
+
+### Task 16: Quality Fix Retry Loop
+
+**Problem:** The quality fix loop in `modification-handler.ts` tries AI fix once. If errors remain (e.g. 5→2), the code is written as-is. RAW_COLOR and PLACEHOLDER errors persist.
+
+**Files:**
+- Modify: `packages/cli/src/commands/chat/modification-handler.ts`
+
+- [ ] **Step 1: Wrap quality fix in retry loop**
+
+In `packages/cli/src/commands/chat/modification-handler.ts`, find the quality fix block (~lines 662-690). Wrap the AI fix attempt in a loop:
+
+```typescript
+// BEFORE (simplified):
+if (errors.length >= 2 && aiProvider) {
+  // single AI fix attempt
+  const fixedCode = await ai.editPageCode(codeToWrite, instruction, ...)
+  if (recheckErrors.length < errors.length) {
+    codeToWrite = fixedCode
+    // ...
+  }
+}
+
+// AFTER:
+const MAX_QUALITY_FIX_ATTEMPTS = 2
+let currentErrors = errors
+for (let attempt = 0; attempt < MAX_QUALITY_FIX_ATTEMPTS && currentErrors.length > 0; attempt++) {
+  if (!aiProvider) break
+  console.log(
+    chalk.yellow(`\n🔄 ${currentErrors.length} quality errors — attempting AI fix${attempt > 0 ? ` (retry ${attempt + 1})` : ''} for ${page.name || page.id}...`),
+  )
+  try {
+    const ai = await createAIProvider(aiProvider)
+    if (!ai.editPageCode) break
+    const errorList = currentErrors.map(e => `Line ${e.line}: [${e.type}] ${e.message}`).join('\n')
+    const instruction = `Fix these quality issues:\n${errorList}\n\nRules:\n- Replace raw Tailwind colors (bg-emerald-500, text-zinc-400, etc.) with semantic tokens (bg-primary, text-muted-foreground, bg-muted, etc.)\n- Replace placeholder content ("Lorem ipsum", "John Doe", "user@example.com") with realistic contextual content\n- Ensure heading hierarchy (h1 → h2 → h3, no skipping)\n- Add Label components for form inputs\n- Keep all existing functionality and layout intact`
+    const fixedCode = await ai.editPageCode(codeToWrite, instruction, page.name || page.id || 'Page')
+    if (fixedCode && fixedCode.length > 100 && /export\s+default/.test(fixedCode)) {
+      const recheck = validatePageQuality(fixedCode, undefined, qualityPageType)
+      const recheckErrors = recheck.filter(i => i.severity === 'error')
+      if (recheckErrors.length < currentErrors.length) {
+        codeToWrite = fixedCode
+        const { code: reFixed, fixes: reFixes } = await autoFixCode(codeToWrite, autoFixCtx)
+        if (reFixes.length > 0) {
+          codeToWrite = reFixed
+          postFixes.push(...reFixes)
+        }
+        await writeFile(filePath, codeToWrite)
+        currentErrors = recheckErrors
+        console.log(chalk.green(`   ✔ Quality fix: ${errors.length} → ${currentErrors.length} errors`))
+        if (currentErrors.length === 0) break
+      } else {
+        break
+      }
+    } else {
+      break
+    }
+  } catch {
+    break
+  }
+}
+issues = validatePageQuality(codeToWrite, undefined, qualityPageType)
+```
+
+- [ ] **Step 2: Run tests and commit**
+
+```bash
+pnpm test && pnpm typecheck
+git add -A
+git commit -m "fix: retry quality fix up to 2 times for remaining errors"
+```
+
+---
+
+### Task 17: Shared Component Export Validation in Preview
+
+**Problem:** `fixMissingComponentExports` in `preview.ts` validates `@/components/ui/*` exports but ignores `@/components/shared/*`. Pages with `import { StatCard } from '@/components/shared/stat-card'` crash at runtime if the file uses `export default function StatCard`.
+
+**Files:**
+- Modify: `packages/cli/src/commands/preview.ts`
+
+- [ ] **Step 1: Add shared component export validation**
+
+In `packages/cli/src/commands/preview.ts`, after the existing `neededExports` collection loop (line ~169), add a similar block for shared components:
+
+```typescript
+// After collecting UI component needed exports, collect shared component needed exports
+const neededSharedExports = new Map<string, Set<string>>()
+
+for (const file of pages) {
+  const content = readFileSync(file, 'utf-8')
+  const sharedImportRe = /import\s*\{([^}]+)\}\s*from\s*['"]@\/components\/shared\/([^'"]+)['"]/g
+  let sm
+  while ((sm = sharedImportRe.exec(content)) !== null) {
+    const names = sm[1].split(',').map(s => s.trim()).filter(Boolean)
+    const componentId = sm[2]
+    if (!neededSharedExports.has(componentId)) neededSharedExports.set(componentId, new Set())
+    for (const name of names) neededSharedExports.get(componentId)!.add(name)
+  }
+}
+
+// Fix shared component exports (convert export default → named export)
+for (const [componentId, needed] of neededSharedExports) {
+  const componentFile = join(sharedDir, `${componentId}.tsx`)
+  if (!existsSync(componentFile)) continue
+
+  let content = readFileSync(componentFile, 'utf-8')
+  const exportRe = /export\s+(?:const|function|class)\s+(\w+)|export\s*\{([^}]+)\}/g
+  const existingExports = new Set<string>()
+  let em
+  while ((em = exportRe.exec(content)) !== null) {
+    if (em[1]) existingExports.add(em[1])
+    if (em[2]) em[2].split(',').map(s => s.trim().split(/\s+as\s+/).pop()!).filter(Boolean).forEach(n => existingExports.add(n))
+  }
+
+  const missing = [...needed].filter(n => !existingExports.has(n))
+  if (missing.length === 0) continue
+
+  // Check if the missing name is a default export that can be converted
+  const defaultExportMatch = content.match(/export\s+default\s+function\s+(\w+)/)
+  if (defaultExportMatch && missing.includes(defaultExportMatch[1])) {
+    content = content.replace(/export\s+default\s+function\s+(\w+)/, 'export function $1')
+    writeFileSync(componentFile, content, 'utf-8')
+    console.log(chalk.dim(`   ✔ Fixed export in ${componentId}.tsx (default → named)`))
+  }
+}
+```
+
+- [ ] **Step 2: Run tests and commit**
+
+```bash
+pnpm test && pnpm typecheck
+git add -A
+git commit -m "fix: validate and auto-fix shared component exports in preview pre-flight"
 ```
