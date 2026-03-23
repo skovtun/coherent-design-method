@@ -150,11 +150,38 @@ The sidebar top bar requires these shadcn components (auto-installed by `coheren
 - `breadcrumb` — breadcrumb components (optional, for future multi-level breadcrumbs)
 - `sidebar` — already required and installed
 
+### Dynamic app name in templates
+
+Mini footer (`© 2026 My App`) and DS button text must use `config.name`, not hardcoded strings. `buildAppLayoutCode` and `buildGroupLayoutCode` receive the app name from config and interpolate it into the generated code, the same way `generateSharedSidebarCode` does via `this.config.name`.
+
+### Active link highlighting on nested routes
+
+Current sidebar code uses `isActive={pathname === "/tasks"}` which fails on `/tasks/123`. Change to `isActive={pathname?.startsWith("/tasks")}` for all sidebar menu items. This applies to `generateSharedSidebarCode` in `PageGenerator.ts`.
+
+### Root layout body classes
+
+Current root layout generates `<body className="min-h-screen flex flex-col ...">`. When sidebar is active, `flex flex-col` conflicts with `SidebarProvider`'s horizontal flex layout. When generating root layout for sidebar nav type, use `<body className="min-h-svh bg-background text-foreground antialiased">` without `flex flex-col`.
+
+### `regenerateLayout` in `coherent chat`
+
+Every `coherent chat` call runs `regenerateLayout` → `integrateSharedLayoutIntoRootLayout` → `ensureAuthRouteGroup`. When sidebar is active, this chain must NOT re-inject Header/Footer into root layout. `regenerateLayout` must check effective nav type BEFORE calling the integration chain and skip it for sidebar.
+
+### `coherent export` cleanup
+
+`export.ts` currently strips the DS FAB from `<Header>`. When sidebar is active, the DS button lives in root layout instead. `coherent export` must also strip DS links from root layout body.
+
+### Idempotent migration
+
+Running `coherent fix` twice must produce identical results. The migration algorithm must:
+- Check if Header/Footer are actually present before stripping (no-op if already clean)
+- Check if `(public)` layout already has Header/Footer before rewriting
+- Check if `(app)` layout already has sidebar template before rewriting
+
 ## Changes by file
 
 ### `packages/cli/src/commands/chat/code-generator.ts`
 
-1. **`buildAppLayoutCode(navType)`** — update the `sidebar`/`both` branch to include `'use client'`, `usePathname`-based breadcrumbs, `ThemeToggle`, and mini footer inside `SidebarInset`.
+1. **`buildAppLayoutCode(navType, appName?)`** — update the `sidebar`/`both` branch to include `'use client'`, `usePathname`-based breadcrumbs, `ThemeToggle`, mini footer with dynamic app name inside `SidebarInset`. Accept `appName` parameter.
 
 2. **`buildGroupLayoutCode(layout, pages)`** — same change for `sidebar`/`both` branch.
 
@@ -172,25 +199,35 @@ The sidebar top bar requires these shadcn components (auto-installed by `coheren
    - Do NOT call `integrateSharedLayoutIntoRootLayout`.
    - Still generate Header, Footer, ThemeToggle as shared components.
    - Add DS button directly to root layout body.
+   - Use `min-h-svh` instead of `min-h-screen flex flex-col` on body.
 
 ### `packages/core/src/generators/PageGenerator.ts`
 
 6. **New: `generateThemeToggleCode()`** — extracted ThemeToggle component code.
 
+7. **`generateSharedSidebarCode()`** — change `isActive={pathname === "${route}"}` to `isActive={pathname?.startsWith("${route}")}` for all menu items.
+
+8. **`generateLayout()` body classes** — when sidebar nav type, emit `min-h-svh` body class without `flex flex-col`.
+
 ### `packages/cli/src/commands/fix.ts`
 
-7. **Step 4b enhancement** — when plan has sidebar:
-   - Strip Header/Footer/ShowWhenNotAuthRoute from root layout.
-   - Ensure `(public)` layout has Header + Footer.
+9. **Step 4b enhancement** — when plan has sidebar:
+   - Strip Header/Footer/ShowWhenNotAuthRoute from root layout (idempotent — skip if not present).
+   - Ensure `(public)` layout has Header + Footer (skip if already present).
    - Install `separator` component if missing.
+   - Fix body classes if `flex flex-col` present with sidebar.
+
+### `packages/cli/src/commands/export.ts`
+
+10. **DS button cleanup** — also strip DS FAB link from root layout body (not just from Header).
 
 ### `packages/cli/src/utils/auth-route-group.ts`
 
-8. **`ensureAuthRouteGroup()`** — accept optional `skipWhenSidebar` flag. When sidebar layout is active, skip the ShowWhenNotAuthRoute wrapping.
+11. **`ensureAuthRouteGroup()`** — accept optional `skipWhenSidebar` flag. When sidebar layout is active, skip the ShowWhenNotAuthRoute wrapping.
 
 ## What does NOT change
 
-- `generateSharedSidebarCode()` — already has logo in SidebarHeader
+- `generateSharedSidebarCode()` — already has logo in SidebarHeader (only `isActive` logic changes)
 - `generateInitialHeaderCode()` / `generateInitialFooterCode()` — still generated as shared components for use in `(public)` layout
 - Auth layout — stays centered, no nav
 - `header` nav type behavior — completely unchanged
@@ -201,6 +238,11 @@ The sidebar top bar requires these shadcn components (auto-installed by `coheren
 - Unit test: `buildAppLayoutCode('header')` output unchanged
 - Unit test: `buildPublicLayoutCodeForSidebar()` output contains `Header`, `Footer`, `max-w-7xl`
 - Unit test: ThemeToggle extraction — `generateThemeToggleCode()` returns valid component
+- Unit test: sidebar `isActive` uses `startsWith` not strict equality
+- Unit test: body classes — sidebar layout produces `min-h-svh` without `flex-col`
 - Integration: `coherent chat` with sidebar plan produces correct layout hierarchy
 - Integration: `coherent fix` on existing project with sidebar strips root Header/Footer, migrates to group layouts
+- Integration: `coherent fix` run twice produces identical output (idempotent)
 - Integration: DS button visible on all pages including app pages with sidebar
+- Integration: `coherent export` strips DS button from both Header and root layout
+- Integration: nested route `/tasks/123` highlights Tasks link in sidebar
