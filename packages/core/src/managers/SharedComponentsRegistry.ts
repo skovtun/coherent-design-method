@@ -73,6 +73,9 @@ export interface CreateSharedComponentInput {
   usedIn?: string[]
   description?: string
   propsInterface?: string
+  usageExample?: string
+  dependencies?: string[]
+  source?: 'extracted' | 'generated' | 'manual'
 }
 
 /**
@@ -95,6 +98,9 @@ export function createEntry(
     usedIn: input.usedIn ?? [],
     description: input.description,
     propsInterface: input.propsInterface,
+    usageExample: input.usageExample,
+    dependencies: input.dependencies ?? [],
+    source: input.source,
     createdAt: now,
   }
   const nextManifest: SharedComponentsManifest = {

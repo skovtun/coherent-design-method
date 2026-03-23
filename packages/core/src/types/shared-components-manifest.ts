@@ -5,8 +5,16 @@
 
 import { z } from 'zod'
 
-/** Shared component type: layout (layout.tsx), section (reusable block), widget (small element) */
-export const SharedComponentTypeSchema = z.enum(['layout', 'section', 'widget'])
+/** Shared component type classification */
+export const SharedComponentTypeSchema = z.enum([
+  'layout',
+  'navigation',
+  'data-display',
+  'form',
+  'feedback',
+  'section',
+  'widget',
+])
 export type SharedComponentType = z.infer<typeof SharedComponentTypeSchema>
 
 /** Single entry in the shared components registry */
@@ -26,6 +34,12 @@ export const SharedComponentEntrySchema = z.object({
   description: z.string().optional(),
   /** TypeScript props interface body, e.g. "{ icon: React.ReactNode; title: string }" */
   propsInterface: z.string().optional(),
+  /** Example JSX usage, e.g. '<StatsCard icon={Users} value="1,234" />' */
+  usageExample: z.string().optional(),
+  /** Package and component dependencies, e.g. ['lucide-react', 'components/ui/card'] */
+  dependencies: z.array(z.string()).default([]),
+  /** How this component was created */
+  source: z.enum(['extracted', 'generated', 'manual']).optional(),
 })
 export type SharedComponentEntry = z.infer<typeof SharedComponentEntrySchema>
 

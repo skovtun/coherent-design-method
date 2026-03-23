@@ -90,6 +90,9 @@ export interface GenerateSharedComponentInput {
   overwrite?: boolean
   /** TypeScript props interface body, e.g. "{ title: string; icon: React.ReactNode }". */
   propsInterface?: string
+  usageExample?: string
+  dependencies?: string[]
+  source?: 'extracted' | 'generated' | 'manual'
 }
 
 export interface GenerateSharedComponentResult {
@@ -137,6 +140,9 @@ export async function generateSharedComponent(
     usedIn: input.usedIn ?? [],
     description: input.description,
     propsInterface: input.propsInterface,
+    usageExample: input.usageExample,
+    dependencies: input.dependencies,
+    source: input.source,
   })
   await saveManifest(projectRoot, nextManifest)
 
