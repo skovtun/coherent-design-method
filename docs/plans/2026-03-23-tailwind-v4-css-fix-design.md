@@ -65,6 +65,8 @@ Add all missing variables to the `@theme inline` block:
 
 Add corresponding `--sidebar-*` and `--chart-*` base variables to the `:root` and `.dark` blocks. Source values from the `config` parameter (the `DesignSystemConfig` already carries sidebar tokens via `buildCssVariables`).
 
+Note: `buildCssVariables()` currently produces only 8 sidebar vars (background, foreground, primary, primary-foreground, accent, accent-foreground, border, ring). Two additional vars — `--sidebar-muted` and `--sidebar-muted-foreground` — must be added to `:root`/`.dark` as well. Use the theme's `muted` and `muted-foreground` base values.
+
 ### 2. Update `needsGlobalsFix` (fix-globals-css.ts)
 
 Current check only looks for `--color-transparent` and `@theme inline`. Add checks for all critical variables so existing projects get fixed on next `coherent chat` run:
