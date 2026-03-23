@@ -24,6 +24,7 @@ import chalk from 'chalk'
 import { getDesignQualityForType, inferPageTypeFromRoute } from '../../agents/design-constraints.js'
 import type { ArchitecturePlan } from './plan-generator.js'
 import { generateArchitecturePlan, updateArchitecturePlan, loadPlan, getPageType } from './plan-generator.js'
+import { buildReusePlan, buildReusePlanDirective, verifyReusePlan } from '../../utils/reuse-planner.js'
 
 function buildExistingPagesContext(config: DesignSystemConfig): string {
   const pages = config.pages || []
@@ -534,6 +535,25 @@ export async function splitGeneratePages(
 
   const existingPagesContext = buildExistingPagesContext(modCtx.config)
 
+  const existingPageCode: Record<string, string> = {}
+  if (projectRoot) {
+    const appDir = resolve(projectRoot, 'app')
+    if (existsSync(appDir)) {
+      const pageFiles = readdirSync(appDir, { recursive: true }).filter(
+        (f): f is string => typeof f === 'string' && f.endsWith('page.tsx'),
+      )
+      for (const pf of pageFiles) {
+        try {
+          const code = readFileSync(resolve(appDir, pf), 'utf-8')
+          const route = '/' + pf.replace(/\/page\.tsx$/, '').replace(/\(.*?\)\//g, '')
+          existingPageCode[route === '/' ? '/' : route] = code
+        } catch {
+          /* skip unreadable */
+        }
+      }
+    }
+  }
+
   const AI_CONCURRENCY = 3
   let phase5Done = 0
 
@@ -552,6 +572,28 @@ export async function splitGeneratePages(
       const tieredNote = currentManifest
         ? buildTieredComponentsPrompt(currentManifest, pageType as 'marketing' | 'app' | 'auth')
         : undefined
+
+      const pageKey = route.replace(/^\//, '') || 'home'
+      const pageSections = plan?.pageNotes?.[pageKey]?.sections || []
+      let reusePlanDirective = ''
+      let currentReusePlan: ReturnType<typeof buildReusePlan> | null = null
+
+      if (currentManifest && currentManifest.shared.length > 0) {
+        try {
+          currentReusePlan = buildReusePlan({
+            pageName: name,
+            pageType: pageType as 'marketing' | 'app' | 'auth',
+            sections: pageSections,
+            manifest: currentManifest,
+            existingPageCode,
+            userRequest: message,
+          })
+          reusePlanDirective = buildReusePlanDirective(currentReusePlan)
+        } catch {
+          /* graceful degradation: fall back to tiered prompt */
+        }
+      }
+
       const prompt = [
         `Create ONE page called "${name}" at route "${route}".`,
         `Context: ${message}.`,
@@ -559,7 +601,7 @@ export async function splitGeneratePages(
         `PAGE TYPE: ${pageType}`,
         designConstraints,
         layoutNote,
-        tieredNote || sharedComponentsNote,
+        reusePlanDirective || tieredNote || sharedComponentsNote,
         routeNote,
         alignmentNote,
         authNote,
@@ -575,7 +617,29 @@ export async function splitGeneratePages(
         const result = await parseModification(prompt, modCtx, provider, parseOpts)
         phase5Done++
         spinner.text = `Phase 5/6 — ${phase5Done}/${remainingPages.length} pages generated...`
-        const codePage = result.requests.find((r: ModificationRequest) => r.type === 'add-page')
+        let codePage = result.requests.find((r: ModificationRequest) => r.type === 'add-page')
+
+        if (currentReusePlan && currentReusePlan.reuse.length > 0 && codePage) {
+          const pageCode = (codePage.changes as Record<string, unknown>)?.pageCode as string
+          if (pageCode) {
+            const verification = verifyReusePlan(pageCode, currentReusePlan)
+            if (verification.missed.length > 0 && verification.retryDirective) {
+              const missedNames = verification.missed.map(m => m.component).join(', ')
+              console.log(chalk.yellow(`  ⚠ ${name}: missed reuse of ${missedNames} — retrying...`))
+              try {
+                const retryPrompt = [prompt, verification.retryDirective].join('\n\n')
+                const retryResult = await parseModification(retryPrompt, modCtx, provider, parseOpts)
+                const retryPage = retryResult.requests.find(
+                  (r: ModificationRequest) => r.type === 'add-page',
+                )
+                if (retryPage) codePage = retryPage
+              } catch {
+                /* retry failed, keep original */
+              }
+            }
+          }
+        }
+
         return codePage || { type: 'add-page' as const, target: 'new', changes: { id, name, route } }
       } catch {
         phase5Done++
