@@ -4,7 +4,7 @@ import { dirname, resolve } from 'path'
 import { mkdir, writeFile } from 'fs/promises'
 import chalk from 'chalk'
 import type { AIProviderInterface } from '../../utils/ai-provider.js'
-import { inferPageTypeFromRoute } from '../../agents/design-constraints.js'
+import { inferPageTypeFromRoute, getDesignQualityForType, CORE_CONSTRAINTS } from '../../agents/design-constraints.js'
 
 const LAYOUT_SYNONYMS: Record<string, string> = {
   horizontal: 'header',
@@ -292,12 +292,16 @@ export async function generateSharedComponentsFromPlan(
     )
     .join('\n')
 
+  const designRules = `${CORE_CONSTRAINTS}\n${getDesignQualityForType('app')}`
+
   const prompt = `Generate React components as separate files. For EACH component below, return an add-page request with name and pageCode fields.
 
 Components to generate:
 ${componentSpecs}
 
 Style context: ${styleContext || 'default'}
+
+${designRules}
 
 Requirements:
 - Each component MUST have \`export default function ComponentName\`
