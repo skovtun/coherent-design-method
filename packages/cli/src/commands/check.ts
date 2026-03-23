@@ -357,6 +357,46 @@ export async function checkCommand(opts: CheckOptions = {}) {
     }
   }
 
+  // ─── Section 3: Reuse Validation ─────────────────────────────────────
+  if (!skipShared) {
+    try {
+      const { validateReuse } = await import('../utils/reuse-validator.js')
+      const { inferPageTypeFromRoute } = await import('../agents/design-constraints.js')
+      const manifest = await loadManifest(projectRoot)
+
+      const appDir = resolve(projectRoot, 'app')
+      const pageFiles = existsSync(appDir) ? findTsxFiles(appDir) : []
+
+      if (manifest.shared.length > 0 && pageFiles.length > 0) {
+        const reuseWarnings: Array<{ file: string; message: string }> = []
+
+        for (const file of pageFiles) {
+          const code = readFileSync(file, 'utf-8')
+          const relativePath = file.replace(projectRoot + '/', '')
+          const route = '/' + relativePath.replace(/^app\//, '').replace(/\/page\.tsx$/, '').replace(/^\(.*?\)\//, '')
+          const pageType = inferPageTypeFromRoute(route)
+          const warnings = validateReuse(manifest, code, pageType)
+
+          for (const w of warnings) {
+            reuseWarnings.push({ file: relativePath, message: w.message })
+          }
+        }
+
+        if (reuseWarnings.length > 0 && !opts.json) {
+          console.log(chalk.yellow(`\n  🔄 Reuse Warnings`) + chalk.dim(` (${reuseWarnings.length} found)\n`))
+          for (const w of reuseWarnings.slice(0, 10)) {
+            console.log(chalk.yellow(`  ⚠ ${w.file}:`) + chalk.dim(` ${w.message}`))
+          }
+          if (reuseWarnings.length > 10) {
+            console.log(chalk.dim(`  ... and ${reuseWarnings.length - 10} more`))
+          }
+        }
+      }
+    } catch {
+      // best-effort
+    }
+  }
+
   // ─── Summary ────────────────────────────────────────────────────────
 
   if (opts.json) {

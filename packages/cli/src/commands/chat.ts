@@ -656,6 +656,32 @@ Include a TypeScript props interface.`
       }
     }
 
+    // Reuse validation
+    try {
+      const { validateReuse } = await import('../utils/reuse-validator.js')
+      const { inferPageTypeFromRoute } = await import('../agents/design-constraints.js')
+      const manifest = await loadManifest(projectRoot)
+
+      if (manifest.shared.length > 0) {
+        for (const request of normalizedRequests) {
+          if (request.type !== 'add-page') continue
+          const changes = request.changes as Record<string, unknown>
+          const pageCode = changes?.pageCode as string | undefined
+          if (!pageCode) continue
+
+          const route = (changes.route as string) || ''
+          const pageType = inferPageTypeFromRoute(route)
+          const warnings = validateReuse(manifest, pageCode, pageType)
+
+          for (const w of warnings) {
+            console.log(chalk.yellow(`  ⚠ ${w.message}`))
+          }
+        }
+      }
+    } catch {
+      // best-effort
+    }
+
     // Auto-scaffold linked pages
     const currentConfig = dsm.getConfig()
     const autoScaffoldEnabled = currentConfig.settings.autoScaffold === true
