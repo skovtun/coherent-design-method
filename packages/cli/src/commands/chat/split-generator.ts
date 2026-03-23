@@ -23,7 +23,7 @@ import { isAuthRoute } from '../../agents/page-templates.js'
 import chalk from 'chalk'
 import { getDesignQualityForType, inferPageTypeFromRoute } from '../../agents/design-constraints.js'
 import type { ArchitecturePlan } from './plan-generator.js'
-import { generateArchitecturePlan, getPageType } from './plan-generator.js'
+import { generateArchitecturePlan, updateArchitecturePlan, loadPlan, getPageType } from './plan-generator.js'
 
 function buildExistingPagesContext(config: DesignSystemConfig): string {
   const pages = config.pages || []
@@ -364,14 +364,17 @@ export async function splitGeneratePages(
     spinner.start('Phase 2/6 — Generating architecture plan...')
     try {
       const ai = await createAIProvider(provider ?? 'auto')
-      const layoutHint = modCtx.config.navigation?.type || null
-      const { plan: generatedPlan, warnings: planWarnings } = await generateArchitecturePlan(
-        pageNames,
-        message,
-        ai,
-        layoutHint,
-      )
-      plan = generatedPlan
+      const cachedPlan = loadPlan(parseOpts.projectRoot)
+      let planWarnings: string[] = []
+
+      if (cachedPlan) {
+        plan = await updateArchitecturePlan(cachedPlan, pageNames, message, ai)
+      } else {
+        const layoutHint = modCtx.config.navigation?.type || null
+        const result = await generateArchitecturePlan(pageNames, message, ai, layoutHint)
+        plan = result.plan
+        planWarnings = result.warnings
+      }
       if (plan) {
         const groupsSummary = plan.groups.map(g => `${g.id} (${g.layout}, ${g.pages.length} pages)`).join(', ')
         const sharedSummary =
