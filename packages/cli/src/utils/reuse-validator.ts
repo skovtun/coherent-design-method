@@ -25,12 +25,14 @@ export function validateReuse(
   generatedCode: string,
   pageType: 'marketing' | 'app' | 'auth',
   newComponents?: NewComponentInfo[],
+  plannedComponentNames?: Set<string>,
 ): ReuseWarning[] {
   const warnings: ReuseWarning[] = []
   const relevantTypes = RELEVANT_TYPES[pageType] || RELEVANT_TYPES.app
 
   for (const comp of manifest.shared) {
     if (!relevantTypes.has(comp.type)) continue
+    if (plannedComponentNames && !plannedComponentNames.has(comp.name)) continue
 
     const isImported =
       generatedCode.includes(`from '@/components/shared/`) &&

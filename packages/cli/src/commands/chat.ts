@@ -44,7 +44,7 @@ import { extractInternalLinks, normalizeRequest, applyDefaults, AUTH_FLOW_PATTER
 import { splitGeneratePages, buildSharedComponentsSummary } from './chat/split-generator.js'
 import { buildReusePlan, buildReusePlanDirective } from '../utils/reuse-planner.js'
 import { inferPageTypeFromRoute } from '../agents/design-constraints.js'
-import { savePlan } from './chat/plan-generator.js'
+import { savePlan, loadPlan } from './chat/plan-generator.js'
 import { applyModification } from './chat/modification-handler.js'
 import { regenerateFiles, scanAndInstallSharedDeps, ensurePlanGroupLayouts } from './chat/code-generator.js'
 import { takeNavSnapshot, hasNavChanged } from '../utils/nav-snapshot.js'
@@ -699,6 +699,7 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
       const { validateReuse } = await import('../utils/reuse-validator.js')
       const { inferPageTypeFromRoute } = await import('../agents/design-constraints.js')
       const manifest = await loadManifest(projectRoot)
+      const reuseplan = projectRoot ? loadPlan(projectRoot) : null
 
       if (manifest.shared.length > 0) {
         for (const request of normalizedRequests) {
@@ -709,7 +710,10 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
 
           const route = (changes.route as string) || ''
           const pageType = inferPageTypeFromRoute(route)
-          const warnings = validateReuse(manifest, pageCode, pageType)
+          const planned = reuseplan
+            ? new Set(reuseplan.sharedComponents.filter(c => c.usedBy.includes(route)).map(c => c.name))
+            : undefined
+          const warnings = validateReuse(manifest, pageCode, pageType, undefined, planned)
 
           for (const w of warnings) {
             console.log(chalk.yellow(`  ⚠ ${w.message}`))

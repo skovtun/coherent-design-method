@@ -96,6 +96,37 @@ describe('autoFixCode', () => {
     expect(fixes).toContain('heavy shadow → shadow-sm')
   })
 
+  it('unescapes literal \\n to real newlines', async () => {
+    const code =
+      '"use client"\\n\\nimport Link from \'next/link\'\\nexport default function Page() {\\n  return <div>Hi</div>\\n}'
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('\n')
+    expect(fixed.split('\n').length).toBeGreaterThan(1)
+    expect(fixes.some(f => f.includes('newlines'))).toBe(true)
+  })
+
+  it('does not unescape \\n when real newlines exist', async () => {
+    const code = "'use client'\nconst msg = 'hello\\nworld'\nexport default function Page() { return <div>{msg}</div> }"
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain("'hello\\nworld'")
+  })
+
+  it('converts raw <input> to <Input> with import', async () => {
+    const code =
+      "'use client'\nimport { Button } from '@/components/ui/button'\nexport default function Page() { return <div><input placeholder=\"Name\" /></div> }"
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('<Input')
+    expect(fixed).not.toMatch(/<input\b/)
+    expect(fixed).toContain("from '@/components/ui/input'")
+    expect(fixes.some(f => f.includes('<input>'))).toBe(true)
+  })
+
+  it('skips hidden inputs', async () => {
+    const code = '\'use client\'\nexport default function Page() { return <input type="hidden" name="csrf" /> }'
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('<input')
+  })
+
   it('adds use client when hooks are detected', async () => {
     const code = `import { useState } from 'react'\nexport default function Page() { const [x, setX] = useState(0); return <div>{x}</div> }`
     const { code: fixed, fixes } = await autoFixCode(code)

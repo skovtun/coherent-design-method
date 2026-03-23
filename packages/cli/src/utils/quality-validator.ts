@@ -623,6 +623,11 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
   const fixes: string[] = []
   let fixed = code
 
+  if (!fixed.includes('\n') && fixed.includes('\\n')) {
+    fixed = fixed.replace(/\\n/g, '\n')
+    fixes.push('unescaped literal \\n to real newlines')
+  }
+
   // Fix escaped closing quotes in single-quoted strings (AI outputs: 'text.\'' → unterminated)
   const beforeQuoteFix = fixed
   // Pattern 1: \' before }, ], or , (AI escaped closing quote in object/array literal)
@@ -774,6 +779,36 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
       }
     }
     fixes.push('<button> → <Button> (with import)')
+  }
+
+  // Native <input> → <Input> with import
+  if (/<input\b[^>]*(?:\/>|>)/i.test(fixed) && !fixed.includes('type="hidden"')) {
+    const inputLines = fixed.split('\n')
+    let hasReplacedInput = false
+    for (let i = 0; i < inputLines.length; i++) {
+      if (!/<input\b/i.test(inputLines[i])) continue
+      if (inputLines[i].includes('type="hidden"') || inputLines[i].includes("type='hidden'")) continue
+      inputLines[i] = inputLines[i].replace(/<input\b/gi, '<Input')
+      hasReplacedInput = true
+    }
+    if (hasReplacedInput) {
+      fixed = inputLines.join('\n')
+      const hasInputImport = /import\s.*\bInput\b.*from\s+['"]@\/components\/ui\/input['"]/.test(fixed)
+      if (!hasInputImport) {
+        const lastImportIdx = fixed.lastIndexOf('\nimport ')
+        if (lastImportIdx !== -1) {
+          const lineEnd = fixed.indexOf('\n', lastImportIdx + 1)
+          fixed =
+            fixed.slice(0, lineEnd + 1) + "import { Input } from '@/components/ui/input'\n" + fixed.slice(lineEnd + 1)
+        } else {
+          const hasUseClient2 = /^['"]use client['"]/.test(fixed.trim())
+          const insertAfter2 = hasUseClient2 ? fixed.indexOf('\n') + 1 : 0
+          fixed =
+            fixed.slice(0, insertAfter2) + "import { Input } from '@/components/ui/input'\n" + fixed.slice(insertAfter2)
+        }
+      }
+      fixes.push('<input> → <Input> (with import)')
+    }
   }
 
   // Auto-complete missing sub-imports for shadcn composite components
