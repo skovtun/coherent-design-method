@@ -611,6 +611,17 @@ export async function splitGeneratePages(
             userRequest: message,
           })
           reusePlanDirective = buildReusePlanDirective(currentReusePlan)
+
+          if (currentReusePlan.reuse.length > 0 || currentReusePlan.createNew.length > 0) {
+            const parts = []
+            if (currentReusePlan.reuse.length > 0)
+              parts.push(`REUSE: ${currentReusePlan.reuse.map(r => r.component).join(', ')}`)
+            if (currentReusePlan.createNew.length > 0)
+              parts.push(`CREATE: ${currentReusePlan.createNew.map(c => c.name).join(', ')}`)
+            if (currentReusePlan.reusePatterns.length > 0)
+              parts.push(`${currentReusePlan.reusePatterns.length} pattern(s)`)
+            console.log(chalk.dim(`  🔄 Reuse Plan for "${name}": ${parts.join(' | ')}`))
+          }
         } catch {
           /* graceful degradation: fall back to tiered prompt */
         }
@@ -645,9 +656,19 @@ export async function splitGeneratePages(
           const pageCode = (codePage.changes as Record<string, unknown>)?.pageCode as string
           if (pageCode) {
             const verification = verifyReusePlan(pageCode, currentReusePlan)
+
+            if (verification.passed.length > 0) {
+              console.log(
+                chalk.dim(`  ✓ Reuse verified for "${name}": ${verification.passed.map(p => p.component).join(', ')}`),
+              )
+            }
+
             if (verification.missed.length > 0 && verification.retryDirective) {
-              const missedNames = verification.missed.map(m => m.component).join(', ')
-              console.log(chalk.yellow(`  ⚠ ${name}: missed reuse of ${missedNames} — retrying...`))
+              console.log(
+                chalk.yellow(
+                  `  ⚠ Missed reuse in "${name}": ${verification.missed.map(m => m.component).join(', ')} — retrying...`,
+                ),
+              )
               try {
                 const retryPrompt = [prompt, verification.retryDirective].join('\n\n')
                 const retryResult = await parseModification(retryPrompt, modCtx, provider, parseOpts)
