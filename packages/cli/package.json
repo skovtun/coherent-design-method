@@ -3,7 +3,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.6.15",
+  "version": "0.6.16",
   "description": "CLI interface for Coherent Design Method",
   "type": "module",
   "main": "./dist/index.js",
