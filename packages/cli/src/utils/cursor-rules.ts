@@ -18,18 +18,28 @@ function buildSharedComponentsList(manifest: SharedComponentsManifest): string {
 When you create reusable blocks (headers, footers, repeated sections),
 register them: coherent components shared add <Name> --type layout|section|widget`
   }
-  const order = { layout: 0, section: 1, widget: 2 }
+  const typeOrder: Record<string, number> = {
+    layout: 0, navigation: 1, 'data-display': 2, form: 3, feedback: 4, section: 5, widget: 6,
+  }
   const sorted = [...manifest.shared].sort(
-    (a, b) => order[a.type as keyof typeof order] - order[b.type as keyof typeof order] || a.name.localeCompare(b.name),
+    (a, b) => (typeOrder[a.type] ?? 9) - (typeOrder[b.type] ?? 9) || a.name.localeCompare(b.name),
   )
-  const lines = sorted.map(entry => {
+  const lines = sorted.map((entry) => {
     const usedIn =
       entry.usedIn.length === 0
         ? '(not used yet)'
         : entry.usedIn.length === 1 && entry.usedIn[0] === 'app/layout.tsx'
           ? 'app/layout.tsx (all pages)'
           : entry.usedIn.join(', ')
-    return `- ${entry.id} ${entry.name} (${entry.type}) — ${entry.file}\n  Used in: ${usedIn}`
+    const importPath = entry.file.replace(/^components\/shared\//, '').replace(/\.tsx$/, '')
+    const parts = [
+      `- ${entry.id} ${entry.name} (${entry.type})${entry.description ? ` — ${entry.description}` : ''}`,
+      `  Import: import { ${entry.name} } from '@/components/shared/${importPath}'`,
+    ]
+    if (entry.propsInterface) parts.push(`  Props: ${entry.propsInterface}`)
+    if (entry.usageExample) parts.push(`  Usage: ${entry.usageExample}`)
+    parts.push(`  Used in: ${usedIn}`)
+    return parts.join('\n')
   })
   return `Currently registered shared components:\n\n${lines.join('\n\n')}`
 }
