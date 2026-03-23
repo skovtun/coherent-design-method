@@ -130,15 +130,15 @@ export async function warnInlineDuplicates(
   manifest: { shared: Array<{ id: string; name: string; type: string; file: string }> },
   plan?: ArchitecturePlan,
 ): Promise<void> {
-  const sectionOrWidget = manifest.shared.filter(e => e.type === 'section' || e.type === 'widget')
-  if (sectionOrWidget.length === 0) return
+  const reusable = manifest.shared.filter(e => e.type !== 'layout')
+  if (reusable.length === 0) return
 
   // Build a set of component names this page should use (from plan)
   const plannedForPage = plan
     ? new Set(plan.sharedComponents.filter(c => c.usedBy.includes(route)).map(c => c.name))
     : null
 
-  for (const e of sectionOrWidget) {
+  for (const e of reusable) {
     // If plan exists, only warn about components planned for this page
     if (plannedForPage && !plannedForPage.has(e.name)) continue
 

@@ -253,6 +253,23 @@ export default function LoginPage() {
     rmSync(tmpDir, { recursive: true })
   })
 
+  it('warns for data-display components not imported', async () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const plan = ArchitecturePlanSchema.parse({
+      groups: [{ id: 'app', layout: 'sidebar', pages: ['/dashboard'] }],
+      sharedComponents: [
+        { name: 'StatCard', description: 'Metric card', props: '{}', usedBy: ['/dashboard'], type: 'data-display' },
+      ],
+      pageNotes: {},
+    })
+    const manifest = {
+      shared: [{ id: 'CID-003', name: 'StatCard', type: 'data-display', file: 'components/shared/stat-card.tsx' }],
+    }
+    await warnInlineDuplicates('/tmp', 'Dashboard', '/dashboard', 'export default function Page() { return <div/> }', manifest, plan)
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('StatCard'))
+    consoleSpy.mockRestore()
+  })
+
   it('does NOT warn when page is not in usedBy', async () => {
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
     const plan = ArchitecturePlanSchema.parse({

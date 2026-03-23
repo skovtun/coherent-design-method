@@ -16,6 +16,7 @@ import { join, relative, dirname } from 'path'
 import { readdir, readFile } from 'fs/promises'
 import { findConfig, exitNotCoherent } from '../utils/find-config.js'
 import { DesignSystemManager } from '@getcoherent/core'
+import type { SharedComponentType } from '@getcoherent/core'
 import { analyzePageCode } from '../utils/page-analyzer.js'
 import { writeDesignSystemFiles } from '../utils/ds-files.js'
 import { writeCursorRules } from '../utils/cursor-rules.js'
@@ -40,7 +41,7 @@ interface DiscoveredPage {
 interface DetectedComponent {
   name: string
   file: string
-  type: 'layout' | 'section' | 'widget'
+  type: SharedComponentType
   usedInPages: string[]
   isNew: boolean
 }

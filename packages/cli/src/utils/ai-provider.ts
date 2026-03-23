@@ -6,6 +6,7 @@
  */
 
 import chalk from 'chalk'
+import type { SharedComponentType } from '@getcoherent/core'
 
 export type AIProvider = 'claude' | 'openai' | 'auto'
 
@@ -28,7 +29,7 @@ export interface ParseModificationOutput {
 
 export interface SharedExtractionItem {
   name: string
-  type: 'section' | 'widget'
+  type: SharedComponentType
   description: string
   propsInterface: string
   code: string

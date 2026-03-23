@@ -12,7 +12,7 @@ import { DesignSystemManager } from '@getcoherent/core'
 
 function buildSharedComponentsListForClaude(manifest: SharedComponentsManifest): string {
   if (!manifest.shared || manifest.shared.length === 0) {
-    return 'No shared components yet. Register with: coherent components shared add <name> --type layout|section|widget'
+    return 'No shared components yet. Register with: coherent components shared add <name> --type layout|navigation|data-display|form|feedback|section|widget'
   }
   const order: Record<string, number> = {
     layout: 0,

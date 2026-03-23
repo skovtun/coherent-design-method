@@ -7,6 +7,7 @@ import {
   type DesignSystemConfig,
   type ModificationRequest,
   type SharedComponentsManifest,
+  SharedComponentTypeSchema,
   loadManifest,
   saveManifest,
   generateSharedComponent,
@@ -753,7 +754,7 @@ export async function splitGeneratePages(
 
 const SharedExtractionItemSchema = z.object({
   name: z.string().min(2).max(50),
-  type: z.enum(['section', 'widget']),
+  type: SharedComponentTypeSchema,
   description: z.string().max(200).default(''),
   propsInterface: z.string().default('{}'),
   code: z.string(),

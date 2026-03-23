@@ -16,7 +16,7 @@ function buildSharedComponentsList(manifest: SharedComponentsManifest): string {
   if (!manifest.shared || manifest.shared.length === 0) {
     return `No shared components registered yet.
 When you create reusable blocks (headers, footers, repeated sections),
-register them: coherent components shared add <Name> --type layout|section|widget`
+register them: coherent components shared add <Name> --type layout|navigation|data-display|form|feedback|section|widget`
   }
   const typeOrder: Record<string, number> = {
     layout: 0,

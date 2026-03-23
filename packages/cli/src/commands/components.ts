@@ -14,6 +14,7 @@ import {
   generateSharedComponent,
   integrateSharedLayoutIntoRootLayout,
 } from '@getcoherent/core'
+import type { SharedComponentType } from '@getcoherent/core'
 import { existsSync } from 'fs'
 import { resolve } from 'path'
 import { writeDesignSystemFiles } from '../utils/ds-files.js'
@@ -167,15 +168,13 @@ export function createComponentsCommand(): Command {
   sharedCmd
     .command('add <name>')
     .description('Create a shared component (layout/section/widget) and register in manifest')
-    .option('-t, --type <type>', 'Type: layout | section | widget', 'layout')
+    .option('-t, --type <type>', 'Type: layout | navigation | data-display | form | feedback | section | widget', 'layout')
     .option('-d, --description <desc>', 'Description')
     .action(async (name: string, opts: { type?: string; description?: string }) => {
       const project = findConfig()
       if (!project) exitNotCoherent()
-      const type = (opts.type === 'section' || opts.type === 'widget' ? opts.type : 'layout') as
-        | 'layout'
-        | 'section'
-        | 'widget'
+      const validTypes = ['layout', 'navigation', 'data-display', 'form', 'feedback', 'section', 'widget']
+      const type = (validTypes.includes(opts.type ?? '') ? opts.type : 'layout') as SharedComponentType
       const result = await generateSharedComponent(project.root, {
         name: name.trim(),
         type,

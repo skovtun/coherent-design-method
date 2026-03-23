@@ -436,7 +436,7 @@ Rules:
 - Do NOT use these names (already shared): ${existingSharedNames.join(', ')}
 - Look for: cards with icon+title+description, pricing tiers, testimonial blocks, stat displays, CTA sections
 
-Each component object: "name" (PascalCase), "type" ("section"|"widget"), "description", "propsInterface", "code" (full TSX module as string)
+Each component object: "name" (PascalCase), "type" ("layout"|"navigation"|"data-display"|"form"|"feedback"|"section"|"widget"), "description", "propsInterface", "code" (full TSX module as string)
 
 If no repeating patterns found: { "components": [] }`,
           },
