@@ -1153,7 +1153,10 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
 
   const beforeJunkFix = fixed
   fixed = fixed.replace(/className="([^"]*)"/g, (_match, classes: string) => {
-    const cleaned = classes.split(/\s+/).filter(c => c !== '-0').join(' ')
+    const cleaned = classes
+      .split(/\s+/)
+      .filter(c => c !== '-0')
+      .join(' ')
     if (cleaned !== classes.trim()) return `className="${cleaned}"`
     return _match
   })

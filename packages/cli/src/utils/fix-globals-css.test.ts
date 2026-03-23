@@ -30,7 +30,9 @@ describe('needsGlobalsFix', () => {
   it('returns true for v4 project missing --color-transparent', () => {
     mockExistsSync.mockReturnValue(true)
     vi.mocked(mockIsTailwindV4).mockReturnValue(true)
-    mockReadFileSync.mockReturnValue('@import "tailwindcss";\n@theme inline {\n  --color-background: var(--background);\n}')
+    mockReadFileSync.mockReturnValue(
+      '@import "tailwindcss";\n@theme inline {\n  --color-background: var(--background);\n}',
+    )
     expect(needsGlobalsFix('/project')).toBe(true)
   })
 
@@ -38,7 +40,7 @@ describe('needsGlobalsFix', () => {
     mockExistsSync.mockReturnValue(true)
     vi.mocked(mockIsTailwindV4).mockReturnValue(true)
     mockReadFileSync.mockReturnValue(
-      '@import "tailwindcss";\n@theme inline {\n  --color-transparent: transparent;\n  --color-background: var(--background);\n}'
+      '@import "tailwindcss";\n@theme inline {\n  --color-transparent: transparent;\n  --color-background: var(--background);\n}',
     )
     expect(needsGlobalsFix('/project')).toBe(true)
   })
@@ -47,7 +49,7 @@ describe('needsGlobalsFix', () => {
     mockExistsSync.mockReturnValue(true)
     vi.mocked(mockIsTailwindV4).mockReturnValue(true)
     mockReadFileSync.mockReturnValue(
-      '@import "tailwindcss";\n@theme inline {\n  --color-transparent: transparent;\n  --color-sidebar-background: var(--sidebar-background);\n  --color-chart-1: var(--chart-1);\n}'
+      '@import "tailwindcss";\n@theme inline {\n  --color-transparent: transparent;\n  --color-sidebar-background: var(--sidebar-background);\n  --color-chart-1: var(--chart-1);\n}',
     )
     expect(needsGlobalsFix('/project')).toBe(true)
   })
@@ -56,7 +58,7 @@ describe('needsGlobalsFix', () => {
     mockExistsSync.mockReturnValue(true)
     vi.mocked(mockIsTailwindV4).mockReturnValue(true)
     mockReadFileSync.mockReturnValue(
-      '@import "tailwindcss";\n@theme inline {\n  --color-transparent: transparent;\n  --color-sidebar-background: x;\n  --color-chart-1: x;\n  --color-black: #000;\n  --color-white: #fff;\n}'
+      '@import "tailwindcss";\n@theme inline {\n  --color-transparent: transparent;\n  --color-sidebar-background: x;\n  --color-chart-1: x;\n  --color-black: #000;\n  --color-white: #fff;\n}',
     )
     expect(needsGlobalsFix('/project')).toBe(true)
   })

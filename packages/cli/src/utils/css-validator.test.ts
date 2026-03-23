@@ -3,13 +3,15 @@ import { validateV4GlobalsCss } from './css-validator.js'
 
 describe('validateV4GlobalsCss', () => {
   it('catches missing --color-transparent', () => {
-    const css = '@import "tailwindcss";\n@theme inline {\n  --color-background: var(--background);\n}\n:root {\n  --background: #fff;\n}'
+    const css =
+      '@import "tailwindcss";\n@theme inline {\n  --color-background: var(--background);\n}\n:root {\n  --background: #fff;\n}'
     const issues = validateV4GlobalsCss(css)
     expect(issues).toContain('Missing @theme token: --color-transparent')
   })
 
   it('catches missing sidebar tokens', () => {
-    const css = '@import "tailwindcss";\n@theme inline {\n  --color-transparent: transparent;\n}\n:root {\n  --background: #fff;\n}'
+    const css =
+      '@import "tailwindcss";\n@theme inline {\n  --color-transparent: transparent;\n}\n:root {\n  --background: #fff;\n}'
     const issues = validateV4GlobalsCss(css)
     expect(issues.some(i => i.includes('--color-sidebar-background'))).toBe(true)
   })

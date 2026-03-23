@@ -18,25 +18,31 @@ describe('isTailwindV4', () => {
 
   it('detects @tailwindcss/postcss in devDependencies', () => {
     mockExistsSync.mockReturnValue(true)
-    mockReadFileSync.mockReturnValue(JSON.stringify({
-      devDependencies: { '@tailwindcss/postcss': '^4.0.0' },
-    }))
+    mockReadFileSync.mockReturnValue(
+      JSON.stringify({
+        devDependencies: { '@tailwindcss/postcss': '^4.0.0' },
+      }),
+    )
     expect(isTailwindV4('/project')).toBe(true)
   })
 
   it('detects tailwindcss: "^4" in dependencies', () => {
     mockExistsSync.mockReturnValue(true)
-    mockReadFileSync.mockReturnValue(JSON.stringify({
-      dependencies: { tailwindcss: '^4.0.0' },
-    }))
+    mockReadFileSync.mockReturnValue(
+      JSON.stringify({
+        dependencies: { tailwindcss: '^4.0.0' },
+      }),
+    )
     expect(isTailwindV4('/project')).toBe(true)
   })
 
   it('detects tailwindcss: "4.x" in dependencies', () => {
     mockExistsSync.mockReturnValue(true)
-    mockReadFileSync.mockReturnValue(JSON.stringify({
-      dependencies: { tailwindcss: '4.1.0' },
-    }))
+    mockReadFileSync.mockReturnValue(
+      JSON.stringify({
+        dependencies: { tailwindcss: '4.1.0' },
+      }),
+    )
     expect(isTailwindV4('/project')).toBe(true)
   })
 
