@@ -492,4 +492,21 @@ describe('readExistingAppPageForReference', () => {
     const result = readExistingAppPageForReference('/tmp/nonexistent', null)
     expect(result).toBeNull()
   })
+
+  it('returns null when app dir does not exist', () => {
+    const result = readExistingAppPageForReference('/tmp/nonexistent-project-root-xyz', null)
+    expect(result).toBeNull()
+  })
+
+  it('returns null when plan has no app-type pages', () => {
+    const plan = {
+      groups: [],
+      sharedComponents: [],
+      pageNotes: {
+        login: { type: 'auth' as const, sections: [] },
+      },
+    }
+    const result = readExistingAppPageForReference('/tmp/nonexistent', plan)
+    expect(result).toBeNull()
+  })
 })

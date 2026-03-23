@@ -77,6 +77,7 @@ export function generateV4GlobalsCss(config: DesignSystemConfig): string {
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-transparent: transparent;
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);

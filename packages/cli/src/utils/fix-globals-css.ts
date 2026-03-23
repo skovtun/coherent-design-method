@@ -28,6 +28,8 @@ export function needsGlobalsFix(projectRoot: string): boolean {
     if (!content.includes('@theme inline')) return true
     // v4: fix if still using v3 directives
     if (content.includes('@tailwind base')) return true
+    // v4: fix if missing --color-transparent (border-transparent won't work without it)
+    if (!content.includes('--color-transparent')) return true
     return false
   }
 

@@ -622,7 +622,7 @@ TRUNCATION:
 - When to truncate: card descriptions (2 lines), table cells (single line), list item subtitles (1-2 lines).
 - Always set title={fullText} for accessibility on truncated text.
 
-SEARCH INPUT: See the Filter Toolbar reference pattern in DESIGN QUALITY — APP PAGES. Always use the compound Select pattern shown there.
+SEARCH INPUT: See the Filter Toolbar reference pattern in DESIGN QUALITY — APP PAGES. Use the search input + Select layout shown there.
 - Clear button: X icon on right when value is not empty.
 - Debounce: 300ms on keystroke. No search button.
 `

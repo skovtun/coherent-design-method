@@ -177,38 +177,19 @@ describe('autoFixCode', () => {
     expect(fixed).not.toContain('title="value < 10"')
   })
 
-  it('adds variant="line" to TabsList without variant', async () => {
-    const code = `<TabsList className="grid w-full grid-cols-3"><TabsTrigger value="a">A</TabsTrigger></TabsList>`
-    const { code: fixed, fixes } = await autoFixCode(code)
-    expect(fixed).toContain('variant="line"')
-    expect(fixes.some(f => f.includes('variant="line"'))).toBe(true)
-  })
-
-  it('does NOT add variant="line" to TabsList that already has variant', async () => {
-    const code = `<TabsList variant="default" className="grid w-full grid-cols-3"><TabsTrigger value="a">A</TabsTrigger></TabsList>`
-    const { code: fixed } = await autoFixCode(code)
-    expect(fixed).toContain('variant="default"')
-    expect(fixed).not.toContain('variant="line"')
-  })
-
-  it('adds border-0 to TabsTrigger className', async () => {
-    const code = `<TabsTrigger value="a" className="flex items-center gap-2">A</TabsTrigger>`
-    const { code: fixed, fixes } = await autoFixCode(code)
-    expect(fixed).toContain('border-0')
-    expect(fixes.some(f => f.includes('border-0'))).toBe(true)
-  })
-
-  it('adds border-0 to TabsTrigger without className', async () => {
-    const code = `<TabsTrigger value="a">A</TabsTrigger>`
-    const { code: fixed } = await autoFixCode(code)
-    expect(fixed).toContain('className="border-0"')
-  })
-
-  it('strips existing border classes from TabsTrigger and adds border-0', async () => {
+  it('strips border classes from TabsTrigger but keeps other classes', async () => {
     const code = `<TabsTrigger value="a" className="flex border border-input">A</TabsTrigger>`
-    const { code: fixed } = await autoFixCode(code)
-    expect(fixed).toContain('border-0')
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('flex')
     expect(fixed).not.toContain('border-input')
+    expect(fixed).not.toContain('"flex border ')
+    expect(fixes.some(f => f.includes('TabsTrigger'))).toBe(true)
+  })
+
+  it('does not modify TabsTrigger without border classes', async () => {
+    const code = `<TabsTrigger value="a" className="flex items-center gap-2">A</TabsTrigger>`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('className="flex items-center gap-2"')
   })
 })
 

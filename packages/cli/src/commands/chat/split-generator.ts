@@ -487,7 +487,7 @@ export async function splitGeneratePages(
         alignmentNote,
         authNote,
         planSummaryNote,
-        existingAppPageNote,
+        pageType !== 'auth' ? existingAppPageNote : undefined,
         existingPagesContext,
         styleContext,
       ]

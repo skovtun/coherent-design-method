@@ -1137,28 +1137,18 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
     fixes.push(...ruleFixes)
   }
 
-  // Add border-0 to TabsTrigger — border-transparent doesn't work in Tailwind v4 @theme inline
+  // Strip border/outline classes from TabsTrigger page code (component handles its own borders)
   const beforeTabsFix = fixed
   fixed = fixed.replace(
     /(<TabsTrigger\b[^>]*className=")([^"]*)(")/g,
     (_m, pre: string, classes: string, post: string) => {
       const cleaned = classes.replace(/\b(border-input|border\b|outline\b)\s*/g, '').trim()
-      const withBorder0 = cleaned.includes('border-0') ? cleaned : `${cleaned} border-0`.trim()
-      if (withBorder0 !== classes.trim()) return `${pre}${withBorder0}${post}`
+      if (cleaned !== classes.trim()) return `${pre}${cleaned}${post}`
       return _m
     },
   )
-  // Also add border-0 to TabsTrigger without className
-  fixed = fixed.replace(/<TabsTrigger\b(?![^>]*className=)(?![^>]*border-0)/g, '<TabsTrigger className="border-0"')
   if (fixed !== beforeTabsFix) {
-    fixes.push('added border-0 to TabsTrigger (Tailwind v4 border-transparent fix)')
-  }
-
-  // Add variant="line" to TabsList for clean underline style
-  const beforeTabsListFix = fixed
-  fixed = fixed.replace(/<TabsList\b(?![^>]*variant=)/g, '<TabsList variant="line"')
-  if (fixed !== beforeTabsListFix) {
-    fixes.push('added variant="line" to TabsList (clean underline style)')
+    fixes.push('stripped border from TabsTrigger (shadcn handles active state)')
   }
 
   // Clean up double spaces in className that may result from previous fixes
