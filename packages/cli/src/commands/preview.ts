@@ -13,6 +13,8 @@ import { resolve, join } from 'path'
 import { readdir } from 'fs/promises'
 import { findConfig, exitNotCoherent, warnIfVolatile } from '../utils/find-config.js'
 import { needsGlobalsFix, fixGlobalsCss } from '../utils/fix-globals-css.js'
+import { validateV4GlobalsCss } from '../utils/css-validator.js'
+import { isTailwindV4 } from '../utils/tailwind-version.js'
 import { DesignSystemManager, ComponentGenerator } from '@getcoherent/core'
 import {
   findMissingPackages,
@@ -533,6 +535,21 @@ export async function previewCommand() {
         spinner.succeed('Fixed globals.css')
       } catch (error) {
         spinner.warn('Could not auto-fix globals.css')
+      }
+    }
+
+    if (isTailwindV4(projectRoot)) {
+      const globalsPath = resolve(projectRoot, 'app', 'globals.css')
+      if (existsSync(globalsPath)) {
+        const globalsContent = readFileSync(globalsPath, 'utf-8')
+        const cssIssues = validateV4GlobalsCss(globalsContent)
+        if (cssIssues.length > 0) {
+          console.log(chalk.yellow('\n⚠️  globals.css validation warnings:'))
+          for (const issue of cssIssues) {
+            console.log(chalk.yellow(`   • ${issue}`))
+          }
+          console.log(chalk.dim('   Run "coherent chat" to regenerate globals.css\n'))
+        }
       }
     }
 
