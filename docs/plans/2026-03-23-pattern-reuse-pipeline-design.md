@@ -45,6 +45,8 @@ interface SharedComponentEntry {
   usageExample: string           // '<StatsCard icon={Users} value="1,234" label="Total Users" />'
   dependencies: string[]         // ['lucide-react', 'components/ui/card']
   source: 'extracted' | 'generated' | 'manual'
+  // source values: 'extracted' = from extraction pipeline, 'generated' = from plan-based generation,
+  // 'manual' = from `coherent chat --component` or user placement in components/shared/
 }
 
 type ComponentType =
@@ -75,12 +77,13 @@ Available shared components:
 **Level 2 — Relevant components only (5 lines each):**
 Selected by matching component `type` to page type:
 
-| Page type | Relevant component types |
-|-----------|-------------------------|
-| dashboard / app | data-display, form, navigation, feedback |
+| Page type (existing) | Relevant component types |
+|----------------------|-------------------------|
+| app | data-display, form, navigation, feedback |
 | auth | form, feedback |
-| marketing / landing | section, layout |
-| settings | form, feedback, navigation |
+| marketing | section, layout |
+
+Note: the codebase uses three page types (`'marketing' | 'app' | 'auth'`). Settings pages are classified as `app`.
 
 For each relevant component:
 ```
@@ -234,7 +237,7 @@ Implementation in `packages/cli/src/commands/chat.ts`:
 
 **7a.** `generateSharedComponentsFromPlan` (`packages/cli/src/commands/chat/plan-generator.ts`): After writing component files, call `generateSharedComponent` (which updates manifest) instead of direct `writeFile`.
 
-**7b.** `extractReusablePatterns` (`packages/cli/src/commands/sync.ts`): Save results to `config.stylePatterns` instead of only printing to console. The storage mechanism already exists — `config.stylePatterns` is read by `buildExistingPagesContext`.
+**7b.** `extractReusablePatterns` (`packages/cli/src/commands/sync.ts`): Currently returns `{pattern, count, sample}[]` but only prints to console. Reshape its output to populate `config.stylePatterns` (a typed `StylePatterns` object with named fields like `card`, `section`, etc.) which is already read by `buildExistingPagesContext`. The reshaping maps high-count className patterns to the appropriate `StylePatterns` field by matching against known categories.
 
 **7c.** `buildSharedComponentsSummary` (`packages/cli/src/commands/chat/split-generator.ts`): Replace with `buildTieredComponentsPrompt` that includes `propsInterface` and `usageExample` for relevant components.
 
@@ -259,7 +262,7 @@ When `coherent sync` or `coherent rules` regenerates editor context files, inclu
 | `packages/core/src/managers/SharedComponentsRegistry.ts` | Support new fields in `createEntry` |
 | `packages/core/src/generators/SharedComponentGenerator.ts` | Pass new fields through `generateSharedComponent` |
 | `packages/cli/src/commands/chat/split-generator.ts` | Replace `buildSharedComponentsNote`/`buildSharedComponentsSummary` with `buildTieredComponentsPrompt`; add inter-page extraction in Phase 5 loop; add auto-sync at end |
-| `packages/cli/src/commands/chat/plan-generator.ts` | Fix: use `generateSharedComponent` instead of direct `writeFile` |
+| `packages/cli/src/commands/chat/plan-generator.ts` | Fix: use `generateSharedComponent` instead of direct `writeFile`; extend `PlannedComponentSchema` to accept the full `ComponentType` enum (currently only allows `'section' | 'widget'`) |
 | `packages/cli/src/agents/modifier.ts` | Update shared components section in `buildModificationPrompt` to use tiered format |
 | `packages/cli/src/commands/chat.ts` | Add `--component` flag; add auto-sync step; integrate reuse validation |
 | `packages/cli/src/commands/sync.ts` | Save `extractReusablePatterns` output; enhanced extraction with new metadata fields |
