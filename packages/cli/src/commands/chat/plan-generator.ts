@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
-import { dirname, resolve } from 'path'
-import { mkdir, writeFile } from 'fs/promises'
+import { resolve } from 'path'
 import chalk from 'chalk'
+import { generateSharedComponent } from '@getcoherent/core'
 import type { AIProviderInterface } from '../../utils/ai-provider.js'
 import { inferPageTypeFromRoute, getDesignQualityForType, CORE_CONSTRAINTS } from '../../agents/design-constraints.js'
 
@@ -54,6 +54,24 @@ const COMPONENT_TYPE_SYNONYMS: Record<string, string> = {
   hero: 'section',
   feature: 'section',
   area: 'section',
+  nav: 'navigation',
+  navbar: 'navigation',
+  sidebar: 'navigation',
+  menu: 'navigation',
+  'data display': 'data-display',
+  table: 'data-display',
+  chart: 'data-display',
+  card: 'data-display',
+  stats: 'data-display',
+  input: 'form',
+  filter: 'form',
+  search: 'form',
+  error: 'feedback',
+  alert: 'feedback',
+  toast: 'feedback',
+  notification: 'feedback',
+  modal: 'feedback',
+  dialog: 'feedback',
 }
 
 function normalizeEnum(synonyms: Record<string, string>) {
@@ -80,8 +98,8 @@ export const PlannedComponentSchema = z.object({
   type: z
     .string()
     .transform(normalizeEnum(COMPONENT_TYPE_SYNONYMS))
-    .pipe(z.enum(['section', 'widget']))
-    .catch('widget'),
+    .pipe(z.enum(['layout', 'navigation', 'data-display', 'form', 'feedback', 'section', 'widget']))
+    .catch('section'),
   shadcnDeps: z.array(z.string()).default([]),
 })
 
@@ -349,9 +367,16 @@ Return JSON with { requests: [{ type: "add-page", changes: { name: "ComponentNam
   }
 
   for (const comp of results) {
-    const fullPath = resolve(projectRoot, comp.file)
-    await mkdir(dirname(fullPath), { recursive: true })
-    await writeFile(fullPath, comp.code, 'utf-8')
+    const planned = plan.sharedComponents.find((c) => c.name === comp.name)
+    await generateSharedComponent(projectRoot, {
+      name: comp.name,
+      type: planned?.type ?? 'section',
+      code: comp.code,
+      description: planned?.description,
+      usedIn: planned?.usedBy ?? [],
+      source: 'generated',
+      overwrite: true,
+    })
   }
 
   return results
