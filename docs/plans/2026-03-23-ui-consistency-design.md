@@ -13,7 +13,7 @@ AI generates each page independently. Even with design constraint prompts, it ma
 
 Root cause: the AI **doesn't see other pages** during generation and **interprets abstract text rules** differently each time.
 
-## Solution: Three Layers
+## Solution: Three Layers (plus completed CSS fix)
 
 ### Layer 1 — Reference Snippets in Prompts (primary)
 
@@ -32,27 +32,31 @@ Replace verbose text descriptions with **concrete JSX code snippets** for every 
 
 7. **Auth Card** — centered card with form fields, submit button, and link to other auth page
 
-Each snippet is ~10-15 lines of JSX. Total: ~100 lines ≈ 500 tokens.
+Each snippet is ~10-20 lines of JSX. Total: ~130 lines ≈ 700-1000 tokens.
 
-**Key rule**: snippets REPLACE the existing verbose text descriptions in `DESIGN_QUALITY_APP`, `RULES_DATA_DISPLAY`, etc. — they don't add on top. Net prompt size stays the same or decreases.
+**Key rule**: snippets REPLACE the existing verbose text descriptions in `DESIGN_QUALITY_APP` (Toolbars & Filters section) and consolidate overlapping rules from `RULES_DATA_DISPLAY` (search input, empty state, table patterns). The verbose text being replaced is ~500-700 tokens, so net change is roughly neutral. Even if slightly larger, concrete code is more effective than abstract descriptions.
 
 **Injection points** — snippets must be present in ALL code-generating prompts:
-- Phase 5: page generation prompts in `split-generator.ts`
-- Phase 4.5: shared component generation in `plan-generator.ts`
-- Modification handler: single-page updates in `modification-handler.ts`
-- Retry prompts: `buildLightweightPagePrompt` in `split-generator.ts`
+- Phase 5: page generation prompts in `split-generator.ts` (via `getDesignQualityForType`)
+- Phase 4.5: shared component generation in `plan-generator.ts` (needs explicit inclusion)
+- Modification handler: single-page updates in `modification-handler.ts` (needs explicit inclusion)
+- Retry prompts: `buildLightweightPagePrompt` in `agents/modifier.ts` (already calls `getDesignQualityForType`, so snippets flow through automatically from `design-constraints.ts` changes)
 
 ### Layer 2 — Existing Page Context (for repeat runs)
 
 When `coherent chat` runs on a project that **already has generated pages**:
 
-1. Read one existing app page from disk (first `.tsx` in `app/(app)/*/page.tsx`)
-2. Include its code in the prompt for new pages: "Here is an existing page in this project. Match its UI patterns exactly."
-3. Falls back to Layer 1 snippets if no existing pages found
+1. New function `readExistingAppPageForReference(projectRoot, plan)` in `split-generator.ts`
+2. Uses the plan's `pageNotes` to find the first `app`-type page route
+3. Reads the corresponding `.tsx` file from disk (e.g., `app/(app)/dashboard/page.tsx`)
+4. If the route group name varies (`(admin)`, `(dashboard)`, etc.), fall back to glob: `app/*/page.tsx` excluding known marketing/auth routes
+5. Truncates to first 200 lines if the file is very large (token budget: ~1500 tokens max)
+6. Includes the code in prompts for new app pages: "Here is an existing page in this project. Match its UI patterns exactly."
+7. Falls back to Layer 1 snippets if no existing pages found
+
+This is a **new function** separate from `buildExistingPagesContext` (which provides page analysis summaries from config, not raw code) and `readAnchorPageCodeFromDisk` (which reads the landing page for style extraction).
 
 This handles pattern drift after user customizations: if the user changed the filter toolbar on Dashboard, new pages copy the customized version.
-
-Token cost: ~2-3K per prompt. Acceptable.
 
 **Not for first-time generation** — on first `coherent chat` run, no pages exist yet. Layer 1 snippets are sufficient.
 
@@ -78,7 +82,7 @@ Page Sections:
 
 This tells the AI what sections each page should have, providing structural guidance alongside the pattern snippets.
 
-### Layer 4 — CSS Fix (already implemented)
+### Already Implemented — CSS Fix
 
 - Added `--color-transparent: transparent` to `@theme inline` block in `tailwind-version.ts`
 - Added migration check in `needsGlobalsFix` so existing projects get the fix
@@ -126,6 +130,8 @@ This tells the AI what sections each page should have, providing structural guid
   </Button>
 </div>
 ```
+
+Injected alongside snippet 2 — behavioral rules for filter toolbars:
 
 CRITICAL: Always use `<Select>` + `<SelectTrigger>` + `<SelectValue>` + `<SelectContent>` + `<SelectItem>` (shadcn compound pattern). NEVER use `<Select>` with native `<option>` elements.
 
@@ -267,9 +273,10 @@ Do NOT add standalone filter icon buttons (e.g., `<Button variant="outline" size
 | File | Change |
 |------|--------|
 | `packages/cli/src/agents/design-constraints.ts` | Replace verbose text in `DESIGN_QUALITY_APP` with reference snippets 1-6. Replace verbose text in `DESIGN_QUALITY_AUTH` with snippet 7. Consolidate overlapping rules from `RULES_DATA_DISPLAY` (search input, empty state patterns already covered by snippets). |
-| `packages/cli/src/commands/chat/split-generator.ts` | Update `formatPlanSummary` to include `pageNotes.sections`. Add existing-page-context logic for repeat runs. Ensure `buildLightweightPagePrompt` includes design quality constraints with snippets. |
-| `packages/cli/src/commands/chat/plan-generator.ts` | Include reference snippets in shared component generation prompt. |
+| `packages/cli/src/commands/chat/split-generator.ts` | Update `formatPlanSummary` to include `pageNotes.sections`. Add `readExistingAppPageForReference()` for repeat runs. |
+| `packages/cli/src/commands/chat/plan-generator.ts` | Include reference snippets in shared component generation prompt (`generateSharedComponentsFromPlan`). |
 | `packages/cli/src/commands/chat/modification-handler.ts` | Include reference snippets in modification prompts. |
+| `packages/cli/src/agents/modifier.ts` | No changes needed — `buildLightweightPagePrompt` already calls `getDesignQualityForType`, snippets flow through automatically. |
 | `packages/cli/src/utils/quality-validator.ts` | Already updated: TabsList/TabsTrigger autofixes removed. |
 | `packages/cli/src/utils/tailwind-version.ts` | Already updated: `--color-transparent: transparent`. |
 | `packages/cli/src/utils/fix-globals-css.ts` | Already updated: migration check for `--color-transparent`. |
@@ -280,6 +287,8 @@ Do NOT add standalone filter icon buttons (e.g., `<Button variant="outline" size
 - Unit tests for prompt construction — verify snippets appear in app/auth page prompts
 - Unit tests for existing-page-context — verify file reading and inclusion
 - Existing autoFixCode tests updated (TabsList/TabsTrigger rules changed)
+- Verify key rules from current `RULES_DATA_DISPLAY` are preserved in snippets or explicitly documented as removed
+- Snippet JSX validity check (balanced tags)
 - Manual test: run `coherent chat` on a fresh project, verify all app pages use identical filter toolbar pattern
 
 ## Non-Goals
