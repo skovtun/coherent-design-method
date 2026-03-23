@@ -426,9 +426,9 @@ Create `packages/cli/src/utils/reuse-planner.test.ts`:
 ```typescript
 import { describe, it, expect } from 'vitest'
 import { buildReusePlan, buildReusePlanDirective } from './reuse-planner.js'
-import type { SharedComponentsManifest } from '@getcoherent/core'
+import { SharedComponentsManifestSchema } from '@getcoherent/core'
 
-const mockManifest: SharedComponentsManifest = {
+const mockManifest = SharedComponentsManifestSchema.parse({
   shared: [
     {
       id: 'CID-001',
@@ -490,7 +490,7 @@ describe('buildReusePlan', () => {
       pageName: 'Tasks',
       pageType: 'app',
       sections: ['Stats row'],
-      manifest: { shared: [] },
+      manifest: SharedComponentsManifestSchema.parse({ shared: [] }),
       existingPageCode: {},
       userRequest: 'Create a page',
     })
@@ -678,6 +678,10 @@ export function buildReusePlan(input: BuildReusePlanInput): ReusePlan {
 
   // Extract reuse patterns from existing page code
   const reusePatterns = extractCodePatterns(input.existingPageCode, sections)
+
+  // AI refinement (Step 3 from spec) is deferred — deterministic mapping is sufficient
+  // for initial release. The interface supports adding AI refinement later without changes
+  // to consumers.
 
   return { pageName, reuse, createNew: [], reusePatterns }
 }
@@ -954,7 +958,8 @@ if (projectRoot) {
 Inside the pMap callback (around line ~522), before building the prompt, add:
 
 ```typescript
-const pageSections = plan?.pageNotes?.[id]?.sections || []
+const pageKey = route.replace(/^\//, '') || 'home'
+const pageSections = plan?.pageNotes?.[pageKey]?.sections || []
 let reusePlanDirective = ''
 let currentReusePlan: ReturnType<typeof buildReusePlan> | null = null
 
@@ -990,6 +995,11 @@ layoutNote,  // from buildLayoutNote (Task 4)
 ```
 
 - [ ] **Step 5: Add post-gen verification with retry**
+
+**Important:** The existing `codePage` declaration in the source uses `const`. Change it to `let` so the retry can reassign it:
+```typescript
+let codePage = result.requests.find(...)  // was const
+```
 
 After `parseModification` returns (around line ~554), add:
 
@@ -1045,26 +1055,33 @@ reusePlanDirective?: string
 
 - [ ] **Step 2: Use reusePlanDirective in buildModificationPrompt**
 
-In `buildModificationPrompt`, find where `tieredComponentsPrompt` or `sharedComponentsSummary` is injected. Add before it:
+In `buildModificationPrompt` (private function in `modifier.ts`), find where `tieredComponentsPrompt` or `sharedComponentsSummary` is injected into the prompt string. The function builds a prompt string with string concatenation. Add a conditional block that prefers `reusePlanDirective` over `tieredComponentsPrompt` over `sharedComponentsSummary`:
 
 ```typescript
-if (options.reusePlanDirective) {
-  parts.push(options.reusePlanDirective)
-} else if (options.tieredComponentsPrompt) {
-  parts.push(options.tieredComponentsPrompt)
-} else if (options.sharedComponentsSummary) {
-  // existing sharedComponentsSummary logic
-}
+// In buildModificationPrompt, where tieredComponentsPrompt is injected:
+const componentContext = options.reusePlanDirective
+  || options.tieredComponentsPrompt
+  || (options.sharedComponentsSummary ? `Available shared components:\n${options.sharedComponentsSummary}` : '')
 ```
+
+Use `componentContext` in the prompt string where the tiered/shared prompt was previously used.
 
 Also add `reusePlanDirective` to `buildLightweightPagePrompt` with same fallback logic.
 
 - [ ] **Step 3: Build ReusePlan in chat.ts for single-page flow**
 
-In `packages/cli/src/commands/chat.ts`, find the single-page `parseModification` path (non-multiPageHint). Before the call, add:
+In `packages/cli/src/commands/chat.ts`, add imports at the top of the file:
 
 ```typescript
 import { buildReusePlan, buildReusePlanDirective } from '../utils/reuse-planner.js'
+import { inferPageTypeFromRoute } from '../agents/design-constraints.js'  // if not already imported
+```
+
+Verify `loadManifest` is imported from `@getcoherent/core` (it may already be imported via dynamic import at line ~972 — if so, add a static import).
+
+Find the single-page `parseModification` path (non-multiPageHint). Before the call, add:
+
+```typescript
 
 // ... in the non-multiPageHint branch:
 let reusePlanDirective: string | undefined
@@ -1112,6 +1129,11 @@ git commit -m "feat: integrate reuse planner into single-page modification flow"
 
 - [ ] **Step 1: Add manifest mutex and incremental sync**
 
+First, ensure `saveManifest` is imported in `split-generator.ts`:
+```typescript
+import { ..., loadManifest, saveManifest, ... } from '@getcoherent/core'
+```
+
 At the top of `splitGeneratePages` function (or in the file scope), add:
 
 ```typescript
@@ -1146,7 +1168,7 @@ if (projectRoot && codePage) {
     await updateManifestSafe(projectRoot, (m) => {
       let updated = m
       for (const entry of updated.shared) {
-        const isUsed = pageCode.includes(entry.importPath?.replace('@/', '') || entry.name)
+        const isUsed = pageCode.includes(`{ ${entry.name} }`) || pageCode.includes(`{ ${entry.name},`)
         if (isUsed && !entry.usedIn.includes(route)) {
           updated = { ...updated, shared: updated.shared.map(e =>
             e.id === entry.id ? { ...e, usedIn: [...e.usedIn, route] } : e
@@ -1245,7 +1267,7 @@ describe('graceful degradation', () => {
   })
 
   it('buildReusePlan handles manifest with missing optional fields', () => {
-    const sparseManifest: SharedComponentsManifest = {
+    const sparseManifest = SharedComponentsManifestSchema.parse({
       shared: [{
         id: 'CID-001',
         name: 'Card',
