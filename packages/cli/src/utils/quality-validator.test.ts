@@ -797,6 +797,17 @@ describe('smart href resolution', () => {
   })
 })
 
+describe('autoFixCode — template literal className syntax', () => {
+  it('fixes misplaced ) in template literal className: `...`})> → `...`}>', async () => {
+    const code = `export default function Page() {
+  return <div className={\`text-sm \${active ? 'bg-primary' : ''}\`)>Hello</div>
+}`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('`}>')
+    expect(fixed).not.toContain('`)>')
+  })
+})
+
 describe('fixUnescapedLtInJsx multiline safety', () => {
   it('does not corrupt multiline JSX tags', () => {
     const code = '>\n<div className="test">'

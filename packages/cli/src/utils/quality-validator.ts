@@ -670,6 +670,13 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
     fixes.push('Fixed syntax issues')
   }
 
+  // Fix misplaced ) in template literal className: className={`...`})> → className={`...`}>
+  const beforeTemplateFix = fixed
+  fixed = fixed.replace(/`\)>/g, '`}>')
+  if (fixed !== beforeTemplateFix) {
+    fixes.push('Fixed syntax issues')
+  }
+
   // Fix unescaped < in JSX text content (AI generates e.g. "<50ms" which is invalid JSX)
   // Only match within a single line, skip content with braces (JSX expressions / JS code)
   // Guard: if text between > and < contains JS expression chars, it's code not JSX text
