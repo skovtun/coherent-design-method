@@ -17,6 +17,7 @@ import {
   getTemplateForPageType,
   loadManifest,
   saveManifest,
+  updateEntry,
   type ModificationRequest,
   type PageDefinition,
 } from '@getcoherent/core'
@@ -859,6 +860,64 @@ export async function chatCommand(
       await saveHashes(projectRoot, updatedHashes)
     } catch {
       if (DEBUG) console.log(chalk.dim('[hashes] Could not save file hashes'))
+    }
+
+    // Lightweight auto-sync: update manifest with metadata from generated files
+    try {
+      const { extractPropsInterface, extractDependencies, extractUsageExample } = await import(
+        '../utils/component-extractor.js'
+      )
+      let currentManifest = await loadManifest(projectRoot)
+      let manifestChanged = false
+
+      for (const entry of currentManifest.shared) {
+        const fullPath = resolve(projectRoot, entry.file)
+        if (!existsSync(fullPath)) continue
+        const code = readFileSync(fullPath, 'utf-8')
+        const props = extractPropsInterface(code)
+        const deps = extractDependencies(code)
+
+        if ((props && props !== entry.propsInterface) || deps.length !== (entry.dependencies?.length ?? 0)) {
+          currentManifest = updateEntry(currentManifest, entry.id, {
+            propsInterface: props ?? entry.propsInterface,
+            dependencies: deps,
+          })
+          manifestChanged = true
+        }
+      }
+
+      const pageFiles = Array.from(allModified).filter((f) => f.startsWith('app/') && f.endsWith('page.tsx'))
+      for (const pageFile of pageFiles) {
+        const fullPath = resolve(projectRoot, pageFile)
+        if (!existsSync(fullPath)) continue
+        const pageCode = readFileSync(fullPath, 'utf-8')
+
+        for (const entry of currentManifest.shared) {
+          const isUsed =
+            pageCode.includes(`from '@/components/shared/`) &&
+            (pageCode.includes(`{ ${entry.name} }`) || pageCode.includes(`{ ${entry.name},`))
+          if (isUsed && !entry.usedIn.includes(pageFile)) {
+            currentManifest = updateEntry(currentManifest, entry.id, {
+              usedIn: [...entry.usedIn, pageFile],
+            })
+            manifestChanged = true
+
+            if (!entry.usageExample) {
+              const usage = extractUsageExample(pageCode, entry.name)
+              if (usage) {
+                currentManifest = updateEntry(currentManifest, entry.id, { usageExample: usage })
+              }
+            }
+          }
+        }
+      }
+
+      if (manifestChanged) {
+        await saveManifest(projectRoot, currentManifest)
+        if (DEBUG) console.log(chalk.dim('[auto-sync] Manifest updated'))
+      }
+    } catch {
+      if (DEBUG) console.log(chalk.dim('[auto-sync] Skipped'))
     }
 
     // Record recent changes
