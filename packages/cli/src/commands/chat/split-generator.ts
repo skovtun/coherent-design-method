@@ -34,12 +34,15 @@ import type { ArchitecturePlan } from './plan-generator.js'
 import { generateArchitecturePlan, updateArchitecturePlan, loadPlan, getPageType } from './plan-generator.js'
 import { buildReusePlan, buildReusePlanDirective, verifyReusePlan } from '../../utils/reuse-planner.js'
 
+const MAX_EXISTING_PAGES_CONTEXT = 10
+
 function buildExistingPagesContext(config: DesignSystemConfig): string {
   const pages = config.pages || []
   const analyzed = pages.filter((p: any) => p.pageAnalysis)
   if (analyzed.length === 0) return ''
 
-  const lines = analyzed.map((p: any) => {
+  const capped = analyzed.slice(0, MAX_EXISTING_PAGES_CONTEXT)
+  const lines = capped.map((p: any) => {
     return summarizePageAnalysis(p.name || p.id, p.route, p.pageAnalysis)
   })
 
@@ -158,14 +161,18 @@ export function buildTieredComponentsPrompt(
 
   const relevantTypes = new Set(RELEVANT_TYPES[pageType] || RELEVANT_TYPES.app)
 
-  const level1Lines = manifest.shared.map(e => {
+  const level1Lines = manifest.shared.slice(0, 20).map(e => {
     const desc = e.description ? ` — ${e.description}` : ''
     return `- ${e.id} ${e.name} (${e.type})${desc}`
   })
+  if (manifest.shared.length > 20) {
+    level1Lines.push(`- ... and ${manifest.shared.length - 20} more (import by name)`)
+  }
 
   const relevantComponents = manifest.shared.filter(e => relevantTypes.has(e.type))
   const level2Blocks = relevantComponents
     .filter(e => e.propsInterface || e.usageExample)
+    .slice(0, 8)
     .map(e => {
       const importPath = e.file.replace(/^components\/shared\//, '').replace(/\.tsx$/, '')
       const lines = [`### ${e.name} (${e.id})`]
@@ -249,10 +256,14 @@ export function readExistingAppPageForReference(
       if (note.type !== 'app') continue
       for (const group of ['(app)', '(admin)', '(dashboard)']) {
         const filePath = resolve(projectRoot, 'app', group, key, 'page.tsx')
-        if (existsSync(filePath)) {
-          const code = readFileSync(filePath, 'utf-8')
-          const lines = code.split('\n')
-          return lines.slice(0, 60).join('\n')
+        try {
+          if (existsSync(filePath)) {
+            const code = readFileSync(filePath, 'utf-8')
+            const lines = code.split('\n')
+            return lines.slice(0, 60).join('\n')
+          }
+        } catch {
+          continue
         }
       }
     }
@@ -528,7 +539,11 @@ export async function splitGeneratePages(
         changes: { id: homePage.id, name: homePage.name, route: homePage.route },
       }
     }
-    spinner.succeed(`Phase 3/6 — ${homePage.name} page generated`)
+    if (homePageCode) {
+      spinner.succeed(`Phase 3/6 — ${homePage.name} page generated`)
+    } else {
+      spinner.warn(`Phase 3/6 — ${homePage.name} page generated (no code — AI may have failed)`)
+    }
   }
 
   spinner.start('Phase 4/6 — Extracting design patterns...')
@@ -805,7 +820,11 @@ export async function splitGeneratePages(
   }
 
   const withCode = allRequests.filter(r => (r.changes as Record<string, unknown>)?.pageCode).length
-  spinner.succeed(`Phase 5/6 — Generated ${allRequests.length} pages (${withCode} with full code)`)
+  if (withCode === 0) {
+    spinner.warn(`Phase 5/6 — Generated ${allRequests.length} pages (0 with full code — AI may have failed)`)
+  } else {
+    spinner.succeed(`Phase 5/6 — Generated ${allRequests.length} pages (${withCode} with full code)`)
+  }
   return { requests: allRequests, plan }
 }
 

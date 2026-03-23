@@ -548,12 +548,12 @@ function replaceRawColors(classes: string, colorMap: Record<string, string>): { 
   let result = classes
 
   const accentColorRe =
-    /\b((?:(?:hover|focus|active|group-hover|focus-visible|focus-within):)?)(bg|text|border|ring|outline|from|to|via)-(emerald|blue|violet|indigo|purple|teal|cyan|sky|rose|amber|red|green|yellow|pink|orange|fuchsia|lime)-(\d+)\b/g
+    /\b((?:(?:hover|focus|active|group-hover|focus-visible|focus-within):)?)(bg|text|border|ring|outline|from|to|via)-(emerald|blue|violet|indigo|purple|teal|cyan|sky|rose|amber|red|green|yellow|pink|orange|fuchsia|lime)-(\d+)(?:\/\d+)?\b/g
   result = result.replace(accentColorRe, (m, statePrefix: string, prefix: string, color: string, shade: string) => {
-    const bare = m.replace(statePrefix, '')
-    if (colorMap[bare]) {
+    const bareNoOpacity = m.replace(statePrefix, '').replace(/\/\d+$/, '')
+    if (colorMap[bareNoOpacity]) {
       changed = true
-      return statePrefix + colorMap[bare]
+      return statePrefix + colorMap[bareNoOpacity]
     }
     const n = parseInt(shade)
     const isDestructive = color === 'red'
@@ -585,12 +585,12 @@ function replaceRawColors(classes: string, colorMap: Record<string, string>): { 
   })
 
   const neutralColorRe =
-    /\b((?:(?:hover|focus|active|group-hover|focus-visible|focus-within):)?)(bg|text|border|ring|outline)-(zinc|slate|gray|neutral|stone)-(\d+)\b/g
+    /\b((?:(?:hover|focus|active|group-hover|focus-visible|focus-within):)?)(bg|text|border|ring|outline)-(zinc|slate|gray|neutral|stone)-(\d+)(?:\/\d+)?\b/g
   result = result.replace(neutralColorRe, (m, statePrefix: string, prefix: string, _color: string, shade: string) => {
-    const bare = m.replace(statePrefix, '')
-    if (colorMap[bare]) {
+    const bareNoOpacity = m.replace(statePrefix, '').replace(/\/\d+$/, '')
+    if (colorMap[bareNoOpacity]) {
       changed = true
-      return statePrefix + colorMap[bare]
+      return statePrefix + colorMap[bareNoOpacity]
     }
     const n = parseInt(shade)
     if (prefix === 'bg') {
@@ -930,16 +930,27 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
           .forEach(n => nonLucideImports.add(n))
       }
 
-      const iconNames = lucideImportMatch[1]
+      const rawIconEntries = lucideImportMatch[1]
         .split(',')
         .map(s => s.trim())
         .filter(Boolean)
+      const iconNames = rawIconEntries.map(entry => {
+        const parts = entry.split(/\s+as\s+/)
+        return parts[0].trim()
+      })
 
       // Step 1: Remove names that conflict with non-lucide imports (even if valid lucide exports)
-      const duplicates = iconNames.filter(name => nonLucideImports.has(name))
+      const duplicates = rawIconEntries.filter(entry => {
+        const alias = entry
+          .split(/\s+as\s+/)
+          .pop()!
+          .trim()
+        return nonLucideImports.has(alias)
+      })
       let newImport = lucideImportMatch[1]
       for (const dup of duplicates) {
-        newImport = newImport.replace(new RegExp(`\\b${dup}\\b,?\\s*`), '')
+        const escaped = dup.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        newImport = newImport.replace(new RegExp(`${escaped},?\\s*`), '')
         fixes.push(`removed ${dup} from lucide import (conflicts with UI component import)`)
       }
 

@@ -291,6 +291,15 @@ describe('autoFixCode — extended color coverage', () => {
     expect(fixed).not.toContain('bg-blue-300')
     expect(fixed).not.toContain('bg-emerald-400')
   })
+
+  it('handles opacity modifiers without producing double opacity', async () => {
+    const code = `'use client'\nexport default function Page() {\n  return <div className="bg-blue-500/50 text-emerald-600/80 border-red-500/20">Opacity</div>\n}`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).not.toContain('bg-blue-500/50')
+    expect(fixed).not.toContain('text-emerald-600/80')
+    expect(fixed).not.toContain('border-red-500/20')
+    expect(fixed).not.toMatch(/\/\d+\/\d+/)
+  })
 })
 
 describe('SKIPPED_HEADING in Card context', () => {

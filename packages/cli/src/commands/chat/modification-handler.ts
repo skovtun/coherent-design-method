@@ -64,24 +64,36 @@ const DEBUG = process.env.COHERENT_DEBUG === '1'
  * Also strips div-based footers preceded by Footer comments in JSX.
  * The root layout provides these via shared components — pages must not include them.
  */
+function isSiteWideHeader(block: string): boolean {
+  return /<Link\b/.test(block) || /<a\s+href/.test(block) || /<nav\b/.test(block)
+}
+
+function isSiteWideFooter(block: string): boolean {
+  return /©|&copy;|All rights|<Link\b/.test(block) || (/<a\s+href/.test(block) && block.split('<a ').length >= 3)
+}
+
+function isSiteWideNav(block: string): boolean {
+  return /<Link\b/.test(block) || (/<a\s+href/.test(block) && block.split(/<a\s+href/).length >= 3)
+}
+
 function stripInlineLayoutElements(code: string): { code: string; stripped: string[] } {
   let result = code
   const stripped: string[] = []
 
   const headerBlock = extractBalancedTag(result, 'header')
-  if (headerBlock) {
+  if (headerBlock && isSiteWideHeader(headerBlock)) {
     result = result.replace(headerBlock, '')
     stripped.push('header')
   }
 
   const navBlock = extractBalancedTag(result, 'nav')
-  if (navBlock) {
+  if (navBlock && isSiteWideNav(navBlock)) {
     result = result.replace(navBlock, '')
     stripped.push('nav')
   }
 
   const footerBlock = extractBalancedTag(result, 'footer')
-  if (footerBlock) {
+  if (footerBlock && isSiteWideFooter(footerBlock)) {
     result = result.replace(footerBlock, '')
     stripped.push('footer')
   }
@@ -263,7 +275,7 @@ export async function applyModification(
         }
       }
       const readPlan = projectRoot ? loadPlan(projectRoot) : null
-      const pageFilePath = routeToFsPath(projectRoot, route, readPlan || false)
+      const pageFilePath = routeToFsPath(projectRoot, route, readPlan || isAuthRoute(route))
       let pageCode: string
       try {
         pageCode = await readFile(pageFilePath)
@@ -294,8 +306,7 @@ export async function applyModification(
       await writeFile(pageFilePath, fixedCode)
       const manifest = await loadManifest(projectRoot)
       const usedIn = manifest.shared.find(e => e.id === resolved.id)?.usedIn ?? []
-      const routePath = route.replace(/^\//, '')
-      const filePathRel = routePath ? `app/${routePath}/page.tsx` : 'app/page.tsx'
+      const filePathRel = routeToRelPath(route, readPlan || isAuthRoute(route))
       if (!usedIn.includes(filePathRel)) {
         const nextManifest = updateUsedIn(manifest, resolved.id, [...usedIn, filePathRel])
         await saveManifest(projectRoot, nextManifest)
@@ -304,7 +315,7 @@ export async function applyModification(
         sharedId: resolved.id,
         sharedName: resolved.name,
         pageTarget,
-        route: route ?? `/${routePath}`,
+        route: route,
         postFixes: fixes,
       })
       try {
@@ -342,13 +353,13 @@ export async function applyModification(
         }
       }
       const allPagesToLink = [sourcePageName, ...targetPages]
+      const promotePlan = projectRoot ? loadPlan(projectRoot) : null
       const routeToPath = (nameOrRoute: string): string | null => {
-        if (nameOrRoute.startsWith('/')) {
-          return routeToRelPath(nameOrRoute, false)
-        }
-        const p = config.pages.find(x => x.name?.toLowerCase() === nameOrRoute.toLowerCase() || x.id === nameOrRoute)
-        if (!p?.route) return null
-        return routeToRelPath(p.route, false)
+        const route = nameOrRoute.startsWith('/')
+          ? nameOrRoute
+          : config.pages.find(x => x.name?.toLowerCase() === nameOrRoute.toLowerCase() || x.id === nameOrRoute)?.route
+        if (!route) return null
+        return routeToRelPath(route, promotePlan || isAuthRoute(route))
       }
       const sourcePath = routeToPath(sourcePageName)
       if (!sourcePath) {
