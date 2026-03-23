@@ -486,6 +486,9 @@ export const DesignSystemConfigSchema = z.object({
     homePagePlaceholder: z.boolean().default(false),
   }),
 
+  // Per-group layout types (e.g. { app: 'sidebar', public: 'header' })
+  groupLayouts: z.record(z.enum(['header', 'sidebar', 'both', 'none'])).optional(),
+
   // Timestamps
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
