@@ -659,37 +659,44 @@ export async function applyModification(
           let issues = validatePageQuality(codeToWrite, undefined, qualityPageType)
           const errors = issues.filter(i => i.severity === 'error')
 
-          if (errors.length >= 2 && aiProvider) {
+          const MAX_QUALITY_FIX_ATTEMPTS = 2
+          let currentErrors = errors
+          for (let attempt = 0; attempt < MAX_QUALITY_FIX_ATTEMPTS && currentErrors.length > 0; attempt++) {
+            if (!aiProvider) break
             console.log(
-              chalk.yellow(`\n🔄 ${errors.length} quality errors — attempting AI fix for ${page.name || page.id}...`),
+              chalk.yellow(`\n🔄 ${currentErrors.length} quality errors — attempting AI fix${attempt > 0 ? ` (retry ${attempt + 1})` : ''} for ${page.name || page.id}...`),
             )
             try {
               const ai = await createAIProvider(aiProvider)
-              if (ai.editPageCode) {
-                const errorList = errors.map(e => `Line ${e.line}: [${e.type}] ${e.message}`).join('\n')
-                const instruction = `Fix these quality issues:\n${errorList}\n\nRules:\n- Replace raw Tailwind colors (bg-emerald-500, text-zinc-400, etc.) with semantic tokens (bg-primary, text-muted-foreground, bg-muted, etc.)\n- Ensure heading hierarchy (h1 → h2 → h3, no skipping)\n- Add Label components for form inputs\n- Keep all existing functionality and layout intact`
-                const fixedCode = await ai.editPageCode(codeToWrite, instruction, page.name || page.id || 'Page')
-                if (fixedCode && fixedCode.length > 100 && /export\s+default/.test(fixedCode)) {
-                  const recheck = validatePageQuality(fixedCode, undefined, qualityPageType)
-                  const recheckErrors = recheck.filter(i => i.severity === 'error')
-                  if (recheckErrors.length < errors.length) {
-                    codeToWrite = fixedCode
-                    const { code: reFixed, fixes: reFixes } = await autoFixCode(codeToWrite, autoFixCtx)
-                    if (reFixes.length > 0) {
-                      codeToWrite = reFixed
-                      postFixes.push(...reFixes)
-                    }
-                    await writeFile(filePath, codeToWrite)
-                    issues = validatePageQuality(codeToWrite, undefined, qualityPageType)
-                    const finalErrors = issues.filter(i => i.severity === 'error').length
-                    console.log(chalk.green(`   ✔ Quality fix: ${errors.length} → ${finalErrors} errors`))
+              if (!ai.editPageCode) break
+              const errorList = currentErrors.map(e => `Line ${e.line}: [${e.type}] ${e.message}`).join('\n')
+              const instruction = `Fix these quality issues:\n${errorList}\n\nRules:\n- Replace raw Tailwind colors (bg-emerald-500, text-zinc-400, etc.) with semantic tokens (bg-primary, text-muted-foreground, bg-muted, etc.)\n- Replace placeholder content ("Lorem ipsum", "John Doe", "user@example.com") with realistic contextual content\n- Ensure heading hierarchy (h1 → h2 → h3, no skipping)\n- Add Label components for form inputs\n- Keep all existing functionality and layout intact`
+              const fixedCode = await ai.editPageCode(codeToWrite, instruction, page.name || page.id || 'Page')
+              if (fixedCode && fixedCode.length > 100 && /export\s+default/.test(fixedCode)) {
+                const recheck = validatePageQuality(fixedCode, undefined, qualityPageType)
+                const recheckErrors = recheck.filter(i => i.severity === 'error')
+                if (recheckErrors.length < currentErrors.length) {
+                  codeToWrite = fixedCode
+                  const { code: reFixed, fixes: reFixes } = await autoFixCode(codeToWrite, autoFixCtx)
+                  if (reFixes.length > 0) {
+                    codeToWrite = reFixed
+                    postFixes.push(...reFixes)
                   }
+                  await writeFile(filePath, codeToWrite)
+                  currentErrors = recheckErrors
+                  console.log(chalk.green(`   ✔ Quality fix: ${errors.length} → ${currentErrors.length} errors`))
+                  if (currentErrors.length === 0) break
+                } else {
+                  break
                 }
+              } else {
+                break
               }
             } catch {
-              /* retry failed, keep original */
+              break
             }
           }
+          issues = validatePageQuality(codeToWrite, undefined, qualityPageType)
 
           const report = formatIssues(issues)
           if (report) {
