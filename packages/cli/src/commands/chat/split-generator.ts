@@ -195,8 +195,27 @@ export function buildTieredComponentsPrompt(
   return sections.join('\n')
 }
 
-export function formatPlanSummary(plan: ArchitecturePlan): string {
+export function formatPlanSummary(plan: ArchitecturePlan, forRoute?: string): string {
   if (plan.groups.length === 0) return ''
+
+  if (forRoute) {
+    const group = plan.groups.find(g => g.pages.includes(forRoute))
+    if (!group) return ''
+    const groupLine = `  Group "${group.id}" (layout: ${group.layout}): ${group.pages.join(', ')}`
+    const relevantComps = plan.sharedComponents.filter(c => c.usedBy.includes(forRoute))
+    const parts = [`ARCHITECTURE PLAN:\nYour group:\n${groupLine}`]
+    if (relevantComps.length > 0) {
+      parts.push(
+        `Shared Components for this page:\n${relevantComps.map(c => `  ${c.name} (${c.type}) — ${c.description}`).join('\n')}`,
+      )
+    }
+    const routeKey = forRoute.replace(/^\//, '')
+    const note = plan.pageNotes?.[routeKey]
+    if (note?.sections && note.sections.length > 0) {
+      parts.push(`Page Sections: ${note.sections.join(', ')}`)
+    }
+    return parts.join('\n')
+  }
 
   const groupLines = plan.groups.map(g => `  Group "${g.id}" (layout: ${g.layout}): ${g.pages.join(', ')}`)
   const compLines = plan.sharedComponents.map(
@@ -233,7 +252,7 @@ export function readExistingAppPageForReference(
         if (existsSync(filePath)) {
           const code = readFileSync(filePath, 'utf-8')
           const lines = code.split('\n')
-          return lines.slice(0, 200).join('\n')
+          return lines.slice(0, 60).join('\n')
         }
       }
     }
@@ -253,7 +272,7 @@ export function readExistingAppPageForReference(
         if (existsSync(pagePath)) {
           const code = readFileSync(pagePath, 'utf-8')
           const lines = code.split('\n')
-          return lines.slice(0, 200).join('\n')
+          return lines.slice(0, 60).join('\n')
         }
       }
     }
@@ -578,8 +597,6 @@ export async function splitGeneratePages(
   const routeNote = `EXISTING ROUTES in this project: ${allRoutes}. All internal links MUST point to one of these routes. If a target doesn't exist, use href="#".`
   const alignmentNote =
     'CRITICAL LAYOUT RULE: Every <section> must wrap its content in a container div matching the header width. Use the EXACT same container classes as shown in the style context (e.g. className="container max-w-6xl px-4" or className="max-w-6xl mx-auto px-4"). Inner content can use narrower max-w for text centering, but the outer section container MUST match.'
-  const planSummaryNote = plan ? formatPlanSummary(plan) : ''
-
   const existingAppPageCode = readExistingAppPageForReference(parseOpts?.projectRoot ?? null, plan)
   const existingAppPageNote = existingAppPageCode
     ? `\nEXISTING APP PAGE (match these UI patterns for consistency):\n\`\`\`\n${existingAppPageCode}\n\`\`\`\n`
@@ -668,7 +685,7 @@ export async function splitGeneratePages(
         routeNote,
         alignmentNote,
         authNote,
-        planSummaryNote,
+        plan ? formatPlanSummary(plan, route) : '',
         pageType !== 'auth' ? existingAppPageNote : undefined,
         existingPagesContext,
         styleContext,

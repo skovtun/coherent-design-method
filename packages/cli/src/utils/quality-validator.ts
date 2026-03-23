@@ -558,36 +558,18 @@ function replaceRawColors(classes: string, colorMap: Record<string, string>): { 
     const n = parseInt(shade)
     const isDestructive = color === 'red'
     if (prefix === 'bg') {
-      if (n >= 500 && n <= 700) {
-        changed = true
-        return statePrefix + (isDestructive ? 'bg-destructive' : 'bg-primary')
-      }
-      if (n >= 100 && n <= 200) {
-        changed = true
-        return statePrefix + (isDestructive ? 'bg-destructive/10' : 'bg-primary/10')
-      }
-      if (n >= 300 && n <= 400) {
-        changed = true
-        return statePrefix + (isDestructive ? 'bg-destructive/20' : 'bg-primary/20')
-      }
-      if (n >= 800) {
-        changed = true
-        return statePrefix + 'bg-muted'
-      }
+      changed = true
+      if (n <= 100) return statePrefix + (isDestructive ? 'bg-destructive/10' : 'bg-primary/10')
+      if (n <= 200) return statePrefix + (isDestructive ? 'bg-destructive/10' : 'bg-primary/10')
+      if (n <= 400) return statePrefix + (isDestructive ? 'bg-destructive/20' : 'bg-primary/20')
+      if (n <= 700) return statePrefix + (isDestructive ? 'bg-destructive' : 'bg-primary')
+      return statePrefix + 'bg-muted'
     }
     if (prefix === 'text') {
-      if (n >= 400 && n <= 600) {
-        changed = true
-        return statePrefix + (isDestructive ? 'text-destructive' : 'text-primary')
-      }
-      if (n >= 100 && n <= 300) {
-        changed = true
-        return statePrefix + 'text-foreground'
-      }
-      if (n >= 700) {
-        changed = true
-        return statePrefix + 'text-foreground'
-      }
+      changed = true
+      if (n <= 300) return statePrefix + 'text-foreground'
+      if (n <= 600) return statePrefix + (isDestructive ? 'text-destructive' : 'text-primary')
+      return statePrefix + 'text-foreground'
     }
     if (prefix === 'border' || prefix === 'ring' || prefix === 'outline') {
       changed = true
@@ -612,24 +594,16 @@ function replaceRawColors(classes: string, colorMap: Record<string, string>): { 
     }
     const n = parseInt(shade)
     if (prefix === 'bg') {
-      if (n >= 800) {
-        changed = true
-        return statePrefix + 'bg-background'
-      }
-      if (n >= 100 && n <= 300) {
-        changed = true
-        return statePrefix + 'bg-muted'
-      }
+      changed = true
+      if (n <= 300) return statePrefix + 'bg-muted'
+      if (n <= 700) return statePrefix + 'bg-muted'
+      return statePrefix + 'bg-background'
     }
     if (prefix === 'text') {
-      if (n >= 100 && n <= 300) {
-        changed = true
-        return statePrefix + 'text-foreground'
-      }
-      if (n >= 400 && n <= 600) {
-        changed = true
-        return statePrefix + 'text-muted-foreground'
-      }
+      changed = true
+      if (n <= 300) return statePrefix + 'text-foreground'
+      if (n <= 600) return statePrefix + 'text-muted-foreground'
+      return statePrefix + 'text-foreground'
     }
     if (prefix === 'border' || prefix === 'ring' || prefix === 'outline') {
       changed = true
@@ -969,16 +943,48 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
         fixes.push(`removed ${dup} from lucide import (conflicts with UI component import)`)
       }
 
-      // Step 2: Replace truly invalid lucide names (hallucinated icons not imported elsewhere)
+      const ICON_ALIASES: Record<string, string> = {
+        Github: 'ExternalLink',
+        GitHub: 'ExternalLink',
+        Twitter: 'MessageCircle',
+        Linkedin: 'Link2',
+        LinkedIn: 'Link2',
+        Slack: 'MessageSquare',
+        Discord: 'MessageCircle',
+        Facebook: 'Globe',
+        Instagram: 'Camera',
+        YouTube: 'Play',
+        Youtube: 'Play',
+        TikTok: 'Music',
+        Reddit: 'MessageSquare',
+        Twitch: 'Tv',
+        Figma: 'Pen',
+        Dribbble: 'Palette',
+        Medium: 'FileText',
+        WhatsApp: 'Phone',
+        Telegram: 'Send',
+        Pinterest: 'Pin',
+        Spotify: 'Music',
+      }
+
       const invalid = iconNames.filter(name => !lucideExports!.has(name) && !nonLucideImports.has(name))
       if (invalid.length > 0) {
-        const fallback = 'Circle'
+        const replacements: string[] = []
         for (const bad of invalid) {
-          const re = new RegExp(`\\b${bad}\\b`, 'g')
-          newImport = newImport.replace(re, fallback)
-          fixed = fixed.replace(re, fallback)
+          const replacement = ICON_ALIASES[bad] || 'Circle'
+          if (lucideExports!.has(replacement)) {
+            const re = new RegExp(`\\b${bad}\\b`, 'g')
+            newImport = newImport.replace(re, replacement)
+            fixed = fixed.replace(re, replacement)
+            replacements.push(`${bad}→${replacement}`)
+          } else {
+            const re = new RegExp(`\\b${bad}\\b`, 'g')
+            newImport = newImport.replace(re, 'Circle')
+            fixed = fixed.replace(re, 'Circle')
+            replacements.push(`${bad}→Circle`)
+          }
         }
-        fixes.push(`invalid lucide icons → ${fallback}: ${invalid.join(', ')}`)
+        fixes.push(`invalid lucide icons: ${replacements.join(', ')}`)
       }
 
       if (duplicates.length > 0 || invalid.length > 0) {

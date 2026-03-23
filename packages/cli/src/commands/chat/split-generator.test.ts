@@ -523,6 +523,29 @@ describe('formatPlanSummary', () => {
     expect(summary).toContain('dashboard: Stats row, Activity feed')
     expect(summary).toContain('tasks: Filter toolbar, Task list')
   })
+
+  it('returns per-page summary when forRoute is provided', () => {
+    const plan = ArchitecturePlanSchema.parse({
+      groups: [
+        { id: 'public', layout: 'header', pages: ['/', '/features'] },
+        { id: 'app', layout: 'sidebar', pages: ['/dashboard', '/tasks'] },
+      ],
+      sharedComponents: [
+        { name: 'StatCard', type: 'widget', description: 'Stat card', usedBy: ['/dashboard'] },
+        { name: 'FilterBar', type: 'widget', description: 'Filter bar', usedBy: ['/tasks'] },
+      ],
+      pageNotes: {
+        dashboard: { type: 'app', sections: ['stats', 'table'] },
+      },
+    })
+    const summary = formatPlanSummary(plan, '/dashboard')
+    expect(summary).toContain('app')
+    expect(summary).toContain('sidebar')
+    expect(summary).toContain('StatCard')
+    expect(summary).not.toContain('FilterBar')
+    expect(summary).not.toContain('public')
+    expect(summary).toContain('stats, table')
+  })
 })
 
 describe('readExistingAppPageForReference', () => {
