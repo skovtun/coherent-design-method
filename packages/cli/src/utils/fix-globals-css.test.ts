@@ -1,88 +1,118 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { needsGlobalsFix } from './fix-globals-css.js'
-import { existsSync, readFileSync } from 'fs'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, rmSync } from 'fs'
+import { join } from 'path'
+import { tmpdir } from 'os'
+import { fixGlobalsCss } from './fix-globals-css.js'
 
-vi.mock('fs', () => ({
-  existsSync: vi.fn(),
-  readFileSync: vi.fn(),
-  writeFileSync: vi.fn(),
-}))
+function makeProject(tmpDir: string, opts: { v4?: boolean; withInlineStyle?: boolean }) {
+  mkdirSync(join(tmpDir, 'app'), { recursive: true })
 
-vi.mock('./tailwind-version.js', () => ({
-  isTailwindV4: vi.fn(),
-  generateV4GlobalsCss: vi.fn(() => '/* mock */'),
-}))
+  if (opts.v4) {
+    writeFileSync(
+      join(tmpDir, 'package.json'),
+      JSON.stringify({
+        dependencies: { '@tailwindcss/postcss': '^4.0.0' },
+      }),
+    )
+    writeFileSync(join(tmpDir, 'app', 'globals.css'), '@import "tailwindcss";\n')
+  } else {
+    writeFileSync(
+      join(tmpDir, 'package.json'),
+      JSON.stringify({
+        devDependencies: { tailwindcss: '^3.4.0' },
+      }),
+    )
+    writeFileSync(join(tmpDir, 'app', 'globals.css'), ':root { --primary: blue; }\n')
+  }
 
-const mockExistsSync = vi.mocked(existsSync)
-const mockReadFileSync = vi.mocked(readFileSync)
-const { isTailwindV4: mockIsTailwindV4 } = await import('./tailwind-version.js')
+  let layoutCode = `import './globals.css'\nexport default function RootLayout({ children }: { children: React.ReactNode }) {\n  return <html lang="en"><body>{children}</body></html>\n}`
+  if (opts.withInlineStyle) {
+    layoutCode = `import './globals.css'\nexport default function RootLayout({ children }: { children: React.ReactNode }) {\n  return <html lang="en">\n      <head>\n        <style dangerouslySetInnerHTML={{ __html: ":root { --primary: #3B82F6; --ring: #3B82F6; }" }} />\n      </head>\n      <body>{children}</body></html>\n}`
+  }
+  writeFileSync(join(tmpDir, 'app', 'layout.tsx'), layoutCode)
+}
 
-describe('needsGlobalsFix', () => {
+const minConfig = {
+  tokens: {
+    colors: {
+      light: {
+        primary: '#10B981',
+        secondary: '#8B5CF6',
+        accent: '#10B981',
+        success: '#10B981',
+        warning: '#F59E0B',
+        error: '#EF4444',
+        info: '#3B82F6',
+        background: '#FFFFFF',
+        foreground: '#111827',
+        muted: '#F3F4F6',
+        border: '#E5E7EB',
+      },
+      dark: {
+        primary: '#34D399',
+        secondary: '#A78BFA',
+        accent: '#34D399',
+        success: '#34D399',
+        warning: '#FBBF24',
+        error: '#F87171',
+        info: '#60A5FA',
+        background: '#111827',
+        foreground: '#F9FAFB',
+        muted: '#1F2937',
+        border: '#374151',
+      },
+    },
+    spacing: {
+      xs: '0.25rem',
+      sm: '0.5rem',
+      md: '1rem',
+      lg: '1.5rem',
+      xl: '2rem',
+      '2xl': '3rem',
+      '3xl': '4rem',
+    },
+    radius: {
+      none: '0',
+      sm: '0.25rem',
+      md: '0.5rem',
+      lg: '0.75rem',
+      xl: '1rem',
+      full: '9999px',
+    },
+  },
+} as any
+
+describe('fixGlobalsCss', () => {
+  let tmpDir: string
   beforeEach(() => {
-    vi.resetAllMocks()
+    tmpDir = mkdtempSync(join(tmpdir(), 'fix-css-'))
+  })
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true })
   })
 
-  it('returns false when globals.css does not exist', () => {
-    mockExistsSync.mockReturnValue(false)
-    expect(needsGlobalsFix('/project')).toBe(false)
+  it('v4: removes stale inline style from layout.tsx', () => {
+    makeProject(tmpDir, { v4: true, withInlineStyle: true })
+    fixGlobalsCss(tmpDir, minConfig)
+    const layout = readFileSync(join(tmpDir, 'app', 'layout.tsx'), 'utf-8')
+    expect(layout).not.toContain('dangerouslySetInnerHTML')
+    expect(layout).not.toContain('#3B82F6')
   })
 
-  it('returns true for v4 project missing --color-transparent', () => {
-    mockExistsSync.mockReturnValue(true)
-    vi.mocked(mockIsTailwindV4).mockReturnValue(true)
-    mockReadFileSync.mockReturnValue(
-      '@import "tailwindcss";\n@theme inline {\n  --color-background: var(--background);\n}',
-    )
-    expect(needsGlobalsFix('/project')).toBe(true)
+  it('v3: updates existing inline style with new colors', () => {
+    makeProject(tmpDir, { v4: false, withInlineStyle: true })
+    fixGlobalsCss(tmpDir, minConfig)
+    const layout = readFileSync(join(tmpDir, 'app', 'layout.tsx'), 'utf-8')
+    expect(layout).toContain('dangerouslySetInnerHTML')
+    expect(layout).toContain('#10B981')
+    expect(layout).not.toContain('--primary: #3B82F6')
+    expect(layout).not.toContain('--ring: #3B82F6')
   })
 
-  it('returns true for v4 project missing --color-sidebar-background', () => {
-    mockExistsSync.mockReturnValue(true)
-    vi.mocked(mockIsTailwindV4).mockReturnValue(true)
-    mockReadFileSync.mockReturnValue(
-      '@import "tailwindcss";\n@theme inline {\n  --color-transparent: transparent;\n  --color-background: var(--background);\n}',
-    )
-    expect(needsGlobalsFix('/project')).toBe(true)
-  })
-
-  it('returns true for v4 project missing --color-black', () => {
-    mockExistsSync.mockReturnValue(true)
-    vi.mocked(mockIsTailwindV4).mockReturnValue(true)
-    mockReadFileSync.mockReturnValue(
-      '@import "tailwindcss";\n@theme inline {\n  --color-transparent: transparent;\n  --color-sidebar-background: var(--sidebar-background);\n  --color-chart-1: var(--chart-1);\n}',
-    )
-    expect(needsGlobalsFix('/project')).toBe(true)
-  })
-
-  it('returns true for v4 project missing --radius-xs', () => {
-    mockExistsSync.mockReturnValue(true)
-    vi.mocked(mockIsTailwindV4).mockReturnValue(true)
-    mockReadFileSync.mockReturnValue(
-      '@import "tailwindcss";\n@theme inline {\n  --color-transparent: transparent;\n  --color-sidebar-background: x;\n  --color-chart-1: x;\n  --color-black: #000;\n  --color-white: #fff;\n}',
-    )
-    expect(needsGlobalsFix('/project')).toBe(true)
-  })
-
-  it('returns false for complete v4 globals', () => {
-    mockExistsSync.mockReturnValue(true)
-    vi.mocked(mockIsTailwindV4).mockReturnValue(true)
-    const completeV4 = `@import "tailwindcss";
-@theme inline {
-  --color-transparent: transparent;
-  --color-black: #000;
-  --color-white: #fff;
-  --color-sidebar-background: var(--sidebar-background);
-  --color-chart-1: var(--chart-1);
-  --radius-xs: 0.125rem;
-}`
-    mockReadFileSync.mockReturnValue(completeV4)
-    expect(needsGlobalsFix('/project')).toBe(false)
-  })
-
-  it('returns true for v3-style globals in v4 project', () => {
-    mockExistsSync.mockReturnValue(true)
-    vi.mocked(mockIsTailwindV4).mockReturnValue(true)
-    mockReadFileSync.mockReturnValue('@tailwind base;\n@tailwind components;\n@tailwind utilities;')
-    expect(needsGlobalsFix('/project')).toBe(true)
+  it('v4: no-op when no inline style exists', () => {
+    makeProject(tmpDir, { v4: true, withInlineStyle: false })
+    fixGlobalsCss(tmpDir, minConfig)
+    const layout = readFileSync(join(tmpDir, 'app', 'layout.tsx'), 'utf-8')
+    expect(layout).not.toContain('dangerouslySetInnerHTML')
   })
 })

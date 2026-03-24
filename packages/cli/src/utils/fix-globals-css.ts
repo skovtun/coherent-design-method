@@ -60,6 +60,22 @@ export function fixGlobalsCss(projectRoot: string, config: Parameters<typeof bui
   if (isTailwindV4(projectRoot)) {
     const v4Css = generateV4GlobalsCss(config)
     writeFileSync(globalsPath, v4Css, 'utf-8')
+    if (existsSync(layoutPath)) {
+      let layoutContent = readFileSync(layoutPath, 'utf-8')
+      if (layoutContent.includes('dangerouslySetInnerHTML')) {
+        const styleStart = layoutContent.indexOf('<style dangerouslySetInnerHTML')
+        if (styleStart !== -1) {
+          const styleEnd = layoutContent.indexOf('/>', styleStart)
+          if (styleEnd !== -1) {
+            const before = layoutContent.slice(0, styleStart).replace(/\s+$/, '')
+            const after = layoutContent.slice(styleEnd + 2).replace(/^\s*\n/, '\n')
+            layoutContent = before + after
+          }
+        }
+        layoutContent = layoutContent.replace(/\s*<head>\s*<\/head>\s*/g, '\n')
+        writeFileSync(layoutPath, layoutContent, 'utf-8')
+      }
+    }
     return
   }
 
@@ -85,6 +101,27 @@ export function fixGlobalsCss(projectRoot: string, config: Parameters<typeof bui
   }
   let layoutContent = readFileSync(layoutPath, 'utf-8')
   if (layoutContent.includes('dangerouslySetInnerHTML')) {
+    const cssVars = buildCssVariables(config)
+    const marker = '__html: '
+    const markerIdx = layoutContent.indexOf(marker)
+    if (markerIdx !== -1) {
+      const valueStart = markerIdx + marker.length
+      const jsonStr = JSON.stringify(cssVars)
+      const oldQuoteStart = layoutContent.indexOf('"', valueStart)
+      if (oldQuoteStart !== -1) {
+        let i = oldQuoteStart + 1
+        while (i < layoutContent.length) {
+          if (layoutContent[i] === '\\') {
+            i += 2
+            continue
+          }
+          if (layoutContent[i] === '"') break
+          i++
+        }
+        layoutContent = layoutContent.slice(0, oldQuoteStart) + jsonStr + layoutContent.slice(i + 1)
+      }
+    }
+    writeFileSync(layoutPath, layoutContent, 'utf-8')
     return
   }
   const cssVars = buildCssVariables(config)
