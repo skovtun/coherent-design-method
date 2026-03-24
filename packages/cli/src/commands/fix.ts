@@ -43,7 +43,7 @@ import {
   fixUnescapedLtInJsx,
 } from '../utils/self-heal.js'
 import { validatePageQuality, formatIssues, autoFixCode, verifyIncrementalEdit } from '../utils/quality-validator.js'
-import { safeWrite } from './fix-validation.js'
+import { safeWrite, isValidTsx } from './fix-validation.js'
 import { toKebabCase } from '../utils/strings.js'
 
 export interface FixOptions {
@@ -344,7 +344,8 @@ export async function fixCommand(opts: FixOptions = {}) {
           const sidebarConfigName = dsm?.getConfig().name ?? ''
           const hasWrongName = existingSidebarCode.includes('My App') && sidebarConfigName !== 'My App'
           const hasTrigger = existingSidebarCode.includes('SidebarTrigger')
-          if (hasWrongName || hasTrigger) {
+          const isBroken = !isValidTsx(existingSidebarCode, projectRoot)
+          if (hasWrongName || hasTrigger || isBroken) {
             if (!dsm) {
               dsm = new DesignSystemManager(project.configPath)
               await dsm.load()
