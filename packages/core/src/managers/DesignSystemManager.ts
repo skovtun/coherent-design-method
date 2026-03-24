@@ -147,6 +147,14 @@ export const config = ${JSON.stringify(this.config, null, 2)} as const
 
       const lastPart = pathParts[pathParts.length - 1]
       const oldValue = current[lastPart]
+      if (String(oldValue) === String(value)) {
+        return {
+          success: true,
+          modified: [],
+          config: this.config,
+          message: `Token ${path} is already set to ${value}, skipped`,
+        }
+      }
       current[lastPart] = value
 
       // Validate updated config
