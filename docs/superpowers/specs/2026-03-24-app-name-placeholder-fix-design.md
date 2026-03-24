@@ -43,27 +43,29 @@ The caller (`init.ts`) passes the derived name.
 
 ### 3. Fix: detect and replace placeholder (unconditional)
 
-In `packages/cli/src/commands/fix.ts`, add a new **unconditional** step early in the pipeline, **before** step 4b (plan/layout repair) and **not gated by** `plan` or `hasSidebar`:
+In `packages/cli/src/commands/fix.ts`, add a new **unconditional** step **after Step 3** (component registry, where DSM is first loaded) and **before Step 4b** (plan/layout repair). This placement ensures DSM is already initialized when `allComponentIds.size > 0`, and the placeholder step handles the `dsm === null` case itself.
 
-1. Ensure DSM is loaded (if `dsm` is null and `project.configPath` exists, create and load it)
+Not gated by `plan`, `hasSidebar`, or any other condition.
+
+1. Ensure DSM is loaded: if `dsm` is null and `project.configPath` exists, create and load it
 2. Check `config.name === 'My App'`
 3. Derive real name:
    - Read `package.json` `name` field → `toTitleCase()`
    - Fall back to `toTitleCase(basename(projectRoot))`
-4. If derived name is still `'My App'` (e.g. directory literally named `my-app`), skip (no infinite loop)
-5. If `dryRun`: log `Would replace placeholder "My App" with "${realName}" in config` and set in-memory only
-6. If not `dryRun`: update config via `dsm.updateConfig({ ...dsm.getConfig(), name: realName })` then `dsm.save()`
+4. If derived name is still `'My App'` (e.g. directory literally named `my-app`), skip
+5. If `dryRun`: log `Would replace placeholder "My App" with "${realName}" in config`, update in-memory config only (no `save()`)
+6. If not `dryRun`: `dsm.updateConfig({ ...dsm.getConfig(), name: realName })` then `await dsm.save()`
 7. Log: `✔ Replaced placeholder "My App" with "${realName}" in config`
 
-After this step, the existing replacement logic in fix.ts that scans layouts (`app/(app)/layout.tsx`) and `components/shared/*.tsx` for `"My App"` fires naturally because `configName !== 'My App'`.
+After this step, the existing replacement logic in fix.ts reads `configName` from the (now updated) in-memory config. Since `configName !== 'My App'`, the layout and shared-component replacement blocks fire naturally.
 
-**Important**: The existing "My App" replacement blocks in fix.ts are currently inside `if (plan) { ... if (hasSidebar) { ... } }`. As part of this change, move the shared-components scan (`components/shared/*.tsx` "My App" replacement) to be **unconditional** — not gated by plan/sidebar. The `(app)/layout.tsx` replacement stays inside the sidebar gate since that file only exists in sidebar projects.
+**Relocating the shared-component scan**: The existing `components/shared/*.tsx` "My App" replacement is currently inside `if (plan) { ... if (hasSidebar) { ... } }`. Move it to be **unconditional** — not gated by plan or sidebar. It must **honor `dryRun`**: use `safeWrite` only when `!dryRun`, otherwise log `Would replace "My App"...` and push to `fixes[]`. The `(app)/layout.tsx` replacement stays inside the sidebar gate since that file only exists in sidebar projects.
 
 ### 4. Config persistence
 
 Use existing `DesignSystemManager` methods:
 - `dsm.updateConfig({ ...dsm.getConfig(), name: realName })` — validates via Zod, refreshes registry
-- `await dsm.save()` — writes to `design-system.config.ts`
+- `await dsm.save()` — writes to `design-system.config.ts` (async, must be awaited)
 
 No new methods needed on DSM.
 
