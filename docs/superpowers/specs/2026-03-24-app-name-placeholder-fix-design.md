@@ -10,7 +10,7 @@ Two changes that together eliminate the placeholder problem for both new and exi
 
 ### 1. `toTitleCase` utility
 
-New function in `packages/cli/src/utils/string-utils.ts`:
+Add to existing `packages/cli/src/utils/strings.ts` (alongside `toKebabCase`, `toPascalCase`):
 
 ```ts
 export function toTitleCase(slug: string): string
@@ -20,56 +20,74 @@ Converts kebab-case, snake_case, or plain slugs to Title Case:
 - `my-cool-app` → `My Cool App`
 - `test_projector` → `Test Projector`
 - `taskflow` → `Taskflow`
-- Already title case → unchanged
+- `MY-APP` → `My App` (normalize then title-case)
+- `@org/my-app` → `My App` (strip scope prefix)
+- Empty string / whitespace only → returns `"My App"` (safe fallback)
+
+Algorithm: strip `@scope/` prefix if present, split on `-`, `_`, or camelCase boundaries, lowercase each word, capitalize first letter, join with spaces.
 
 ### 2. Init: derive name from directory
 
 In `packages/cli/src/commands/init.ts`, before writing the initial config:
 
 1. If `name` argument provided (`coherent init taskflow`): `toTitleCase(name)`
-2. Else if `package.json` exists and has a non-generic `name` field: `toTitleCase(packageJson.name)`
+2. Else if `package.json` exists and has a `name` field that is a non-empty string: `toTitleCase(packageJson.name)`
 3. Else: `toTitleCase(basename(cwd()))`
 
-In `packages/cli/src/utils/minimal-config.ts`, change `createMinimalConfig` to accept an `appName` parameter instead of hardcoding `"My App"`. The caller (`init.ts`) passes the derived name.
+In `packages/cli/src/utils/minimal-config.ts`:
+- Change `createMinimalConfig` to accept an `appName: string` parameter
+- Replace hardcoded `name: 'My App'` with `name: appName`
+- Replace hardcoded `description: 'Welcome to My App'` in `pages[0]` with `description: 'Welcome to ${appName}'`
 
-### 3. Fix: detect and replace placeholder
+The caller (`init.ts`) passes the derived name.
 
-In `packages/cli/src/commands/fix.ts`, add a new step early in the fix pipeline (before the existing "My App" replacement logic):
+### 3. Fix: detect and replace placeholder (unconditional)
 
-1. Check `config.name === 'My App'`
-2. Derive real name: read `package.json` name → fall back to `basename(projectRoot)` → `toTitleCase`
-3. Update `config.name` in the in-memory config via `dsm.updateName(realName)` (or direct config mutation + save)
-4. Log: `✔ Replaced placeholder "My App" with "${realName}" in config`
+In `packages/cli/src/commands/fix.ts`, add a new **unconditional** step early in the pipeline, **before** step 4b (plan/layout repair) and **not gated by** `plan` or `hasSidebar`:
 
-After this step, the existing replacement logic in fix.ts (which scans layouts and `components/shared/*.tsx` for `"My App"`) will fire naturally because `configName !== 'My App'`.
+1. Ensure DSM is loaded (if `dsm` is null and `project.configPath` exists, create and load it)
+2. Check `config.name === 'My App'`
+3. Derive real name:
+   - Read `package.json` `name` field → `toTitleCase()`
+   - Fall back to `toTitleCase(basename(projectRoot))`
+4. If derived name is still `'My App'` (e.g. directory literally named `my-app`), skip (no infinite loop)
+5. If `dryRun`: log `Would replace placeholder "My App" with "${realName}" in config` and set in-memory only
+6. If not `dryRun`: update config via `dsm.updateConfig({ ...dsm.getConfig(), name: realName })` then `dsm.save()`
+7. Log: `✔ Replaced placeholder "My App" with "${realName}" in config`
+
+After this step, the existing replacement logic in fix.ts that scans layouts (`app/(app)/layout.tsx`) and `components/shared/*.tsx` for `"My App"` fires naturally because `configName !== 'My App'`.
+
+**Important**: The existing "My App" replacement blocks in fix.ts are currently inside `if (plan) { ... if (hasSidebar) { ... } }`. As part of this change, move the shared-components scan (`components/shared/*.tsx` "My App" replacement) to be **unconditional** — not gated by plan/sidebar. The `(app)/layout.tsx` replacement stays inside the sidebar gate since that file only exists in sidebar projects.
 
 ### 4. Config persistence
 
-`DesignSystemManager` needs a method to update the name and persist to disk. Either:
-- Add `updateName(name: string)` method, or
-- Use existing `updateConfig` pattern if available
+Use existing `DesignSystemManager` methods:
+- `dsm.updateConfig({ ...dsm.getConfig(), name: realName })` — validates via Zod, refreshes registry
+- `await dsm.save()` — writes to `design-system.config.ts`
 
-The config file `design-system.config.ts` is rewritten with the updated name.
+No new methods needed on DSM.
 
 ### 5. Tests
 
-- **`toTitleCase`**: kebab-case, snake_case, single word, already title case, edge cases (empty string, numbers)
-- **Init**: verify config.name is derived from directory name when no explicit name given
-- **Fix**: verify "My App" in config is replaced with title-cased directory name, and subsequent layout/component replacement fires
+- **`toTitleCase`** (in existing `strings.test.ts`): kebab-case, snake_case, single word, `@scope/name`, empty string, `MY-APP`, already title case
+- **`createMinimalConfig`**: verify `name` and `pages[0].description` use provided `appName`
+- **Fix placeholder detection**: verify "My App" in config is replaced with title-cased directory name when no plan exists (no sidebar gate dependency)
+- **Fix dry-run**: verify config is not persisted in dry-run mode
 
 ## Files changed
 
 | File | Change |
 |------|--------|
-| `packages/cli/src/utils/string-utils.ts` | New file: `toTitleCase` |
-| `packages/cli/src/utils/string-utils.test.ts` | New file: tests |
+| `packages/cli/src/utils/strings.ts` | Add `toTitleCase` |
+| `packages/cli/src/utils/strings.test.ts` | Add tests |
 | `packages/cli/src/utils/minimal-config.ts` | Accept `appName` param, remove hardcoded `"My App"` |
 | `packages/cli/src/commands/init.ts` | Derive name, pass to `createMinimalConfig` |
-| `packages/cli/src/commands/fix.ts` | Detect placeholder, update config name |
-| `packages/core/src/managers/DesignSystemManager.ts` | Add `updateName` or equivalent |
+| `packages/cli/src/commands/fix.ts` | Unconditional placeholder detection + make shared-component scan unconditional |
 
 ## Edge cases
 
-- Directory named `.` or `/` → fall back to `"My App"` (only remaining valid use)
-- `package.json` name is a scoped package (`@org/name`) → extract `name` part, title-case it
-- Name argument contains special characters → strip them before title-casing
+- Directory named `.` or has empty basename → `toTitleCase` returns `"My App"` fallback, placeholder step skips
+- `package.json` name is scoped (`@org/name`) → strip scope, title-case `name` part
+- Derived name equals `"My App"` (directory literally `my-app`) → skip replacement to avoid no-op loop
+- `--dry-run` → log what would change, do not write config or files
+- DSM not yet initialized → create and load it if `project.configPath` exists
