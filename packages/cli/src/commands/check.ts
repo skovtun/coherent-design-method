@@ -288,12 +288,12 @@ export async function checkCommand(opts: CheckOptions = {}) {
 
         // Check actual usage
         const actualUsedIn = findPagesImporting(projectRoot, entry.name, entry.file)
-        const inLayout = isUsedInLayout(projectRoot, entry.name)
-        const totalUsage = actualUsedIn.length + (inLayout ? 1 : 0)
+        const layoutPaths = isUsedInLayout(projectRoot, entry.name)
+        const totalUsage = actualUsedIn.length + layoutPaths.length
 
         // Check stale usedIn
         const manifestUsedIn = entry.usedIn || []
-        const fullActual = inLayout ? [...new Set([...actualUsedIn, 'app/layout.tsx'])] : actualUsedIn
+        const fullActual = [...new Set([...actualUsedIn, ...layoutPaths])]
         const isStale =
           manifestUsedIn.length !== fullActual.length || !manifestUsedIn.every(p => fullActual.includes(p))
         if (isStale) _staleUsedIn++
@@ -306,7 +306,10 @@ export async function checkCommand(opts: CheckOptions = {}) {
           }
         } else {
           consistent++
-          const usageDesc = inLayout ? `layout + ${actualUsedIn.length} page(s)` : `${actualUsedIn.length} page(s)`
+          const usageDesc =
+            layoutPaths.length > 0
+              ? `layout(${layoutPaths.length}) + ${actualUsedIn.length} page(s)`
+              : `${actualUsedIn.length} page(s)`
           if (!opts.json) {
             const staleNote = isStale ? chalk.yellow(' [usedIn stale]') : ''
             console.log(chalk.green(`  ✔ ${entry.id} (${entry.name})`) + chalk.dim(` — ${usageDesc}`) + staleNote)

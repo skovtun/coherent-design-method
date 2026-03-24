@@ -442,8 +442,8 @@ export async function fixCommand(opts: FixOptions = {}) {
     // 6b. Update stale usedIn
     for (const entry of manifest.shared) {
       const actualUsedIn = findPagesImporting(project.root, entry.name, entry.file)
-      const inLayout = isUsedInLayout(project.root, entry.name)
-      const fullActual = inLayout ? [...new Set([...actualUsedIn, 'app/layout.tsx'])] : actualUsedIn
+      const layoutPaths = isUsedInLayout(project.root, entry.name)
+      const fullActual = [...new Set([...actualUsedIn, ...layoutPaths])]
 
       if (!arraysEqual(fullActual, entry.usedIn || [])) {
         entry.usedIn = fullActual
@@ -486,8 +486,8 @@ export async function fixCommand(opts: FixOptions = {}) {
     // 6d. Report unused components (need user decision)
     for (const entry of manifest.shared) {
       const actualUsedIn = findPagesImporting(project.root, entry.name, entry.file)
-      const inLayout = isUsedInLayout(project.root, entry.name)
-      if (actualUsedIn.length === 0 && !inLayout) {
+      const layoutPaths2 = isUsedInLayout(project.root, entry.name)
+      if (actualUsedIn.length === 0 && layoutPaths2.length === 0) {
         remaining.push(`${entry.id} (${entry.name}) — unused. Remove: coherent components shared remove ${entry.id}`)
       }
     }

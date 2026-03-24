@@ -102,17 +102,35 @@ export function findPagesImporting(projectRoot: string, componentName: string, c
 }
 
 /**
- * Check if a component is imported in app/layout.tsx.
+ * Return relative paths of layout files (root + route-group layouts) that reference `componentName`.
  */
-export function isUsedInLayout(projectRoot: string, componentName: string): boolean {
-  const layoutPath = join(projectRoot, 'app', 'layout.tsx')
-  if (!existsSync(layoutPath)) return false
-  try {
-    const code = readFileSync(layoutPath, 'utf-8')
-    return code.includes(componentName)
-  } catch {
-    return false
+export function isUsedInLayout(projectRoot: string, componentName: string): string[] {
+  const appDir = join(projectRoot, 'app')
+  const layoutPaths = [join(appDir, 'layout.tsx')]
+
+  if (existsSync(appDir)) {
+    try {
+      for (const entry of readdirSync(appDir, { withFileTypes: true })) {
+        if (entry.isDirectory() && entry.name.startsWith('(') && entry.name.endsWith(')')) {
+          layoutPaths.push(join(appDir, entry.name, 'layout.tsx'))
+        }
+      }
+    } catch {
+      /* appDir not readable */
+    }
   }
+
+  const matched: string[] = []
+  for (const lp of [...new Set(layoutPaths)]) {
+    try {
+      if (readFileSync(lp, 'utf-8').includes(componentName)) {
+        matched.push(relative(projectRoot, lp))
+      }
+    } catch {
+      /* file doesn't exist */
+    }
+  }
+  return matched
 }
 
 /**
@@ -301,8 +319,8 @@ export function reconcileComponents(
 
     // 3. Recalculate usedIn
     const actualUsedIn = findPagesImporting(projectRoot, entry.name, entry.file)
-    const inLayout = isUsedInLayout(projectRoot, entry.name)
-    const fullUsedIn = inLayout ? [...new Set([...actualUsedIn, 'app/layout.tsx'])] : actualUsedIn
+    const layoutPaths = isUsedInLayout(projectRoot, entry.name)
+    const fullUsedIn = [...new Set([...actualUsedIn, ...layoutPaths])]
 
     if (!arraysEqual(fullUsedIn, entry.usedIn || [])) {
       result.updated.push({
