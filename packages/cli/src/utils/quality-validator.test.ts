@@ -72,6 +72,28 @@ describe('validatePageQuality', () => {
   })
 })
 
+describe('RAW_COLOR_RE shadow detection', () => {
+  it('detects shadow-indigo-500', () => {
+    const code = `export default function Page() { return <div className="shadow-indigo-500">x</div> }`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'RAW_COLOR')).toBe(true)
+  })
+})
+
+describe('autoFixCode shadow replacement', () => {
+  it('replaces shadow-indigo-500 with shadow-primary', async () => {
+    const code = `export default function Page() { return <div className="shadow-indigo-500">x</div> }`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('shadow-primary')
+    expect(fixed).not.toContain('shadow-indigo')
+  })
+  it('preserves shadow opacity suffix', async () => {
+    const code = `export default function Page() { return <div className="shadow-indigo-500/25">x</div> }`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('shadow-primary/25')
+  })
+})
+
 describe('autoFixCode', () => {
   it('replaces text-base with text-sm in className', async () => {
     const code = `<p className="text-base leading-relaxed">Text</p>`

@@ -3,7 +3,7 @@ export type { QualityIssue } from './types.js'
 import type { QualityIssue } from './types.js'
 
 const RAW_COLOR_RE =
-  /(?:(?:hover|focus|active|group-hover|focus-visible|focus-within):)?(?:bg|text|border|ring|outline|from|to|via)-(gray|blue|red|green|yellow|purple|pink|indigo|orange|slate|zinc|stone|neutral|emerald|teal|cyan|sky|violet|fuchsia|rose|amber|lime)-\d+/g
+  /(?:(?:hover|focus|active|group-hover|focus-visible|focus-within):)?(?:bg|text|border|ring|outline|shadow|from|to|via)-(gray|blue|red|green|yellow|purple|pink|indigo|orange|slate|zinc|stone|neutral|emerald|teal|cyan|sky|violet|fuchsia|rose|amber|lime)-\d+/g
 const HEX_IN_CLASS_RE = /className="[^"]*#[0-9a-fA-F]{3,8}[^"]*"/g
 const TEXT_BASE_RE = /\btext-base\b/g
 const HEAVY_SHADOW_RE = /\bshadow-(md|lg|xl|2xl)\b/g
@@ -548,7 +548,7 @@ function replaceRawColors(classes: string, colorMap: Record<string, string>): { 
   let result = classes
 
   const accentColorRe =
-    /\b((?:(?:hover|focus|active|group-hover|focus-visible|focus-within):)?)(bg|text|border|ring|outline|from|to|via)-(emerald|blue|violet|indigo|purple|teal|cyan|sky|rose|amber|red|green|yellow|pink|orange|fuchsia|lime)-(\d+)(?:\/\d+)?\b/g
+    /\b((?:(?:hover|focus|active|group-hover|focus-visible|focus-within):)?)(bg|text|border|ring|outline|shadow|from|to|via)-(emerald|blue|violet|indigo|purple|teal|cyan|sky|rose|amber|red|green|yellow|pink|orange|fuchsia|lime)-(\d+)(?:\/\d+)?\b/g
   result = result.replace(accentColorRe, (m, statePrefix: string, prefix: string, color: string, shade: string) => {
     const bareNoOpacity = m.replace(statePrefix, '').replace(/\/\d+$/, '')
     if (colorMap[bareNoOpacity]) {
@@ -557,6 +557,26 @@ function replaceRawColors(classes: string, colorMap: Record<string, string>): { 
     }
     const n = parseInt(shade)
     const isDestructive = color === 'red'
+    const restAfterState = m.slice(statePrefix.length)
+    const tailOpacity = restAfterState.match(/(\/\d+)$/)?.[0] ?? ''
+    const applyShadowTail = (cls: string) => {
+      if (!tailOpacity) return statePrefix + cls
+      const base = cls.replace(/\/\d+$/, '')
+      return statePrefix + base + tailOpacity
+    }
+    if (prefix === 'shadow') {
+      const bgKey = `bg-${color}-${shade}`
+      if (colorMap[bgKey]) {
+        changed = true
+        return applyShadowTail(colorMap[bgKey].replace(/^bg-/, 'shadow-'))
+      }
+      changed = true
+      if (n <= 100) return applyShadowTail(isDestructive ? 'shadow-destructive/10' : 'shadow-primary/10')
+      if (n <= 200) return applyShadowTail(isDestructive ? 'shadow-destructive/10' : 'shadow-primary/10')
+      if (n <= 400) return applyShadowTail(isDestructive ? 'shadow-destructive/20' : 'shadow-primary/20')
+      if (n <= 700) return applyShadowTail(isDestructive ? 'shadow-destructive' : 'shadow-primary')
+      return applyShadowTail('shadow-muted')
+    }
     if (prefix === 'bg') {
       changed = true
       if (n <= 100) return statePrefix + (isDestructive ? 'bg-destructive/10' : 'bg-primary/10')
@@ -585,7 +605,7 @@ function replaceRawColors(classes: string, colorMap: Record<string, string>): { 
   })
 
   const neutralColorRe =
-    /\b((?:(?:hover|focus|active|group-hover|focus-visible|focus-within):)?)(bg|text|border|ring|outline)-(zinc|slate|gray|neutral|stone)-(\d+)(?:\/\d+)?\b/g
+    /\b((?:(?:hover|focus|active|group-hover|focus-visible|focus-within):)?)(bg|text|border|ring|outline|shadow)-(zinc|slate|gray|neutral|stone)-(\d+)(?:\/\d+)?\b/g
   result = result.replace(neutralColorRe, (m, statePrefix: string, prefix: string, _color: string, shade: string) => {
     const bareNoOpacity = m.replace(statePrefix, '').replace(/\/\d+$/, '')
     if (colorMap[bareNoOpacity]) {
@@ -593,6 +613,24 @@ function replaceRawColors(classes: string, colorMap: Record<string, string>): { 
       return statePrefix + colorMap[bareNoOpacity]
     }
     const n = parseInt(shade)
+    const restAfterStateNeutral = m.slice(statePrefix.length)
+    const tailOpacityNeutral = restAfterStateNeutral.match(/(\/\d+)$/)?.[0] ?? ''
+    const applyNeutralShadowTail = (cls: string) => {
+      if (!tailOpacityNeutral) return statePrefix + cls
+      const base = cls.replace(/\/\d+$/, '')
+      return statePrefix + base + tailOpacityNeutral
+    }
+    if (prefix === 'shadow') {
+      const bgKey = `bg-${_color}-${shade}`
+      if (colorMap[bgKey]) {
+        changed = true
+        return applyNeutralShadowTail(colorMap[bgKey].replace(/^bg-/, 'shadow-'))
+      }
+      changed = true
+      if (n <= 300) return applyNeutralShadowTail('shadow-muted')
+      if (n <= 700) return applyNeutralShadowTail('shadow-muted')
+      return applyNeutralShadowTail('shadow-background')
+    }
     if (prefix === 'bg') {
       changed = true
       if (n <= 300) return statePrefix + 'bg-muted'
