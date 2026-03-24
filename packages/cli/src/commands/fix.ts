@@ -298,6 +298,16 @@ export async function fixCommand(opts: FixOptions = {}) {
           console.log(chalk.green('  ✔ Added Header/Footer to (public) layout'))
         }
 
+        const rootPagePath = resolve(projectRoot, 'app', 'page.tsx')
+        const publicPagePath = resolve(projectRoot, 'app', '(public)', 'page.tsx')
+        if (existsSync(rootPagePath) && !existsSync(publicPagePath)) {
+          const { renameSync } = await import('fs')
+          mkdirSync(resolve(projectRoot, 'app', '(public)'), { recursive: true })
+          renameSync(rootPagePath, publicPagePath)
+          fixes.push('Moved app/page.tsx → app/(public)/page.tsx (sidebar mode)')
+          console.log(chalk.green('  ✔ Moved app/page.tsx → app/(public)/page.tsx (gets Header/Footer)'))
+        }
+
         const themeTogglePath = resolve(projectRoot, 'components', 'shared', 'theme-toggle.tsx')
         if (!existsSync(themeTogglePath)) {
           const { generateThemeToggleCode } = await import('./chat/code-generator.js')

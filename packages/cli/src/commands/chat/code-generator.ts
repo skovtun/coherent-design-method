@@ -213,6 +213,13 @@ export async function regenerateLayout(
         await writeFileAsync(publicLayoutPath, buildPublicLayoutCodeForSidebar(), 'utf-8')
       }
 
+      const rootPagePath = resolve(projectRoot, 'app', 'page.tsx')
+      const publicPagePath = resolve(projectRoot, 'app', '(public)', 'page.tsx')
+      if (existsSync(rootPagePath) && !existsSync(publicPagePath)) {
+        const { renameSync } = await import('fs')
+        renameSync(rootPagePath, publicPagePath)
+      }
+
       const themeTogglePath = resolve(projectRoot, 'components', 'shared', 'theme-toggle.tsx')
       if (!existsSync(themeTogglePath)) {
         await mkdirAsync(resolve(projectRoot, 'components', 'shared'), { recursive: true })
