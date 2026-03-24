@@ -310,17 +310,19 @@ export async function fixCommand(opts: FixOptions = {}) {
           }
         }
 
-        const sidebarComponentPath = resolve(projectRoot, 'components', 'shared', 'sidebar.tsx')
-        if (existsSync(sidebarComponentPath)) {
-          let sidebarCode = readFileSync(sidebarComponentPath, 'utf-8')
+        const sidebarComponentPath2 = resolve(projectRoot, 'components', 'shared', 'sidebar.tsx')
+        if (existsSync(sidebarComponentPath2)) {
+          const sidebarCode = readFileSync(sidebarComponentPath2, 'utf-8')
           if (sidebarCode.includes('SidebarTrigger')) {
-            sidebarCode = sidebarCode
-              .replace(/\s*SidebarTrigger,?\n?/g, '\n')
-              .replace(/\s*<SidebarTrigger\s*\/>\s*\n?/g, '\n')
-              .replace(/flex items-center justify-between/g, 'flex items-center')
-            writeFileSync(sidebarComponentPath, sidebarCode, 'utf-8')
-            fixes.push('Removed duplicate SidebarTrigger from sidebar component')
-            console.log(chalk.green('  ✔ Removed duplicate SidebarTrigger from sidebar component'))
+            if (!dsm) {
+              dsm = new DesignSystemManager(project.configPath)
+              await dsm.load()
+            }
+            const { PageGenerator } = await import('@getcoherent/core')
+            const gen = new PageGenerator(dsm.getConfig())
+            writeFileSync(sidebarComponentPath2, gen.generateSharedSidebarCode(), 'utf-8')
+            fixes.push('Regenerated sidebar component (removed duplicate SidebarTrigger)')
+            console.log(chalk.green('  ✔ Regenerated sidebar component (removed duplicate SidebarTrigger)'))
           }
         }
 
