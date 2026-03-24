@@ -239,7 +239,11 @@ export async function fixCommand(opts: FixOptions = {}) {
     const { ensurePlanGroupLayouts } = await import('./chat/code-generator.js')
     const plan = loadPlan(projectRoot)
     if (plan) {
-      await ensurePlanGroupLayouts(projectRoot, plan)
+      if (!dsm) {
+        dsm = new DesignSystemManager(project.configPath)
+        await dsm.load()
+      }
+      await ensurePlanGroupLayouts(projectRoot, plan, {}, dsm.getConfig())
       const layoutTypes = plan.groups.map(g => `${g.id}:${g.layout}`).join(', ')
       fixes.push(`Verified group layouts (${layoutTypes})`)
       console.log(chalk.green(`  ✔ Verified group layouts: ${layoutTypes}`))

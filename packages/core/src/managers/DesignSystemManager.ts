@@ -13,8 +13,22 @@ import type {
   ComponentDependency,
 } from '../types/design-system.js'
 import { validateConfig, getComponent, componentExists } from '../types/design-system.js'
+import { ZodError } from 'zod'
 import { readFile } from 'fs/promises'
 import { atomicWriteFile } from '../utils/atomicWrite.js'
+
+const VALID_COLOR_FIELDS = [
+  'primary', 'secondary', 'accent', 'success', 'warning', 'error', 'info',
+  'background', 'foreground', 'muted', 'border',
+]
+const VALID_SPACING_FIELDS = ['xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl']
+const VALID_RADIUS_FIELDS = ['none', 'sm', 'md', 'lg', 'xl', 'full']
+const VALID_TOKEN_PATHS = new Set([
+  ...VALID_COLOR_FIELDS.map(f => `colors.light.${f}`),
+  ...VALID_COLOR_FIELDS.map(f => `colors.dark.${f}`),
+  ...VALID_SPACING_FIELDS.map(f => `spacing.${f}`),
+  ...VALID_RADIUS_FIELDS.map(f => `radius.${f}`),
+])
 
 export class DesignSystemManager {
   private config: DesignSystemConfig | null = null
@@ -101,8 +115,16 @@ export const config = ${JSON.stringify(this.config, null, 2)} as const
       throw new Error('Config not loaded. Call load() first.')
     }
 
+    if (!VALID_TOKEN_PATHS.has(path)) {
+      return {
+        success: false,
+        modified: [],
+        config: this.config,
+        message: `Invalid token path "${path}". Valid color paths: colors.light.{primary,secondary,...}, colors.dark.{...}. Valid spacing: spacing.{xs,sm,md,lg,xl,2xl,3xl}. Valid radius: radius.{none,sm,md,lg,xl,full}.`,
+      }
+    }
+
     try {
-      // Update token in config
       const pathParts = path.split('.')
       let current: any = this.config.tokens
 
@@ -160,12 +182,21 @@ export const config = ${JSON.stringify(this.config, null, 2)} as const
             : undefined,
       }
     } catch (error) {
+      if (error instanceof ZodError) {
+        const issues = error.issues.map(i => `"${i.path.join('.')}" — ${i.message}`).join('; ')
+        return {
+          success: false,
+          modified: [],
+          config: this.config,
+          message: `Failed to update token "${path}": ${issues}`,
+        }
+      }
       if (error instanceof Error) {
         return {
           success: false,
           modified: [],
           config: this.config,
-          message: `Failed to update token: ${error.message}`,
+          message: `Failed to update token "${path}": ${error.message}`,
         }
       }
       throw error

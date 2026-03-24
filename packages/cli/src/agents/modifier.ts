@@ -219,6 +219,8 @@ For editing an existing shared component use type "modify-layout-block" with tar
   const visualDepth = VISUAL_DEPTH
   const contextualRules = selectContextualRules(message)
   const interactionPatterns = INTERACTION_PATTERNS
+  const light = config.tokens.colors.light
+  const dark = config.tokens.colors.dark
 
   return `You are a design-forward UI architect. Your goal is to create interfaces that are not just functional, but visually distinctive and memorable — while staying within shadcn/ui and Tailwind CSS.
 
@@ -236,6 +238,16 @@ Current Design System:
 - App Type: ${config.settings.appType}
 - Pages: ${config.pages.map(p => `${p.name} (${p.route})`).join(', ')}
 - Components: ${config.components.length} components
+
+Current color tokens (#RRGGBB hex):
+  Light theme:
+    Brand:   primary=${light.primary}, secondary=${light.secondary}, accent=${light.accent || 'none'}
+    Status:  success=${light.success}, warning=${light.warning}, error=${light.error}, info=${light.info}
+    Surface: background=${light.background}, foreground=${light.foreground}, muted=${light.muted}, border=${light.border}
+  Dark theme:
+    Brand:   primary=${dark.primary}, secondary=${dark.secondary}, accent=${dark.accent || 'none'}
+    Status:  success=${dark.success}, warning=${dark.warning}, error=${dark.error}, info=${dark.info}
+    Surface: background=${dark.background}, foreground=${dark.foreground}, muted=${dark.muted}, border=${dark.border}
 
 EXISTING ROUTES IN THIS PROJECT:
 ${config.pages.map(p => p.route).join(', ') || '(no pages yet)'}
@@ -268,7 +280,7 @@ Parse this into one or more ModificationRequest objects. Each request should be:
 5. For add-component with source "shadcn": include id, name, category, source: "shadcn", shadcnComponent, baseClassName (or omit for default), variants: [], sizes: [], usedInPages: [], createdAt, updatedAt
 
 Available modification types:
-- "update-token": Change design token (e.g., colors.light.primary)
+- "update-token": Change design token. target: dot-path (e.g. "colors.light.primary"). changes: { "value": "#RRGGBB" }. Color values MUST be 6-digit hex with # prefix (e.g. #4F46E5 for indigo, #DC2626 for red). When changing a color, ALWAYS update BOTH light and dark themes for consistency.
 - "add-component": Add new component (check registry first for reuse!)
 - "modify-component": Update existing component
 - "modify-layout-block": Edit a shared layout component by ID or name (target: "CID-001" or "Header"). changes: { "instruction": "user instruction e.g. add a search button" }. Use when user says "in CID-001 add...", "update the header...", "change the footer...".

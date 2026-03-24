@@ -1,4 +1,5 @@
 import type { ModificationRequest, DesignSystemConfig, ComponentDefinition, PageDefinition } from '@getcoherent/core'
+import { colorToHex } from '@getcoherent/core'
 
 export const AUTH_FLOW_PATTERNS: Record<string, string[]> = {
   '/login': ['/signup', '/forgot-password'],
@@ -359,6 +360,19 @@ export function normalizeRequest(
       }
       if (sourcePage.id !== request.target) {
         return { ...request, target: sourcePage.id }
+      }
+      break
+    }
+
+    case 'update-token': {
+      if (changes?.value && typeof changes.value === 'string') {
+        const isColorPath = request.target.includes('colors.')
+        if (isColorPath) {
+          const hex = colorToHex(changes.value)
+          if (hex && hex !== changes.value) {
+            return { ...request, changes: { ...changes, value: hex } }
+          }
+        }
       }
       break
     }

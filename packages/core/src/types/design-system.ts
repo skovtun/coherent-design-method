@@ -23,21 +23,21 @@ import { z } from 'zod'
  */
 export const ColorTokenSchema = z.object({
   primary: z.string().regex(/^#[0-9A-F]{6}$/i, 'Must be valid hex color'),
-  secondary: z.string().regex(/^#[0-9A-F]{6}$/i),
+  secondary: z.string().regex(/^#[0-9A-F]{6}$/i, 'Must be valid hex color'),
   accent: z
     .string()
-    .regex(/^#[0-9A-F]{6}$/i)
+    .regex(/^#[0-9A-F]{6}$/i, 'Must be valid hex color')
     .optional(),
-  success: z.string().regex(/^#[0-9A-F]{6}$/i),
-  warning: z.string().regex(/^#[0-9A-F]{6}$/i),
-  error: z.string().regex(/^#[0-9A-F]{6}$/i),
-  info: z.string().regex(/^#[0-9A-F]{6}$/i),
+  success: z.string().regex(/^#[0-9A-F]{6}$/i, 'Must be valid hex color'),
+  warning: z.string().regex(/^#[0-9A-F]{6}$/i, 'Must be valid hex color'),
+  error: z.string().regex(/^#[0-9A-F]{6}$/i, 'Must be valid hex color'),
+  info: z.string().regex(/^#[0-9A-F]{6}$/i, 'Must be valid hex color'),
 
   // Neutral palette (generated from base or explicit)
-  background: z.string().regex(/^#[0-9A-F]{6}$/i),
-  foreground: z.string().regex(/^#[0-9A-F]{6}$/i),
-  muted: z.string().regex(/^#[0-9A-F]{6}$/i),
-  border: z.string().regex(/^#[0-9A-F]{6}$/i),
+  background: z.string().regex(/^#[0-9A-F]{6}$/i, 'Must be valid hex color'),
+  foreground: z.string().regex(/^#[0-9A-F]{6}$/i, 'Must be valid hex color'),
+  muted: z.string().regex(/^#[0-9A-F]{6}$/i, 'Must be valid hex color'),
+  border: z.string().regex(/^#[0-9A-F]{6}$/i, 'Must be valid hex color'),
 })
 
 export type ColorToken = z.infer<typeof ColorTokenSchema>

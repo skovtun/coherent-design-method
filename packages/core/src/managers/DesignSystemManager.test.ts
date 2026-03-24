@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { extractConfigObject } from './DesignSystemManager.js'
+import { extractConfigObject, DesignSystemManager } from './DesignSystemManager.js'
+import { EXAMPLE_MULTIPAGE_CONFIG } from '../types/design-system.js'
+import { writeFileSync, mkdirSync, rmSync } from 'fs'
+import { join } from 'path'
+import { tmpdir } from 'os'
 
 describe('extractConfigObject', () => {
   it('extracts simple JSON object', () => {
@@ -106,5 +110,54 @@ export const config = {
     expect(result.name).toBe('My App')
     expect(result.tokens.colors.light.primary).toBe('hsl(222.2 47.4% 11.2%)')
     expect(result.components).toEqual([])
+  })
+})
+
+function createTestDSM(): { dsm: DesignSystemManager; cleanup: () => void } {
+  const dir = join(tmpdir(), `dsm-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  mkdirSync(dir, { recursive: true })
+  const configPath = join(dir, 'design-system.config.ts')
+  writeFileSync(configPath, `export const config = ${JSON.stringify(EXAMPLE_MULTIPAGE_CONFIG)} as const`)
+  const dsm = new DesignSystemManager(configPath)
+  return { dsm, cleanup: () => rmSync(dir, { recursive: true, force: true }) }
+}
+
+describe('DesignSystemManager.updateToken — path validation', () => {
+  it('rejects unknown color fields', async () => {
+    const { dsm, cleanup } = createTestDSM()
+    await dsm.load()
+    const result = await dsm.updateToken('colors.light.indigo', '#4F46E5')
+    expect(result.success).toBe(false)
+    expect(result.message).toContain('Invalid token path')
+    cleanup()
+  })
+
+  it('allows valid color paths', async () => {
+    const { dsm, cleanup } = createTestDSM()
+    await dsm.load()
+    const result = await dsm.updateToken('colors.light.primary', '#4F46E5')
+    expect(result.success).toBe(true)
+    cleanup()
+  })
+
+  it('allows valid spacing paths', async () => {
+    const { dsm, cleanup } = createTestDSM()
+    await dsm.load()
+    const result = await dsm.updateToken('spacing.md', '1.5rem')
+    expect(result.success).toBe(true)
+    cleanup()
+  })
+})
+
+describe('DesignSystemManager.updateToken — error formatting', () => {
+  it('shows human-readable error for invalid hex', async () => {
+    const { dsm, cleanup } = createTestDSM()
+    await dsm.load()
+    const result = await dsm.updateToken('colors.light.primary', 'not-hex')
+    expect(result.success).toBe(false)
+    expect(result.message).not.toContain('"validation"')
+    expect(result.message).not.toContain('"code"')
+    expect(result.message).toContain('Must be valid hex color')
+    cleanup()
   })
 })

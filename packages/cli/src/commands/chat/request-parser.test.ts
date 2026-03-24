@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { inferRelatedPages, detectExplicitRootPage, isAppOnlyRequest } from './request-parser.js'
+import { inferRelatedPages, detectExplicitRootPage, isAppOnlyRequest, normalizeRequest } from './request-parser.js'
+import type { DesignSystemConfig, ModificationRequest } from '@getcoherent/core'
 
 describe('inferRelatedPages', () => {
   it('infers /reset-password transitively from /login', () => {
@@ -97,5 +98,65 @@ describe('isAppOnlyRequest', () => {
 
   it('returns false for empty array', () => {
     expect(isAppOnlyRequest([])).toBe(false)
+  })
+})
+
+const MINIMAL_CONFIG = {
+  name: 'Test',
+  pages: [],
+  components: [],
+  tokens: { colors: { light: {}, dark: {} } },
+  settings: { appType: 'saas' },
+} as unknown as DesignSystemConfig
+
+describe('normalizeRequest — update-token color auto-conversion', () => {
+  it('converts CSS color name to hex', () => {
+    const req: ModificationRequest = {
+      type: 'update-token',
+      target: 'colors.light.primary',
+      changes: { value: 'indigo' },
+    }
+    const result = normalizeRequest(req, MINIMAL_CONFIG) as ModificationRequest
+    expect(result.changes.value).toBe('#4B0082')
+  })
+
+  it('converts Tailwind color name to hex', () => {
+    const req: ModificationRequest = {
+      type: 'update-token',
+      target: 'colors.dark.primary',
+      changes: { value: 'indigo-500' },
+    }
+    const result = normalizeRequest(req, MINIMAL_CONFIG) as ModificationRequest
+    expect(result.changes.value).toBe('#6366F1')
+  })
+
+  it('passes through valid hex unchanged', () => {
+    const req: ModificationRequest = {
+      type: 'update-token',
+      target: 'colors.light.primary',
+      changes: { value: '#4F46E5' },
+    }
+    const result = normalizeRequest(req, MINIMAL_CONFIG) as ModificationRequest
+    expect(result.changes.value).toBe('#4F46E5')
+  })
+
+  it('does not convert non-color token paths', () => {
+    const req: ModificationRequest = {
+      type: 'update-token',
+      target: 'spacing.md',
+      changes: { value: '1.5rem' },
+    }
+    const result = normalizeRequest(req, MINIMAL_CONFIG) as ModificationRequest
+    expect(result.changes.value).toBe('1.5rem')
+  })
+
+  it('leaves unrecognized values untouched for color paths', () => {
+    const req: ModificationRequest = {
+      type: 'update-token',
+      target: 'colors.light.primary',
+      changes: { value: 'some-random-string' },
+    }
+    const result = normalizeRequest(req, MINIMAL_CONFIG) as ModificationRequest
+    expect(result.changes.value).toBe('some-random-string')
   })
 })
