@@ -16,11 +16,11 @@
 
 **Files:**
 - Modify: `packages/cli/src/utils/strings.ts`
-- Modify: `packages/cli/src/utils/strings.test.ts`
+- Create: `packages/cli/src/utils/strings.test.ts` (if not exists, else Modify)
 
 - [ ] **Step 1: Write failing tests**
 
-In `packages/cli/src/utils/strings.test.ts`, add:
+Create or update `packages/cli/src/utils/strings.test.ts`:
 
 ```ts
 import { toTitleCase } from './strings.js'
@@ -143,7 +143,7 @@ In `packages/cli/src/commands/init.ts`:
 - Before calling `createMinimalConfig`, derive name:
 
 ```ts
-let appName: string
+let appName: string | undefined
 if (name) {
   appName = toTitleCase(name)
 } else {
@@ -156,9 +156,11 @@ if (name) {
       }
     }
   } catch { /* ignore */ }
-  if (!appName!) appName = toTitleCase(basename(projectPath))
+  if (!appName) appName = toTitleCase(basename(projectPath))
 }
 ```
+
+Note: verify the actual variable name for project directory in `init.ts` — it may be `projectPath`, `targetDir`, or similar. Use whichever is correct.
 
 - Pass `appName` to `createMinimalConfig(appName)`
 
@@ -242,11 +244,20 @@ git commit -m "fix: skip no-op token updates when value unchanged"
 In `packages/cli/src/utils/quality-validator.test.ts`, add:
 
 ```ts
+// Note: use the correct API — validatePageQuality (sync, returns QualityIssue[])
+// Issues use `.type` not `.rule`
+import { validatePageQuality, autoFixCode } from './quality-validator.js'
+
 describe('RAW_COLOR_RE shadow detection', () => {
-  it('detects shadow-indigo-500', async () => {
+  it('detects shadow-indigo-500', () => {
     const code = `export default function Page() { return <div className="shadow-indigo-500">x</div> }`
-    const issues = await validateCode(code)
-    expect(issues.some(i => i.rule === 'RAW_COLOR')).toBe(true)
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'RAW_COLOR')).toBe(true)
+  })
+  it('detects shadow-blue-600/25', () => {
+    const code = `export default function Page() { return <div className="shadow-blue-600/25">x</div> }`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'RAW_COLOR')).toBe(true)
   })
 })
 
@@ -407,19 +418,26 @@ In `packages/cli/src/utils/fix-globals-css.ts`:
 
 **v4 path** (after line 62, `writeFileSync(globalsPath, v4Css, 'utf-8')`):
 
+The `__html` value contains `{` and `}` characters (CSS rules), so simple `[^}]*` won't work. Use a strategy that finds the `<style` tag and removes everything up to its closing `/>`:
+
 ```ts
-// Remove stale v3 inline style from layout.tsx if migrated to v4
 if (existsSync(layoutPath)) {
   let layoutContent = readFileSync(layoutPath, 'utf-8')
   if (layoutContent.includes('dangerouslySetInnerHTML')) {
-    layoutContent = layoutContent.replace(
-      /\s*<style\s+dangerouslySetInnerHTML=\{\{[^}]*\}\}\s*\/>\s*/g,
-      ''
-    )
-    layoutContent = layoutContent.replace(
-      /\s*<head>\s*<\/head>\s*/g,
-      ''
-    )
+    // Find <style dangerouslySetInnerHTML={{ __html: "..." }} /> and remove it
+    // The __html value is JSON.stringify'd so it's a double-quoted string
+    const styleStart = layoutContent.indexOf('<style dangerouslySetInnerHTML')
+    if (styleStart !== -1) {
+      const styleEnd = layoutContent.indexOf('/>', styleStart)
+      if (styleEnd !== -1) {
+        // Remove the <style .../> element plus surrounding whitespace
+        const before = layoutContent.slice(0, styleStart).replace(/\s+$/, '')
+        const after = layoutContent.slice(styleEnd + 2).replace(/^\s*\n/, '\n')
+        layoutContent = before + after
+      }
+    }
+    // Remove empty <head></head> if left behind
+    layoutContent = layoutContent.replace(/\s*<head>\s*<\/head>\s*/g, '\n')
     writeFileSync(layoutPath, layoutContent, 'utf-8')
   }
 }
@@ -429,14 +447,29 @@ return
 **v3 path** — replace lines 87-88:
 
 ```ts
-// Was: if (layoutContent.includes('dangerouslySetInnerHTML')) return
-// Now: update existing inline style with fresh values
 if (layoutContent.includes('dangerouslySetInnerHTML')) {
+  // Update existing inline style with fresh CSS variables
   const cssVars = buildCssVariables(config)
-  layoutContent = layoutContent.replace(
-    /dangerouslySetInnerHTML=\{\{\s*__html:\s*("[^"]*"|'[^']*'|`[^`]*`|[^}]+)\s*\}\}/,
-    `dangerouslySetInnerHTML={{ __html: ${JSON.stringify(cssVars)} }}`
-  )
+  // Find the __html: "..." part — value is always JSON.stringify'd (double-quoted)
+  const marker = '__html: '
+  const markerIdx = layoutContent.indexOf(marker)
+  if (markerIdx !== -1) {
+    const valueStart = markerIdx + marker.length
+    // The value is a JSON string — find its extent
+    const jsonStr = JSON.stringify(cssVars)
+    // Find end of current JSON string value (starts with " ends with matching ")
+    const oldQuoteStart = layoutContent.indexOf('"', valueStart)
+    if (oldQuoteStart !== -1) {
+      // Walk to find the closing quote (handle escaped quotes)
+      let i = oldQuoteStart + 1
+      while (i < layoutContent.length) {
+        if (layoutContent[i] === '\\') { i += 2; continue }
+        if (layoutContent[i] === '"') break
+        i++
+      }
+      layoutContent = layoutContent.slice(0, oldQuoteStart) + jsonStr + layoutContent.slice(i + 1)
+    }
+  }
   writeFileSync(layoutPath, layoutContent, 'utf-8')
   return
 }
@@ -546,9 +579,14 @@ if (existsSync(appLayoutPath) && dsm) {
     !appLayoutCode.includes('Sheet')
   
   const navType = dsm.getConfig().navigation?.type || 'header'
+  const isSidebar = navType === 'sidebar' || navType === 'both'
   if (isMinimal && navType !== 'none') {
-    const { buildAppLayoutCode } = await import('./chat/code-generator.js')
-    const newLayout = buildAppLayoutCode(navType, dsm.getConfig().name)
+    const { buildAppLayoutCode, buildGroupLayoutCode } = await import('./chat/code-generator.js')
+    // sidebar/both → buildAppLayoutCode (includes SidebarProvider etc.)
+    // header → buildGroupLayoutCode (includes Header/Footer)
+    const newLayout = isSidebar
+      ? buildAppLayoutCode(navType, dsm.getConfig().name)
+      : buildGroupLayoutCode('header', dsm.getConfig().pages?.map((p: any) => p.name) || [], dsm.getConfig().name)
     if (!dryRun) {
       const layoutResult = safeWrite(appLayoutPath, newLayout, projectRoot, backups)
       if (layoutResult.ok) {
