@@ -1080,7 +1080,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarTrigger,
 } from '@/components/ui/sidebar'
 
 export function AppSidebar() {
@@ -1091,11 +1090,10 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader>
-        <div className="flex items-center justify-between px-2 py-1">
+        <div className="flex items-center px-2 py-1">
           <Link href="/" className="text-sm font-semibold text-foreground truncate">
             ${appName}
           </Link>
-          <SidebarTrigger />
         </div>
       </SidebarHeader>
       <SidebarContent>

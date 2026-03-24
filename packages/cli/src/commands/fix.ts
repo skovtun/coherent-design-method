@@ -298,6 +298,32 @@ export async function fixCommand(opts: FixOptions = {}) {
           console.log(chalk.green('  ✔ Added Header/Footer to (public) layout'))
         }
 
+        const appLayoutPath = resolve(projectRoot, 'app', '(app)', 'layout.tsx')
+        if (existsSync(appLayoutPath) && dsm) {
+          let appLayoutCode = readFileSync(appLayoutPath, 'utf-8')
+          const configName = dsm.getConfig().name
+          if (configName && configName !== 'My App' && appLayoutCode.includes('My App')) {
+            appLayoutCode = appLayoutCode.replace(/My App/g, configName)
+            writeFileSync(appLayoutPath, appLayoutCode, 'utf-8')
+            fixes.push(`Replaced "My App" with "${configName}" in (app)/layout.tsx`)
+            console.log(chalk.green(`  ✔ Replaced "My App" with "${configName}" in (app)/layout.tsx`))
+          }
+        }
+
+        const sidebarComponentPath = resolve(projectRoot, 'components', 'shared', 'sidebar.tsx')
+        if (existsSync(sidebarComponentPath)) {
+          let sidebarCode = readFileSync(sidebarComponentPath, 'utf-8')
+          if (sidebarCode.includes('SidebarTrigger')) {
+            sidebarCode = sidebarCode
+              .replace(/\s*SidebarTrigger,?\n?/g, '\n')
+              .replace(/\s*<SidebarTrigger\s*\/>\s*\n?/g, '\n')
+              .replace(/flex items-center justify-between/g, 'flex items-center')
+            writeFileSync(sidebarComponentPath, sidebarCode, 'utf-8')
+            fixes.push('Removed duplicate SidebarTrigger from sidebar component')
+            console.log(chalk.green('  ✔ Removed duplicate SidebarTrigger from sidebar component'))
+          }
+        }
+
         const rootPagePath = resolve(projectRoot, 'app', 'page.tsx')
         const publicPagePath = resolve(projectRoot, 'app', '(public)', 'page.tsx')
         if (existsSync(rootPagePath) && !existsSync(publicPagePath)) {
