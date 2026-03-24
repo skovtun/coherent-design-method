@@ -977,7 +977,7 @@ ${productColumn}
 ${companyColumn}
         </div>
         <div className="flex items-center justify-between border-t py-6 text-xs text-muted-foreground">
-          <p>{'\u00A9'} {new Date().getFullYear()} ${appName}. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} ${appName}. All rights reserved.</p>
           <div className="flex gap-4">
             <span>Privacy Policy</span>
             <span>Terms of Service</span>

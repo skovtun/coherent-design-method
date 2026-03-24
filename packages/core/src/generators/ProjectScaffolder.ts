@@ -1080,7 +1080,7 @@ export function Footer() {
           </div>
         </div>
         <div className="border-t py-6 text-center text-xs text-muted-foreground">
-          {'\\u00A9'} {new Date().getFullYear()} Coherent Design Method. All rights reserved.
+          © {new Date().getFullYear()} Coherent Design Method. All rights reserved.
         </div>
       </div>
     </footer>

@@ -336,7 +336,7 @@ export default function AppLayout({
           {children}
         </main>
         <footer className="border-t px-4 py-3 text-xs text-muted-foreground">
-          \\u00A9 ${year} ${name}
+          © ${year} ${name}
         </footer>
       </SidebarInset>
     </SidebarProvider>
