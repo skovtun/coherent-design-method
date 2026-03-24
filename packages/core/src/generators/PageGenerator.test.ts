@@ -24,7 +24,11 @@ const DARK = {
   border: '#27272a',
 }
 
-function makeConfig(navItems: Array<{ route: string; label: string }>, name = 'Test', navType?: string): DesignSystemConfig {
+function makeConfig(
+  navItems: Array<{ route: string; label: string }>,
+  name = 'Test',
+  navType?: string,
+): DesignSystemConfig {
   return {
     version: '1.0.0',
     name,
@@ -109,11 +113,7 @@ describe('PageGenerator', () => {
 
   describe('generateLayout body classes', () => {
     it('uses min-h-svh without flex-col when nav type is sidebar', async () => {
-      const config = makeConfig(
-        [{ route: '/dashboard', label: 'Dashboard' }],
-        'TestApp',
-        'sidebar',
-      )
+      const config = makeConfig([{ route: '/dashboard', label: 'Dashboard' }], 'TestApp', 'sidebar')
       const gen = new PageGenerator(config)
       const layout = await gen.generateLayout('centered', 'multi-page', { skipNav: true })
       expect(layout).toContain('min-h-svh')
@@ -121,11 +121,7 @@ describe('PageGenerator', () => {
     })
 
     it('uses min-h-screen with flex-col when nav type is header', async () => {
-      const config = makeConfig(
-        [{ route: '/dashboard', label: 'Dashboard' }],
-        'TestApp',
-        'header',
-      )
+      const config = makeConfig([{ route: '/dashboard', label: 'Dashboard' }], 'TestApp', 'header')
       const gen = new PageGenerator(config)
       const layout = await gen.generateLayout('centered', 'multi-page', { skipNav: true })
       expect(layout).toContain('min-h-screen')

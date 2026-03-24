@@ -24,16 +24,32 @@ describe('isUsedInLayout', () => {
   })
 
   it('finds component in route group layout', () => {
-    writeFileSync(join(tmpRoot, 'app', 'layout.tsx'), 'export default function Layout({ children }) { return children }', 'utf-8')
-    writeFileSync(join(tmpRoot, 'app', '(app)', 'layout.tsx'), `import { AppSidebar } from '@/components/shared/sidebar'`, 'utf-8')
+    writeFileSync(
+      join(tmpRoot, 'app', 'layout.tsx'),
+      'export default function Layout({ children }) { return children }',
+      'utf-8',
+    )
+    writeFileSync(
+      join(tmpRoot, 'app', '(app)', 'layout.tsx'),
+      `import { AppSidebar } from '@/components/shared/sidebar'`,
+      'utf-8',
+    )
     const result = isUsedInLayout(tmpRoot, 'AppSidebar')
     expect(result).toEqual(['app/(app)/layout.tsx'])
   })
 
   it('finds component in multiple layouts', () => {
     writeFileSync(join(tmpRoot, 'app', 'layout.tsx'), `import { ThemeProvider } from 'next-themes'`, 'utf-8')
-    writeFileSync(join(tmpRoot, 'app', '(public)', 'layout.tsx'), `import { Header } from '@/components/shared/header'\nimport { Footer } from '@/components/shared/footer'`, 'utf-8')
-    writeFileSync(join(tmpRoot, 'app', '(app)', 'layout.tsx'), `import { Header } from '@/components/shared/header'`, 'utf-8')
+    writeFileSync(
+      join(tmpRoot, 'app', '(public)', 'layout.tsx'),
+      `import { Header } from '@/components/shared/header'\nimport { Footer } from '@/components/shared/footer'`,
+      'utf-8',
+    )
+    writeFileSync(
+      join(tmpRoot, 'app', '(app)', 'layout.tsx'),
+      `import { Header } from '@/components/shared/header'`,
+      'utf-8',
+    )
     const result = isUsedInLayout(tmpRoot, 'Header')
     expect(result).toContain('app/(public)/layout.tsx')
     expect(result).toContain('app/(app)/layout.tsx')
@@ -41,7 +57,11 @@ describe('isUsedInLayout', () => {
   })
 
   it('returns empty array when component not in any layout', () => {
-    writeFileSync(join(tmpRoot, 'app', 'layout.tsx'), 'export default function L({ children }) { return children }', 'utf-8')
+    writeFileSync(
+      join(tmpRoot, 'app', 'layout.tsx'),
+      'export default function L({ children }) { return children }',
+      'utf-8',
+    )
     const result = isUsedInLayout(tmpRoot, 'NonExistent')
     expect(result).toEqual([])
   })

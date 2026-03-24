@@ -22,8 +22,9 @@ export function isValidTsx(code: string, projectRoot: string, ext: string = '.ts
       false,
       cachedTs.ScriptKind.TSX,
     )
-    const diagnostics = (sf as import('typescript').SourceFile & { parseDiagnostics?: import('typescript').Diagnostic[] })
-      .parseDiagnostics
+    const diagnostics = (
+      sf as import('typescript').SourceFile & { parseDiagnostics?: import('typescript').Diagnostic[] }
+    ).parseDiagnostics
     return !diagnostics || diagnostics.length === 0
   } catch {
     return true

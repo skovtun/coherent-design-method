@@ -418,11 +418,7 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
     ;[r1, g1, b1] = [c, 0, x]
   }
 
-  return [
-    Math.round((r1 + m) * 255),
-    Math.round((g1 + m) * 255),
-    Math.round((b1 + m) * 255),
-  ]
+  return [Math.round((r1 + m) * 255), Math.round((g1 + m) * 255), Math.round((b1 + m) * 255)]
 }
 
 function componentToHex(c: number): string {
@@ -459,27 +455,15 @@ export function colorToHex(value: string): string | null {
   const lower = trimmed.toLowerCase()
 
   // rgb() / rgba()
-  const rgbMatch = lower.match(
-    /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*[\d.]+\s*)?\)$/,
-  )
+  const rgbMatch = lower.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*[\d.]+\s*)?\)$/)
   if (rgbMatch) {
-    return rgbToHex(
-      parseInt(rgbMatch[1], 10),
-      parseInt(rgbMatch[2], 10),
-      parseInt(rgbMatch[3], 10),
-    )
+    return rgbToHex(parseInt(rgbMatch[1], 10), parseInt(rgbMatch[2], 10), parseInt(rgbMatch[3], 10))
   }
 
   // hsl() / hsla()
-  const hslMatch = lower.match(
-    /^hsla?\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%\s*(?:,\s*[\d.]+\s*)?\)$/,
-  )
+  const hslMatch = lower.match(/^hsla?\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%\s*(?:,\s*[\d.]+\s*)?\)$/)
   if (hslMatch) {
-    const [r, g, b] = hslToRgb(
-      parseFloat(hslMatch[1]),
-      parseFloat(hslMatch[2]) / 100,
-      parseFloat(hslMatch[3]) / 100,
-    )
+    const [r, g, b] = hslToRgb(parseFloat(hslMatch[1]), parseFloat(hslMatch[2]) / 100, parseFloat(hslMatch[3]) / 100)
     return rgbToHex(r, g, b)
   }
 

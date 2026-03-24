@@ -289,7 +289,7 @@ export async function fixCommand(opts: FixOptions = {}) {
               .replace(/import\s*\{[^}]*Header[^}]*\}[^;\n]*[;\n]?\s*/g, '')
               .replace(/import\s*\{[^}]*Footer[^}]*\}[^;\n]*[;\n]?\s*/g, '')
               .replace(/import\s+ShowWhenNotAuthRoute[^;\n]*[;\n]?\s*/g, '')
-              .replace(/<ShowWhenNotAuthRoute>[\s\S]*?<\/ShowWhenNotAuthRoute>/g, (match) => {
+              .replace(/<ShowWhenNotAuthRoute>[\s\S]*?<\/ShowWhenNotAuthRoute>/g, match => {
                 const inner = match.replace(/<\/?ShowWhenNotAuthRoute>/g, '').trim()
                 return inner
               })
@@ -351,7 +351,12 @@ export async function fixCommand(opts: FixOptions = {}) {
             }
             const { PageGenerator } = await import('@getcoherent/core')
             const gen = new PageGenerator(dsm.getConfig())
-            const sidebarResult2 = safeWrite(sidebarComponentPath2, gen.generateSharedSidebarCode(), projectRoot, backups)
+            const sidebarResult2 = safeWrite(
+              sidebarComponentPath2,
+              gen.generateSharedSidebarCode(),
+              projectRoot,
+              backups,
+            )
             if (sidebarResult2.ok) {
               fixes.push('Regenerated sidebar component')
               console.log(chalk.green('  ✔ Regenerated sidebar component'))
@@ -556,7 +561,9 @@ export async function fixCommand(opts: FixOptions = {}) {
   } catch (err) {
     const isNotFound = err instanceof Error && 'code' in err && (err as any).code === 'ENOENT'
     if (!isNotFound) {
-      console.log(chalk.yellow(`  ⚠ Component manifest check skipped: ${err instanceof Error ? err.message : 'unknown error'}`))
+      console.log(
+        chalk.yellow(`  ⚠ Component manifest check skipped: ${err instanceof Error ? err.message : 'unknown error'}`),
+      )
     }
   }
 

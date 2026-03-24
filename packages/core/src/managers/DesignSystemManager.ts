@@ -18,8 +18,17 @@ import { readFile } from 'fs/promises'
 import { atomicWriteFile } from '../utils/atomicWrite.js'
 
 const VALID_COLOR_FIELDS = [
-  'primary', 'secondary', 'accent', 'success', 'warning', 'error', 'info',
-  'background', 'foreground', 'muted', 'border',
+  'primary',
+  'secondary',
+  'accent',
+  'success',
+  'warning',
+  'error',
+  'info',
+  'background',
+  'foreground',
+  'muted',
+  'border',
 ]
 const VALID_SPACING_FIELDS = ['xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl']
 const VALID_RADIUS_FIELDS = ['none', 'sm', 'md', 'lg', 'xl', 'full']

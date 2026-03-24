@@ -466,8 +466,7 @@ export async function ensurePlanGroupLayouts(
     }
 
     const planHasSidebar = plan.groups.some(g => g.layout === 'sidebar' || g.layout === 'both')
-    const isPublicWithSidebar =
-      planHasSidebar && group.id === 'public' && (group.layout === 'header' || !group.layout)
+    const isPublicWithSidebar = planHasSidebar && group.id === 'public' && (group.layout === 'header' || !group.layout)
     const code = isPublicWithSidebar
       ? buildPublicLayoutCodeForSidebar()
       : buildGroupLayoutCode(group.layout, group.pages, config?.name)
