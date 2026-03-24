@@ -12,3 +12,18 @@ export function toPascalCase(str: string): string {
     .replace(/^(.)/, (_, c) => c.toUpperCase())
     .replace(/[^a-zA-Z0-9]/g, '')
 }
+
+export function toTitleCase(slug: string): string {
+  let s = slug.trim()
+  if (!s) return 'My App'
+  s = s.replace(/^@[^/]+\//, '')
+  if (!s) return 'My App'
+  const words = s
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+  if (words.length === 0) return 'My App'
+  return words
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ')
+}
