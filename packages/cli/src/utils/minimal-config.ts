@@ -8,7 +8,7 @@
 import type { DesignSystemConfig } from '@getcoherent/core'
 import { CLI_VERSION, FRAMEWORK_VERSIONS } from '@getcoherent/core'
 
-export function createMinimalConfig(): DesignSystemConfig {
+export function createMinimalConfig(appName: string = 'My App'): DesignSystemConfig {
   const now = new Date().toISOString()
 
   return {
@@ -20,7 +20,7 @@ export function createMinimalConfig(): DesignSystemConfig {
       react: FRAMEWORK_VERSIONS.react,
       tailwind: FRAMEWORK_VERSIONS.tailwindcss,
     },
-    name: 'My App',
+    name: appName,
     description: 'Built with Coherent Design Method',
 
     tokens: {
@@ -177,7 +177,7 @@ export function createMinimalConfig(): DesignSystemConfig {
         layout: 'centered',
         sections: [],
         title: 'Home',
-        description: 'Welcome to My App',
+        description: `Welcome to ${appName}`,
         requiresAuth: false,
         noIndex: false,
         createdAt: now,

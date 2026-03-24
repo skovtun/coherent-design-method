@@ -11,7 +11,7 @@ import chalk from 'chalk'
 import ora from 'ora'
 import prompts from 'prompts'
 import { existsSync, readFileSync, mkdirSync, rmSync, writeFileSync } from 'fs'
-import { join } from 'path'
+import { basename, join } from 'path'
 import { execSync } from 'child_process'
 import { warnIfVolatile } from '../utils/find-config.js'
 import { writeFile } from '../utils/files.js'
@@ -29,7 +29,7 @@ import { writeCursorRules } from '../utils/cursor-rules.js'
 import { isTailwindV4, generateV4GlobalsCss } from '../utils/tailwind-version.js'
 import { generateClaudeCodeFiles } from '../utils/claude-code.js'
 import { cwd } from 'process'
-import { toKebabCase } from '../utils/strings.js'
+import { toKebabCase, toTitleCase } from '../utils/strings.js'
 
 /** Whether current directory has a package.json with next (dependencies or devDependencies). */
 function hasNextInPackageJson(projectPath: string): boolean {
@@ -222,8 +222,26 @@ export async function initCommand(name?: string) {
     }
 
     // Step 3: Create minimal config
+    let appName: string | undefined
+    if (name) {
+      appName = toTitleCase(name)
+    } else {
+      try {
+        const pkgPath = join(projectPath, 'package.json')
+        if (existsSync(pkgPath)) {
+          const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'))
+          if (typeof pkg.name === 'string' && pkg.name) {
+            appName = toTitleCase(pkg.name)
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+      if (!appName) appName = toTitleCase(basename(projectPath))
+    }
+
     const spinner = ora('Creating design system...').start()
-    const config = createMinimalConfig()
+    const config = createMinimalConfig(appName)
     config.settings.autoScaffold = autoScaffoldValue
     const configContent = generateConfigFile(config)
     await writeFile('./design-system.config.ts', configContent)
