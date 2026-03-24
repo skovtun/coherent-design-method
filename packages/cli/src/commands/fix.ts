@@ -14,7 +14,7 @@
 
 import chalk from 'chalk'
 import { readdirSync, readFileSync, existsSync, writeFileSync, rmSync, mkdirSync } from 'fs'
-import { resolve, join, relative } from 'path'
+import { resolve, join, relative, basename } from 'path'
 import { findConfig, exitNotCoherent } from '../utils/find-config.js'
 import {
   removeOrphanedEntries,
@@ -217,6 +217,106 @@ export async function fixCommand(opts: FixOptions = {}) {
     }
   }
 
+  // ─── Step 3b: Ensure DSM loaded unconditionally ──────────────────
+  if (!dsm && existsSync(project.configPath)) {
+    dsm = new DesignSystemManager(project.configPath)
+    await dsm.load()
+  }
+
+  // ─── Step 3c: Replace "My App" placeholder ──────────────────
+  if (dsm && dsm.getConfig().name === 'My App') {
+    const { toTitleCase } = await import('../utils/strings.js')
+    let derivedName: string | null = null
+    try {
+      const pkgPath = resolve(projectRoot, 'package.json')
+      if (existsSync(pkgPath)) {
+        const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'))
+        if (typeof pkg.name === 'string' && pkg.name) {
+          derivedName = toTitleCase(pkg.name)
+        }
+      }
+    } catch { /* ignore */ }
+    if (!derivedName) derivedName = toTitleCase(basename(projectRoot))
+
+    if (derivedName !== 'My App') {
+      if (dryRun) {
+        fixes.push(`Would replace placeholder "My App" with "${derivedName}" in config`)
+        console.log(chalk.green(`  ✔ Would replace "My App" with "${derivedName}" in config`))
+      } else {
+        const cfg = dsm.getConfig()
+        dsm.updateConfig({ ...cfg, name: derivedName })
+        await dsm.save()
+        fixes.push(`Replaced placeholder "My App" with "${derivedName}" in config`)
+        console.log(chalk.green(`  ✔ Replaced "My App" with "${derivedName}" in config`))
+      }
+    }
+  }
+
+  // ─── Step 3d: Sync CSS variables ──────────────────
+  if (dsm && !dryRun) {
+    try {
+      const { fixGlobalsCss } = await import('../utils/fix-globals-css.js')
+      fixGlobalsCss(projectRoot, dsm.getConfig())
+      fixes.push('Synced CSS variables')
+      console.log(chalk.green('  ✔ Synced CSS variables'))
+    } catch (e) {
+      console.log(chalk.yellow(`  ⚠ CSS sync: ${e instanceof Error ? e.message : 'unknown error'}`))
+    }
+  } else if (dryRun && dsm) {
+    fixes.push('Would sync CSS variables')
+  }
+
+  // ─── Step 3e: Replace "My App" in (app)/layout.tsx and shared components ──
+  if (dsm) {
+    const configName = dsm.getConfig().name
+    if (configName && configName !== 'My App') {
+      const appLayoutPath = resolve(projectRoot, 'app', '(app)', 'layout.tsx')
+      if (existsSync(appLayoutPath)) {
+        let appLayoutCode = readFileSync(appLayoutPath, 'utf-8')
+        if (appLayoutCode.includes('My App')) {
+          appLayoutCode = appLayoutCode.replace(/My App/g, configName)
+          if (!dryRun) {
+            const appResult = safeWrite(appLayoutPath, appLayoutCode, projectRoot, backups)
+            if (appResult.ok) {
+              modifiedFiles.push(appLayoutPath)
+              fixes.push(`Replaced "My App" with "${configName}" in (app)/layout.tsx`)
+              console.log(chalk.green(`  ✔ Replaced "My App" with "${configName}" in (app)/layout.tsx`))
+            } else {
+              console.log(chalk.yellow('  ⚠ (app)/layout.tsx update rolled back (parse error)'))
+            }
+          } else {
+            fixes.push(`Would replace "My App" with "${configName}" in (app)/layout.tsx`)
+          }
+        }
+      }
+
+      const sharedDir = resolve(projectRoot, 'components', 'shared')
+      if (existsSync(sharedDir)) {
+        try {
+          for (const f of readdirSync(sharedDir).filter(n => n.endsWith('.tsx'))) {
+            const sharedPath = join(sharedDir, f)
+            const sharedCode = readFileSync(sharedPath, 'utf-8')
+            if (sharedCode.includes('My App')) {
+              const updated = sharedCode.replace(/My App/g, configName)
+              if (!dryRun) {
+                const sharedResult = safeWrite(sharedPath, updated, projectRoot, backups)
+                if (sharedResult.ok) {
+                  modifiedFiles.push(sharedPath)
+                  fixes.push(`Replaced "My App" with "${configName}" in components/shared/${f}`)
+                  console.log(chalk.green(`  ✔ Replaced "My App" with "${configName}" in components/shared/${f}`))
+                }
+              } else {
+                fixes.push(`Would replace "My App" with "${configName}" in components/shared/${f}`)
+              }
+            }
+          }
+        } catch {
+          /* shared dir read error */
+        }
+      }
+    }
+  }
+
   // ─── Step 4: Fix syntax in all page files ───────────────────────────
   const userTsxFiles = allTsxFiles.filter(f => !f.includes('/design-system/'))
   let syntaxFixed = 0
@@ -322,45 +422,6 @@ export async function fixCommand(opts: FixOptions = {}) {
           }
         }
 
-        const appLayoutPath = resolve(projectRoot, 'app', '(app)', 'layout.tsx')
-        if (existsSync(appLayoutPath) && dsm) {
-          let appLayoutCode = readFileSync(appLayoutPath, 'utf-8')
-          const configName = dsm.getConfig().name
-          if (configName && configName !== 'My App' && appLayoutCode.includes('My App')) {
-            appLayoutCode = appLayoutCode.replace(/My App/g, configName)
-            const appResult = safeWrite(appLayoutPath, appLayoutCode, projectRoot, backups)
-            if (appResult.ok) {
-              fixes.push(`Replaced "My App" with "${configName}" in (app)/layout.tsx`)
-              console.log(chalk.green(`  ✔ Replaced "My App" with "${configName}" in (app)/layout.tsx`))
-            } else {
-              console.log(chalk.yellow('  ⚠ (app)/layout.tsx update rolled back (parse error)'))
-            }
-          }
-        }
-
-        const sharedDir = resolve(projectRoot, 'components', 'shared')
-        if (existsSync(sharedDir) && dsm) {
-          const cfgName = dsm.getConfig().name
-          if (cfgName && cfgName !== 'My App') {
-            try {
-              for (const f of readdirSync(sharedDir).filter(n => n.endsWith('.tsx'))) {
-                const sharedPath = join(sharedDir, f)
-                const sharedCode = readFileSync(sharedPath, 'utf-8')
-                if (sharedCode.includes('My App')) {
-                  const updated = sharedCode.replace(/My App/g, cfgName)
-                  const sharedResult = safeWrite(sharedPath, updated, projectRoot, backups)
-                  if (sharedResult.ok) {
-                    fixes.push(`Replaced "My App" with "${cfgName}" in components/shared/${f}`)
-                    console.log(chalk.green(`  ✔ Replaced "My App" with "${cfgName}" in components/shared/${f}`))
-                  }
-                }
-              }
-            } catch {
-              /* shared dir read error */
-            }
-          }
-        }
-
         const sidebarComponentPath2 = resolve(projectRoot, 'components', 'shared', 'sidebar.tsx')
         if (existsSync(sidebarComponentPath2)) {
           const existingSidebarCode = readFileSync(sidebarComponentPath2, 'utf-8')
@@ -416,6 +477,38 @@ export async function fixCommand(opts: FixOptions = {}) {
     }
   } catch (err) {
     console.log(chalk.yellow(`  ⚠ Layout repair skipped: ${err instanceof Error ? err.message : 'unknown error'}`))
+  }
+
+  // ─── Step 4c: Repair minimal/broken (app) layout ──────────────────
+  const appLayoutRepairPath = resolve(projectRoot, 'app', '(app)', 'layout.tsx')
+  if (existsSync(appLayoutRepairPath) && dsm) {
+    const appLayoutCode = readFileSync(appLayoutRepairPath, 'utf-8')
+    const isMinimal = appLayoutCode.length < 500 &&
+      !appLayoutCode.includes('Header') &&
+      !appLayoutCode.includes('Footer') &&
+      !appLayoutCode.includes('Sidebar') &&
+      !appLayoutCode.includes('SidebarProvider') &&
+      !appLayoutCode.includes('SidebarTrigger') &&
+      !appLayoutCode.includes('Sheet')
+
+    const navType = dsm.getConfig().navigation?.type || 'header'
+    if (isMinimal && navType !== 'none') {
+      const { buildAppLayoutCode, buildGroupLayoutCode } = await import('./chat/code-generator.js')
+      const isSidebar = navType === 'sidebar' || navType === 'both'
+      const newLayout = isSidebar
+        ? buildAppLayoutCode(navType, dsm.getConfig().name)
+        : buildGroupLayoutCode('header', dsm.getConfig().pages?.map((p: any) => p.name) || [], dsm.getConfig().name)
+      if (!dryRun) {
+        const layoutResult = safeWrite(appLayoutRepairPath, newLayout, projectRoot, backups)
+        if (layoutResult.ok) {
+          modifiedFiles.push(appLayoutRepairPath)
+          fixes.push(`Regenerated minimal (app) layout with ${navType} navigation`)
+          console.log(chalk.green(`  ✔ Regenerated (app) layout with ${navType} navigation`))
+        }
+      } else {
+        fixes.push(`Would regenerate minimal (app) layout with ${navType} navigation`)
+      }
+    }
   }
 
   // ─── Step 5: Auto-fix quality issues ────────────────────────────────
