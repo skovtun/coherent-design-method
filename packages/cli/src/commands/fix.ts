@@ -14,7 +14,7 @@
 
 import chalk from 'chalk'
 import { readdirSync, readFileSync, existsSync, writeFileSync, rmSync, mkdirSync } from 'fs'
-import { resolve, join } from 'path'
+import { resolve, join, relative } from 'path'
 import { findConfig, exitNotCoherent } from '../utils/find-config.js'
 import {
   removeOrphanedEntries,
@@ -42,7 +42,8 @@ import {
   fixEscapedClosingQuotes,
   fixUnescapedLtInJsx,
 } from '../utils/self-heal.js'
-import { validatePageQuality, formatIssues, autoFixCode } from '../utils/quality-validator.js'
+import { validatePageQuality, formatIssues, autoFixCode, verifyIncrementalEdit } from '../utils/quality-validator.js'
+import { safeWrite } from './fix-validation.js'
 import { toKebabCase } from '../utils/strings.js'
 
 export interface FixOptions {
@@ -96,6 +97,8 @@ export async function fixCommand(opts: FixOptions = {}) {
   const projectRoot = project.root
   const fixes: string[] = []
   const remaining: string[] = []
+  const backups = new Map<string, string>()
+  const modifiedFiles: string[] = []
 
   if (dryRun) {
     console.log(chalk.cyan('\ncoherent fix --dry-run\n'))
@@ -223,8 +226,17 @@ export async function fixCommand(opts: FixOptions = {}) {
       fixEscapedClosingQuotes(sanitizeMetadataStrings(ensureUseClientIfNeeded(content))),
     )
     if (fixed !== content) {
-      if (!dryRun) writeFileSync(file, fixed, 'utf-8')
-      syntaxFixed++
+      if (!dryRun) {
+        const result = safeWrite(file, fixed, projectRoot, backups)
+        if (result.ok) {
+          modifiedFiles.push(file)
+          syntaxFixed++
+        } else {
+          console.log(chalk.yellow(`  ⚠ Syntax fix rolled back for ${relative(projectRoot, file)} (parse error)`))
+        }
+      } else {
+        syntaxFixed++
+      }
     }
   }
   if (syntaxFixed > 0) {
@@ -259,9 +271,13 @@ export async function fixCommand(opts: FixOptions = {}) {
         const generator = new PageGenerator(dsm.getConfig())
         const sidebarCode = generator.generateSharedSidebarCode()
         mkdirSync(resolve(projectRoot, 'components', 'shared'), { recursive: true })
-        writeFileSync(sidebarPath, sidebarCode, 'utf-8')
-        fixes.push('Generated AppSidebar component (components/shared/sidebar.tsx)')
-        console.log(chalk.green('  ✔ Generated AppSidebar component'))
+        const sidebarResult = safeWrite(sidebarPath, sidebarCode, projectRoot, backups)
+        if (sidebarResult.ok) {
+          fixes.push('Generated AppSidebar component (components/shared/sidebar.tsx)')
+          console.log(chalk.green('  ✔ Generated AppSidebar component'))
+        } else {
+          console.log(chalk.yellow('  ⚠ AppSidebar generation failed validation'))
+        }
       }
 
       if (hasSidebar && !dryRun) {
@@ -281,9 +297,13 @@ export async function fixCommand(opts: FixOptions = {}) {
               .replace(/\s*<Footer\s*\/>\s*/g, '\n')
             rootCode = rootCode.replace(/min-h-screen flex flex-col/g, 'min-h-svh')
             rootCode = rootCode.replace(/"flex-1 flex flex-col"/g, '"flex-1"')
-            writeFileSync(rootLayoutPath, rootCode, 'utf-8')
-            fixes.push('Stripped Header/Footer from root layout (sidebar mode)')
-            console.log(chalk.green('  ✔ Stripped Header/Footer from root layout (sidebar mode)'))
+            const rootResult = safeWrite(rootLayoutPath, rootCode, projectRoot, backups)
+            if (rootResult.ok) {
+              fixes.push('Stripped Header/Footer from root layout (sidebar mode)')
+              console.log(chalk.green('  ✔ Stripped Header/Footer from root layout (sidebar mode)'))
+            } else {
+              console.log(chalk.yellow('  ⚠ Root layout update rolled back (parse error)'))
+            }
           }
         }
 
@@ -293,9 +313,13 @@ export async function fixCommand(opts: FixOptions = {}) {
         if (needsPublicLayout) {
           const { buildPublicLayoutCodeForSidebar } = await import('./chat/code-generator.js')
           mkdirSync(resolve(projectRoot, 'app', '(public)'), { recursive: true })
-          writeFileSync(publicLayoutPath, buildPublicLayoutCodeForSidebar(), 'utf-8')
-          fixes.push('Added Header/Footer to (public) layout')
-          console.log(chalk.green('  ✔ Added Header/Footer to (public) layout'))
+          const publicResult = safeWrite(publicLayoutPath, buildPublicLayoutCodeForSidebar(), projectRoot, backups)
+          if (publicResult.ok) {
+            fixes.push('Added Header/Footer to (public) layout')
+            console.log(chalk.green('  ✔ Added Header/Footer to (public) layout'))
+          } else {
+            console.log(chalk.yellow('  ⚠ Public layout generation failed validation'))
+          }
         }
 
         const appLayoutPath = resolve(projectRoot, 'app', '(app)', 'layout.tsx')
@@ -304,25 +328,36 @@ export async function fixCommand(opts: FixOptions = {}) {
           const configName = dsm.getConfig().name
           if (configName && configName !== 'My App' && appLayoutCode.includes('My App')) {
             appLayoutCode = appLayoutCode.replace(/My App/g, configName)
-            writeFileSync(appLayoutPath, appLayoutCode, 'utf-8')
-            fixes.push(`Replaced "My App" with "${configName}" in (app)/layout.tsx`)
-            console.log(chalk.green(`  ✔ Replaced "My App" with "${configName}" in (app)/layout.tsx`))
+            const appResult = safeWrite(appLayoutPath, appLayoutCode, projectRoot, backups)
+            if (appResult.ok) {
+              fixes.push(`Replaced "My App" with "${configName}" in (app)/layout.tsx`)
+              console.log(chalk.green(`  ✔ Replaced "My App" with "${configName}" in (app)/layout.tsx`))
+            } else {
+              console.log(chalk.yellow('  ⚠ (app)/layout.tsx update rolled back (parse error)'))
+            }
           }
         }
 
         const sidebarComponentPath2 = resolve(projectRoot, 'components', 'shared', 'sidebar.tsx')
         if (existsSync(sidebarComponentPath2)) {
-          const sidebarCode = readFileSync(sidebarComponentPath2, 'utf-8')
-          if (sidebarCode.includes('SidebarTrigger')) {
+          const existingSidebarCode = readFileSync(sidebarComponentPath2, 'utf-8')
+          const sidebarConfigName = dsm?.getConfig().name ?? ''
+          const hasWrongName = existingSidebarCode.includes('My App') && sidebarConfigName !== 'My App'
+          const hasTrigger = existingSidebarCode.includes('SidebarTrigger')
+          if (hasWrongName || hasTrigger) {
             if (!dsm) {
               dsm = new DesignSystemManager(project.configPath)
               await dsm.load()
             }
             const { PageGenerator } = await import('@getcoherent/core')
             const gen = new PageGenerator(dsm.getConfig())
-            writeFileSync(sidebarComponentPath2, gen.generateSharedSidebarCode(), 'utf-8')
-            fixes.push('Regenerated sidebar component (removed duplicate SidebarTrigger)')
-            console.log(chalk.green('  ✔ Regenerated sidebar component (removed duplicate SidebarTrigger)'))
+            const sidebarResult2 = safeWrite(sidebarComponentPath2, gen.generateSharedSidebarCode(), projectRoot, backups)
+            if (sidebarResult2.ok) {
+              fixes.push('Regenerated sidebar component')
+              console.log(chalk.green('  ✔ Regenerated sidebar component'))
+            } else {
+              console.log(chalk.yellow('  ⚠ Sidebar regeneration failed validation — restored original'))
+            }
           }
         }
 
@@ -340,14 +375,18 @@ export async function fixCommand(opts: FixOptions = {}) {
         if (!existsSync(themeTogglePath)) {
           const { generateThemeToggleCode } = await import('./chat/code-generator.js')
           mkdirSync(resolve(projectRoot, 'components', 'shared'), { recursive: true })
-          writeFileSync(themeTogglePath, generateThemeToggleCode(), 'utf-8')
-          fixes.push('Generated ThemeToggle component (components/shared/theme-toggle.tsx)')
-          console.log(chalk.green('  ✔ Generated ThemeToggle component'))
+          const themeResult = safeWrite(themeTogglePath, generateThemeToggleCode(), projectRoot, backups)
+          if (themeResult.ok) {
+            fixes.push('Generated ThemeToggle component (components/shared/theme-toggle.tsx)')
+            console.log(chalk.green('  ✔ Generated ThemeToggle component'))
+          } else {
+            console.log(chalk.yellow('  ⚠ ThemeToggle generation failed validation'))
+          }
         }
       }
     }
-  } catch {
-    /* no plan or layout error — skip */
+  } catch (err) {
+    console.log(chalk.yellow(`  ⚠ Layout repair skipped: ${err instanceof Error ? err.message : 'unknown error'}`))
   }
 
   // ─── Step 5: Auto-fix quality issues ────────────────────────────────
@@ -358,9 +397,19 @@ export async function fixCommand(opts: FixOptions = {}) {
       const content = readFileSync(file, 'utf-8')
       const { code: autoFixed, fixes: fileFixes } = await autoFixCode(content)
       if (autoFixed !== content) {
-        if (!dryRun) writeFileSync(file, autoFixed, 'utf-8')
-        qualityFixCount++
-        qualityFixDetails.push(...fileFixes)
+        if (!dryRun) {
+          const qResult = safeWrite(file, autoFixed, projectRoot, backups)
+          if (qResult.ok) {
+            modifiedFiles.push(file)
+            qualityFixCount++
+            qualityFixDetails.push(...fileFixes)
+          } else {
+            console.log(chalk.yellow(`  ⚠ Quality fix rolled back for ${relative(projectRoot, file)} (parse error)`))
+          }
+        } else {
+          qualityFixCount++
+          qualityFixDetails.push(...fileFixes)
+        }
       }
     }
     if (qualityFixCount > 0) {
@@ -368,6 +417,19 @@ export async function fixCommand(opts: FixOptions = {}) {
       const verb = dryRun ? 'Would fix' : 'Fixed'
       fixes.push(`${verb} quality in ${qualityFixCount} file(s)`)
       console.log(chalk.green(`  ✔ ${verb} ${uniqueFixes.length} quality issue type(s): ${uniqueFixes.join(', ')}`))
+    }
+  }
+
+  // ─── Step 5b: Verify incremental edits ──────────────────────────────
+  for (const file of modifiedFiles) {
+    if (!backups.has(file)) continue
+    const before = backups.get(file)!
+    const after = readFileSync(file, 'utf-8')
+    const issues = verifyIncrementalEdit(before, after)
+    if (issues.length > 0) {
+      for (const issue of issues) {
+        remaining.push(`${relative(projectRoot, file)}: ${issue.message}`)
+      }
     }
   }
 
@@ -491,8 +553,11 @@ export async function fixCommand(opts: FixOptions = {}) {
         remaining.push(`${entry.id} (${entry.name}) — unused. Remove: coherent components shared remove ${entry.id}`)
       }
     }
-  } catch {
-    /* no manifest */
+  } catch (err) {
+    const isNotFound = err instanceof Error && 'code' in err && (err as any).code === 'ENOENT'
+    if (!isNotFound) {
+      console.log(chalk.yellow(`  ⚠ Component manifest check skipped: ${err instanceof Error ? err.message : 'unknown error'}`))
+    }
   }
 
   // ─── Output summary ────────────────────────────────────────────────
