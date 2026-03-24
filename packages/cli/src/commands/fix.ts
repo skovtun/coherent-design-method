@@ -338,6 +338,29 @@ export async function fixCommand(opts: FixOptions = {}) {
           }
         }
 
+        const sharedDir = resolve(projectRoot, 'components', 'shared')
+        if (existsSync(sharedDir) && dsm) {
+          const cfgName = dsm.getConfig().name
+          if (cfgName && cfgName !== 'My App') {
+            try {
+              for (const f of readdirSync(sharedDir).filter(n => n.endsWith('.tsx'))) {
+                const sharedPath = join(sharedDir, f)
+                const sharedCode = readFileSync(sharedPath, 'utf-8')
+                if (sharedCode.includes('My App')) {
+                  const updated = sharedCode.replace(/My App/g, cfgName)
+                  const sharedResult = safeWrite(sharedPath, updated, projectRoot, backups)
+                  if (sharedResult.ok) {
+                    fixes.push(`Replaced "My App" with "${cfgName}" in components/shared/${f}`)
+                    console.log(chalk.green(`  ✔ Replaced "My App" with "${cfgName}" in components/shared/${f}`))
+                  }
+                }
+              }
+            } catch {
+              /* shared dir read error */
+            }
+          }
+        }
+
         const sidebarComponentPath2 = resolve(projectRoot, 'components', 'shared', 'sidebar.tsx')
         if (existsSync(sidebarComponentPath2)) {
           const existingSidebarCode = readFileSync(sidebarComponentPath2, 'utf-8')
