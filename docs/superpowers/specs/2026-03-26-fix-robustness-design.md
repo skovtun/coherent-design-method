@@ -154,7 +154,7 @@ export function validateMockData(code: string): MockDataIssue[]
 **No image src validation** — removed from scope. Too many valid patterns (static files, Next.js Image imports, expressions) make false positives likely. Not worth the complexity.
 
 **Integration in fix.ts:**
-After quality auto-fix (Step 5), run `validateMockData` on `allValidationFiles`. For fixable issues, apply replacements via string substitution and `safeWrite`. For unfixable issues, add to `remaining`.
+Runs as Step 5b — after quality auto-fix (Step 5) and before the validation report (Step 6). Run `validateMockData` on `allValidationFiles`. For fixable issues, apply replacements via string substitution and `safeWrite`. For unfixable issues, add to `remaining`. Step 6 then reads the post-fix file content for its report.
 
 ### Change 4: TypeScript Compile Check (report-only, last step)
 
@@ -177,7 +177,8 @@ try {
   if (err instanceof Error && err.message === 'no tsconfig') {
     // skip silently — not a TS project
   } else {
-    const output = (err as any).stdout || ''
+    // tsc writes to stdout when invoked with 2>&1 redirect; also check stderr
+    const output = ((err as any).stdout || '') + ((err as any).stderr || '')
     const errorLines = output.split('\n').filter((l: string) => l.includes('error TS'))
     if (errorLines.length > 0) {
       for (const line of errorLines.slice(0, 10)) {
