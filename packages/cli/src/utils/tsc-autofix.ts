@@ -48,6 +48,10 @@ function maxLevenshtein(fieldName: string): number {
   return Math.max(1, Math.floor(fieldName.length * 0.4))
 }
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 const MISSING_PROP_RE = /Property '(\w+)' is missing in type '\{([^}]*)\}'/
 const UNION_RE = /Type 'string' is not assignable to type '((?:"[^"]+"\s*\|\s*)*"[^"]+")'/ 
 const MISSING_REQUIRED_RE = /Property '(\w+)' is missing in type .* but required/
@@ -104,7 +108,7 @@ export function fixFieldRename(
   const windowStart = Math.max(0, targetIdx - 5)
   const windowEnd = Math.min(lines.length, targetIdx + 6)
 
-  const fieldRe = new RegExp(`(\\b)${bestMatch}(\\s*:)`, 'g')
+  const fieldRe = new RegExp(`(\\b)${escapeRegExp(bestMatch)}(\\s*:)`, 'g')
   for (let i = windowStart; i < windowEnd; i++) {
     if (fieldRe.test(lines[i])) {
       lines[i] = lines[i].replace(fieldRe, `$1${expectedField}$2`)
@@ -129,8 +133,8 @@ export function fixUnionType(code: string, error: TscError): { code: string; fix
   if (!errorLine) return null
 
   for (const variant of variants) {
-    const caseInsensitiveRe = new RegExp(`['"]${variant}['"]`, 'i')
-    const exactRe = new RegExp(`['"]${variant}['"]`)
+    const caseInsensitiveRe = new RegExp(`['"]${escapeRegExp(variant)}['"]`, 'i')
+    const exactRe = new RegExp(`['"]${escapeRegExp(variant)}['"]`)
     if (caseInsensitiveRe.test(errorLine) && !exactRe.test(errorLine)) {
       lines[error.line - 1] = errorLine.replace(caseInsensitiveRe, `'${variant}'`)
       return { code: lines.join('\n'), fix: `union case: '${variant}'` }
@@ -201,39 +205,40 @@ export async function applyDeterministicFixes(
     }
 
     let changed = false
+    const fileRemaining: TscError[] = []
 
-    for (const err of errs) {
-      const renameResult = fixFieldRename(code, err, err.line)
+    for (const e of errs) {
+      const renameResult = fixFieldRename(code, e, e.line)
       if (renameResult) {
         code = renameResult.code
         changed = true
         continue
       }
-
-      const unionResult = fixUnionType(code, err)
+      const unionResult = fixUnionType(code, e)
       if (unionResult) {
         code = unionResult.code
         changed = true
         continue
       }
-
-      const handlerResult = fixMissingEventHandler(code, err)
+      const handlerResult = fixMissingEventHandler(code, e)
       if (handlerResult) {
         code = handlerResult.code
         changed = true
         continue
       }
-
-      remaining.push(err)
+      fileRemaining.push(e)
     }
 
     if (changed) {
       const { ok } = safeWrite(absPath, code, projectRoot, backups)
       if (ok) {
         fixed.push(file)
+        remaining.push(...fileRemaining)
       } else {
         remaining.push(...errs)
       }
+    } else {
+      remaining.push(...fileRemaining)
     }
   }
 
