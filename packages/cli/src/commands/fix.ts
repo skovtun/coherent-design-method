@@ -748,29 +748,75 @@ export async function fixCommand(opts: FixOptions = {}) {
     }
   }
 
-  // ─── Step 7: TypeScript compile check ──────────────────
+  // ─── Step 7: TypeScript compile check + auto-fix ─────────────
   try {
     const tsconfigPath = resolve(projectRoot, 'tsconfig.json')
     if (existsSync(tsconfigPath)) {
-      const { execSync } = await import('child_process')
-      execSync('npx tsc --noEmit 2>&1', {
-        cwd: projectRoot,
-        timeout: 30000,
-        encoding: 'utf-8',
-      })
-      fixes.push('TypeScript compilation clean')
-      console.log(chalk.green('  ✔ TypeScript compilation clean'))
+      const { runTscCheck, applyDeterministicFixes } = await import('../utils/tsc-autofix.js')
+      const { applyAiFixes } = await import('../utils/tsc-ai-fix.js')
+
+      const tscErrors = runTscCheck(projectRoot)
+
+      if (tscErrors.length === 0) {
+        fixes.push('TypeScript compilation clean')
+        console.log(chalk.green('  ✔ TypeScript compilation clean'))
+      } else {
+        const detResult = await applyDeterministicFixes(tscErrors, projectRoot, backups)
+        if (detResult.fixed.length > 0) {
+          fixes.push(`TypeScript: fixed ${detResult.fixed.length} file(s) deterministically`)
+          console.log(chalk.green(`  ✔ TypeScript: fixed ${detResult.fixed.length} file(s) deterministically`))
+        }
+
+        if (detResult.remaining.length > 0) {
+          let aiProvider
+          try {
+            const { createAIProvider } = await import('../utils/ai-provider.js')
+            aiProvider = await createAIProvider('auto')
+          } catch {
+            /* no API key — AI fixes will be skipped */
+          }
+
+          if (aiProvider?.editPageCode) {
+            console.log(chalk.dim(`  ⏳ Using AI to fix ${detResult.remaining.length} TypeScript error(s)...`))
+            const aiResult = await applyAiFixes(detResult.remaining, projectRoot, backups, aiProvider)
+            if (aiResult.fixed.length > 0) {
+              fixes.push(`TypeScript: fixed ${aiResult.fixed.length} file(s) via AI`)
+              console.log(chalk.green(`  ✔ TypeScript: fixed ${aiResult.fixed.length} file(s) via AI`))
+            }
+            if (aiResult.failed.length > 0) {
+              for (const e of aiResult.failed.slice(0, 10)) {
+                remaining.push(`${e.file}(${e.line}): [${e.code}] ${e.message.split('\n')[0]}`)
+              }
+              if (aiResult.failed.length > 10) {
+                remaining.push(`... and ${aiResult.failed.length - 10} more TypeScript errors`)
+              }
+              console.log(chalk.yellow(`  ⚠ TypeScript: ${aiResult.failed.length} error(s) remaining`))
+            }
+          } else {
+            for (const e of detResult.remaining.slice(0, 10)) {
+              remaining.push(`${e.file}(${e.line}): [${e.code}] ${e.message.split('\n')[0]}`)
+            }
+            if (detResult.remaining.length > 10) {
+              remaining.push(`... and ${detResult.remaining.length - 10} more TypeScript errors`)
+            }
+            console.log(
+              chalk.yellow(
+                `  ⚠ TypeScript: ${detResult.remaining.length} error(s) remaining. Configure API key for auto-fix.`,
+              ),
+            )
+          }
+        }
+
+        const finalErrors = runTscCheck(projectRoot)
+        if (finalErrors.length === 0) {
+          console.log(chalk.green('  ✔ TypeScript compilation now clean'))
+        }
+      }
     }
   } catch (err) {
-    const output = ((err as any).stdout || '') + ((err as any).stderr || '')
-    const errorLines = output.split('\n').filter((l: string) => l.includes('error TS'))
-    if (errorLines.length > 0) {
-      for (const line of errorLines.slice(0, 10)) {
-        remaining.push(line.trim())
-      }
-      if (errorLines.length > 10) remaining.push(`... and ${errorLines.length - 10} more TypeScript errors`)
-      console.log(chalk.yellow(`  ⚠ TypeScript: ${errorLines.length} error(s)`))
-    }
+    console.log(
+      chalk.yellow(`  ⚠ TypeScript check skipped: ${err instanceof Error ? err.message : 'unknown error'}`),
+    )
   }
 
   // ─── Output summary ────────────────────────────────────────────────
