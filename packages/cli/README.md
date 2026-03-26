@@ -26,9 +26,14 @@ coherent preview
 | Command | Description |
 |---------|-------------|
 | `coherent init` | Create project: config, app, design-system viewer, docs. Non-interactive (optional provider flag). |
-| `coherent chat "<request>"` | Parse NL, update config, regenerate pages/components/nav (e.g. add page, change tokens). |
+| `coherent chat "<request>"` | Generate or modify pages using natural language. Includes generation-time TypeScript validation. |
 | `coherent preview` | Start Next.js dev server. |
+| `coherent fix` | Auto-fix everything: TypeScript errors (deterministic + AI), missing components, CSS, raw colors, layouts. |
+| `coherent check` | Show all problems: page quality, component integrity, broken links. |
+| `coherent sync` | Sync Design System with code after manual edits. |
 | `coherent export` | Production build; optional Vercel/Netlify config. |
+| `coherent undo` | Restore project to state before the last `coherent chat`. |
+| `coherent update` | Apply platform updates to an existing project. |
 | `coherent status` | Print config summary (pages, components). |
 | `coherent components` | List registered components. |
 

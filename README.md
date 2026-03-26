@@ -178,16 +178,22 @@ coherent check     # verify everything is consistent
 # 1. Scaffold with CLI
 coherent chat "add e-commerce: products, cart, checkout"
 
-# 2. Polish in your editor
+# 2. Fix any generation issues
+coherent fix
+
+# 3. Preview
+coherent preview
+
+# 4. Polish in your editor
 #    - Customize ProductCard component
 #    - Add business logic
 #    - Fine-tune responsive styles
 
-# 3. Sync and commit
+# 5. Sync and commit
 coherent sync
 git commit -m "Product catalog complete"
 
-# 4. Continue building
+# 6. Continue building
 coherent chat "add admin panel with order management"
 ```
 
@@ -311,13 +317,17 @@ Reports:
 coherent fix
 ```
 
-Automatically fixes:
-- Raw colors → semantic tokens
-- `text-base` → `text-sm` (design system base)
-- Heavy shadows → `shadow-sm`
-- Missing component imports
-- Stale component manifest entries
-- Build cache issues
+A unified self-healing command that fixes most issues in one run:
+
+- **TypeScript errors** — two-pass auto-fix: deterministic fixers handle field name mismatches, union type casing, and missing event handlers; AI fallback fixes remaining errors when an API key is configured
+- **Missing components** — auto-installs shadcn/ui components referenced in code
+- **Raw colors** → semantic tokens (`bg-blue-500` → `bg-primary`)
+- **CSS variables** — syncs `globals.css` with design tokens
+- **Route group layouts** — verifies public/app/auth layout structure
+- **Build cache** — clears stale `.next` artifacts
+- **Component manifest** — removes stale entries, adds missing ones
+
+Run `coherent fix` after `coherent chat` to catch and repair any generation issues. Most TypeScript and quality problems are fixed automatically — no manual intervention needed.
 
 ### `coherent sync` (reverse sync)
 
@@ -408,7 +418,7 @@ Run the auto-fixer:
 coherent fix
 ```
 
-This resolves most issues (missing imports, syntax problems, component conflicts). If issues persist, check the [full troubleshooting guide](./TROUBLESHOOTING.md).
+This resolves most issues — TypeScript type errors, missing imports, component conflicts, and CSS problems. `coherent fix` uses deterministic fixers for common patterns and AI fallback for the rest. If issues persist, check the [full troubleshooting guide](./TROUBLESHOOTING.md).
 
 ### Pages look inconsistent
 

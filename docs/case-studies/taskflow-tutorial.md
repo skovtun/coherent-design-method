@@ -307,11 +307,18 @@ coherent check
 
 ## Step 14: Auto-fix issues
 
-Coherent can automatically fix many of the detected issues — replacing raw colors with semantic tokens, fixing missing imports, normalizing typography.
+`coherent fix` is a unified self-healing command. It handles everything from TypeScript errors to raw colors — in one run.
 
 ~~~
 coherent fix
 ~~~
+
+What it does:
+- **TypeScript auto-fix** — deterministic fixers handle field name mismatches (e.g., `time` → `timestamp`), union type casing (`'Active'` → `'active'`), and missing event handler props. When an API key is configured, AI fixes remaining errors automatically.
+- **Missing components** — auto-installs any referenced shadcn/ui components
+- **CSS sync** — adds missing design token variables to `globals.css`
+- **Raw colors** — replaces hardcoded Tailwind colors with semantic tokens
+- **Layout structure** — verifies route group layouts (public/app/auth)
 
 [Screenshot: coherent fix output showing fixes applied]
 
