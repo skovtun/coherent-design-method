@@ -642,11 +642,12 @@ export async function applyModification(
             const relPath = filePath.replace(projectRoot + '/', '').replace(projectRoot + '\\', '')
             const tscErrors = runTscCheck(projectRoot).filter(e => e.file === relPath)
             if (tscErrors.length > 0) {
-              const bestSnapshot = codeToWrite
+              let bestSnapshot = codeToWrite
               const detResult = await applyDeterministicFixes(tscErrors, projectRoot, tscBackups)
-              const bestErrorCount = Math.min(tscErrors.length, tscErrors.length - detResult.fixed.length)
+              const bestErrorCount = detResult.remaining.length
               if (detResult.fixed.length > 0) {
                 codeToWrite = await readFile(filePath)
+                bestSnapshot = codeToWrite
                 console.log(
                   chalk.green(`  ✔ Fixed ${tscErrors.length - detResult.remaining.length} TypeScript error(s)`),
                 )
