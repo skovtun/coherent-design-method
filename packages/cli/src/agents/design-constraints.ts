@@ -124,6 +124,15 @@ COMPONENT VARIANT RULES (CRITICAL):
 CONTENT (zero placeholders):
 - NEVER: "Lorem ipsum", "Card content", "Description here"
 - ALWAYS: Real, contextual content. Realistic metric names, values, dates.
+
+MOCK/SAMPLE DATA (for demo arrays, fake users, fake tasks, etc.):
+- Dates: ALWAYS ISO 8601 strings in data ("2024-06-15T10:30:00Z"). 
+  Display with date formatting: new Date(item.date).toLocaleDateString() or
+  Intl.RelativeTimeFormat, or date-fns if already imported.
+  BAD:  { createdAt: "2 hours ago" }
+  GOOD: { createdAt: "2024-06-15T10:30:00Z" }
+- Images: "/placeholder.svg?height=40&width=40" (Next.js placeholder). Never broken paths.
+- IDs: sequential numbers (1, 2, 3) or short slugs ("proj-1"). Never random UUIDs.
 `
 
 // ---------------------------------------------------------------------------
@@ -590,10 +599,16 @@ EMPTY STATES: See the Empty State reference pattern in DESIGN QUALITY — APP PA
 - Filtered empty: "No items match your filters." + reset filters button.
 
 DATA FORMATTING:
-- Dates: use relative for recent ("2 hours ago", "Yesterday"), absolute for older ("Jan 26, 2026"). Never ISO format in UI.
+- Dates in rendered output: use relative for recent ("2 hours ago"), absolute for older ("Jan 26, 2026"). Never show raw ISO in the UI.
+- Dates in source data (mock arrays, state): ALWAYS store as ISO 8601 strings. Compute display format at render time.
 - Numbers: use Intl.NumberFormat or toLocaleString(). 1,234 not 1234. Always include separator for 1000+.
 - Currency: $1,234.56 format. Symbol before number. Two decimal places for amounts.
 - Percentages: one decimal max. "+12.5%" with sign for changes.
+
+MOCK DATA IN COMPONENTS:
+- All date/time values in sample data arrays MUST be valid ISO 8601 strings.
+- Render with: new Date(item.date).toLocaleDateString(), Intl.RelativeTimeFormat, or date-fns if imported.
+- NEVER store display strings ("2 hours ago", "Yesterday") in data — always compute from ISO date.
 
 STATUS INDICATORS (dot + text):
 - Pattern: <div className="flex items-center gap-2"><div className="size-2 rounded-full bg-emerald-500" /><span className="text-sm">Active</span></div>

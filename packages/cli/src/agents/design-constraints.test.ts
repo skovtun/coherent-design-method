@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { getDesignQualityForType, inferPageTypeFromRoute, DESIGN_QUALITY_COMMON } from './design-constraints.js'
+import {
+  getDesignQualityForType,
+  inferPageTypeFromRoute,
+  DESIGN_QUALITY_COMMON,
+  CORE_CONSTRAINTS,
+  RULES_DATA_DISPLAY,
+} from './design-constraints.js'
 
 describe('getDesignQualityForType', () => {
   it('returns marketing constraints with generous spacing', () => {
@@ -146,5 +152,20 @@ describe('DESIGN_QUALITY_COMMON', () => {
   })
   it('does not contain app compact spacing', () => {
     expect(DESIGN_QUALITY_COMMON).not.toContain('gap-4 md:gap-6 between sections')
+  })
+})
+
+describe('design-constraints mock data rules', () => {
+  it('CORE_CONSTRAINTS includes mock data ISO rule', () => {
+    expect(CORE_CONSTRAINTS).toContain('ISO 8601')
+    expect(CORE_CONSTRAINTS).toContain('MOCK/SAMPLE DATA')
+  })
+  it('RULES_DATA_DISPLAY distinguishes rendered vs source dates', () => {
+    expect(RULES_DATA_DISPLAY).toContain('Dates in rendered output')
+    expect(RULES_DATA_DISPLAY).toContain('Dates in source data')
+  })
+  it('RULES_DATA_DISPLAY includes mock data section', () => {
+    expect(RULES_DATA_DISPLAY).toContain('MOCK DATA IN COMPONENTS')
+    expect(RULES_DATA_DISPLAY).toContain('NEVER store display strings')
   })
 })
