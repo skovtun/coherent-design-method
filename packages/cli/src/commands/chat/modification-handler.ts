@@ -635,6 +635,73 @@ export async function applyModification(
           }
           await writeFile(filePath, codeToWrite)
 
+          // ─── tsc validation ───────────────────────────────────
+          try {
+            const { runTscCheck, applyDeterministicFixes } = await import('../../utils/tsc-autofix.js')
+            const tscBackups = new Map<string, string>()
+            const relPath = filePath.replace(projectRoot + '/', '').replace(projectRoot + '\\', '')
+            const tscErrors = runTscCheck(projectRoot).filter(e => e.file === relPath)
+            if (tscErrors.length > 0) {
+              const bestSnapshot = codeToWrite
+              const detResult = await applyDeterministicFixes(tscErrors, projectRoot, tscBackups)
+              let bestErrorCount = Math.min(tscErrors.length, tscErrors.length - detResult.fixed.length)
+              if (detResult.fixed.length > 0) {
+                codeToWrite = await readFile(filePath)
+                console.log(
+                  chalk.green(`  ✔ Fixed ${tscErrors.length - detResult.remaining.length} TypeScript error(s)`),
+                )
+              }
+
+              if (detResult.remaining.length > 0 && aiProvider) {
+                try {
+                  const ai = await createAIProvider(aiProvider)
+                  if (ai.editPageCode) {
+                    const errorList = detResult.remaining
+                      .map(e => `Line ${e.line}: [${e.code}] ${e.message.split('\n')[0]}`)
+                      .join('\n')
+                    const tscFixed = await ai.editPageCode(
+                      codeToWrite,
+                      `Fix these TypeScript errors:\n${errorList}\n\nKeep all existing functionality intact.`,
+                      page.name || page.id || 'Page',
+                    )
+                    if (tscFixed && tscFixed.length > 100) {
+                      const { code: reFixed } = await autoFixCode(tscFixed, autoFixCtx)
+                      await writeFile(filePath, reFixed)
+
+                      const afterErrors = runTscCheck(projectRoot).filter(e => e.file === relPath)
+                      if (afterErrors.length > bestErrorCount) {
+                        await writeFile(filePath, bestSnapshot)
+                        codeToWrite = bestSnapshot
+                        console.log(
+                          chalk.yellow(`  ⚠ AI fix regressed TypeScript errors. Reverted to best version.`),
+                        )
+                      } else {
+                        codeToWrite = reFixed
+                        console.log(
+                          chalk.green(
+                            `  ✔ Fixed ${detResult.remaining.length - afterErrors.length} TypeScript error(s) via AI`,
+                          ),
+                        )
+                      }
+                    }
+                  }
+                } catch (tscAiErr) {
+                  console.log(
+                    chalk.dim(
+                      `  ⚠ AI tsc fix skipped: ${tscAiErr instanceof Error ? tscAiErr.message : 'unknown'}`,
+                    ),
+                  )
+                }
+              }
+            }
+          } catch (tscErr) {
+            console.log(
+              chalk.dim(
+                `  ⚠ TypeScript check skipped: ${tscErr instanceof Error ? tscErr.message : 'unknown'}`,
+              ),
+            )
+          }
+
           const pageIdx = dsm.getConfig().pages.findIndex(p => p.id === page.id)
           if (pageIdx !== -1) {
             const cfg = dsm.getConfig()
