@@ -235,7 +235,9 @@ export async function fixCommand(opts: FixOptions = {}) {
           derivedName = toTitleCase(pkg.name)
         }
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     if (!derivedName) derivedName = toTitleCase(basename(projectRoot))
 
     if (derivedName !== 'My App') {
@@ -340,7 +342,9 @@ export async function fixCommand(opts: FixOptions = {}) {
         }
       }
     } catch (err) {
-      remaining.push(`${relative(projectRoot, file)}: syntax fix error — ${err instanceof Error ? err.message : 'unknown'}`)
+      remaining.push(
+        `${relative(projectRoot, file)}: syntax fix error — ${err instanceof Error ? err.message : 'unknown'}`,
+      )
     }
   }
   if (syntaxFixed > 0) {
@@ -487,7 +491,8 @@ export async function fixCommand(opts: FixOptions = {}) {
   const appLayoutRepairPath = resolve(projectRoot, 'app', '(app)', 'layout.tsx')
   if (existsSync(appLayoutRepairPath) && dsm) {
     const appLayoutCode = readFileSync(appLayoutRepairPath, 'utf-8')
-    const isMinimal = appLayoutCode.length < 500 &&
+    const isMinimal =
+      appLayoutCode.length < 500 &&
       !appLayoutCode.includes('Header') &&
       !appLayoutCode.includes('Footer') &&
       !appLayoutCode.includes('Sidebar') &&
@@ -546,7 +551,9 @@ export async function fixCommand(opts: FixOptions = {}) {
           }
         }
       } catch (err) {
-        remaining.push(`${relative(projectRoot, file)}: quality fix error — ${err instanceof Error ? err.message : 'unknown'}`)
+        remaining.push(
+          `${relative(projectRoot, file)}: quality fix error — ${err instanceof Error ? err.message : 'unknown'}`,
+        )
       }
     }
     if (qualityFixCount > 0) {
@@ -578,7 +585,9 @@ export async function fixCommand(opts: FixOptions = {}) {
           }
         }
       } catch (fileErr) {
-        remaining.push(`${relative(projectRoot, file)}: mock data fix error — ${fileErr instanceof Error ? fileErr.message : 'unknown'}`)
+        remaining.push(
+          `${relative(projectRoot, file)}: mock data fix error — ${fileErr instanceof Error ? fileErr.message : 'unknown'}`,
+        )
       }
     }
     if (mockFixed > 0) {
@@ -641,7 +650,9 @@ export async function fixCommand(opts: FixOptions = {}) {
       const report = formatIssues(filteredIssues)
       fileIssues.push({ path: relativePath, report })
     } catch (err) {
-      remaining.push(`${relative(projectRoot, file)}: validation error — ${err instanceof Error ? err.message : 'unknown'}`)
+      remaining.push(
+        `${relative(projectRoot, file)}: validation error — ${err instanceof Error ? err.message : 'unknown'}`,
+      )
     }
   }
 

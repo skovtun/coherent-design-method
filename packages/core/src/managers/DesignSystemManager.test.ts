@@ -166,10 +166,7 @@ describe('DesignSystemManager.updateToken — no-op', () => {
   it('skips no-op when value unchanged', async () => {
     const { dsm, cleanup } = createTestDSM()
     await dsm.load()
-    const result = await dsm.updateToken(
-      'colors.light.primary',
-      dsm.getConfig().tokens.colors.light.primary,
-    )
+    const result = await dsm.updateToken('colors.light.primary', dsm.getConfig().tokens.colors.light.primary)
     expect(result.success).toBe(true)
     expect(result.modified).toEqual([])
     expect(result.message).toContain('already set')

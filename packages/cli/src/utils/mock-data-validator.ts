@@ -43,7 +43,8 @@ export function validateMockData(code: string): MockDataIssue[] {
     }
   }
 
-  const mockFieldRe = /(?:timestamp|date|createdAt|updatedAt|time|startDate|endDate|dueDate)\s*:\s*["']((?:\d+\s+(?:hours?|minutes?|days?|weeks?|months?|years?)\s+ago)|yesterday|today|last\s+\w+|just\s+now|recently)["']/gi
+  const mockFieldRe =
+    /(?:timestamp|date|createdAt|updatedAt|time|startDate|endDate|dueDate)\s*:\s*["']((?:\d+\s+(?:hours?|minutes?|days?|weeks?|months?|years?)\s+ago)|yesterday|today|last\s+\w+|just\s+now|recently)["']/gi
   while ((m = mockFieldRe.exec(code)) !== null) {
     const dateStr = m[1]
     const { line, column } = getLineAndCol(code, m.index)
@@ -67,7 +68,9 @@ export function validateMockData(code: string): MockDataIssue[] {
 }
 
 export function applyMockDataFixes(code: string, issues: MockDataIssue[]): string {
-  const fixable = issues.filter(i => i.fixable && i.replacement).sort((a, b) => b.replacement!.start - a.replacement!.start)
+  const fixable = issues
+    .filter(i => i.fixable && i.replacement)
+    .sort((a, b) => b.replacement!.start - a.replacement!.start)
   let result = code
   for (const issue of fixable) {
     const r = issue.replacement!

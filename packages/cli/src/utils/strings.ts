@@ -23,7 +23,5 @@ export function toTitleCase(slug: string): string {
     .split(/[-_\s]+/)
     .filter(Boolean)
   if (words.length === 0) return 'My App'
-  return words
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(' ')
+  return words.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
 }

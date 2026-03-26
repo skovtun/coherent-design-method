@@ -9,7 +9,7 @@ describe('validateMockData', () => {
     expect(issues[0].fixable).toBe(true)
   })
 
-  it('detects new Date(\'yesterday\')', () => {
+  it("detects new Date('yesterday')", () => {
     const code = `const x = new Date('yesterday')`
     const issues = validateMockData(code)
     expect(issues.length).toBeGreaterThan(0)
@@ -62,7 +62,8 @@ describe('validateMockData', () => {
     const code = `const x = new Date("2 hours ago")`
     const issues = validateMockData(code)
     expect(issues[0].replacement).toBeDefined()
-    const replaced = code.slice(0, issues[0].replacement!.start) + issues[0].replacement!.text + code.slice(issues[0].replacement!.end)
+    const replaced =
+      code.slice(0, issues[0].replacement!.start) + issues[0].replacement!.text + code.slice(issues[0].replacement!.end)
     expect(replaced).toMatch(/new Date\("\d{4}-\d{2}-\d{2}T/)
   })
 })
