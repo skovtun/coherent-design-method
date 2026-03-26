@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mkdtempSync, writeFileSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
@@ -26,11 +26,18 @@ describe('applyAiFixes', () => {
   })
 
   it('respects max 5 unique files limit', async () => {
-    const errors = Array.from({ length: 8 }, (_, i) => makeError(`app/page${i}.tsx`))
-    const editPageCode = vi.fn()
+    const dir = mkdtempSync(join(tmpdir(), 'tsc-ai-'))
+    mkdirSync(join(dir, 'app'), { recursive: true })
+    writeFileSync(join(dir, 'package.json'), '{}')
+    const errors = Array.from({ length: 8 }, (_, i) => {
+      const file = `app/page${i}.tsx`
+      writeFileSync(join(dir, file), `export default function P${i}() { return <div /> }`)
+      return makeError(file)
+    })
+    const editPageCode = vi.fn().mockResolvedValue(null)
     const provider = { editPageCode } as any
-    const result = await applyAiFixes(errors, '/tmp/nonexistent', new Map(), provider)
-    expect(editPageCode.mock.calls.length).toBeLessThanOrEqual(5)
+    const result = await applyAiFixes(errors, dir, new Map(), provider)
+    expect(editPageCode.mock.calls.length).toBe(5)
     expect(result.failed.length).toBeGreaterThanOrEqual(3)
   })
 
