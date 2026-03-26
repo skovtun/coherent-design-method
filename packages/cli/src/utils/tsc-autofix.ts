@@ -101,8 +101,8 @@ export function fixFieldRename(
   const targetLine = errorLine ?? error.line
   const lines = code.split('\n')
   const targetIdx = targetLine - 1
-  const windowStart = Math.max(0, targetIdx)
-  const windowEnd = Math.min(lines.length, targetIdx + 1)
+  const windowStart = Math.max(0, targetIdx - 5)
+  const windowEnd = Math.min(lines.length, targetIdx + 6)
 
   const fieldRe = new RegExp(`(\\b)${bestMatch}(\\s*:)`, 'g')
   for (let i = windowStart; i < windowEnd; i++) {

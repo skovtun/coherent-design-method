@@ -42,20 +42,22 @@ describe('fixFieldRename', () => {
   })
 
   it('only renames field on lines near the error line, not globally', () => {
-    const code = [
-      `const a = { time: 'header' }`,
-      `const b = [{ time: '2024-01-01' }]`,
-      `const c = { time: 'footer' }`,
-    ].join('\n')
+    const lines: string[] = []
+    lines.push(`const a = { time: 'header' }`)      // line 1: should NOT be renamed (far from error)
+    for (let i = 0; i < 10; i++) lines.push(`// padding ${i}`)  // lines 2-11
+    lines.push(`const b = [{ time: '2024-01-01' }]`)  // line 12: error line, SHOULD be renamed
+    for (let i = 0; i < 10; i++) lines.push(`// padding ${i}`)  // lines 13-22
+    lines.push(`const c = { time: 'footer' }`)        // line 23: should NOT be renamed (far from error)
+    const code = lines.join('\n')
     const result = fixFieldRename(code, err({
-      line: 2,
+      line: 12,
       message: `Property 'timestamp' is missing in type '{ time: string; }'.`,
-    }), 2)
+    }), 12)
     expect(result).not.toBeNull()
-    const lines = result!.code.split('\n')
-    expect(lines[0]).toContain('time:')
-    expect(lines[1]).toContain('timestamp:')
-    expect(lines[2]).toContain('time:')
+    const resultLines = result!.code.split('\n')
+    expect(resultLines[0]).toContain('time:')       // line 1 unchanged
+    expect(resultLines[11]).toContain('timestamp:')  // line 12 fixed
+    expect(resultLines[22]).toContain('time:')       // line 23 unchanged
   })
 
   it('reads field names from source when not in error message', () => {
