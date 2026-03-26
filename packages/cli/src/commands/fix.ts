@@ -753,7 +753,7 @@ export async function fixCommand(opts: FixOptions = {}) {
     const tsconfigPath = resolve(projectRoot, 'tsconfig.json')
     if (existsSync(tsconfigPath)) {
       const { execSync } = await import('child_process')
-      execSync('npx tsc --noEmit --pretty 2>&1', {
+      execSync('npx tsc --noEmit 2>&1', {
         cwd: projectRoot,
         timeout: 30000,
         encoding: 'utf-8',
