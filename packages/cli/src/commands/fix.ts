@@ -13,7 +13,7 @@
  */
 
 import chalk from 'chalk'
-import { readdirSync, readFileSync, existsSync, writeFileSync, rmSync, mkdirSync } from 'fs'
+import { readdirSync, readFileSync, existsSync, rmSync, mkdirSync } from 'fs'
 import { resolve, join, relative, basename } from 'path'
 import { findConfig, exitNotCoherent } from '../utils/find-config.js'
 import {
