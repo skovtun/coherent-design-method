@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'fs'
+import { mkdtempSync, writeFileSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { applyAiFixes } from './tsc-ai-fix.js'
@@ -35,18 +35,23 @@ describe('applyAiFixes', () => {
   })
 
   it('includes related interface files in prompt', async () => {
-    const tmp = mkdtempSync(join(tmpdir(), 'tsc-ai-fix-'))
-    mkdirSync(join(tmp, 'app'), { recursive: true })
-    writeFileSync(join(tmp, 'app', 'page.tsx'), 'export default function Page() { return <div /> }')
+    const dir = mkdtempSync(join(tmpdir(), 'tsc-ai-'))
+    mkdirSync(join(dir, 'app'), { recursive: true })
+    mkdirSync(join(dir, 'components', 'shared'), { recursive: true })
+    writeFileSync(join(dir, 'package.json'), '{}')
+    writeFileSync(join(dir, 'app', 'page.tsx'), 'export default function Page() { return <div /> }')
+    writeFileSync(join(dir, 'components', 'shared', 'feed.tsx'), 'export interface ActivityFeedProps { timestamp: string }')
 
     const errors = [makeError('app/page.tsx', 'Missing prop')]
     errors[0].relatedFiles = ['components/shared/feed.tsx']
     const editPageCode = vi.fn().mockRejectedValue(new Error('test'))
     const provider = { editPageCode } as any
-    await applyAiFixes(errors, tmp, new Map(), provider)
-    expect(editPageCode).toHaveBeenCalled()
+    await applyAiFixes(errors, dir, new Map(), provider)
 
-    rmSync(tmp, { recursive: true, force: true })
+    expect(editPageCode).toHaveBeenCalled()
+    const instruction = editPageCode.mock.calls[0][1] as string
+    expect(instruction).toContain('components/shared/feed.tsx')
+    expect(instruction).toContain('ActivityFeedProps')
   })
 
   it('returns metrics with fixed and failed counts', async () => {
