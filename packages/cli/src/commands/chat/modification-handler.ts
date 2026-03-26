@@ -644,7 +644,7 @@ export async function applyModification(
             if (tscErrors.length > 0) {
               const bestSnapshot = codeToWrite
               const detResult = await applyDeterministicFixes(tscErrors, projectRoot, tscBackups)
-              let bestErrorCount = Math.min(tscErrors.length, tscErrors.length - detResult.fixed.length)
+              const bestErrorCount = Math.min(tscErrors.length, tscErrors.length - detResult.fixed.length)
               if (detResult.fixed.length > 0) {
                 codeToWrite = await readFile(filePath)
                 console.log(
@@ -672,9 +672,7 @@ export async function applyModification(
                       if (afterErrors.length > bestErrorCount) {
                         await writeFile(filePath, bestSnapshot)
                         codeToWrite = bestSnapshot
-                        console.log(
-                          chalk.yellow(`  ⚠ AI fix regressed TypeScript errors. Reverted to best version.`),
-                        )
+                        console.log(chalk.yellow(`  ⚠ AI fix regressed TypeScript errors. Reverted to best version.`))
                       } else {
                         codeToWrite = reFixed
                         console.log(
@@ -687,18 +685,14 @@ export async function applyModification(
                   }
                 } catch (tscAiErr) {
                   console.log(
-                    chalk.dim(
-                      `  ⚠ AI tsc fix skipped: ${tscAiErr instanceof Error ? tscAiErr.message : 'unknown'}`,
-                    ),
+                    chalk.dim(`  ⚠ AI tsc fix skipped: ${tscAiErr instanceof Error ? tscAiErr.message : 'unknown'}`),
                   )
                 }
               }
             }
           } catch (tscErr) {
             console.log(
-              chalk.dim(
-                `  ⚠ TypeScript check skipped: ${tscErr instanceof Error ? tscErr.message : 'unknown'}`,
-              ),
+              chalk.dim(`  ⚠ TypeScript check skipped: ${tscErr instanceof Error ? tscErr.message : 'unknown'}`),
             )
           }
 

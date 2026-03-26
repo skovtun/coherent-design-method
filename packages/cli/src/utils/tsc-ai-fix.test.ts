@@ -6,7 +6,12 @@ import { applyAiFixes } from './tsc-ai-fix.js'
 import type { TscError } from './tsc-error-parser.js'
 
 const makeError = (file: string, msg = 'some error'): TscError => ({
-  file, line: 1, col: 1, code: 'TS2322', message: msg, relatedFiles: [],
+  file,
+  line: 1,
+  col: 1,
+  code: 'TS2322',
+  message: msg,
+  relatedFiles: [],
 })
 
 describe('applyAiFixes', () => {
@@ -47,7 +52,10 @@ describe('applyAiFixes', () => {
     mkdirSync(join(dir, 'components', 'shared'), { recursive: true })
     writeFileSync(join(dir, 'package.json'), '{}')
     writeFileSync(join(dir, 'app', 'page.tsx'), 'export default function Page() { return <div /> }')
-    writeFileSync(join(dir, 'components', 'shared', 'feed.tsx'), 'export interface ActivityFeedProps { timestamp: string }')
+    writeFileSync(
+      join(dir, 'components', 'shared', 'feed.tsx'),
+      'export interface ActivityFeedProps { timestamp: string }',
+    )
 
     const errors = [makeError('app/page.tsx', 'Missing prop')]
     errors[0].relatedFiles = ['components/shared/feed.tsx']

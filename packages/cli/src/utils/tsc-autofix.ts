@@ -32,15 +32,14 @@ export function runTscCheck(projectRoot: string, timeout = 30000): TscError[] {
 }
 
 function levenshtein(a: string, b: string): number {
-  const m = a.length, n = b.length
+  const m = a.length,
+    n = b.length
   const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
     Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
   )
   for (let i = 1; i <= m; i++)
     for (let j = 1; j <= n; j++)
-      dp[i][j] = a[i - 1] === b[j - 1]
-        ? dp[i - 1][j - 1]
-        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1])
+      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1])
   return dp[m][n]
 }
 
@@ -53,7 +52,7 @@ function escapeRegExp(s: string): string {
 }
 
 const MISSING_PROP_RE = /Property '(\w+)' is missing in type '\{([^}]*)\}'/
-const UNION_RE = /Type 'string' is not assignable to type '((?:"[^"]+"\s*\|\s*)*"[^"]+")'/ 
+const UNION_RE = /Type 'string' is not assignable to type '((?:"[^"]+"\s*\|\s*)*"[^"]+")'/
 const MISSING_REQUIRED_RE = /Property '(\w+)' is missing in type .* but required/
 
 function extractFieldsFromCode(code: string, line: number): string[] {
@@ -160,10 +159,7 @@ export function fixMissingEventHandler(code: string, error: TscError): { code: s
   if (!closingMatch) return null
 
   const insertPos = errorLine.lastIndexOf(closingMatch[1])
-  lines[error.line - 1] =
-    errorLine.slice(0, insertPos) +
-    ` ${propName}={() => {}}` +
-    errorLine.slice(insertPos)
+  lines[error.line - 1] = errorLine.slice(0, insertPos) + ` ${propName}={() => {}}` + errorLine.slice(insertPos)
 
   return { code: lines.join('\n'), prop: propName }
 }

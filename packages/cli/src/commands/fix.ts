@@ -814,9 +814,7 @@ export async function fixCommand(opts: FixOptions = {}) {
       }
     }
   } catch (err) {
-    console.log(
-      chalk.yellow(`  ⚠ TypeScript check skipped: ${err instanceof Error ? err.message : 'unknown error'}`),
-    )
+    console.log(chalk.yellow(`  ⚠ TypeScript check skipped: ${err instanceof Error ? err.message : 'unknown error'}`))
   }
 
   // ─── Output summary ────────────────────────────────────────────────
