@@ -136,7 +136,7 @@ export async function fixCommand(opts: FixOptions = {}) {
 
   // ─── Step 3: Install missing shadcn components ──────────────────────
   const appDir = resolve(projectRoot, 'app')
-  const allTsxFiles = listTsxFiles(appDir)
+  let allTsxFiles = listTsxFiles(appDir)
   const componentsTsxFiles = listTsxFiles(resolve(projectRoot, 'components'))
 
   const allComponentIds = new Set<string>()
@@ -318,25 +318,29 @@ export async function fixCommand(opts: FixOptions = {}) {
   }
 
   // ─── Step 4: Fix syntax in all page files ───────────────────────────
-  const userTsxFiles = allTsxFiles.filter(f => !f.includes('/design-system/'))
+  let userTsxFiles = allTsxFiles.filter(f => !f.includes('/design-system/'))
   let syntaxFixed = 0
   for (const file of userTsxFiles) {
-    const content = readFileSync(file, 'utf-8')
-    const fixed = fixUnescapedLtInJsx(
-      fixEscapedClosingQuotes(sanitizeMetadataStrings(ensureUseClientIfNeeded(content))),
-    )
-    if (fixed !== content) {
-      if (!dryRun) {
-        const result = safeWrite(file, fixed, projectRoot, backups)
-        if (result.ok) {
-          modifiedFiles.push(file)
-          syntaxFixed++
+    try {
+      const content = readFileSync(file, 'utf-8')
+      const fixed = fixUnescapedLtInJsx(
+        fixEscapedClosingQuotes(sanitizeMetadataStrings(ensureUseClientIfNeeded(content))),
+      )
+      if (fixed !== content) {
+        if (!dryRun) {
+          const result = safeWrite(file, fixed, projectRoot, backups)
+          if (result.ok) {
+            modifiedFiles.push(file)
+            syntaxFixed++
+          } else {
+            console.log(chalk.yellow(`  ⚠ Syntax fix rolled back for ${relative(projectRoot, file)} (parse error)`))
+          }
         } else {
-          console.log(chalk.yellow(`  ⚠ Syntax fix rolled back for ${relative(projectRoot, file)} (parse error)`))
+          syntaxFixed++
         }
-      } else {
-        syntaxFixed++
       }
+    } catch (err) {
+      remaining.push(`${relative(projectRoot, file)}: syntax fix error — ${err instanceof Error ? err.message : 'unknown'}`)
     }
   }
   if (syntaxFixed > 0) {
@@ -511,27 +515,38 @@ export async function fixCommand(opts: FixOptions = {}) {
     }
   }
 
+  // ─── Rebuild file lists after mutations ──────────────────
+  allTsxFiles = listTsxFiles(appDir)
+  userTsxFiles = allTsxFiles.filter(f => !f.includes('/design-system/'))
+
+  const sharedTsxFiles = listTsxFiles(resolve(projectRoot, 'components', 'shared'))
+  const allValidationFiles = [...userTsxFiles, ...sharedTsxFiles]
+
   // ─── Step 5: Auto-fix quality issues ────────────────────────────────
   if (!skipQuality) {
     let qualityFixCount = 0
     const qualityFixDetails: string[] = []
-    for (const file of userTsxFiles) {
-      const content = readFileSync(file, 'utf-8')
-      const { code: autoFixed, fixes: fileFixes } = await autoFixCode(content)
-      if (autoFixed !== content) {
-        if (!dryRun) {
-          const qResult = safeWrite(file, autoFixed, projectRoot, backups)
-          if (qResult.ok) {
-            modifiedFiles.push(file)
+    for (const file of allValidationFiles) {
+      try {
+        const content = readFileSync(file, 'utf-8')
+        const { code: autoFixed, fixes: fileFixes } = await autoFixCode(content)
+        if (autoFixed !== content) {
+          if (!dryRun) {
+            const qResult = safeWrite(file, autoFixed, projectRoot, backups)
+            if (qResult.ok) {
+              modifiedFiles.push(file)
+              qualityFixCount++
+              qualityFixDetails.push(...fileFixes)
+            } else {
+              console.log(chalk.yellow(`  ⚠ Quality fix rolled back for ${relative(projectRoot, file)} (parse error)`))
+            }
+          } else {
             qualityFixCount++
             qualityFixDetails.push(...fileFixes)
-          } else {
-            console.log(chalk.yellow(`  ⚠ Quality fix rolled back for ${relative(projectRoot, file)} (parse error)`))
           }
-        } else {
-          qualityFixCount++
-          qualityFixDetails.push(...fileFixes)
         }
+      } catch (err) {
+        remaining.push(`${relative(projectRoot, file)}: quality fix error — ${err instanceof Error ? err.message : 'unknown'}`)
       }
     }
     if (qualityFixCount > 0) {
@@ -542,7 +557,40 @@ export async function fixCommand(opts: FixOptions = {}) {
     }
   }
 
-  // ─── Step 5b: Verify incremental edits ──────────────────────────────
+  // ─── Step 5b: Validate mock data ──────────────────
+  try {
+    const { validateMockData, applyMockDataFixes } = await import('../utils/mock-data-validator.js')
+    let mockFixed = 0
+    for (const file of allValidationFiles) {
+      try {
+        const content = readFileSync(file, 'utf-8')
+        const mockIssues = validateMockData(content)
+        if (mockIssues.length > 0) {
+          const fixed = applyMockDataFixes(content, mockIssues)
+          if (fixed !== content && !dryRun) {
+            const result = safeWrite(file, fixed, projectRoot, backups)
+            if (result.ok) {
+              mockFixed++
+              modifiedFiles.push(file)
+            }
+          } else if (dryRun) {
+            mockFixed++
+          }
+        }
+      } catch (fileErr) {
+        remaining.push(`${relative(projectRoot, file)}: mock data fix error — ${fileErr instanceof Error ? fileErr.message : 'unknown'}`)
+      }
+    }
+    if (mockFixed > 0) {
+      const verb = dryRun ? 'Would fix' : 'Fixed'
+      fixes.push(`${verb} mock data in ${mockFixed} file(s)`)
+      console.log(chalk.green(`  ✔ ${verb} mock data: ${mockFixed} file(s)`))
+    }
+  } catch (importErr) {
+    console.log(chalk.dim('  ⊘ mock-data-validator not available, skipping'))
+  }
+
+  // ─── Step 5c: Verify incremental edits ──────────────────────────────
   for (const file of modifiedFiles) {
     if (!backups.has(file)) continue
     const before = backups.get(file)!
@@ -560,36 +608,41 @@ export async function fixCommand(opts: FixOptions = {}) {
   let totalWarnings = 0
   const fileIssues: Array<{ path: string; report: string }> = []
 
-  for (const file of allTsxFiles) {
-    const code = dryRun ? readFileSync(file, 'utf-8') : readFileSync(file, 'utf-8')
-    const relativePath = file.replace(projectRoot + '/', '')
-    const baseName = file.split('/').pop() || ''
-    const isAuthPage = relativePath.includes('(auth)')
-    const isNonPageFile =
-      baseName === 'layout.tsx' ||
-      baseName === 'AppNav.tsx' ||
-      baseName === 'not-found.tsx' ||
-      baseName === 'ShowWhenNotAuthRoute.tsx'
-    const isHomePage = relativePath === 'app/page.tsx'
-    const isDesignSystem = relativePath.includes('design-system')
-    if (isDesignSystem) continue
+  for (const file of allValidationFiles) {
+    try {
+      const code = readFileSync(file, 'utf-8')
+      const relativePath = file.replace(projectRoot + '/', '')
+      const baseName = file.split('/').pop() || ''
+      const isAuthPage = relativePath.includes('(auth)')
+      const isSharedComponent = relativePath.includes('components/shared/')
+      const isNonPageFile =
+        baseName === 'layout.tsx' ||
+        baseName === 'AppNav.tsx' ||
+        baseName === 'not-found.tsx' ||
+        baseName === 'ShowWhenNotAuthRoute.tsx'
+      const isHomePage = relativePath === 'app/page.tsx'
+      const isDesignSystem = relativePath.includes('design-system')
+      if (isDesignSystem) continue
 
-    const issues = validatePageQuality(code)
-    const suppressH1 = isNonPageFile || isAuthPage
-    const filteredIssues = issues.filter(i => {
-      if (suppressH1 && (i.type === 'NO_H1' || i.type === 'MULTIPLE_H1')) return false
-      if (isHomePage && i.type === 'NO_EMPTY_STATE') return false
-      return true
-    })
+      const issues = validatePageQuality(code)
+      const suppressH1 = isNonPageFile || isAuthPage || isSharedComponent
+      const filteredIssues = issues.filter(i => {
+        if (suppressH1 && (i.type === 'NO_H1' || i.type === 'MULTIPLE_H1')) return false
+        if (isHomePage && i.type === 'NO_EMPTY_STATE') return false
+        return true
+      })
 
-    if (filteredIssues.length === 0) continue
+      if (filteredIssues.length === 0) continue
 
-    const errors = filteredIssues.filter(i => i.severity === 'error').length
-    const warnings = filteredIssues.filter(i => i.severity === 'warning').length
-    totalErrors += errors
-    totalWarnings += warnings
-    const report = formatIssues(filteredIssues)
-    fileIssues.push({ path: relativePath, report })
+      const errors = filteredIssues.filter(i => i.severity === 'error').length
+      const warnings = filteredIssues.filter(i => i.severity === 'warning').length
+      totalErrors += errors
+      totalWarnings += warnings
+      const report = formatIssues(filteredIssues)
+      fileIssues.push({ path: relativePath, report })
+    } catch (err) {
+      remaining.push(`${relative(projectRoot, file)}: validation error — ${err instanceof Error ? err.message : 'unknown'}`)
+    }
   }
 
   // ─── Step 6: Shared component integrity ─────────────────────────
@@ -681,6 +734,31 @@ export async function fixCommand(opts: FixOptions = {}) {
       console.log(
         chalk.yellow(`  ⚠ Component manifest check skipped: ${err instanceof Error ? err.message : 'unknown error'}`),
       )
+    }
+  }
+
+  // ─── Step 7: TypeScript compile check ──────────────────
+  try {
+    const tsconfigPath = resolve(projectRoot, 'tsconfig.json')
+    if (existsSync(tsconfigPath)) {
+      const { execSync } = await import('child_process')
+      execSync('npx tsc --noEmit --pretty 2>&1', {
+        cwd: projectRoot,
+        timeout: 30000,
+        encoding: 'utf-8',
+      })
+      fixes.push('TypeScript compilation clean')
+      console.log(chalk.green('  ✔ TypeScript compilation clean'))
+    }
+  } catch (err) {
+    const output = ((err as any).stdout || '') + ((err as any).stderr || '')
+    const errorLines = output.split('\n').filter((l: string) => l.includes('error TS'))
+    if (errorLines.length > 0) {
+      for (const line of errorLines.slice(0, 10)) {
+        remaining.push(line.trim())
+      }
+      if (errorLines.length > 10) remaining.push(`... and ${errorLines.length - 10} more TypeScript errors`)
+      console.log(chalk.yellow(`  ⚠ TypeScript: ${errorLines.length} error(s)`))
     }
   }
 
