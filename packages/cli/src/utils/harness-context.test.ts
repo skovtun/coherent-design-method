@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { DesignSystemConfig, SharedComponentsManifest } from '@getcoherent/core'
 import { buildCursorRules } from './cursor-rules.js'
+import { buildProjectContext } from './harness-context.js'
 
 const TEST_MANIFEST: SharedComponentsManifest = {
   shared: [
@@ -50,5 +51,37 @@ const TEST_CONFIG = {
 describe('buildCursorRules (harness baseline)', () => {
   it('matches snapshot for TEST_MANIFEST + TEST_CONFIG', () => {
     expect(buildCursorRules(TEST_MANIFEST, TEST_CONFIG)).toMatchSnapshot()
+  })
+})
+
+describe('buildProjectContext', () => {
+  it('produces all required fields', () => {
+    const ctx = buildProjectContext(TEST_MANIFEST, TEST_CONFIG)
+    expect(ctx.sharedComponents).toContain('CID-001 Header')
+    expect(ctx.sharedComponents).toContain('Import: import { Header }')
+    expect(ctx.sharedComponentsCompact).toContain('CID-001 Header (layout)')
+    expect(ctx.sharedComponentsCompact).not.toContain('Import:')
+    expect(ctx.designTokens).toContain('Primary')
+    expect(ctx.architectureDetailed).toContain('### Key directories')
+    expect(ctx.architectureDetailed).toContain('### Config files')
+    expect(ctx.architectureCompact).toContain('app/ —')
+    expect(ctx.architectureCompact).not.toContain('### Key directories')
+    expect(ctx.rulesDetailed).toContain('## Component Rules (MANDATORY)')
+    expect(ctx.rulesDetailed).toContain('### Animation')
+    expect(ctx.rulesCompact).toContain('ONLY use @/components/ui/*')
+    expect(ctx.rulesCompact).not.toContain('## Component Rules (MANDATORY)')
+    expect(ctx.designQuality).toContain('Design Quality Standards')
+    expect(ctx.forms).toContain('Form Layout Rules')
+    expect(ctx.accessibility).toContain('WCAG 2.2 AA')
+    expect(ctx.auth).toContain('Auth Pages')
+    expect(ctx.commands).toContain('coherent check')
+    expect(ctx.platform).toContain('DO NOT')
+  })
+
+  it('handles empty manifest', () => {
+    const ctx = buildProjectContext({ shared: [], nextId: 1 }, null)
+    expect(ctx.sharedComponents).toContain('No shared components')
+    expect(ctx.sharedComponentsCompact).toContain('No shared components')
+    expect(ctx.designTokens).toContain('semantic')
   })
 })
