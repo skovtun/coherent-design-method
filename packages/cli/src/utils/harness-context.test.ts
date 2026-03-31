@@ -1,7 +1,22 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { existsSync, mkdirSync, writeFileSync, rmSync } from 'fs'
+import { join } from 'path'
+import { tmpdir } from 'os'
 import type { DesignSystemConfig, SharedComponentsManifest } from '@getcoherent/core'
 import { buildCursorRules } from './cursor-rules.js'
-import { buildProjectContext, formatForCursor, formatForClaude, formatForAgents } from './harness-context.js'
+import {
+  buildProjectContext,
+  formatForCursor,
+  formatForClaude,
+  formatForAgents,
+  writeAllHarnessFiles,
+  regenerateAllHarnessFiles,
+} from './harness-context.js'
+import { findConfig } from './find-config.js'
+
+vi.mock('./find-config.js', () => ({
+  findConfig: vi.fn(),
+}))
 
 const TEST_MANIFEST: SharedComponentsManifest = {
   shared: [
@@ -131,5 +146,50 @@ describe('formatForAgents', () => {
     const output = formatForAgents(ctx)
     expect(output.toLowerCase()).not.toContain('cursor')
     expect(output.toLowerCase()).not.toContain('claude')
+  })
+})
+
+describe('writeAllHarnessFiles', () => {
+  let tempDir: string
+
+  beforeEach(() => {
+    tempDir = join(tmpdir(), 'coherent-harness-test-' + Date.now())
+    mkdirSync(tempDir, { recursive: true })
+    // Create minimal coherent.components.json
+    writeFileSync(join(tempDir, 'coherent.components.json'), JSON.stringify({ shared: [], nextId: 1 }))
+  })
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
+  it('writes .cursorrules, CLAUDE.md, AGENTS.md', async () => {
+    const result = await writeAllHarnessFiles(tempDir)
+    expect(result.written).toBe(true)
+    expect(existsSync(join(tempDir, '.cursorrules'))).toBe(true)
+    expect(existsSync(join(tempDir, 'CLAUDE.md'))).toBe(true)
+    expect(existsSync(join(tempDir, 'AGENTS.md'))).toBe(true)
+  })
+
+  it('writes .claude/* static files', async () => {
+    await writeAllHarnessFiles(tempDir)
+    expect(existsSync(join(tempDir, '.claude', 'commands', 'check.md'))).toBe(true)
+    expect(existsSync(join(tempDir, '.claude', 'commands', 'fix.md'))).toBe(true)
+    expect(existsSync(join(tempDir, '.claude', 'skills', 'coherent-project', 'SKILL.md'))).toBe(true)
+    expect(existsSync(join(tempDir, '.claude', 'settings.json'))).toBe(true)
+  })
+
+  it('returns correct counts', async () => {
+    const result = await writeAllHarnessFiles(tempDir)
+    expect(result.sharedCount).toBe(0)
+    expect(result.tokenKeys).toBeUndefined()
+  })
+})
+
+describe('regenerateAllHarnessFiles', () => {
+  it('returns { written: false } when not in a Coherent project', async () => {
+    vi.mocked(findConfig).mockReturnValueOnce(null)
+    const result = await regenerateAllHarnessFiles()
+    expect(result.written).toBe(false)
   })
 })

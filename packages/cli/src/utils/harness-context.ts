@@ -1,4 +1,9 @@
+import { writeFileSync, existsSync } from 'fs'
+import { join } from 'path'
 import type { DesignSystemConfig, SharedComponentsManifest } from '@getcoherent/core'
+import { loadManifest, DesignSystemManager } from '@getcoherent/core'
+import { findConfig } from './find-config.js'
+import { writeClaudeCommands, writeClaudeSkills, writeClaudeSettings } from './claude-code.js'
 
 export interface HarnessResult {
   written: boolean
@@ -587,4 +592,58 @@ ${ctx.commands}
 
 ${ctx.platform}
 `
+}
+
+export async function writeAllHarnessFiles(projectRoot: string): Promise<HarnessResult> {
+  let manifest: SharedComponentsManifest
+  try {
+    manifest = await loadManifest(projectRoot)
+  } catch {
+    manifest = { shared: [], nextId: 1 }
+  }
+
+  let config: DesignSystemConfig | null = null
+  const configPath = join(projectRoot, 'design-system.config.ts')
+  if (existsSync(configPath)) {
+    try {
+      const dsm = new DesignSystemManager(configPath)
+      await dsm.load()
+      config = dsm.getConfig()
+    } catch {
+      // config may be invalid during init — proceed with null
+    }
+  }
+
+  const ctx = buildProjectContext(manifest, config)
+
+  writeFileSync(join(projectRoot, '.cursorrules'), formatForCursor(ctx), 'utf-8')
+  writeFileSync(join(projectRoot, 'CLAUDE.md'), formatForClaude(ctx), 'utf-8')
+  writeFileSync(join(projectRoot, 'AGENTS.md'), formatForAgents(ctx), 'utf-8')
+
+  writeClaudeCommands(projectRoot)
+  writeClaudeSkills(projectRoot)
+  writeClaudeSettings(projectRoot)
+
+  const tokenKeys = config?.tokens
+    ? [
+        ...Object.keys(config.tokens.colors?.light ?? {}),
+        ...Object.keys(config.tokens.colors?.dark ?? {}),
+        ...Object.keys(config.tokens.spacing ?? {}),
+        ...Object.keys(config.tokens.radius ?? {}),
+      ].filter((k, i, a) => a.indexOf(k) === i).length
+    : 0
+
+  return {
+    written: true,
+    sharedCount: manifest.shared.length,
+    tokenKeys: tokenKeys || undefined,
+  }
+}
+
+export async function regenerateAllHarnessFiles(): Promise<HarnessResult> {
+  const project = findConfig()
+  if (!project) {
+    return { written: false }
+  }
+  return writeAllHarnessFiles(project.root)
 }
