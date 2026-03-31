@@ -98,9 +98,9 @@ Each formatter takes a `ProjectContext` and returns a string. Harnesses differ i
 - Header: `# Coherent Design Method Project`
 - `ctx.architectureCompact` — flat bullet list
 - `ctx.sharedComponentsCompact` — compact shared component list
-- `ctx.rulesCompact` — dense bullet list
+- `ctx.rulesCompact` — dense bullet list (folds designQuality, forms, accessibility, auth rules inline as single-line bullets — NOT separate sections)
 - `ctx.designTokens` — fixes current bug where tokens are missing
-- Remaining sections: designQuality, forms, accessibility, auth, commands, platform
+- Remaining sections: commands, platform (compact "Do NOT modify" variant)
 
 **`formatForAgents(ctx)`** → `AGENTS.md`
 - Header: `# Project Conventions`

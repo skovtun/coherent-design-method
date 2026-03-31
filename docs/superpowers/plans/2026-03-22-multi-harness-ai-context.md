@@ -198,12 +198,9 @@ For `platform`, extract lines 366-375.
 All these are static string constants — no dynamic content, just copy the text as-is.
 
 ```typescript
-import { writeFileSync, existsSync } from 'fs'
-import { join } from 'path'
+// Task 2 imports — only what buildProjectContext needs.
+// I/O imports (writeFileSync, existsSync, join, loadManifest, etc.) are added in Task 4.
 import type { DesignSystemConfig, SharedComponentsManifest } from '@getcoherent/core'
-import { loadManifest, DesignSystemManager } from '@getcoherent/core'
-import { findConfig } from './find-config.js'
-import { writeClaudeCommands, writeClaudeSkills, writeClaudeSettings } from './claude-code.js'
 
 export interface HarnessResult {
   written: boolean
