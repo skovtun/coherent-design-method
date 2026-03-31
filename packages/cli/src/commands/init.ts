@@ -25,9 +25,8 @@ import { appendRecentChanges } from '../utils/recent-changes.js'
 import { COHERENT_REQUIRED_PACKAGES } from '../utils/self-heal.js'
 import { getWelcomeMarkdown, generateWelcomeComponent } from '../utils/welcome-content.js'
 import { setupApiKey, hasApiKey } from '../utils/api-key-setup.js'
-import { writeCursorRules } from '../utils/cursor-rules.js'
+import { writeAllHarnessFiles } from '../utils/harness-context.js'
 import { isTailwindV4, generateV4GlobalsCss } from '../utils/tailwind-version.js'
-import { generateClaudeCodeFiles } from '../utils/claude-code.js'
 import { cwd } from 'process'
 import { toKebabCase, toTitleCase } from '../utils/strings.js'
 
@@ -356,8 +355,7 @@ export default config
 
     // Generate .cursorrules (Cursor) and CLAUDE.md + .claude/* (Claude Code)
     try {
-      await writeCursorRules(projectPath)
-      await generateClaudeCodeFiles(projectPath)
+      await writeAllHarnessFiles(projectPath)
     } catch (e) {
       if (process.env.COHERENT_DEBUG === '1') console.error(chalk.dim('Could not write .cursorrules / CLAUDE.md:'), e)
     }

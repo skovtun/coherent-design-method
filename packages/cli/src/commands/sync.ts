@@ -19,8 +19,7 @@ import { DesignSystemManager } from '@getcoherent/core'
 import type { SharedComponentType } from '@getcoherent/core'
 import { analyzePageCode } from '../utils/page-analyzer.js'
 import { writeDesignSystemFiles } from '../utils/ds-files.js'
-import { writeCursorRules } from '../utils/cursor-rules.js'
-import { generateClaudeCodeFiles } from '../utils/claude-code.js'
+import { writeAllHarnessFiles } from '../utils/harness-context.js'
 import { loadManifest, saveManifest, findSharedComponent } from '@getcoherent/core'
 import { reconcileComponents } from '../utils/component-integrity.js'
 
@@ -554,9 +553,8 @@ export async function syncCommand(options: SyncOptions = {}) {
       spinner.succeed(`Regenerated ${written.length} Design System file(s)`)
 
       spinner.start('Updating AI context files...')
-      await writeCursorRules(project.root)
-      await generateClaudeCodeFiles(project.root)
-      spinner.succeed('Updated .cursorrules and CLAUDE.md')
+      await writeAllHarnessFiles(project.root)
+      spinner.succeed('Updated .cursorrules, CLAUDE.md, and AGENTS.md')
     }
 
     // ── Summary ──────────────────────────────────────────────

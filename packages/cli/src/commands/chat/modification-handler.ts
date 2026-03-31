@@ -37,7 +37,7 @@ import {
   verifyIncrementalEdit,
   type AutoFixContext,
 } from '../../utils/quality-validator.js'
-import { writeCursorRules } from '../../utils/cursor-rules.js'
+import { writeAllHarnessFiles } from '../../utils/harness-context.js'
 import { analyzePageCode } from '../../utils/page-analyzer.js'
 import {
   routeToFsPath,
@@ -233,7 +233,7 @@ export async function applyModification(
         postFixes: fixes,
       })
       try {
-        await writeCursorRules(projectRoot)
+        await writeAllHarnessFiles(projectRoot)
       } catch {
         // ignore
       }
@@ -319,7 +319,7 @@ export async function applyModification(
         postFixes: fixes,
       })
       try {
-        await writeCursorRules(projectRoot)
+        await writeAllHarnessFiles(projectRoot)
       } catch {
         // ignore
       }
@@ -425,7 +425,7 @@ export async function applyModification(
         usedInFiles,
       })
       try {
-        await writeCursorRules(projectRoot)
+        await writeAllHarnessFiles(projectRoot)
       } catch {
         // ignore
       }

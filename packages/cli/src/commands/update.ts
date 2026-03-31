@@ -25,7 +25,7 @@ import { join } from 'path'
 import { DesignSystemManager, CLI_VERSION } from '@getcoherent/core'
 import { findConfig, exitNotCoherent } from '../utils/find-config.js'
 import { writeDesignSystemFiles } from '../utils/ds-files.js'
-import { writeCursorRules } from '../utils/cursor-rules.js'
+import { writeAllHarnessFiles } from '../utils/harness-context.js'
 import { getPendingMigrations, compareSemver } from '../utils/migrations.js'
 
 interface UpdateReport {
@@ -97,7 +97,7 @@ export async function updateCommand(opts: { patchGlobals?: boolean }) {
 
     // Step 4: Regenerate .cursorrules / CLAUDE.md
     spinner.text = 'Updating .cursorrules and CLAUDE.md...'
-    const rulesResult = await writeCursorRules(project.root)
+    const rulesResult = await writeAllHarnessFiles(project.root)
     report.rulesUpdated = rulesResult.written
 
     // Step 5: Check globals.css for missing CSS variables

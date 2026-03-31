@@ -29,7 +29,7 @@ import type { DesignSystemConfig, PageDefinition } from '@getcoherent/core'
 import type { FigmaPageData } from '@getcoherent/core'
 import { findConfig } from '../utils/find-config.js'
 import { writeDesignSystemFiles } from '../utils/ds-files.js'
-import { writeCursorRules } from '../utils/cursor-rules.js'
+import { writeAllHarnessFiles } from '../utils/harness-context.js'
 
 const FIGMA_IMPORT_FILENAME = 'coherent.figma-import.json'
 const FIGMA_COMPONENT_MAP_FILENAME = 'coherent.figma-component-map.json'
@@ -347,7 +347,7 @@ export const config = ${JSON.stringify(fullConfig, null, 2)} as const
       stats.dsFilesWritten = dsFiles.length
       spinner.succeed(`DS viewer: ${dsFiles.length} files`)
       try {
-        await writeCursorRules(projectRoot)
+        await writeAllHarnessFiles(projectRoot)
       } catch (e) {
         if (process.env.COHERENT_DEBUG === '1') console.error(chalk.dim('Could not update .cursorrules:'), e)
       }

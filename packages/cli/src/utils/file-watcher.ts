@@ -12,7 +12,7 @@ import {
   sanitizeMetadataStrings,
   ensureUseClientIfNeeded,
 } from './self-heal.js'
-import { writeCursorRules } from './cursor-rules.js'
+import { writeAllHarnessFiles } from './harness-context.js'
 import { extractExportedComponentNames } from './component-integrity.js'
 
 const NATIVE_PATTERNS = [
@@ -154,7 +154,7 @@ export async function handleFileDelete(projectRoot: string, filePath: string): P
       }
       await saveManifest(projectRoot, cleaned)
       console.log(chalk.cyan(`\n  🗑 Auto-removed ${orphaned.id} (${orphaned.name}) — file deleted`))
-      await writeCursorRules(projectRoot)
+      await writeAllHarnessFiles(projectRoot)
     }
   } catch {
     /* ignore */
@@ -191,7 +191,7 @@ async function detectNewComponent(projectRoot: string, filePath: string): Promis
 
 export async function handleManifestChange(projectRoot: string): Promise<void> {
   try {
-    await writeCursorRules(projectRoot)
+    await writeAllHarnessFiles(projectRoot)
   } catch {
     // ignore
   }

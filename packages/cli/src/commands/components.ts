@@ -19,7 +19,7 @@ import { existsSync } from 'fs'
 import { resolve } from 'path'
 import { writeDesignSystemFiles } from '../utils/ds-files.js'
 import { listShadcnComponents } from '../utils/shadcn-installer.js'
-import { writeCursorRules } from '../utils/cursor-rules.js'
+import { writeAllHarnessFiles } from '../utils/harness-context.js'
 
 export function createComponentsCommand(): Command {
   const cmd = new Command('components').description('Manage design system components and shared components (Epic 2)')
@@ -206,7 +206,7 @@ export function createComponentsCommand(): Command {
         }
       }
       try {
-        await writeCursorRules(project.root)
+        await writeAllHarnessFiles(project.root)
       } catch (e) {
         if (process.env.COHERENT_DEBUG === '1') console.error(chalk.dim('Could not update .cursorrules:'), e)
       }
