@@ -3,7 +3,6 @@ import { existsSync, mkdirSync, writeFileSync, rmSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import type { DesignSystemConfig, SharedComponentsManifest } from '@getcoherent/core'
-import { buildCursorRules } from './cursor-rules.js'
 import {
   buildProjectContext,
   formatForCursor,
@@ -63,12 +62,6 @@ const TEST_CONFIG = {
   name: 'Test Project',
 } as unknown as DesignSystemConfig
 
-describe('buildCursorRules (harness baseline)', () => {
-  it('matches snapshot for TEST_MANIFEST + TEST_CONFIG', () => {
-    expect(buildCursorRules(TEST_MANIFEST, TEST_CONFIG)).toMatchSnapshot()
-  })
-})
-
 describe('buildProjectContext', () => {
   it('produces all required fields', () => {
     const ctx = buildProjectContext(TEST_MANIFEST, TEST_CONFIG)
@@ -102,11 +95,8 @@ describe('buildProjectContext', () => {
 })
 
 describe('formatForCursor', () => {
-  it('matches current buildCursorRules output exactly', () => {
-    const ctx = buildProjectContext(TEST_MANIFEST, TEST_CONFIG)
-    const newOutput = formatForCursor(ctx)
-    const currentOutput = buildCursorRules(TEST_MANIFEST, TEST_CONFIG)
-    expect(newOutput).toBe(currentOutput)
+  it('matches snapshot for TEST_MANIFEST + TEST_CONFIG', () => {
+    expect(formatForCursor(buildProjectContext(TEST_MANIFEST, TEST_CONFIG))).toMatchSnapshot()
   })
 })
 

@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`buildCursorRules (harness baseline) > matches snapshot for TEST_MANIFEST + TEST_CONFIG 1`] = `
+exports[`formatForCursor > matches snapshot for TEST_MANIFEST + TEST_CONFIG 1`] = `
 "# Coherent Design Method — Project Rules
 # Auto-generated. Updated when shared components or config change.
 # Do NOT edit manually — run \`coherent rules\` to regenerate.
