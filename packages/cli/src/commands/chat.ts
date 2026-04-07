@@ -300,13 +300,15 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
     const parseOpts = { sharedComponentsSummary, projectRoot }
     const modCtx = { config: dsm.getConfig(), componentManager: cm }
 
+    const explicitPageTarget = !!(options.page || options.component)
     const multiPageHint =
-      /\b(pages?|sections?)\s*[:]\s*\w/i.test(message) ||
+      !explicitPageTarget &&
+      (/\b(pages?|sections?)\s*[:]\s*\w/i.test(message) ||
       (
         message.match(
           /\b(?:registration|about|catal|account|contact|pricing|dashboard|settings|login|sign.?up|blog|portfolio|features)\b/gi,
         ) || []
-      ).length >= SPLIT_THRESHOLD
+      ).length >= SPLIT_THRESHOLD)
 
     if (multiPageHint) {
       try {

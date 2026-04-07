@@ -400,6 +400,7 @@ export class ComponentManager {
    * Check if two class names are similar (simple heuristic)
    */
   private isSimilarClassName(className1: string, className2: string): boolean {
+    if (!className1 || !className2) return false
     const classes1 = className1.split(' ').sort()
     const classes2 = className2.split(' ').sort()
 

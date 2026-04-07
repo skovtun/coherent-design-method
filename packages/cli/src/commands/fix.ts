@@ -371,6 +371,17 @@ export async function fixCommand(opts: FixOptions = {}) {
       const hasSidebar = plan.groups.some(g => g.layout === 'sidebar' || g.layout === 'both')
       const sidebarPath = resolve(projectRoot, 'components', 'shared', 'sidebar.tsx')
       if (hasSidebar && !existsSync(sidebarPath) && !dryRun) {
+        // Install shadcn sidebar component first (required by AppSidebar)
+        const sidebarUiPath = resolve(projectRoot, 'components', 'ui', 'sidebar.tsx')
+        if (!existsSync(sidebarUiPath) && provider.has('sidebar')) {
+          try {
+            await provider.installComponent('sidebar', projectRoot)
+            console.log(chalk.green('  ✔ Auto-installed Sidebar UI component'))
+          } catch {
+            console.log(chalk.yellow('  ⚠ Could not install Sidebar UI component'))
+          }
+        }
+
         if (!dsm) {
           dsm = new DesignSystemManager(project.configPath)
           await dsm.load()
