@@ -721,12 +721,14 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
     fixes.push('unescaped literal \\n to real newlines')
   }
 
-  // Fix escaped closing quotes in single-quoted strings (AI outputs: 'text.\'' → unterminated)
+  // Fix escaped quotes in single-quoted strings (AI outputs: \'text' or 'text.\'' from JSON escaping)
   const beforeQuoteFix = fixed
   // Pattern 1: \' before }, ], or , (AI escaped closing quote in object/array literal)
   fixed = fixed.replace(/\\'(\s*[}\],])/g, "'$1")
   // Pattern 2: \' at end of line (original catch-all)
   fixed = fixed.replace(/(:\s*'.+)\\'(\s*)$/gm, "$1'$2")
+  // Pattern 3: \' at start of string values (AI escaped opening quote: title: \'Text')
+  fixed = fixed.replace(/:\s*\\'([^']*')/g, ": '$1")
   if (fixed !== beforeQuoteFix) {
     fixes.push('fixed escaped closing quotes in strings')
   }
