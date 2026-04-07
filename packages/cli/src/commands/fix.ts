@@ -373,9 +373,10 @@ export async function fixCommand(opts: FixOptions = {}) {
       if (hasSidebar && !existsSync(sidebarPath) && !dryRun) {
         // Install shadcn sidebar component first (required by AppSidebar)
         const sidebarUiPath = resolve(projectRoot, 'components', 'ui', 'sidebar.tsx')
-        if (!existsSync(sidebarUiPath) && provider.has('sidebar')) {
+        const sidebarProvider = getComponentProvider()
+        if (!existsSync(sidebarUiPath) && sidebarProvider.has('sidebar')) {
           try {
-            await provider.installComponent('sidebar', projectRoot)
+            await sidebarProvider.installComponent('sidebar', projectRoot)
             console.log(chalk.green('  ✔ Auto-installed Sidebar UI component'))
           } catch {
             console.log(chalk.yellow('  ⚠ Could not install Sidebar UI component'))
