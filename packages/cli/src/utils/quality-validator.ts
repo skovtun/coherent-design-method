@@ -1,3 +1,5 @@
+import { readdir, readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { detectComponentIssues, applyComponentRules } from './component-rules.js'
 export type { QualityIssue } from './types.js'
 import type { QualityIssue } from './types.js'
@@ -1630,4 +1632,32 @@ export function verifyIncrementalEdit(before: string, after: string): Verificati
   }
 
   return issues
+}
+
+/**
+ * Validate all shared components for color consistency.
+ * Runs the same validatePageQuality() checks on each shared component file.
+ */
+export async function validateSharedComponents(projectRoot: string): Promise<QualityIssue[]> {
+  const sharedDir = join(projectRoot, 'components', 'shared')
+  let files: string[]
+  try {
+    const entries = await readdir(sharedDir)
+    files = entries.filter(f => f.endsWith('.tsx'))
+  } catch {
+    return [] // No shared components directory
+  }
+
+  const allIssues: QualityIssue[] = []
+  for (const file of files) {
+    const code = await readFile(join(sharedDir, file), 'utf-8')
+    const issues = validatePageQuality(code)
+    for (const issue of issues) {
+      allIssues.push({
+        ...issue,
+        message: `[shared/${file}] ${issue.message}`,
+      })
+    }
+  }
+  return allIssues
 }

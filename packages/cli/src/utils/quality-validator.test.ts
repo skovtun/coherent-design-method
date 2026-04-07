@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { validatePageQuality, autoFixCode, checkDesignConsistency, verifyIncrementalEdit } from './quality-validator.js'
+import { validatePageQuality, autoFixCode, checkDesignConsistency, verifyIncrementalEdit, validateSharedComponents } from './quality-validator.js'
 import { fixUnescapedLtInJsx } from './self-heal.js'
 
 describe('validatePageQuality', () => {
@@ -1030,5 +1030,12 @@ describe('autoFixCode — post-fix re-validation', () => {
     const cleanCode = '<div className="bg-primary text-foreground">content</div>'
     const result = await autoFixCode(cleanCode)
     expect(result.fixes.some(f => f.includes('post-fix'))).toBe(false)
+  })
+})
+
+describe('validateSharedComponents', () => {
+  it('returns empty array when no shared components directory exists', async () => {
+    const issues = await validateSharedComponents('/nonexistent/path')
+    expect(issues).toEqual([])
   })
 })
