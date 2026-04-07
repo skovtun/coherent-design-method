@@ -916,6 +916,98 @@ describe('validatePageQuality — extended color detection', () => {
   })
 })
 
+describe('validatePageQuality — inline style color detection', () => {
+  it('detects hex color in inline style', () => {
+    const code = '<div style={{ backgroundColor: "#f59e0b" }}>content</div>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'inline-style-color')).toBe(true)
+  })
+
+  it('detects named color in inline style', () => {
+    const code = '<div style={{ color: "orange" }}>content</div>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'inline-style-color')).toBe(true)
+  })
+
+  it('detects rgb() in inline style', () => {
+    const code = '<div style={{ color: "rgb(255, 0, 0)" }}>content</div>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'inline-style-color')).toBe(true)
+  })
+
+  it('does NOT flag non-color inline styles', () => {
+    const code = '<div style={{ display: "flex", gap: "1rem" }}>content</div>'
+    const issues = validatePageQuality(code)
+    expect(issues.filter(i => i.type === 'inline-style-color')).toHaveLength(0)
+  })
+})
+
+describe('validatePageQuality — arbitrary color values', () => {
+  it('detects bg-[#hex] arbitrary value', () => {
+    const code = '<div className="bg-[#f59e0b]">content</div>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'arbitrary-color')).toBe(true)
+  })
+
+  it('detects text-[rgb(...)] arbitrary value', () => {
+    const code = '<div className="text-[rgb(255,0,0)]">content</div>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'arbitrary-color')).toBe(true)
+  })
+
+  it('does NOT flag non-color arbitrary values', () => {
+    const code = '<div className="w-[200px] h-[calc(100vh-64px)]">content</div>'
+    const issues = validatePageQuality(code)
+    expect(issues.filter(i => i.type === 'arbitrary-color')).toHaveLength(0)
+  })
+})
+
+describe('validatePageQuality — SVG color attributes', () => {
+  it('detects fill with hex value', () => {
+    const code = '<circle fill="#f59e0b" />'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'svg-raw-color')).toBe(true)
+  })
+
+  it('detects stroke with named color', () => {
+    const code = '<path stroke="orange" />'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'svg-raw-color')).toBe(true)
+  })
+
+  it('allows fill="none"', () => {
+    const code = '<path fill="none" />'
+    const issues = validatePageQuality(code)
+    expect(issues.filter(i => i.type === 'svg-raw-color')).toHaveLength(0)
+  })
+
+  it('allows fill="currentColor"', () => {
+    const code = '<circle fill="currentColor" />'
+    const issues = validatePageQuality(code)
+    expect(issues.filter(i => i.type === 'svg-raw-color')).toHaveLength(0)
+  })
+
+  it('allows fill="url(...)"', () => {
+    const code = '<rect fill="url(#gradient)" />'
+    const issues = validatePageQuality(code)
+    expect(issues.filter(i => i.type === 'svg-raw-color')).toHaveLength(0)
+  })
+})
+
+describe('validatePageQuality — color props', () => {
+  it('detects hex color prop', () => {
+    const code = '<Icon color="#f59e0b" />'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'color-prop')).toBe(true)
+  })
+
+  it('does NOT flag non-hex color prop', () => {
+    const code = '<Icon color="currentColor" />'
+    const issues = validatePageQuality(code)
+    expect(issues.filter(i => i.type === 'color-prop')).toHaveLength(0)
+  })
+})
+
 describe('fixUnescapedLtInJsx multiline safety', () => {
   it('does not corrupt multiline JSX tags', () => {
     const code = '>\n<div className="test">'
