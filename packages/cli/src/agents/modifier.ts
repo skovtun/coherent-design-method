@@ -41,6 +41,7 @@ export interface ParseModificationOptions {
   reusePlanDirective?: string
   planOnly?: boolean
   lightweight?: boolean
+  pageSections?: string[]
 }
 
 export async function parseModification(
@@ -88,6 +89,7 @@ export async function parseModification(
     sharedComponentsSummary: options?.sharedComponentsSummary,
     tieredComponentsPrompt: options?.tieredComponentsPrompt,
     reusePlanDirective: options?.reusePlanDirective,
+    pageSections: options?.pageSections,
   })
 
   const raw = await ai.parseModification(prompt)
@@ -183,6 +185,7 @@ function buildModificationPrompt(
     sharedComponentsSummary?: string
     tieredComponentsPrompt?: string
     reusePlanDirective?: string
+    pageSections?: string[]
   },
 ): string {
   const now = new Date().toISOString()
@@ -217,7 +220,7 @@ For editing an existing shared component use type "modify-layout-block" with tar
   const coreRules = CORE_CONSTRAINTS
   const designQuality = DESIGN_QUALITY
   const visualDepth = VISUAL_DEPTH
-  const contextualRules = selectContextualRules(message)
+  const contextualRules = selectContextualRules(message, options?.pageSections)
   const interactionPatterns = INTERACTION_PATTERNS
   const light = config.tokens.colors.light
   const dark = config.tokens.colors.dark

@@ -1119,12 +1119,18 @@ const CONTEXTUAL_CATEGORIES: ContextualCategory[] = [
 /**
  * Select contextual rules relevant to the user's request.
  * Returns only matching tiers. Fallback = empty string (core is always added separately).
+ *
+ * Context Engineering: when pageSections are provided (from the architecture plan),
+ * match against those instead of the full message. This avoids injecting ALL rules
+ * when the message mentions many page types (e.g. "dashboard, pricing, settings").
+ * Limits to max 3 rule blocks to keep context focused.
  */
-export function selectContextualRules(message: string): string {
+export function selectContextualRules(message: string, pageSections?: string[]): string {
   const matched = new Set<string>()
+  const matchTarget = pageSections && pageSections.length > 0 ? pageSections.join(' ') : message
 
   for (const category of CONTEXTUAL_CATEGORIES) {
-    if (category.keywords.test(message)) {
+    if (category.keywords.test(matchTarget)) {
       matched.add(category.rules)
     }
   }
@@ -1133,7 +1139,8 @@ export function selectContextualRules(message: string): string {
     return ''
   }
 
-  return [...matched].join('\n')
+  // Cap at 3 rule blocks to keep prompt focused
+  return [...matched].slice(0, 3).join('\n')
 }
 
 // ---------------------------------------------------------------------------

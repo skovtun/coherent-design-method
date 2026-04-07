@@ -34,14 +34,39 @@ import type { ArchitecturePlan } from './plan-generator.js'
 import { generateArchitecturePlan, updateArchitecturePlan, loadPlan, getPageType } from './plan-generator.js'
 import { buildReusePlan, buildReusePlanDirective, verifyReusePlan } from '../../utils/reuse-planner.js'
 
-const MAX_EXISTING_PAGES_CONTEXT = 10
+const MAX_EXISTING_PAGES_CONTEXT = 3
 
-function buildExistingPagesContext(config: DesignSystemConfig): string {
+/**
+ * Context Engineering: filter shared components manifest to only those
+ * the plan says are used on this specific page. Falls back to full
+ * manifest if no plan components match (e.g., layout components).
+ */
+function filterManifestForPage(
+  manifest: SharedComponentsManifest,
+  plan: ArchitecturePlan,
+  route: string,
+): SharedComponentsManifest {
+  const plannedForPage = plan.sharedComponents.filter(c => c.usedBy.includes(route)).map(c => c.name.toLowerCase())
+  if (plannedForPage.length === 0) return manifest
+
+  const filtered = manifest.shared.filter(e => plannedForPage.includes(e.name.toLowerCase()) || e.type === 'layout')
+  // Always include at least layout components; fall back to full if filter is too aggressive
+  if (filtered.length === 0) return manifest
+  return { ...manifest, shared: filtered }
+}
+
+function buildExistingPagesContext(config: DesignSystemConfig, forPageType?: string): string {
   const pages = config.pages || []
   const analyzed = pages.filter((p: any) => p.pageAnalysis)
   if (analyzed.length === 0) return ''
 
-  const capped = analyzed.slice(0, MAX_EXISTING_PAGES_CONTEXT)
+  // Context Engineering: prefer pages of the same type for better consistency
+  let relevant = analyzed
+  if (forPageType) {
+    const sameType = analyzed.filter((p: any) => inferPageTypeFromRoute(p.route) === forPageType)
+    relevant = sameType.length > 0 ? sameType : analyzed
+  }
+  const capped = relevant.slice(0, MAX_EXISTING_PAGES_CONTEXT)
   const lines = capped.map((p: any) => {
     return summarizePageAnalysis(p.name || p.id, p.route, p.pageAnalysis)
   })
@@ -617,7 +642,7 @@ export async function splitGeneratePages(
     ? `\nEXISTING APP PAGE (match these UI patterns for consistency):\n\`\`\`\n${existingAppPageCode}\n\`\`\`\n`
     : ''
 
-  const existingPagesContext = buildExistingPagesContext(modCtx.config)
+  // existingPagesContext is built per-page inside the loop (filtered by page type)
 
   const existingPageCode: Record<string, string> = {}
   if (projectRoot) {
@@ -651,10 +676,16 @@ export async function splitGeneratePages(
         ? 'For this auth page: the auth layout already provides centering (flex items-center justify-center min-h-svh). Do NOT add your own centering wrapper or min-h-svh. Just output a div with className="w-full max-w-md" containing the Card. Do NOT use section containers or full-width wrappers.'
         : undefined
 
+      // Context Engineering: only include existing pages of the same type
+      const existingPagesContext = buildExistingPagesContext(modCtx.config, pageType)
+
       const layoutForPage = getGroupLayoutForRoute(route, plan)
       const layoutNote = buildLayoutNote(layoutForPage)
-      const tieredNote = currentManifest
-        ? buildTieredComponentsPrompt(currentManifest, pageType as 'marketing' | 'app' | 'auth')
+      // Context Engineering: filter manifest to only components relevant to this page
+      const filteredManifest =
+        currentManifest && plan ? filterManifestForPage(currentManifest, plan, route) : currentManifest
+      const tieredNote = filteredManifest
+        ? buildTieredComponentsPrompt(filteredManifest, pageType as 'marketing' | 'app' | 'auth')
         : undefined
 
       const pageKey = route.replace(/^\//, '') || 'home'
@@ -710,7 +741,7 @@ export async function splitGeneratePages(
         .join('\n\n')
 
       try {
-        const result = await parseModification(prompt, modCtx, provider, parseOpts)
+        const result = await parseModification(prompt, modCtx, provider, { ...parseOpts, pageSections })
         phase5Done++
         spinner.text = `Phase 5/6 — ${phase5Done}/${remainingPages.length} pages generated...`
         const codePage = result.requests.find((r: ModificationRequest) => r.type === 'add-page')
