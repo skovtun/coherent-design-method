@@ -217,11 +217,7 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
             content: prompt,
           },
         ],
-        system: `You are a design system modification parser. 
-Parse natural language requests into structured ModificationRequest JSON.
-Always check component registry before creating new components.
-Return valid JSON only, no markdown. Use: { "requests": [ ... ], "uxRecommendations": "optional markdown" }
-CRITICAL: All string values in JSON must be on one line. Escape double quotes inside strings with \\". Do not include unescaped newlines or quotes in string values.`,
+        system: `Design system modification parser. Parse requests into ModificationRequest JSON. Check component registry before creating new. Return valid JSON only: { "requests": [...], "uxRecommendations": "brief markdown or omit" }. Escape quotes with \\", no newlines in string values.`,
       })
 
       // Detect truncated response (AI hit token limit before finishing)
@@ -342,13 +338,7 @@ ${currentCode}
 
 Instruction: ${instruction}
 
-CRITICAL RULES:
-- Return the COMPLETE modified page code. Do NOT return partial code or snippets.
-- Preserve "use client" if present. Do NOT add export const metadata if "use client" is present.
-- Keep ALL existing content, structure, and functionality UNLESS the instruction says to change it.
-- If the user specifies exact CSS classes or colors — use them exactly, even if they conflict with design constraints.
-- Use Tailwind CSS and shadcn/ui patterns.
-- Return ONLY the raw TSX code, no markdown fence, no explanation.`,
+Rules: Return COMPLETE modified code, not snippets. Preserve "use client" if present (no metadata export with it). Keep existing content unless instructed to change. Honor exact CSS/colors if specified. Tailwind + shadcn/ui only. Raw TSX only, no markdown.`,
         },
       ],
       system: 'Return only the raw TSX code, no markdown, no comments before or after.',

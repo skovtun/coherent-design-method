@@ -1088,18 +1088,27 @@ export function AppSidebar() {
   if (pathname?.startsWith('/design-system')) return null
 
   return (
-    <Sidebar>
-      <SidebarHeader>
-        <div className="flex items-center px-2 py-1">
-          <Link href="/" className="text-sm font-semibold text-foreground truncate">
-            ${appName}
-          </Link>
-        </div>
-      </SidebarHeader>
-      <SidebarContent>
+    <>
+      <Sidebar>
+        <SidebarHeader>
+          <div className="flex items-center px-2 py-1">
+            <Link href="/" className="text-sm font-semibold text-foreground truncate">
+              ${appName}
+            </Link>
+          </div>
+        </SidebarHeader>
+        <SidebarContent>
 ${allGroups}
-      </SidebarContent>
-    </Sidebar>
+        </SidebarContent>
+      </Sidebar>
+      <Link
+        href="/design-system"
+        className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full border border-white/20 bg-black/60 backdrop-blur-md text-white px-4 py-2 text-xs shadow-sm hover:bg-black/80 transition-all"
+        title="Design System"
+      >
+        Design System
+      </Link>
+    </>
   )
 }
 `

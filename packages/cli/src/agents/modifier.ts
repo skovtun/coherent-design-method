@@ -488,11 +488,7 @@ Global Component Change Rules:
   - If the pattern is already a shared component, modify the shared component file
   - If the pattern is inline across pages, first promote it to a shared component, then modify it
 
-OPTIONAL UX RECOMMENDATIONS:
-If you see opportunities to improve UX (accessibility, layout, consistency, responsiveness, visual hierarchy), add a short markdown block in "uxRecommendations". Otherwise omit it.
-
-Return valid JSON only, no markdown code fence. Use this shape:
-{ "requests": [ ... array of ModificationRequest ... ], "uxRecommendations": "optional markdown or omit key" }
+Return valid JSON only, no markdown code fence: { "requests": [...], "uxRecommendations": "1-2 sentences if critical UX issue, otherwise omit" }
 Legacy: returning only a JSON array of requests is still accepted.`
 }
 
