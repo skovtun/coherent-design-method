@@ -1016,3 +1016,19 @@ describe('fixUnescapedLtInJsx multiline safety', () => {
     expect(result).not.toContain('&lt;div')
   })
 })
+
+describe('autoFixCode — post-fix re-validation', () => {
+  it('auto-fixed code has no remaining raw color issues', async () => {
+    const code = '<div className="bg-blue-500 text-gray-200">content</div>'
+    const result = await autoFixCode(code)
+    const reValidated = validatePageQuality(result.code)
+    const colorIssues = reValidated.filter(i => i.type === 'raw-color')
+    expect(colorIssues).toHaveLength(0)
+  })
+
+  it('clean code does not produce post-fix warnings', async () => {
+    const cleanCode = '<div className="bg-primary text-foreground">content</div>'
+    const result = await autoFixCode(cleanCode)
+    expect(result.fixes.some(f => f.includes('post-fix'))).toBe(false)
+  })
+})

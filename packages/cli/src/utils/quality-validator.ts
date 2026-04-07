@@ -1094,6 +1094,17 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
 
   if (hadColorFix) fixes.push('raw colors → semantic tokens')
 
+  // Post-fix re-validation: catch issues introduced or missed by auto-fix (max 1 pass)
+  if (hadColorFix) {
+    const postFixIssues = validatePageQuality(fixed)
+    const postFixErrors = postFixIssues.filter(
+      i => i.severity === 'error' && ['raw-color', 'inline-style-color', 'arbitrary-color', 'svg-raw-color', 'color-prop'].includes(i.type)
+    )
+    if (postFixErrors.length > 0) {
+      fixes.push(`post-fix re-validation found ${postFixErrors.length} remaining color issue(s)`)
+    }
+  }
+
   // Replace native <select> with shadcn Select
   const selectRe = /<select\b[^>]*>([\s\S]*?)<\/select>/g
   let hadSelectFix = false
