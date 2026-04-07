@@ -59,10 +59,8 @@ TYPOGRAPHY (most impactful rules):
 - Create hierarchy through font WEIGHT (medium → semibold → bold), NOT font SIZE.
 
 COLORS — ONLY SEMANTIC TOKENS (zero raw colors):
-- Backgrounds: bg-background, bg-muted, bg-muted/50, bg-card, bg-primary, bg-secondary, bg-destructive.
-- Text: text-foreground (default), text-muted-foreground, text-primary-foreground.
-- Borders: border (no color suffix — uses CSS variable). border-b for headers.
-- BANNED: bg-gray-*, bg-blue-*, bg-slate-*, text-gray-*, ANY raw Tailwind color. The validator REJECTS these.
+- Allowed: bg-background, bg-muted, bg-muted/50, bg-card, bg-primary, bg-secondary, bg-destructive, bg-success, bg-warning. text-foreground, text-muted-foreground, text-primary-foreground, text-destructive, text-success. border (bare), border-border. Opacity modifiers OK (bg-primary/50). ring-*, shadow-*, fill-*, stroke-* with same token names.
+- BANNED: ANY raw Tailwind color (bg-gray-*, text-blue-*, etc.), inline style colors, hex values, bg-white, bg-black. The validator REJECTS all of these.
 
 SPACING (restricted palette — only multiples of 4px):
 - Page content padding: p-4 lg:p-6. Gap between major sections: gap-6 md:gap-8.
@@ -155,7 +153,7 @@ export const DESIGN_QUALITY_COMMON = `
 
 ### Visual Depth & Layers
 - Cards: bg-card border border-border/15 rounded-xl (not rounded-md)
-- Cards on dark pages: bg-zinc-900/50 border-border/10 backdrop-blur-sm
+- Cards on dark pages: bg-card border-border/10 backdrop-blur-sm
 - Cards MUST have hover state: hover:border-border/30 transition-colors
 - Sections alternate between bg-background and bg-muted/5 for rhythm
 - Section dividers: border-t border-border/10 (subtle, not heavy)
@@ -167,18 +165,18 @@ export const DESIGN_QUALITY_COMMON = `
 - CTA buttons: use the Button component, NEVER raw <button> or <a> styled as button
 
 ### Accent Color Discipline
-- ONE accent color per page (primary or emerald-400)
-- Use for: CTAs, terminal text, check icons, feature icon backgrounds, active states
-- NEVER mix blue + purple + emerald on same page
+- ONE accent color per page (primary)
+- Use for: CTAs, check icons, feature icon backgrounds, active states
+- NEVER mix multiple accent colors on same page
 - Badge: outline style (border-border/30 bg-transparent) not filled color
-- Status icons: text-emerald-400 for positive, text-red-400 for negative
+- Status icons: text-success for positive, text-destructive for negative
 
 ### Dark Theme Implementation
 - html element: className="dark"
 - Background: use CSS variables from globals.css dark section
 - Text: text-foreground for primary, text-muted-foreground for secondary
 - NEVER hardcode dark colors (bg-gray-900) — always use semantic tokens
-- Cards and elevated elements: slightly lighter than background (bg-card or bg-zinc-900/50)
+- Cards and elevated elements: slightly lighter than background (bg-card)
 `
 
 // ---------------------------------------------------------------------------
@@ -200,15 +198,15 @@ const DESIGN_QUALITY_MARKETING = `
 
 ### Icons in Feature Cards
 - Wrap in colored container: bg-primary/10 rounded-lg p-2.5
-- Icon color: text-primary (or text-emerald-400 for dark themes)
+- Icon color: text-primary
 - Icon size: h-5 w-5 inside the container
 - NEVER bare icons floating in a card without container
 
 ### Terminal / Code Blocks
 - Background: bg-zinc-950 (near-black, not gray)
 - Border: border-border/10 rounded-xl
-- Text: font-mono text-sm text-emerald-400
-- Prompt: text-emerald-500 "$ " prefix (green dollar sign)
+- Text: font-mono text-sm text-emerald-400 (EXCEPTION: terminal blocks use raw green for aesthetics)
+- Prompt: text-emerald-500 "$ " prefix (EXCEPTION: terminal prompt uses raw green)
 - Title bar (optional): flex with 3 dots (bg-zinc-700 rounded-full w-2.5 h-2.5) + title text-zinc-500 text-[11px]
 - Copy button: text-zinc-500 hover:text-zinc-300
 
@@ -222,8 +220,8 @@ const DESIGN_QUALITY_MARKETING = `
 
 ### Comparison Sections (before/after, with/without)
 - Two cards side by side: grid md:grid-cols-2 gap-6
-- Negative card: neutral border, items with X icon text-red-400
-- Positive card: accent border (border-emerald-500/20), items with Check icon text-emerald-400
+- Negative card: neutral border, items with X icon text-destructive
+- Positive card: accent border (border-primary/20), items with Check icon text-success
 - Header of each card: text-sm font-semibold uppercase tracking-wider
 
 ### Step/Process Sections
@@ -574,7 +572,7 @@ export const RULES_DATA_DISPLAY = `
 DATA DISPLAY RULES:
 
 STAT / METRIC CARDS: See the Stats Grid reference pattern in DESIGN QUALITY — APP PAGES. Follow that exact pattern.
-- Trend up: text-emerald-600 (light) / text-emerald-400 (dark) — exception to semantic-only rule for trend indicators.
+- Trend up: text-success.
 - Trend down: text-destructive.
 - Trend icon: ArrowUp / ArrowDown className="size-3 inline mr-1".
 - No actions on stat cards. Click entire card to drill down (if applicable).
@@ -611,12 +609,12 @@ MOCK DATA IN COMPONENTS:
 - NEVER store display strings ("2 hours ago", "Yesterday") in data — always compute from ISO date.
 
 STATUS INDICATORS (dot + text):
-- Pattern: <div className="flex items-center gap-2"><div className="size-2 rounded-full bg-emerald-500" /><span className="text-sm">Active</span></div>
-- Colors: bg-emerald-500 (active/online), bg-destructive (error/offline), bg-yellow-500 (warning), bg-muted-foreground (inactive).
+- Pattern: <div className="flex items-center gap-2"><div className="size-2 rounded-full bg-success" /><span className="text-sm">Active</span></div>
+- Colors: bg-success (active/online), bg-destructive (error/offline), bg-warning (warning), bg-muted-foreground (inactive).
 - Alternative: use Badge variants for status in tables/lists (preferred over dots).
 
 TREND INDICATORS:
-- Up (positive): <span className="text-sm text-emerald-600 flex items-center"><ArrowUp className="size-3 mr-1" />12.5%</span>
+- Up (positive): <span className="text-sm text-success flex items-center"><ArrowUp className="size-3 mr-1" />12.5%</span>
 - Down (negative): <span className="text-sm text-destructive flex items-center"><ArrowDown className="size-3 mr-1" />3.2%</span>
 - Neutral: <span className="text-sm text-muted-foreground">0%</span>
 - Always include arrow icon + sign (+ or -) + percentage.
