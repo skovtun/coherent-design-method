@@ -3,7 +3,13 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { validatePageQuality, autoFixCode, checkDesignConsistency, verifyIncrementalEdit, validateSharedComponents } from './quality-validator.js'
+import {
+  validatePageQuality,
+  autoFixCode,
+  checkDesignConsistency,
+  verifyIncrementalEdit,
+  validateSharedComponents,
+} from './quality-validator.js'
 import { fixUnescapedLtInJsx } from './self-heal.js'
 
 describe('validatePageQuality', () => {

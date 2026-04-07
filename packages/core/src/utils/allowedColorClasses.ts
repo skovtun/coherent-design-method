@@ -8,17 +8,48 @@ const NON_COLOR_VARS = new Set(['radius'])
 
 /** Raw Tailwind palette color names (those that take a numeric shade, e.g. blue-500) */
 export const RAW_TAILWIND_COLORS = [
-  'gray', 'blue', 'red', 'green', 'yellow', 'purple', 'pink', 'indigo',
-  'orange', 'slate', 'zinc', 'stone', 'neutral', 'emerald', 'teal', 'cyan',
-  'sky', 'violet', 'fuchsia', 'rose', 'amber', 'lime',
+  'gray',
+  'blue',
+  'red',
+  'green',
+  'yellow',
+  'purple',
+  'pink',
+  'indigo',
+  'orange',
+  'slate',
+  'zinc',
+  'stone',
+  'neutral',
+  'emerald',
+  'teal',
+  'cyan',
+  'sky',
+  'violet',
+  'fuchsia',
+  'rose',
+  'amber',
+  'lime',
 ]
 
 /** All Tailwind prefixes that accept color values */
 export const COLOR_PREFIXES = [
-  'bg', 'text', 'border', 'ring', 'outline', 'shadow',
-  'from', 'to', 'via',
-  'divide', 'placeholder', 'decoration', 'caret',
-  'fill', 'stroke', 'accent',
+  'bg',
+  'text',
+  'border',
+  'ring',
+  'outline',
+  'shadow',
+  'from',
+  'to',
+  'via',
+  'divide',
+  'placeholder',
+  'decoration',
+  'caret',
+  'fill',
+  'stroke',
+  'accent',
 ]
 
 export interface AllowedColorClasses {
@@ -77,9 +108,7 @@ export function getAllowedColorClasses(cssString: string): AllowedColorClasses {
   const modifierGroup = `(?:(?:[a-z][a-z0-9-]*:)*)?`
   const prefixGroup = `(?:${COLOR_PREFIXES.join('|')})`
   const colorGroup = `(?:${RAW_TAILWIND_COLORS.join('|')})`
-  const disallowedPattern = new RegExp(
-    `\\b${modifierGroup}${prefixGroup}-${colorGroup}-\\d+(?:\\/\\d+)?\\b`,
-  )
+  const disallowedPattern = new RegExp(`\\b${modifierGroup}${prefixGroup}-${colorGroup}-\\d+(?:\\/\\d+)?\\b`)
 
   return { classes, constraintSnippet, disallowedPattern }
 }

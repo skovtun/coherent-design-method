@@ -227,12 +227,12 @@ export async function applyModification(
       // Color validation gate: warn about remaining color issues after auto-fix
       const colorIssueTypes = ['raw-color', 'inline-style-color', 'arbitrary-color', 'svg-raw-color', 'color-prop']
       const colorIssues = validatePageQuality(fixedCode).filter(
-        i => i.severity === 'error' && colorIssueTypes.includes(i.type)
+        i => i.severity === 'error' && colorIssueTypes.includes(i.type),
       )
       if (colorIssues.length > 0) {
         console.warn(
           `⚠ Component has ${colorIssues.length} color issue(s) after auto-fix:\n` +
-          colorIssues.map(i => `  L${i.line}: ${i.message}`).join('\n'),
+            colorIssues.map(i => `  L${i.line}: ${i.message}`).join('\n'),
         )
       }
       await writeFile(fullPath, fixedCode)

@@ -12,10 +12,8 @@ const INLINE_STYLE_COLOR_RE =
   /style=\{[^}]*(color|background|backgroundColor|borderColor)\s*:\s*['"]?(#[0-9a-fA-F]{3,8}|rgb|hsl|red|blue|orange|green|purple|yellow|pink|white|black|gray|grey)\b/gi
 const ARBITRARY_COLOR_RE =
   /\b(?:bg|text|border|ring|shadow|fill|stroke|from|to|via)-\[(?:#[0-9a-fA-F]{3,8}|rgb|hsl|color-mix)/gi
-const SVG_COLOR_RE =
-  /\b(?:fill|stroke)=["'](?!none|currentColor|url|inherit|transparent)([^"']+)["']/g
-const COLOR_PROP_RE =
-  /\b(?:color|accentColor|iconColor|fillColor)=["']#[0-9a-fA-F]{3,8}["']/g
+const SVG_COLOR_RE = /\b(?:fill|stroke)=["'](?!none|currentColor|url|inherit|transparent)([^"']+)["']/g
+const COLOR_PROP_RE = /\b(?:color|accentColor|iconColor|fillColor)=["']#[0-9a-fA-F]{3,8}["']/g
 const HEX_IN_CLASS_RE = /className="[^"]*#[0-9a-fA-F]{3,8}[^"]*"/g
 const TEXT_BASE_RE = /\btext-base\b/g
 const HEAVY_SHADOW_RE = /\bshadow-(md|lg|xl|2xl)\b/g
@@ -143,28 +141,36 @@ export function validatePageQuality(
   )
   issues.push(
     ...checkLines(
-      code, INLINE_STYLE_COLOR_RE, 'inline-style-color',
+      code,
+      INLINE_STYLE_COLOR_RE,
+      'inline-style-color',
       'Use semantic Tailwind classes instead of inline style colors',
       'error',
     ),
   )
   issues.push(
     ...checkLines(
-      code, ARBITRARY_COLOR_RE, 'arbitrary-color',
+      code,
+      ARBITRARY_COLOR_RE,
+      'arbitrary-color',
       'Use semantic tokens instead of arbitrary color values like bg-[#hex]',
       'error',
     ),
   )
   issues.push(
     ...checkLines(
-      code, SVG_COLOR_RE, 'svg-raw-color',
+      code,
+      SVG_COLOR_RE,
+      'svg-raw-color',
       'Use currentColor or CSS variables for SVG fill/stroke, not raw colors',
       'error',
     ),
   )
   issues.push(
     ...checkLines(
-      code, COLOR_PROP_RE, 'color-prop',
+      code,
+      COLOR_PROP_RE,
+      'color-prop',
       'Use semantic color tokens instead of hex values in color props',
       'error',
     ),
@@ -1100,7 +1106,9 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
   if (hadColorFix) {
     const postFixIssues = validatePageQuality(fixed)
     const postFixErrors = postFixIssues.filter(
-      i => i.severity === 'error' && ['raw-color', 'inline-style-color', 'arbitrary-color', 'svg-raw-color', 'color-prop'].includes(i.type)
+      i =>
+        i.severity === 'error' &&
+        ['raw-color', 'inline-style-color', 'arbitrary-color', 'svg-raw-color', 'color-prop'].includes(i.type),
     )
     if (postFixErrors.length > 0) {
       fixes.push(`post-fix re-validation found ${postFixErrors.length} remaining color issue(s)`)
