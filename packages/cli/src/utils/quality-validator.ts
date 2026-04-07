@@ -3,7 +3,9 @@ export type { QualityIssue } from './types.js'
 import type { QualityIssue } from './types.js'
 
 const RAW_COLOR_RE =
-  /(?:(?:hover|focus|active|group-hover|focus-visible|focus-within):)?(?:bg|text|border|ring|outline|shadow|from|to|via)-(gray|blue|red|green|yellow|purple|pink|indigo|orange|slate|zinc|stone|neutral|emerald|teal|cyan|sky|violet|fuchsia|rose|amber|lime)-\d+/g
+  /(?:(?:[a-z][a-z0-9-]*:)*)?(?:bg|text|border|ring|outline|shadow|from|to|via|divide|placeholder|decoration|caret|fill|stroke|accent)-(gray|blue|red|green|yellow|purple|pink|indigo|orange|slate|zinc|stone|neutral|emerald|teal|cyan|sky|violet|fuchsia|rose|amber|lime)-\d+/g
+const RAW_BW_COLOR_RE =
+  /(?:(?:[a-z][a-z0-9-]*:)*)?(?:bg|text|border|ring|outline|shadow|divide|fill|stroke)-(white|black)\b/g
 const HEX_IN_CLASS_RE = /className="[^"]*#[0-9a-fA-F]{3,8}[^"]*"/g
 const TEXT_BASE_RE = /\btext-base\b/g
 const HEAVY_SHADOW_RE = /\bshadow-(md|lg|xl|2xl)\b/g
@@ -119,6 +121,15 @@ export function validatePageQuality(
       'Raw Tailwind color detected — use semantic tokens (bg-primary, text-muted-foreground, etc.)',
       'error',
     ).filter(issue => !isTerminalContext(issue.line)),
+  )
+  issues.push(
+    ...checkLines(
+      code,
+      RAW_BW_COLOR_RE,
+      'RAW_COLOR',
+      'Use semantic tokens (bg-background, text-foreground) instead of white/black',
+      'error',
+    ),
   )
   issues.push(
     ...checkLines(
@@ -548,7 +559,7 @@ function replaceRawColors(classes: string, colorMap: Record<string, string>): { 
   let result = classes
 
   const accentColorRe =
-    /\b((?:(?:hover|focus|active|group-hover|focus-visible|focus-within):)?)(bg|text|border|ring|outline|shadow|from|to|via)-(emerald|blue|violet|indigo|purple|teal|cyan|sky|rose|amber|red|green|yellow|pink|orange|fuchsia|lime)-(\d+)(?:\/\d+)?\b/g
+    /\b((?:(?:[a-z][a-z0-9-]*:)*)?)(bg|text|border|ring|outline|shadow|from|to|via|divide|placeholder|decoration|caret|fill|stroke|accent)-(emerald|blue|violet|indigo|purple|teal|cyan|sky|rose|amber|red|green|yellow|pink|orange|fuchsia|lime)-(\d+)(?:\/\d+)?\b/g
   result = result.replace(accentColorRe, (m, statePrefix: string, prefix: string, color: string, shade: string) => {
     const bareNoOpacity = m.replace(statePrefix, '').replace(/\/\d+$/, '')
     if (colorMap[bareNoOpacity]) {
@@ -605,7 +616,7 @@ function replaceRawColors(classes: string, colorMap: Record<string, string>): { 
   })
 
   const neutralColorRe =
-    /\b((?:(?:hover|focus|active|group-hover|focus-visible|focus-within):)?)(bg|text|border|ring|outline|shadow)-(zinc|slate|gray|neutral|stone)-(\d+)(?:\/\d+)?\b/g
+    /\b((?:(?:[a-z][a-z0-9-]*:)*)?)(bg|text|border|ring|outline|shadow|divide|placeholder|decoration|caret|fill|stroke|accent)-(zinc|slate|gray|neutral|stone)-(\d+)(?:\/\d+)?\b/g
   result = result.replace(neutralColorRe, (m, statePrefix: string, prefix: string, _color: string, shade: string) => {
     const bareNoOpacity = m.replace(statePrefix, '').replace(/\/\d+$/, '')
     if (colorMap[bareNoOpacity]) {

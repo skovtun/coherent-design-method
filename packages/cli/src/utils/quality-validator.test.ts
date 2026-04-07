@@ -830,6 +830,92 @@ describe('autoFixCode — template literal className syntax', () => {
   })
 })
 
+describe('validatePageQuality — extended color detection', () => {
+  it('detects divide- prefix with raw color', () => {
+    const code = '<div className="divide-gray-200 divide-y">content</div>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'RAW_COLOR')).toBe(true)
+  })
+
+  it('detects fill- prefix with raw color', () => {
+    const code = '<svg><circle className="fill-blue-500" /></svg>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'RAW_COLOR')).toBe(true)
+  })
+
+  it('detects stroke- prefix with raw color', () => {
+    const code = '<svg><path className="stroke-red-400" /></svg>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'RAW_COLOR')).toBe(true)
+  })
+
+  it('detects placeholder- prefix with raw color', () => {
+    const code = '<Input className="placeholder-gray-400" />'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'RAW_COLOR')).toBe(true)
+  })
+
+  it('detects decoration- prefix with raw color', () => {
+    const code = '<a className="decoration-blue-500 underline">link</a>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'RAW_COLOR')).toBe(true)
+  })
+
+  it('detects caret- prefix with raw color', () => {
+    const code = '<Input className="caret-blue-500" />'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'RAW_COLOR')).toBe(true)
+  })
+
+  it('detects accent- prefix with raw color', () => {
+    const code = '<input className="accent-purple-500" type="checkbox" />'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'RAW_COLOR')).toBe(true)
+  })
+
+  it('detects dark: modifier with raw color', () => {
+    const code = '<div className="dark:bg-blue-500">content</div>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'RAW_COLOR')).toBe(true)
+  })
+
+  it('detects stacked modifiers like dark:hover: with raw color', () => {
+    const code = '<div className="dark:hover:bg-blue-600">content</div>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'RAW_COLOR')).toBe(true)
+  })
+
+  it('detects responsive modifier with raw color', () => {
+    const code = '<div className="lg:text-gray-500">content</div>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'RAW_COLOR')).toBe(true)
+  })
+
+  it('detects bg-white as raw color', () => {
+    const code = '<div className="bg-white">content</div>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'RAW_COLOR')).toBe(true)
+  })
+
+  it('detects text-black as raw color', () => {
+    const code = '<div className="text-black">content</div>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'RAW_COLOR')).toBe(true)
+  })
+
+  it('does NOT flag semantic tokens', () => {
+    const code = '<div className="bg-primary text-foreground border-border">ok</div>'
+    const issues = validatePageQuality(code)
+    expect(issues.filter(i => i.type === 'RAW_COLOR')).toHaveLength(0)
+  })
+
+  it('does NOT flag semantic tokens with opacity', () => {
+    const code = '<div className="bg-primary/50 text-muted-foreground/80">ok</div>'
+    const issues = validatePageQuality(code)
+    expect(issues.filter(i => i.type === 'RAW_COLOR')).toHaveLength(0)
+  })
+})
+
 describe('fixUnescapedLtInJsx multiline safety', () => {
   it('does not corrupt multiline JSX tags', () => {
     const code = '>\n<div className="test">'
