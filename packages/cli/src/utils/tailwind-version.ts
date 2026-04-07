@@ -64,6 +64,12 @@ export function generateV4GlobalsCss(config: DesignSystemConfig): string {
 
   return `@import "tailwindcss";
 
+@utility container {
+  margin-inline: auto;
+  padding-inline: 1rem;
+  max-width: 80rem;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

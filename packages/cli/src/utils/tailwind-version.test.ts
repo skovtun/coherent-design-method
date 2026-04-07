@@ -113,6 +113,13 @@ const mockConfig = {
 describe('generateV4GlobalsCss', () => {
   const css = generateV4GlobalsCss(mockConfig)
 
+  it('contains @utility container with centering and padding', () => {
+    expect(css).toContain('@utility container')
+    expect(css).toContain('margin-inline: auto')
+    expect(css).toContain('padding-inline: 1rem')
+    expect(css).toContain('max-width: 80rem')
+  })
+
   it('contains --color-transparent in @theme inline', () => {
     expect(css).toContain('--color-transparent: transparent')
   })
