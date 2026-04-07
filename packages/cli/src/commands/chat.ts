@@ -304,11 +304,11 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
     const multiPageHint =
       !explicitPageTarget &&
       (/\b(pages?|sections?)\s*[:]\s*\w/i.test(message) ||
-      (
-        message.match(
-          /\b(?:registration|about|catal|account|contact|pricing|dashboard|settings|login|sign.?up|blog|portfolio|features)\b/gi,
-        ) || []
-      ).length >= SPLIT_THRESHOLD)
+        (
+          message.match(
+            /\b(?:registration|about|catal|account|contact|pricing|dashboard|settings|login|sign.?up|blog|portfolio|features)\b/gi,
+          ) || []
+        ).length >= SPLIT_THRESHOLD)
 
     if (multiPageHint) {
       try {

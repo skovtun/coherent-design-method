@@ -28,7 +28,7 @@ export function createMinimalConfig(appName: string = 'My App'): DesignSystemCon
         light: {
           primary: '#3B82F6',
           secondary: '#8B5CF6',
-          accent: '#F59E0B',
+          accent: '#F3F4F6',
           success: '#10B981',
           warning: '#F59E0B',
           error: '#EF4444',
@@ -41,7 +41,7 @@ export function createMinimalConfig(appName: string = 'My App'): DesignSystemCon
         dark: {
           primary: '#60A5FA',
           secondary: '#A78BFA',
-          accent: '#FBBF24',
+          accent: '#1F2937',
           success: '#34D399',
           warning: '#FBBF24',
           error: '#F87171',
