@@ -52,6 +52,7 @@ ANTI-SLOP CHECKLIST (avoid generic AI aesthetics):
 - Numbers must feel real: not 100%, 50%, 99.99%. Use 87%, 1,247, 34.2%
 - Max-width for readable text: max-w-prose or max-w-2xl (45-75 characters)
 - Touch targets: minimum 44x44px for all interactive elements (use padding if visual size is smaller)
+- Cognitive load: at decision points (filters, tabs, CTAs), show ≤4 visible options. Group the rest under "More" or dropdowns
 `
 
 // ---------------------------------------------------------------------------
@@ -205,6 +206,18 @@ export const DESIGN_QUALITY_COMMON = `
 - Body text max-width: max-w-prose (65ch) or max-w-2xl for long-form text
 - Line height: leading-relaxed (1.625) for body, leading-tight (1.25) for headings
 - Paragraph spacing: space-y-4 between paragraphs
+
+### Motion Foundations (apply to every page)
+- Default easing: cubic-bezier(0.23, 1, 0.32, 1) — strong ease-out for responsive feel. Never "ease" or "ease-in".
+- Default duration: 150ms for hover, 200ms for state changes. UI animations ≤300ms.
+- Button press: active:scale-[0.97] transition-transform duration-100 for tactile feedback.
+- Only animate transform and opacity (GPU). Never animate padding, margin, height, width.
+- Specify properties: transition-colors, transition-transform, transition-opacity. Never transition-all.
+- Hover states: wrap in @media (hover: hover) when possible to avoid false triggers on touch.
+
+### Typography Polish
+- Headings: text-wrap: balance to prevent orphaned single words on last line.
+- Body text: text-wrap: pretty for better line breaking (where supported).
 `
 
 // ---------------------------------------------------------------------------
@@ -1030,14 +1043,11 @@ Z-INDEX HIERARCHY:
 - Content: z-0 (default). Sticky headers: z-10. Dropdowns/Popovers: z-50. Sheet/Dialog overlay: z-50 (shadcn default). Toast: z-[100].
 - NEVER use arbitrary z-index values above z-50 except for toast (z-[100]).
 
-ANIMATION / TRANSITIONS:
-- Easing: use cubic-bezier(0.23, 1, 0.32, 1) for responsive UI (strong ease-out). Never use built-in "ease" or "ease-in" (sluggish).
-- Timing by element: buttons 100-160ms, tooltips 125-200ms, dropdowns 150-250ms, modals 200-400ms. UI animations ≤300ms.
-- Only animate transform and opacity (GPU-accelerated). Never animate padding, margin, height, width.
-- Button active state: add active:scale-[0.97] for tactile feedback.
+ADVANCED ANIMATION (beyond the basics in DESIGN QUALITY COMMON):
+- Timing by element: tooltips 125-200ms, dropdowns 150-250ms, modals 200-400ms, page transitions 300-500ms.
 - Enter animations: start from scale(0.95) + opacity-0, never scale(0). Nothing disappears completely.
-- Stagger delays: 30-80ms between items for list reveals. Cap total stagger at 500ms.
-- Hover: use @media (hover: hover) to avoid false positives on touch devices.
+- Stagger delays: 30-80ms between items for list/grid reveals. Cap total stagger at 500ms.
+- Reduced motion: always provide @media (prefers-reduced-motion: reduce) alternative (fade instead of slide).
 - Allowed: hover effects, accordion open/close, dialog enter/exit, dropdown appear, toast slide in, staggered list reveals.
 - BANNED: bounce easing, elastic/overshoot, parallax, auto-playing carousels, decorative animations that delay content, linear easing on UI.
 `
