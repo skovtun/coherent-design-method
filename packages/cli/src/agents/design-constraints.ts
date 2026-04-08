@@ -40,6 +40,18 @@ Then commit to:
 
 DO NOT make every section look the same. Vary density, background treatment, and visual weight.
 Every page should have a clear visual hierarchy — if you squint, the structure should still be obvious.
+
+ANTI-SLOP CHECKLIST (avoid generic AI aesthetics):
+- Never repeat the same card layout more than twice — vary grid columns, card sizes, or presentation
+- Never center everything — use left-aligned or asymmetric layouts for app pages
+- Never use identical icon+heading+text cards in 3-column grids — vary the visual treatment
+- Tint your neutrals — never use pure gray. Add a warm or cool tint to bg-muted and borders
+- Vary border-radius: tighter on inner elements (rounded-md), softer on containers (rounded-xl)
+- Content must feel real: no "John Doe", "Jane Smith", "Acme Corp". Use distinctive, diverse names
+- No cliché copy: avoid "Seamless", "Elevate", "Unleash", "Next-Gen", "Game-changer"
+- Numbers must feel real: not 100%, 50%, 99.99%. Use 87%, 1,247, 34.2%
+- Max-width for readable text: max-w-prose or max-w-2xl (45-75 characters)
+- Touch targets: minimum 44x44px for all interactive elements (use padding if visual size is smaller)
 `
 
 // ---------------------------------------------------------------------------
@@ -119,17 +131,21 @@ COMPONENT VARIANT RULES (CRITICAL):
   <Button variant="ghost" className={cn("w-full justify-start", isActive && "bg-accent font-medium")}>
 - For filter toggle buttons, use variant={isActive ? 'default' : 'outline'} — NOT className toggling.
 
-CONTENT (zero placeholders):
+CONTENT (zero placeholders, zero generic):
 - NEVER: "Lorem ipsum", "Card content", "Description here"
 - ALWAYS: Real, contextual content. Realistic metric names, values, dates.
+- BANNED names: "John Doe", "Jane Smith", "Jane Doe", "John Smith", "Sarah Chan". Use diverse, distinctive names (e.g., "Priya Sharma", "Marcus Rivera", "Aisha Okafor").
+- BANNED company names: "Acme", "Nexus", "SmartFlow", "TechCorp". Use realistic names (e.g., "Meridian Labs", "Canopy Health", "Brickwell Partners").
+- BANNED metric values: 100%, 50%, 99.99%, round thousands. Use realistic numbers (87%, 1,247, 34.2%, $18,750).
+- BANNED copy: "Seamless", "Elevate", "Unleash", "Next-Gen", "Game-changer", "Delve", "Cutting-edge". Write specific, concrete descriptions.
 
 MOCK/SAMPLE DATA (for demo arrays, fake users, fake tasks, etc.):
-- Dates: ALWAYS ISO 8601 strings in data ("2024-06-15T10:30:00Z"). 
+- Dates: ALWAYS ISO 8601 strings in data ("2024-06-15T10:30:00Z").
   Display with date formatting: new Date(item.date).toLocaleDateString() or
   Intl.RelativeTimeFormat, or date-fns if already imported.
   BAD:  { createdAt: "2 hours ago" }
   GOOD: { createdAt: "2024-06-15T10:30:00Z" }
-- Images: "/placeholder.svg?height=40&width=40" (Next.js placeholder). Never broken paths.
+- Images: use https://i.pravatar.cc/150?u=unique-id for avatars. "/placeholder.svg?height=40&width=40" for non-avatar images. Never broken paths.
 - IDs: sequential numbers (1, 2, 3) or short slugs ("proj-1"). Never random UUIDs.
 `
 
@@ -177,6 +193,18 @@ export const DESIGN_QUALITY_COMMON = `
 - Text: text-foreground for primary, text-muted-foreground for secondary
 - NEVER hardcode dark colors (bg-gray-900) — always use semantic tokens
 - Cards and elevated elements: slightly lighter than background (bg-card)
+- Dark mode uses lighter surfaces for depth (no drop shadows — they disappear on dark)
+
+### Interactive States (all 8 required for interactive elements)
+- Default, hover, focus-visible, active, disabled, loading, error, success
+- focus-visible: ring-2 ring-ring ring-offset-2 (show only for keyboard, not mouse)
+- active: scale-[0.97] or translate-y-px for tactile feedback
+- disabled: opacity-50 pointer-events-none cursor-not-allowed
+
+### Readability
+- Body text max-width: max-w-prose (65ch) or max-w-2xl for long-form text
+- Line height: leading-relaxed (1.625) for body, leading-tight (1.25) for headings
+- Paragraph spacing: space-y-4 between paragraphs
 `
 
 // ---------------------------------------------------------------------------
@@ -492,10 +520,12 @@ export const VISUAL_DEPTH = `
 - Accent glow: bg-gradient-to-r from-primary/10 via-transparent to-primary/5
 
 ### Depth & Layering
-- Glass cards (landing/hero): bg-card/80 backdrop-blur-sm border-border/40
+- Glass cards (landing/hero only): bg-card/80 backdrop-blur-sm border-border/40. Never on app pages.
 - Floating accent blobs: absolute bg-primary/5 blur-3xl rounded-full -z-10 (behind content)
-- Elevated cards on hover: hover:-translate-y-0.5 hover:shadow-md transition-all duration-200
+- Elevated cards on hover: hover:-translate-y-0.5 hover:shadow-sm transition-all duration-200
 - Section rhythm: alternate bg-background and bg-muted/5 between sections
+- Tinted shadows: tint shadow color to match background hue instead of pure black
+- Negative margins for overlap: create depth with overlapping elements (-mt-8, -ml-4)
 
 ### Micro-interactions (hover/focus only)
 - Card hover lift: hover:-translate-y-0.5 transition-transform duration-200
@@ -1001,12 +1031,15 @@ Z-INDEX HIERARCHY:
 - NEVER use arbitrary z-index values above z-50 except for toast (z-[100]).
 
 ANIMATION / TRANSITIONS:
-- Default transition: transition-colors for color changes. transition-all for size/position.
-- Duration: 150ms (Tailwind default) for hover effects. 200-300ms for enter/exit animations.
-- Easing: ease-in-out for most. ease-out for enter. ease-in for exit.
-- NEVER animate on page load (no entrance animations). Animate only on user interaction.
-- Allowed: hover effects, accordion open/close, dialog enter/exit, dropdown appear, toast slide in.
-- BANNED: bouncing elements, parallax, auto-playing carousels, decorative animations that delay content.
+- Easing: use cubic-bezier(0.23, 1, 0.32, 1) for responsive UI (strong ease-out). Never use built-in "ease" or "ease-in" (sluggish).
+- Timing by element: buttons 100-160ms, tooltips 125-200ms, dropdowns 150-250ms, modals 200-400ms. UI animations ≤300ms.
+- Only animate transform and opacity (GPU-accelerated). Never animate padding, margin, height, width.
+- Button active state: add active:scale-[0.97] for tactile feedback.
+- Enter animations: start from scale(0.95) + opacity-0, never scale(0). Nothing disappears completely.
+- Stagger delays: 30-80ms between items for list reveals. Cap total stagger at 500ms.
+- Hover: use @media (hover: hover) to avoid false positives on touch devices.
+- Allowed: hover effects, accordion open/close, dialog enter/exit, dropdown appear, toast slide in, staggered list reveals.
+- BANNED: bounce easing, elastic/overshoot, parallax, auto-playing carousels, decorative animations that delay content, linear easing on UI.
 `
 
 // ---------------------------------------------------------------------------
