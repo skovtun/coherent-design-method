@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'fs'
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'fs'
 import { resolve } from 'path'
 import type ora from 'ora'
 import { z } from 'zod'
@@ -517,6 +517,29 @@ export async function splitGeneratePages(
       }
       for (const w of planWarnings) {
         console.log(chalk.dim(`  ${w}`))
+      }
+
+      // Generate sidebar immediately if plan requires it (don't wait for `coherent fix`)
+      if (plan && parseOpts.projectRoot) {
+        const hasSidebar = plan.groups.some(g => g.layout === 'sidebar' || g.layout === 'both')
+        const sidebarPath = resolve(parseOpts.projectRoot, 'components', 'shared', 'sidebar.tsx')
+        if (hasSidebar && !existsSync(sidebarPath)) {
+          try {
+            const sidebarUiPath = resolve(parseOpts.projectRoot, 'components', 'ui', 'sidebar.tsx')
+            const componentProvider = getComponentProvider()
+            if (!existsSync(sidebarUiPath) && componentProvider.has('sidebar')) {
+              await componentProvider.installComponent('sidebar', parseOpts.projectRoot)
+            }
+            const { PageGenerator } = await import('@getcoherent/core')
+            const generator = new PageGenerator(modCtx.config)
+            const sidebarCode = generator.generateSharedSidebarCode()
+            mkdirSync(resolve(parseOpts.projectRoot, 'components', 'shared'), { recursive: true })
+            writeFileSync(sidebarPath, sidebarCode, 'utf-8')
+            console.log(chalk.dim('  ✔ Generated AppSidebar component'))
+          } catch {
+            /* best-effort — fix command will catch this later */
+          }
+        }
       }
     } catch {
       spinner.warn('Phase 2/6 — Plan generation failed (continuing without plan)')

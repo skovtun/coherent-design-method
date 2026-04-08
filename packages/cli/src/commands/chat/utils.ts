@@ -132,9 +132,10 @@ export async function warnInlineDuplicates(
   pageCode: string,
   manifest: { shared: Array<{ id: string; name: string; type: string; file: string }> },
   plan?: ArchitecturePlan,
-): Promise<void> {
+): Promise<{ missingPlannedImports: Array<{ name: string; importPath: string }> }> {
+  const result = { missingPlannedImports: [] as Array<{ name: string; importPath: string }> }
   const reusable = manifest.shared.filter(e => e.type !== 'layout')
-  if (reusable.length === 0) return
+  if (reusable.length === 0) return result
 
   // Build a set of component names this page should use (from plan)
   const plannedForPage = plan
@@ -150,6 +151,7 @@ export async function warnInlineDuplicates(
     if (hasImport) continue
 
     if (plannedForPage) {
+      result.missingPlannedImports.push({ name: e.name, importPath: `@/components/shared/${kebab}` })
       console.log(
         chalk.yellow(
           `\n⚠ Page "${pageName}" should use shared component ${e.name} (per architecture plan) but it's not imported. Import from @/components/shared/${kebab}`,
@@ -188,6 +190,37 @@ export async function warnInlineDuplicates(
       // ignore read errors
     }
   }
+  return result
+}
+
+/**
+ * Auto-inject missing shared component imports into page code.
+ * Adds import statements for planned components that AI failed to include.
+ */
+export function injectMissingSharedImports(
+  code: string,
+  missingImports: Array<{ name: string; importPath: string }>,
+): string {
+  if (missingImports.length === 0) return code
+
+  const importLines = missingImports.map(m => `import { ${m.name} } from '${m.importPath}'`).join('\n')
+
+  // Insert after the last existing import or after "use client"
+  const lastImportIdx = code.lastIndexOf('\nimport ')
+  if (lastImportIdx !== -1) {
+    const lineEnd = code.indexOf('\n', lastImportIdx + 1)
+    return code.slice(0, lineEnd + 1) + importLines + '\n' + code.slice(lineEnd + 1)
+  }
+
+  // Fallback: after "use client" directive
+  const useClientMatch = code.match(/^['"]use client['"]\s*\n/m)
+  if (useClientMatch) {
+    const insertAt = (useClientMatch.index ?? 0) + useClientMatch[0].length
+    return code.slice(0, insertAt) + importLines + '\n' + code.slice(insertAt)
+  }
+
+  // Last resort: prepend
+  return importLines + '\n' + code
 }
 
 export async function loadConfig(configPath: string): Promise<DesignSystemConfig> {

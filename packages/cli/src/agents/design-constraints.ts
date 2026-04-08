@@ -402,6 +402,15 @@ DATA CARD GRID:
 </div>
 \`\`\`
 
+### Layout Variety (CRITICAL — avoid identical dashboards)
+Choose ONE layout per page. Do NOT default to "stats + cards + table" every time:
+- Layout A (Overview): stats row → two-column split (primary content 2/3 + sidebar 1/3) → full-width section
+- Layout B (Feed): header with actions → filterable list/table → pagination
+- Layout C (Detail): breadcrumb → hero card with key metrics → tabbed content below
+- Layout D (Kanban): header → horizontal scrolling columns (using overflow-x-auto flex gap-4)
+- Layout E (Split): left panel (list/nav, w-80) + right panel (detail view, flex-1)
+Vary the layout across pages. Dashboard ≠ Projects ≠ Tasks ≠ Team.
+
 ### Spacing
 - gap-4 md:gap-6 between sections
 - p-4 lg:p-6 content padding

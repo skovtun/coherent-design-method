@@ -44,6 +44,7 @@ import {
   routeToRelPath,
   extractComponentIdsFromCode,
   warnInlineDuplicates,
+  injectMissingSharedImports,
   isMarketingRoute,
 } from './utils.js'
 import { validateAndFixGeneratedCode, ensureComponentsInstalled, regenerateComponent } from './code-generator.js'
@@ -719,7 +720,7 @@ export async function applyModification(
 
           const manifestForAudit = await loadManifest(projectRoot)
           const planForAudit = loadPlan(projectRoot)
-          await warnInlineDuplicates(
+          const auditResult = await warnInlineDuplicates(
             projectRoot,
             page.name || page.id || route.slice(1),
             route,
@@ -727,6 +728,11 @@ export async function applyModification(
             manifestForAudit,
             planForAudit ?? undefined,
           )
+
+          // Auto-inject missing shared component imports from plan
+          if (auditResult.missingPlannedImports.length > 0) {
+            codeToWrite = injectMissingSharedImports(codeToWrite, auditResult.missingPlannedImports)
+          }
 
           const relFilePath = routeToRelPath(route, isAuth)
           printPostGenerationReport({
@@ -965,7 +971,7 @@ export async function applyModification(
 
             const manifestForAudit = await loadManifest(projectRoot)
             const planForAudit2 = loadPlan(projectRoot)
-            await warnInlineDuplicates(
+            const auditResult2 = await warnInlineDuplicates(
               projectRoot,
               pageDef.name || pageDef.id || route.slice(1),
               route,
@@ -973,6 +979,10 @@ export async function applyModification(
               manifestForAudit,
               planForAudit2 ?? undefined,
             )
+
+            if (auditResult2.missingPlannedImports.length > 0) {
+              codeToWrite = injectMissingSharedImports(codeToWrite, auditResult2.missingPlannedImports)
+            }
 
             const relFilePath = routeToRelPath(route, isAuth)
             printPostGenerationReport({
