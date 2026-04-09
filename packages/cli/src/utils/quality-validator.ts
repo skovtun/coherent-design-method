@@ -19,6 +19,9 @@ const TEXT_BASE_RE = /\btext-base\b/g
 const HEAVY_SHADOW_RE = /\bshadow-(md|lg|xl|2xl)\b/g
 const TRANSITION_ALL_RE = /\btransition-all\b/g
 const EXCESSIVE_PADDING_RE = /\bp-(8|10|12|14|16|20)\b/g
+const BANNED_NAMES_RE = /['"](?:John\s+Doe|Jane\s+(?:Smith|Doe)|Acme\s+Corp|TechCorp|SmartFlow|Nexus\s+Inc)['"]/gi
+const BANNED_COPY_RE =
+  /['"](?:[^'"]*\b(?:Seamless|Elevate|Unleash|Next-Gen|Game-changer|Cutting-edge|Delve)\b[^'"]*)['"]/gi
 const SM_BREAKPOINT_RE = /\bsm:/g
 const XL_BREAKPOINT_RE = /\bxl:/g
 const XXL_BREAKPOINT_RE = /\b2xl:/g
@@ -207,6 +210,24 @@ export function validatePageQuality(
       EXCESSIVE_PADDING_RE,
       'EXCESSIVE_PADDING',
       'Excessive padding (>p-6) — max is p-6 for content areas',
+      'warning',
+    ),
+  )
+  issues.push(
+    ...checkLines(
+      code,
+      BANNED_NAMES_RE,
+      'BANNED_NAME',
+      'Generic placeholder name detected — use diverse, realistic names',
+      'warning',
+    ),
+  )
+  issues.push(
+    ...checkLines(
+      code,
+      BANNED_COPY_RE,
+      'BANNED_COPY',
+      'AI cliché copy detected — write specific, concrete descriptions',
       'warning',
     ),
   )

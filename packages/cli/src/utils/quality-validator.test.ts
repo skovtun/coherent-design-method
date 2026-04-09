@@ -1045,3 +1045,71 @@ describe('validateSharedComponents', () => {
     expect(issues).toEqual([])
   })
 })
+
+describe('transition-all detection', () => {
+  it('warns on transition-all usage', () => {
+    const code = `'use client'\nexport default function Page() {\n  return <div className="transition-all duration-200">Test</div>\n}`
+    const issues = validatePageQuality(code, [])
+    expect(issues.some(i => i.type === 'TRANSITION_ALL')).toBe(true)
+  })
+
+  it('does not warn on specific transitions', () => {
+    const code = `'use client'\nexport default function Page() {\n  return <div className="transition-colors duration-200">Test</div>\n}`
+    const issues = validatePageQuality(code, [])
+    expect(issues.some(i => i.type === 'TRANSITION_ALL')).toBe(false)
+  })
+})
+
+describe('excessive padding detection', () => {
+  it('warns on p-8 and larger', () => {
+    const code = `'use client'\nexport default function Page() {\n  return <div className="p-8">Content</div>\n}`
+    const issues = validatePageQuality(code, [])
+    expect(issues.some(i => i.type === 'EXCESSIVE_PADDING')).toBe(true)
+  })
+
+  it('does not warn on p-6 or smaller', () => {
+    const code = `'use client'\nexport default function Page() {\n  return <div className="p-6">Content</div>\n}`
+    const issues = validatePageQuality(code, [])
+    expect(issues.some(i => i.type === 'EXCESSIVE_PADDING')).toBe(false)
+  })
+})
+
+describe('banned names detection', () => {
+  it('warns on John Doe', () => {
+    const code = `'use client'\nexport default function Page() {\n  return <p>Contact "John Doe"</p>\n}`
+    const issues = validatePageQuality(code, [])
+    expect(issues.some(i => i.type === 'BANNED_NAME')).toBe(true)
+  })
+
+  it('warns on Acme Corp', () => {
+    const code = `'use client'\nexport default function Page() {\n  const company = 'Acme Corp'\n  return <p>{company}</p>\n}`
+    const issues = validatePageQuality(code, [])
+    expect(issues.some(i => i.type === 'BANNED_NAME')).toBe(true)
+  })
+
+  it('does not warn on realistic names', () => {
+    const code = `'use client'\nexport default function Page() {\n  return <p>Contact "Priya Sharma"</p>\n}`
+    const issues = validatePageQuality(code, [])
+    expect(issues.some(i => i.type === 'BANNED_NAME')).toBe(false)
+  })
+})
+
+describe('banned copy detection', () => {
+  it('warns on Seamless', () => {
+    const code = `'use client'\nexport default function Page() {\n  return <p>'Seamless integration with your tools'</p>\n}`
+    const issues = validatePageQuality(code, [])
+    expect(issues.some(i => i.type === 'BANNED_COPY')).toBe(true)
+  })
+
+  it('warns on Next-Gen', () => {
+    const code = `'use client'\nexport default function Page() {\n  return <p>'Next-Gen AI platform'</p>\n}`
+    const issues = validatePageQuality(code, [])
+    expect(issues.some(i => i.type === 'BANNED_COPY')).toBe(true)
+  })
+
+  it('does not warn on specific descriptions', () => {
+    const code = `'use client'\nexport default function Page() {\n  return <p>'Track projects with visual progress bars'</p>\n}`
+    const issues = validatePageQuality(code, [])
+    expect(issues.some(i => i.type === 'BANNED_COPY')).toBe(false)
+  })
+})
