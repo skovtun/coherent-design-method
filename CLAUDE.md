@@ -5,9 +5,9 @@
 > Coherent's job is to make that impossible — by encoding design decisions
 > as a tiered constraint system that runs before the AI writes a single line of code.
 
-**Current version:** 0.6.74
+**Current version:** 0.6.76
 **Packages:** `@getcoherent/core` + `@getcoherent/cli` (published together, same version)
-**Tests:** 711 passing
+**Tests:** 731 passing
 
 ---
 

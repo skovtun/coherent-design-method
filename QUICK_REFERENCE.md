@@ -9,6 +9,7 @@ coherent init                    # Create a new project
 coherent chat "<message>"        # Generate/modify pages with AI
 coherent chat --page "X" "..."   # Edit only page X
 coherent chat --component "X" "..."  # Edit shared component X
+coherent chat --dry-run "..."       # Preview changes without applying
 coherent components list         # Show all shared + UI components
 coherent status                  # Show project stats (pages, components, tokens)
 coherent preview                 # Start dev server (http://localhost:3000)

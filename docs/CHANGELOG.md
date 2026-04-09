@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.6.76] — 2026-04-09
+
+### Added
+- **`--dry-run` flag** for `coherent chat` — shows planned modifications without applying
+- **E2E test script** (`scripts/e2e-test.sh`) — automated init → chat → check → fix → export
+- **20 new tests** (711 → 731): modification-handler (19), split-generator fix (1)
+- **Banned names/copy validator** — warns on "John Doe", "Acme Corp", "Seamless", "Elevate"
+- **`inferPageType` expanded** — forgot-password, features, projects, project-detail
+
+### Changed
+- **Async I/O in preview.ts** — parallel file reads via Promise.all (was sequential readFileSync)
+
 ## [0.6.74] — 2026-04-09
 
 ### Added
