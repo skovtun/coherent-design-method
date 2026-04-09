@@ -51,6 +51,28 @@ ANTI-SLOP CHECKLIST (avoid generic AI aesthetics):
 - Max-width for readable text: max-w-prose or max-w-2xl (45-75 characters)
 - Touch targets: minimum 44x44px for all interactive elements (use padding if visual size is smaller)
 - Cognitive load: at decision points (filters, tabs, CTAs), show ≤4 visible options. Group the rest under "More" or dropdowns
+
+ATMOSPHERE LANGUAGE (define the vibe before generating):
+Before writing code, describe the page feel in evocative terms — not technical:
+- NOT "blue" → "ocean-deep cerulean with warm midtone lift"
+- NOT "minimal" → "editorial breathing room with intentional density pockets"
+- NOT "dark" → "obsidian surface with luminous content hierarchy"
+This shapes decisions throughout generation without explicit rules.
+
+AI SLOP TEST (mentally run before finalizing any page):
+"If someone saw this and you said 'AI made it' — would they immediately believe you?"
+Red flags → redesign that section:
+- Hero metric template (big KPI + gradient accent bg) on marketing pages
+- Inter font + purple-to-blue gradient
+- Glassmorphism as default card treatment
+- Neon accents on dark backgrounds
+- Large rounded icon container above every section heading
+
+MOTION DECISION FRAMEWORK (before adding ANY animation):
+1. How often does the user trigger this? (100s/day → no animation)
+2. Is it keyboard-initiated? (yes → never animate)
+3. Purpose must be: state change, feedback, preventing jarring change, or spatial orientation
+4. If purpose is "looks cool" and user sees it often → don't animate
 `
 
 // ---------------------------------------------------------------------------
@@ -68,10 +90,14 @@ TYPOGRAPHY (most impactful rules):
 - Metric/KPI values: text-2xl font-bold (the ONLY other place for large text).
 - Muted/secondary: text-sm text-muted-foreground (or text-xs text-muted-foreground).
 - Create hierarchy through font WEIGHT (medium → semibold → bold), NOT font SIZE.
+- Letter-spacing by size: large headings (>40px) → tracking-tighter; body (14-16px) → tracking-normal; small labels (<12px) → tracking-wide. Never tight tracking on small text.
 
 COLORS — ONLY SEMANTIC TOKENS (zero raw colors):
 - Allowed: bg-background, bg-muted, bg-muted/50, bg-card, bg-primary, bg-secondary, bg-destructive, bg-success, bg-warning. text-foreground, text-muted-foreground, text-primary-foreground, text-destructive, text-success. border (bare), border-border. Opacity modifiers OK (bg-primary/50). ring-*, shadow-*, fill-*, stroke-* with same token names.
 - BANNED: ANY raw Tailwind color (bg-gray-*, text-blue-*, etc.), inline style colors, hex values, bg-white, bg-black. The validator REJECTS all of these.
+- BANNED: "AI color palette" — cyan-on-dark, purple-to-blue gradients, neon accents on dark backgrounds. Statistical fingerprints of AI-generated UI.
+- BANNED: gradient text on metrics/KPI values/primary headings — decorative, not meaningful, loses contrast.
+- BANNED: emojis anywhere in code or markup — use lucide-react icons instead.
 
 SPACING (restricted palette — only multiples of 4px):
 - Page content padding: p-4 lg:p-6. Gap between major sections: gap-6 md:gap-8.
@@ -81,7 +107,9 @@ SPACING (restricted palette — only multiples of 4px):
 LAYOUT PATTERNS:
 - Stats/KPI grid: grid gap-4 md:grid-cols-2 lg:grid-cols-4
 - Card grid (3 col): grid gap-4 md:grid-cols-3
-- Full-height page: min-h-svh (not min-h-screen)
+- Full-height page: min-h-[100dvh] (dvh = dynamic viewport height, fixes iOS Safari layout jump)
+- NEVER complex flexbox math (w-[calc(33.33%-1rem)]) → use CSS Grid
+- Anti-center: NEVER center all content on app pages — left-aligned asymmetric layouts read as designed, not generated
 - Centered form (login/signup): auth layout handles centering — just output div w-full max-w-md with Card inside
 - Page content wrapper: flex flex-1 flex-col gap-4 p-4 lg:p-6
 - Responsive: primary md: and lg:. Use sm:/xl: only when genuinely needed. Avoid 2xl:. NEVER arbitrary like min-[800px].
@@ -128,6 +156,15 @@ ANTI-PATTERNS (NEVER DO):
 - Raw <button> or <input> → always use Button, Input from @/components/ui/
 - Mixing link styles on the same page → pick ONE style
 - Interactive elements without hover/focus states
+- Monospace as "developer aesthetic" → proper type scale; mono only for actual code
+- Large rounded icon container above every heading → only when icon adds meaning
+- Glassmorphism as default → ONLY landing hero, never app pages
+- Sparklines as decoration → only with real, readable data
+- shadow-md on cards → shadow-sm with tinted color, or no shadow
+- Inline mock data arrays in components → extract to src/data/
+- Conditional renders without transitions → motion gaps are UX bugs
+- Same animation duration everywhere → frequency and context determine duration
+- transition: all → always specify: transition-colors, transition-transform, etc.
 
 COMPONENT VARIANT RULES (CRITICAL):
 - NEVER use <Button> with custom bg-*/text-* classes for navigation or tabs without variant="ghost".
@@ -215,16 +252,29 @@ export const DESIGN_QUALITY_COMMON = `
 - Paragraph spacing: space-y-4 between paragraphs
 
 ### Motion Foundations (apply to every page)
-- Default easing: cubic-bezier(0.23, 1, 0.32, 1) — strong ease-out for responsive feel. Never "ease" or "ease-in".
-- Default duration: 150ms for hover, 200ms for state changes. UI animations ≤300ms.
-- Button press: active:scale-[0.97] transition-transform duration-100 for tactile feedback.
-- Only animate transform and opacity (GPU). Never animate padding, margin, height, width.
-- Specify properties: transition-colors, transition-transform, transition-opacity. Never transition-all.
-- Hover states: wrap in @media (hover: hover) when possible to avoid false triggers on touch.
+- Easing curves (use exponential for natural deceleration):
+  ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1) — most UI entrances
+  ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1) — dramatic entrances/modals
+  ease-out-circ: cubic-bezier(0, 0.55, 0.45, 1) — quick micro-interactions
+  iOS sheet: cubic-bezier(0.32, 0.72, 0, 1) — bottom sheets/drawers
+- Default duration: 150ms hover, 200ms state changes. UI ≤300ms. Exit faster than entrance.
+- Button press: active:scale-[0.97] transition-transform duration-100.
+- Only animate transform and opacity (GPU). NEVER animate height directly — use grid-template-rows: 0fr → 1fr.
+- Specify properties: transition-colors, transition-transform. Never transition-all.
+- Hover: instant ON (0ms on :hover), ease OFF (150ms on base state). @media (hover: hover) to avoid touch false triggers.
+- Blur masking: filter: blur(2px) during content/state transitions to mask jumps. Remove after transition.
+- animation-fill-mode: backwards when using animation-delay (prevents flash-before-animate).
+- Stagger: animation-delay: calc(var(--i) * 60ms); animation: fadeIn 0.3s ease-out both;
+- Motion gaps: every conditional render ({isOpen && <Modal />}) is a potential motion gap — wrap in transitions.
 
 ### Typography Polish
 - Headings: text-wrap: balance to prevent orphaned single words on last line.
 - Body text: text-wrap: pretty for better line breaking (where supported).
+
+### Modern CSS (progressive enhancement)
+- Container queries: prefer @container over @media for component-level responsive behavior.
+  Parent: container-type: inline-size. Child: @container (min-width: 400px) { ... }
+- CSS has(): .card:has(img) { layout with image } — conditional layouts without JS state.
 `
 
 // ---------------------------------------------------------------------------
@@ -418,6 +468,11 @@ Choose ONE layout per page. Do NOT default to "stats + cards + table" every time
 - Layout E (Split): left panel (list/nav, w-80) + right panel (detail view, flex-1)
 Vary the layout across pages. Dashboard ≠ Projects ≠ Tasks ≠ Team.
 
+### Dashboard Density Hardening
+- High-density pages: avoid wrapping every metric in Card — use border-t, divide-y, or negative space grouping instead. Cards signal "separate item", not "data in a section".
+- Shadow tinting: tint shadow toward background hue, never generic gray.
+- CSS Subgrid for card alignment: when cards have variable content, use subgrid to align CTAs across all cards regardless of content length.
+
 ### Spacing
 - gap-4 md:gap-6 between sections
 - p-4 lg:p-6 content padding
@@ -572,6 +627,17 @@ Ask: "If someone sees this page for 3 seconds, what will they remember?"
 - A dashboard → the bold stat numbers and clean data density
 - A pricing page → the highlighted tier standing out from the rest
 - A settings page → nothing flashy — that IS the correct answer
+
+### Optimistic UI
+Update state immediately, sync after. NEVER make user wait for network before showing feedback.
+Toggle/switch: visual change on click, revert ONLY on confirmed error.
+
+### Progressive Disclosure
+Start simple, reveal complexity through interaction:
+- Primary options visible → advanced behind "More options" / expandable
+- Hover states reveal secondary actions (delete, share, duplicate)
+- Empty states TEACH the interface — not just "nothing here yet":
+  GOOD: "Create your first project. Track progress, assign tasks, set deadlines."
 `
 
 // ---------------------------------------------------------------------------
@@ -1068,6 +1134,18 @@ ADVANCED ANIMATION (beyond the basics in DESIGN QUALITY COMMON):
 - Allowed: hover effects, accordion open/close, dialog enter/exit, dropdown appear, toast slide in, staggered list reveals.
 - Clip-path reveals: clip-path: inset(0 0 100% 0) → inset(0) for text/section reveals. Use cubic-bezier(0.77, 0, 0.175, 1). GPU-accelerated, interruptible.
 - BANNED: bounce easing, elastic/overshoot, parallax, auto-playing carousels, decorative animations, linear easing on UI, keyframes for interruptible elements (use transitions).
+
+HEIGHT ANIMATION (canonical pattern):
+- NEVER animate height/max-height directly → layout thrashing, not interruptible.
+- Use grid-template-rows: open ? '1fr' : '0fr' with inner overflow: hidden.
+- Transition: grid-template-rows 300ms cubic-bezier(0.25, 1, 0.5, 1).
+- Use for: accordions, expandable sections, mobile nav, collapsible cards.
+
+CONTEXT-DEPENDENT ANIMATION INTENSITY:
+- Dashboard/Settings/Admin: minimal, fast, purposeful only
+- SaaS app pages: subtle entrance/exit, spring transitions
+- Landing/Marketing: full creative expression, stagger reveals, clip-path
+- Banking/Finance/Medical: near-zero animation, functional only
 `
 
 export const RULES_NEXTJS = `
@@ -1093,6 +1171,15 @@ PATTERNS:
 - Loading UI: create loading.tsx in route folder for automatic Suspense boundaries.
 - Error boundary: create error.tsx with "use client" for graceful error handling.
 - Not found: create not-found.tsx for custom 404 pages.
+
+MOCK DATA ARCHITECTURE:
+- NEVER inline mock arrays in components. Extract to src/data/mockData.ts with typed exports.
+- Shared TypeScript interfaces: src/types/index.ts. Import: import { Project } from '@/types'
+- This makes replacing mock data with real API calls trivial.
+
+CSS ARCHITECTURE (add to globals.css):
+- accent-color: hsl(var(--primary)); — native form elements match brand automatically.
+- color-scheme: light dark; — tells browser which color scheme is preferred.
 `
 
 // ---------------------------------------------------------------------------
