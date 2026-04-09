@@ -14,11 +14,12 @@ import { getComponentProvider } from '../providers/index.js'
 import {
   DESIGN_THINKING,
   CORE_CONSTRAINTS,
-  DESIGN_QUALITY,
+  DESIGN_QUALITY_COMMON,
   VISUAL_DEPTH,
   INTERACTION_PATTERNS,
   selectContextualRules,
   getDesignQualityForType,
+  inferPageTypeFromRoute,
 } from './design-constraints.js'
 
 export interface ModificationContext {
@@ -218,7 +219,9 @@ For editing an existing shared component use type "modify-layout-block" with tar
 
   const designThinking = DESIGN_THINKING
   const coreRules = CORE_CONSTRAINTS
-  const designQuality = DESIGN_QUALITY
+  // Use type-specific quality rules instead of legacy DESIGN_QUALITY composite
+  const pageType = inferPageTypeFromRoute(message)
+  const designQuality = `${DESIGN_QUALITY_COMMON}\n${getDesignQualityForType(pageType)}`
   const visualDepth = VISUAL_DEPTH
   const contextualRules = selectContextualRules(message, options?.pageSections)
   const interactionPatterns = INTERACTION_PATTERNS

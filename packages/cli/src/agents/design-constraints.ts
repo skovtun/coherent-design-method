@@ -2,7 +2,7 @@
  * Design Constraints — Tiered System
  *
  * Single source of truth for all UI generation rules.
- * Used by modifier.ts at runtime and documented in UI-SYSTEM-PROMPT.md.
+ * Used by modifier.ts and split-generator.ts at runtime.
  *
  * Architecture:
  *   CORE_CONSTRAINTS  — always injected (~2000 tokens)
@@ -15,13 +15,11 @@
  * When updating rules:
  * 1. Edit THIS file
  * 2. Rebuild: pnpm build
- * 3. Update UI-SYSTEM-PROMPT.md if the change is user-facing documentation
  */
 
 // ---------------------------------------------------------------------------
 // TIER 0 — DESIGN THINKING (always sent first, ~250 tokens)
 // Sets the creative mindset BEFORE any rules. Without this, AI plays it safe.
-// Inspired by Anthropic's frontend-design skill, adapted for deterministic output.
 // ---------------------------------------------------------------------------
 
 export const DESIGN_THINKING = `
@@ -524,9 +522,7 @@ export function inferPageTypeFromRoute(route: string): 'marketing' | 'app' | 'au
   return 'app'
 }
 
-// Backward-compatible composite — kept for existing callers
-export const DESIGN_QUALITY = `${DESIGN_QUALITY_COMMON}
-${DESIGN_QUALITY_MARKETING}`
+// DESIGN_QUALITY composite removed — use getDesignQualityForType() instead
 
 // ---------------------------------------------------------------------------
 // VISUAL DEPTH (always sent — the "permission to be beautiful" layer)
@@ -1195,20 +1191,5 @@ export function selectContextualRules(message: string, pageSections?: string[]):
   return [...matched].slice(0, 3).join('\n')
 }
 
-// ---------------------------------------------------------------------------
-// Legacy export — kept for backward compatibility until modifier.ts is updated.
-// Combines CORE + all contextual for callers that still use DESIGN_CONSTRAINTS.
-// ---------------------------------------------------------------------------
-
-export const DESIGN_CONSTRAINTS = `${DESIGN_THINKING}
-${CORE_CONSTRAINTS}
-${DESIGN_QUALITY}
-${VISUAL_DEPTH}
-${RULES_FORMS}
-${RULES_DATA_DISPLAY}
-${RULES_NAVIGATION}
-${RULES_OVERLAYS}
-${RULES_FEEDBACK}
-${RULES_CONTENT}
-${RULES_CARDS_LAYOUT}
-${RULES_COMPONENTS_MISC}`
+// Legacy DESIGN_CONSTRAINTS composite removed — was never imported.
+// Use the tiered system: CORE_CONSTRAINTS + getDesignQualityForType() + selectContextualRules()
