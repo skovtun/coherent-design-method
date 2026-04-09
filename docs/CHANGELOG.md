@@ -2,6 +2,38 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.6.66] — 2026-04-09
+
+### Added
+- **Anti-slop design rules** — banned AI aesthetic fingerprints: identical 3-column grids, centered everything, gradient text on metrics, cyan-on-dark, neon accents, generic names/copy
+- **Motion system** — exponential easing curves (quart/expo/circ/iOS), hover instant-on/ease-off, blur masking, grid-template-rows height animation, animation-fill-mode:backwards, motion decision framework
+- **ARIA accessibility rules** — sr-only for icon buttons, aria-expanded, aria-live, aria-describedby, semantic HTML elements
+- **Next.js App Router rules** — "use client" vs Server Component, next/image performance, SEO metadata, loading/error/not-found patterns
+- **Context engineering** — per-page component filtering from architecture plan, page-type contextual rule injection, max 3→4 contextual blocks
+- **Auto-inject shared component imports** — when plan says use a component but AI doesn't import it, auto-add the import statement
+- **Sidebar generated in chat** — AppSidebar + shadcn sidebar UI component created in Phase 2, no separate `coherent fix` needed
+- **Layout variety** — 5 alternative dashboard layouts (Overview, Feed, Detail, Kanban, Split) to avoid identical pages
+- **Design System FAB on sidebar pages** — floating "Design System" button added to AppSidebar, not just Header
+- **Modern CSS** — container queries, CSS has(), text-wrap: balance/pretty, letter-spacing by size
+- **Comprehensive design constraints** — atmosphere language, AI slop test, progressive disclosure, optimistic UI, mock data separation, context-dependent animation intensity
+
+### Fixed
+- **Container centering** — Tailwind v4 removed default container centering; added `@utility container` with margin-inline, padding-inline, max-width
+- **--page flag scoping** — skip multiPageHint when --page or --component explicitly set
+- **--component crash** — guard against undefined baseClassName in isSimilarClassName
+- **Sidebar install** — `coherent fix` now installs shadcn sidebar UI component before generating AppSidebar
+- **Orange accent** — default accent was #F59E0B (amber), changed to muted values matching shadcn defaults
+- **Escaped quotes** — handle AI-generated `\'Text'` (escaped opening quotes from JSON serialization)
+- **Provider scope** — `provider` variable referenced outside scope in fix command sidebar block
+- **Type-specific quality rules** — modifier.ts was always injecting marketing design quality; now uses page-type inference
+
+### Changed
+- **Token optimization** — compressed system messages in claude.ts and openai-provider.ts (~240 tokens saved per request)
+- **Removed legacy exports** — DESIGN_QUALITY and DESIGN_CONSTRAINTS composites (dead code)
+- **Removed unused skills/** — 5 unconnected md files (554 lines of dead content)
+- **Removed duplicate docs** — FAQ_AI_PROVIDERS.md, PROVIDER_SELECTION.md merged into AI_PROVIDERS.md
+- **Updated case study** — projector-tutorial.md rewritten for beginners, fresh v0.6.66 screenshots
+
 ## [Unreleased]
 
 ### Added

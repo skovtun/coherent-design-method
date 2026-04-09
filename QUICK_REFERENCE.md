@@ -7,6 +7,10 @@ A cheat sheet for Coherent CLI commands and workflows.
 ```bash
 coherent init                    # Create a new project
 coherent chat "<message>"        # Generate/modify pages with AI
+coherent chat --page "X" "..."   # Edit only page X
+coherent chat --component "X" "..."  # Edit shared component X
+coherent components list         # Show all shared + UI components
+coherent status                  # Show project stats (pages, components, tokens)
 coherent preview                 # Start dev server (http://localhost:3000)
 coherent check                   # Show quality issues (read-only)
 coherent fix                     # Auto-fix all issues
@@ -61,6 +65,13 @@ coherent chat "change primary color to #6366f1 and use Inter font"
 
 # Components
 coherent chat "add a testimonial section to the home page"
+
+# Scoped edits
+coherent chat --page "Landing" "redesign the pricing section with toggle"
+coherent chat --component "Header" "add notification bell with badge"
+
+# Color scheme
+coherent chat "change color scheme to indigo primary"
 ```
 
 ## Sync Options
