@@ -271,7 +271,9 @@ async function stripCoherentArtifacts(outputDir: string): Promise<string[]> {
   const guardPath = join(outputDir, 'app', 'ShowWhenNotAuthRoute.tsx')
   if (existsSync(guardPath)) {
     let guard = await readFile(guardPath, 'utf-8')
-    guard = guard.replace(/['"],?\s*'\/design-system['"],?\s*/g, '')
+    // Remove /design-system entry from array, handling first/middle/last positions
+    guard = guard.replace(/,\s*['"]\/design-system['"]/g, '') // middle or last
+    guard = guard.replace(/['"]\/design-system['"]\s*,?\s*/g, '') // first or only
     // If no auth routes remain, remove the file and unwrap in layout
     const pathsMatch = guard.match(/HIDDEN_PATHS\s*=\s*\[([^\]]*)\]/)
     const remaining = pathsMatch
