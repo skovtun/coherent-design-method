@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.6.73] — 2026-04-09
+
+### Fixed
+- **Export ShowWhenNotAuthRoute** — regex corruption when stripping /design-system from array
+- **Export next.config.mjs** — regex now matches `export default {}` (not just `const nextConfig`)
+- **ComponentManager null guards** — variants/sizes arrays guarded for old config compatibility
+- **Lockfile sync** — pnpm-lock.yaml updated after dependency changes (CI --frozen-lockfile fix)
+
+### Added
+- **Dynamic component discovery** — `listNames()` scans `components/ui/` directory, discovers components installed via `npx shadcn add` without CLI update
+- **CLAUDE.md** — comprehensive 300-line project guide for Claude Code sessions
+
+### Changed
+- **check.ts performance** — file contents cached on first read, eliminating duplicate I/O for quality + link scanning
+- **CLAUDE.md version** — updated to reflect 0.6.73, 686 tests
+
 ## [0.6.70] — 2026-04-09
 
 ### Fixed
