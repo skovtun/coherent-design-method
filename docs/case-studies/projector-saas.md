@@ -14,7 +14,7 @@
 
 ```bash
 mkdir ~/test-projector && cd ~/test-projector
-npx @getcoherent/cli@0.2.3 init
+npx @getcoherent/cli@latest init
 ```
 
 This creates a Next.js 15 app with:

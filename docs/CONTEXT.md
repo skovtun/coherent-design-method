@@ -195,19 +195,19 @@ packages/core/src/
 | `packages/docs/PROJECT_TASKS.md` | Единый список задач (Phase 1 и далее), acceptance criteria |
 | `packages/docs/DOCS_AUTOGEN_DESIGN.md` | Дизайн автогена /docs: структура, данные, когда генерировать |
 | `packages/docs/BMAD_GUIDE.md` | BMAD-методология и роли |
-| `UI-SYSTEM-PROMPT.md` | Стандарт генерации UI: правила, токены, компоненты, анти-паттерны |
+| `packages/cli/src/agents/design-constraints.ts` | Стандарт генерации UI: правила, токены, компоненты, анти-паттерны (single source of truth) |
 | `EXAMPLES.md` | Эталонные примеры качества UI (few-shot reference) |
 | `INTEGRATION-GUIDE.md` | Staged generation для сложных страниц (Analysis → Architecture → Implementation → Validation) |
 | `.cursor/rules/ui-generation.mdc` | Правило Cursor: при генерации UI подключать три документа выше и CRITICAL-требования |
 
 **Генерация UI (обязательно):** При генерации любых UI (страницы, компоненты, лейауты) — в Cursor или через `coherent chat` — нужно:
-1. Читать и следовать **UI-SYSTEM-PROMPT.md** перед написанием кода.
+1. Правила генерации UI определены в **design-constraints.ts** (инжектируются автоматически).
 2. Использовать **EXAMPLES.md** как референс качества.
 3. Для сложных страниц применять поэтапную генерацию по **INTEGRATION-GUIDE.md**.
 
 **CRITICAL:** Ноль плейсхолдеров (реальный контент); все состояния (loading/empty/error/success); у всех интерактивных элементов — hover и focus.
 
-При продолжении разработки подключать контекст: `@CONTEXT.md`, `@packages/docs/PROJECT.md`, при необходимости `@packages/docs/PROJECT_TASKS.md`, `@QUICK_REFERENCE.md` (для пользовательских сценариев). При генерации UI — `@UI-SYSTEM-PROMPT.md`, `@EXAMPLES.md`, `@INTEGRATION-GUIDE.md`, `@.cursor/rules/ui-generation.mdc`.
+При продолжении разработки подключать контекст: `@CONTEXT.md`, `@packages/docs/PROJECT.md`, при необходимости `@packages/docs/PROJECT_TASKS.md`, `@QUICK_REFERENCE.md` (для пользовательских сценариев). При генерации UI правила инжектируются автоматически из `design-constraints.ts`; для ручной работы — `@EXAMPLES.md`, `@INTEGRATION-GUIDE.md`.
 
 ---
 
