@@ -79,8 +79,9 @@ async function patchNextConfigForExport(outRoot: string): Promise<void> {
     if (!existsSync(p)) continue
     let content = await readFile(p, 'utf-8')
     if (content.includes('ignoreDuringBuilds')) return
+    // Match both `const nextConfig = {` and `export default {`
     content = content.replace(
-      /(const\s+nextConfig\s*(?::\s*\w+)?\s*=\s*\{)/,
+      /((?:const\s+nextConfig\s*(?::\s*\w+)?\s*=|export\s+default)\s*\{)/,
       '$1\n  eslint: { ignoreDuringBuilds: true },\n  typescript: { ignoreBuildErrors: true },',
     )
     await writeFile(p, content, 'utf-8')

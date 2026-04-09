@@ -135,8 +135,14 @@ export async function checkCommand(opts: CheckOptions = {}) {
       'NATIVE_TABLE',
     ])
 
+    // Cache file contents to avoid double reads (quality check + link scan)
+    const fileContents = new Map<string, string>()
     for (const file of files) {
-      const code = readFileSync(file, 'utf-8')
+      fileContents.set(file, readFileSync(file, 'utf-8'))
+    }
+
+    for (const file of files) {
+      const code = fileContents.get(file)!
       const relativePath = file.replace(projectRoot + '/', '')
       const baseName = file.split('/').pop() || ''
       const isAuthPage = relativePath.includes('(auth)')
@@ -190,7 +196,7 @@ export async function checkCommand(opts: CheckOptions = {}) {
     routeSet.add('/')
     routeSet.add('#')
     for (const file of files) {
-      const code = readFileSync(file, 'utf-8')
+      const code = fileContents.get(file)!
       const relativePath = file.replace(projectRoot + '/', '')
       const lines = code.split('\n')
       const linkHrefRe = /href\s*=\s*["'](\/[a-z0-9/-]*)["']/gi

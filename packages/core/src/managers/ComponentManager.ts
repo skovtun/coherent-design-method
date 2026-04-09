@@ -246,12 +246,12 @@ export class ComponentManager {
 
     // Filter by variant
     if (criteria.hasVariant) {
-      results = results.filter(c => c.variants.some(v => v.name === criteria.hasVariant))
+      results = results.filter(c => (c.variants || []).some(v => v.name === criteria.hasVariant))
     }
 
     // Filter by size
     if (criteria.hasSize) {
-      results = results.filter(c => c.sizes.some(s => s.name === criteria.hasSize))
+      results = results.filter(c => (c.sizes || []).some(s => s.name === criteria.hasSize))
     }
 
     return results
@@ -439,7 +439,7 @@ export class ComponentManager {
 
     // Check if existing component has required variants
     if (requested.requiredVariants) {
-      const existingVariantNames = existing.variants.map(v => v.name)
+      const existingVariantNames = (existing.variants || []).map(v => v.name)
       const hasAllVariants = requested.requiredVariants.every(v => existingVariantNames.includes(v))
       if (!hasAllVariants) {
         return false
@@ -448,7 +448,7 @@ export class ComponentManager {
 
     // Check if existing component has required sizes
     if (requested.requiredSizes) {
-      const existingSizeNames = existing.sizes.map(s => s.name)
+      const existingSizeNames = (existing.sizes || []).map(s => s.name)
       // Type guard: check if string is a valid ComponentSize name
       const isValidSize = (s: string): s is 'xs' | 'sm' | 'md' | 'lg' | 'xl' => {
         return ['xs', 'sm', 'md', 'lg', 'xl'].includes(s as 'xs' | 'sm' | 'md' | 'lg' | 'xl')
