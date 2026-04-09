@@ -362,7 +362,7 @@ function getGroupLayoutForRoute(route: string, plan: ArchitecturePlan | null): s
   return group?.layout
 }
 
-export { buildExistingPagesContext, extractStyleContext }
+export { buildExistingPagesContext, extractStyleContext, filterManifestForPage }
 
 let manifestLock = Promise.resolve()
 

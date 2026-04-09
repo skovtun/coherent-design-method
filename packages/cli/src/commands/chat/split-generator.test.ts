@@ -10,6 +10,7 @@ import {
   readExistingAppPageForReference,
   buildAnchorPagePrompt,
   buildLayoutNote,
+  filterManifestForPage,
 } from './split-generator.js'
 import { ArchitecturePlanSchema } from './plan-generator.js'
 import { inferPageType } from './modification-handler.js'
@@ -710,5 +711,77 @@ describe('buildAnchorPagePrompt', () => {
     expect(prompt).toContain('content-rich landing page')
     expect(prompt).toContain('<header>')
     expect(prompt).toContain('<footer>')
+  })
+})
+
+describe('filterManifestForPage', () => {
+  const manifest = {
+    shared: [
+      {
+        id: 'CID-001',
+        name: 'Header',
+        type: 'layout' as const,
+        file: 'components/shared/header.tsx',
+        usedIn: [],
+        dependencies: [],
+      },
+      {
+        id: 'CID-002',
+        name: 'StatCard',
+        type: 'widget' as const,
+        file: 'components/shared/stat-card.tsx',
+        usedIn: [],
+        dependencies: [],
+      },
+      {
+        id: 'CID-003',
+        name: 'ProjectCard',
+        type: 'section' as const,
+        file: 'components/shared/project-card.tsx',
+        usedIn: [],
+        dependencies: [],
+      },
+      {
+        id: 'CID-004',
+        name: 'TaskItem',
+        type: 'section' as const,
+        file: 'components/shared/task-item.tsx',
+        usedIn: [],
+        dependencies: [],
+      },
+    ],
+    nextId: 5,
+  }
+
+  const plan = ArchitecturePlanSchema.parse({
+    groups: [],
+    sharedComponents: [
+      { name: 'StatCard', description: 'd', props: '{}', usedBy: ['/dashboard'], type: 'widget' },
+      { name: 'ProjectCard', description: 'd', props: '{}', usedBy: ['/dashboard', '/projects'], type: 'section' },
+      { name: 'TaskItem', description: 'd', props: '{}', usedBy: ['/tasks'], type: 'section' },
+    ],
+    pageNotes: {},
+  })
+
+  it('filters to planned + layout components for the route', () => {
+    const result = filterManifestForPage(manifest, plan, '/dashboard')
+    const names = result.shared.map(s => s.name)
+    expect(names).toContain('Header')
+    expect(names).toContain('StatCard')
+    expect(names).toContain('ProjectCard')
+    expect(names).not.toContain('TaskItem')
+  })
+
+  it('falls back to full manifest when no planned components match', () => {
+    const result = filterManifestForPage(manifest, plan, '/settings')
+    expect(result.shared).toHaveLength(manifest.shared.length)
+  })
+
+  it('includes all components planned for the route', () => {
+    const result = filterManifestForPage(manifest, plan, '/tasks')
+    const names = result.shared.map(s => s.name)
+    expect(names).toContain('TaskItem')
+    expect(names).toContain('Header')
+    expect(names).not.toContain('StatCard')
   })
 })

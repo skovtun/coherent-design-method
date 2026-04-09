@@ -9,6 +9,7 @@ import {
   routeToFsPath,
   routeToRelPath,
   warnInlineDuplicates,
+  injectMissingSharedImports,
   deduplicatePages,
 } from './utils.js'
 import { ArchitecturePlanSchema } from './plan-generator.js'
@@ -297,5 +298,50 @@ export default function LoginPage() {
     }
     await warnInlineDuplicates('/tmp', 'Dashboard', '/dashboard', 'export default function Page() {}', manifest, plan)
     expect(consoleSpy).not.toHaveBeenCalled()
+  })
+
+  it('returns missingPlannedImports for planned but missing components', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const plan = ArchitecturePlanSchema.parse({
+      groups: [],
+      sharedComponents: [{ name: 'StatCard', description: 'd', props: '{}', usedBy: ['/dashboard'], type: 'widget' }],
+      pageNotes: {},
+    })
+    const manifest = {
+      shared: [{ id: 'CID-001', name: 'StatCard', type: 'widget', file: 'components/shared/stat-card.tsx' }],
+    }
+    const result = await warnInlineDuplicates(
+      '/tmp',
+      'Dashboard',
+      '/dashboard',
+      'export default function Page() { return <div>No StatCard import</div> }',
+      manifest,
+      plan,
+    )
+    expect(result.missingPlannedImports).toHaveLength(1)
+    expect(result.missingPlannedImports[0].name).toBe('StatCard')
+    expect(result.missingPlannedImports[0].importPath).toBe('@/components/shared/stat-card')
+  })
+})
+
+describe('injectMissingSharedImports', () => {
+  it('injects import after last existing import', () => {
+    const code = `'use client'\nimport { Button } from '@/components/ui/button'\n\nexport default function Page() {}`
+    const result = injectMissingSharedImports(code, [{ name: 'StatCard', importPath: '@/components/shared/stat-card' }])
+    expect(result).toContain("import { StatCard } from '@/components/shared/stat-card'")
+    expect(result.indexOf('StatCard')).toBeGreaterThan(result.indexOf('Button'))
+  })
+
+  it('injects after use client when no imports exist', () => {
+    const code = `'use client'\n\nexport default function Page() {}`
+    const result = injectMissingSharedImports(code, [{ name: 'StatCard', importPath: '@/components/shared/stat-card' }])
+    expect(result).toContain("import { StatCard } from '@/components/shared/stat-card'")
+    expect(result.indexOf('import')).toBeGreaterThan(result.indexOf('use client'))
+  })
+
+  it('returns code unchanged when no missing imports', () => {
+    const code = `export default function Page() {}`
+    const result = injectMissingSharedImports(code, [])
+    expect(result).toBe(code)
   })
 })
