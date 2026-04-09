@@ -1066,6 +1066,7 @@ ADVANCED ANIMATION (beyond the basics in DESIGN QUALITY COMMON):
 - Stagger delays: 30-80ms between items for list/grid reveals. Cap total stagger at 500ms.
 - Reduced motion: always provide @media (prefers-reduced-motion: reduce) alternative (fade instead of slide).
 - Allowed: hover effects, accordion open/close, dialog enter/exit, dropdown appear, toast slide in, staggered list reveals.
+- Clip-path reveals: clip-path: inset(0 0 100% 0) → inset(0) for text/section reveals. Use cubic-bezier(0.77, 0, 0.175, 1). GPU-accelerated, interruptible.
 - BANNED: bounce easing, elastic/overshoot, parallax, auto-playing carousels, decorative animations, linear easing on UI, keyframes for interruptible elements (use transitions).
 `
 
@@ -1228,8 +1229,8 @@ export function selectContextualRules(message: string, pageSections?: string[]):
     return ''
   }
 
-  // Cap at 3 rule blocks to keep prompt focused
-  return [...matched].slice(0, 3).join('\n')
+  // Cap at 4 rule blocks to keep prompt focused but cover complex pages
+  return [...matched].slice(0, 4).join('\n')
 }
 
 // Legacy DESIGN_CONSTRAINTS composite removed — was never imported.
