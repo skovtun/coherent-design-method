@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.6.67] — 2026-04-09
+
+### Added
+- **WCAG AA contrast** — minimum 4.5:1 text, 3:1 UI elements, verify muted-on-muted passes
+- **Skip link** — sr-only + focus:not-sr-only pattern in root layout
+- **Focus trap + tab order** — modal focus trap requirement, no tabIndex > 0
+- **Scroll anchoring** — scroll-margin-top: 4rem on [id] for sticky header
+- **View Transitions API** — progressive enhancement for page navigation
+- **@property animated CSS vars** — enable smooth animation of custom properties
+- **Tooltip group pattern** — instant after first open (Radix delayDuration)
+- **Drag performance** — direct style.transform, never CSS variable updates
+
+### Changed
+- **Removed 84 stale docs** — plans, stories, QA reports, archive, superpowers, old templates (33,571 lines)
+- **Updated CHANGELOG** — full log from v0.6.52 through v0.6.67
+- **Updated QUICK_REFERENCE** — added --page, --component flags, components list, status
+
 ## [0.6.66] — 2026-04-09
 
 ### Added
