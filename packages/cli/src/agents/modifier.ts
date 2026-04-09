@@ -211,6 +211,26 @@ function buildProjectContext(projectRoot?: string): string {
     }
   }
 
+  // Detect Tailwind version
+  const pkgPath = resolve(projectRoot, 'package.json')
+  if (existsSync(pkgPath)) {
+    try {
+      const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'))
+      const allDeps = { ...pkg.dependencies, ...pkg.devDependencies }
+      const twVersion = allDeps['tailwindcss'] || allDeps['@tailwindcss/postcss'] || ''
+      if (
+        twVersion.startsWith('^4') ||
+        twVersion.startsWith('~4') ||
+        twVersion.startsWith('4') ||
+        allDeps['@tailwindcss/postcss']
+      ) {
+        parts.push('TAILWIND_V4: This project uses Tailwind CSS v4 (CSS-first configuration)')
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
   return parts.length > 0 ? `\nProject Context:\n${parts.join('\n')}` : ''
 }
 

@@ -408,7 +408,12 @@ export async function checkCommand(opts: CheckOptions = {}) {
   // ─── Summary ────────────────────────────────────────────────────────
 
   if (opts.json) {
-    console.log(JSON.stringify(result, null, 2))
+    const ep = result.pages.withErrors * 10
+    const wp = result.pages.withWarnings * 3
+    const lp = result.links.broken.length * 15
+    const up = result.shared.unused * 2
+    const s = Math.max(0, Math.min(100, 100 - ep - wp - lp - up))
+    console.log(JSON.stringify({ ...result, score: s }, null, 2))
     return
   }
 
@@ -429,6 +434,19 @@ export async function checkCommand(opts: CheckOptions = {}) {
   }
 
   console.log(`\n  ${summaryParts.join(' | ')}`)
+
+  // Quality score: 0-100
+  const totalPages = result.pages.total || 1
+  const errorPenalty = result.pages.withErrors * 10
+  const warningPenalty = result.pages.withWarnings * 3
+  const linkPenalty = result.links.broken.length * 15
+  const unusedPenalty = result.shared.unused * 2
+  const totalPenalty = errorPenalty + warningPenalty + linkPenalty + unusedPenalty
+  const score = Math.max(0, Math.min(100, 100 - totalPenalty))
+
+  const scoreColor = score >= 90 ? chalk.green : score >= 70 ? chalk.yellow : chalk.red
+  const scoreLabel = score >= 90 ? 'Excellent' : score >= 70 ? 'Good' : score >= 50 ? 'Needs work' : 'Critical'
+  console.log(`\n  Quality Score: ${scoreColor(`${score}/100`)} ${chalk.dim(`(${scoreLabel})`)}`)
 
   if (result.autoFixable > 0) {
     console.log(chalk.cyan(`\n  Auto-fixable: ${result.autoFixable} issues. Run: coherent fix`))

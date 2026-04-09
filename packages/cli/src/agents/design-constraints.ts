@@ -1167,6 +1167,28 @@ DRAG/RESIZE PERFORMANCE:
   GOOD: element.style.transform = \`translateX(\${value}px)\` — only this element
 `
 
+export const RULES_TAILWIND_V4 = `
+TAILWIND CSS v4 RULES (this project uses Tailwind v4):
+
+CONFIGURATION:
+- No tailwind.config.js/ts — configuration is CSS-first via @theme in globals.css.
+- Tokens defined via @theme inline { --color-primary: var(--primary); } — not in JS config.
+- @import "tailwindcss" replaces @tailwind base/components/utilities directives.
+- Custom utilities: @utility container { ... } instead of extending theme.container in config.
+
+CSS VARIABLES:
+- All design tokens are CSS custom properties in :root and .dark selectors.
+- Reference via var(--primary), not theme() function.
+- @theme inline maps CSS vars to Tailwind utilities: --color-primary → bg-primary, text-primary.
+
+WHAT CHANGED FROM v3:
+- No @apply in most cases — use regular CSS with @layer.
+- No tailwind.config.js — all config in CSS.
+- Container is opt-in: must define @utility container explicitly.
+- Color opacity: bg-primary/50 works (unchanged).
+- Arbitrary values still work: bg-[#hex] (but BANNED by our semantic token rules).
+`
+
 export const RULES_NEXTJS = `
 NEXT.JS APP ROUTER RULES:
 
@@ -1309,6 +1331,10 @@ const CONTEXTUAL_CATEGORIES: ContextualCategory[] = [
   {
     keywords: /image|seo|metadata|font|performance|loading\.tsx|error\.tsx|dynamic|suspense|next.?image/i,
     rules: RULES_NEXTJS,
+  },
+  {
+    keywords: /tailwind.?v4|@theme|@import.*tailwindcss|css.?first|TAILWIND_V4/i,
+    rules: RULES_TAILWIND_V4,
   },
 ]
 
