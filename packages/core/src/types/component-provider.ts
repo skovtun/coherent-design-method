@@ -22,7 +22,7 @@ export interface ComponentProvider {
   install(name: string, projectRoot: string): Promise<void>
   has(name: string): boolean
   list(): ComponentMeta[]
-  listNames(): string[]
+  listNames(projectRoot?: string): string[]
   getComponentAPI(name: string): ComponentAPI | null
   getCssVariables(tokens: DesignTokens): string
   getThemeBlock(tokens: DesignTokens): string

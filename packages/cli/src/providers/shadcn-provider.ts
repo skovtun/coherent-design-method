@@ -7,7 +7,7 @@ import type {
   ComponentDefinition,
 } from '@getcoherent/core'
 import { buildCssVariables } from '@getcoherent/core'
-import { existsSync as fsExistsSync } from 'node:fs'
+import { existsSync as fsExistsSync, readdirSync as fsReaddirSync } from 'node:fs'
 import { getShadcnComponent } from '../utils/shadcn-installer.js'
 import { exec as cpExec } from 'node:child_process'
 import * as path from 'node:path'
@@ -581,8 +581,28 @@ export class ShadcnProvider implements ComponentProvider {
     return componentMetaMap.has(name)
   }
 
-  listNames(): string[] {
-    return COMPONENT_REGISTRY.map(c => c.id)
+  /**
+   * List all known component IDs (registry + any installed on disk not in registry).
+   * Pass projectRoot to discover components installed via `npx shadcn add` that
+   * aren't in our hardcoded registry (future-proofing for new shadcn components).
+   */
+  listNames(projectRoot?: string): string[] {
+    const names = new Set(COMPONENT_REGISTRY.map(c => c.id))
+    if (projectRoot) {
+      const uiDir = path.join(projectRoot, 'components', 'ui')
+      if (fsExistsSync(uiDir)) {
+        try {
+          for (const f of fsReaddirSync(uiDir)) {
+            if (f.endsWith('.tsx')) {
+              names.add(f.replace('.tsx', ''))
+            }
+          }
+        } catch {
+          /* best-effort */
+        }
+      }
+    }
+    return [...names]
   }
 
   list(): ComponentMeta[] {
