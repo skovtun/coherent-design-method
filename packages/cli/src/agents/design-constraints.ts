@@ -169,6 +169,10 @@ ANTI-PATTERNS (NEVER DO):
 - Conditional renders without transitions → motion gaps are UX bugs
 - Same animation duration everywhere → frequency and context determine duration
 - transition: all → always specify: transition-colors, transition-transform, etc.
+- Custom status pills/chips instead of Badge → always use shadcn Badge with variant
+- Badge overlapping title text → Badge AFTER title in flex row with gap-2
+- Extra border/shadow on TabsList → TabsList has built-in styling, don't add more
+- Colored dots/circles without text for priority → use Badge with text label
 
 COMPONENT VARIANT RULES (CRITICAL):
 - NEVER use <Button> with custom bg-*/text-* classes for navigation or tabs without variant="ghost".
@@ -984,12 +988,22 @@ COMPONENT PATTERNS:
 - CardHeader for stat card: className="flex flex-row items-center justify-between space-y-0 pb-2"
 - NO nested cards (card inside card). Max 2 levels: Card > content.
 
+BADGE PLACEMENT (critical — prevents overlap):
+- Badge in CardHeader: ALWAYS after the title, never before. Use flex row with gap:
+  <div className="flex items-center gap-2"><CardTitle>Title</CardTitle><Badge variant="secondary">Status</Badge></div>
+- NEVER position Badge with absolute/relative — always inline in flow.
+- NEVER create custom status pills (rounded-full bg-primary p-2). ALWAYS use shadcn <Badge>.
+- Badge size: text-xs by default. NEVER make badges larger than the title text.
+
 BADGE VARIANT MAPPING (consistent status colors):
 - Success/active: <Badge variant="default">Active</Badge> (also: Paid, Verified, Online, Published)
 - Neutral/info: <Badge variant="secondary">Pending</Badge> (also: Draft, In Progress, Scheduled)
 - Attention/warning: <Badge variant="outline">Review</Badge> (also: Expiring, Low Stock)
 - Error/destructive: <Badge variant="destructive">Failed</Badge> (also: Overdue, Declined, Cancelled)
 - RULE: same semantic status = same Badge variant across ALL pages.
+- NEVER create custom colored pills/chips for status — ALWAYS use Badge component with variants above.
+- Priority indicators: use Badge with text label ("High", "Medium", "Low"), NEVER colored dots or pills without text.
+- In task/data lists: status and priority MUST be readable text in Badge, not abstract colored shapes.
 
 AVATAR STYLING:
 - Default size: size-8. Profile headers: size-10. Never larger. Shape: always rounded-full.
@@ -1026,6 +1040,8 @@ SEPARATOR / DIVIDER:
 TABS STYLING:
 - Use shadcn Tabs. Never build custom tab UI.
 - TabsContent: pt-4. Standalone: TabsList w-full md:w-auto. Max tabs visible: 5.
+- NEVER add extra border, shadow, or ring to TabsList — it has built-in bg-muted styling.
+- NEVER wrap TabsList in a Card or bordered container. It stands alone.
 
 MAX-WIDTH CONTAINER:
 - App pages with sidebar: no container needed (sidebar + main handles width).
