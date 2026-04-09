@@ -146,6 +146,10 @@ ACCESSIBILITY (mandatory):
 - Form errors: link error message to input via aria-describedby.
 - Semantic HTML: use <nav>, <main>, <aside>, <section> with aria-label when multiple of same type.
 - Color alone: never use color as the ONLY indicator — add icon or text alongside.
+- WCAG AA minimum: text contrast 4.5:1, large text 3:1, UI elements 3:1. Verify text-muted-foreground on bg-muted passes.
+- Skip link: add <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-4">Skip to content</a> as first element in root layout.
+- Focus trap: modal/dialog MUST trap focus within (shadcn Dialog does this automatically).
+- Tab order: logical sequence, never tabIndex > 0. Use tabIndex={-1} for programmatic focus only.
 
 ANTI-PATTERNS (NEVER DO):
 - text-base as body text → use text-sm
@@ -275,6 +279,11 @@ export const DESIGN_QUALITY_COMMON = `
 - Container queries: prefer @container over @media for component-level responsive behavior.
   Parent: container-type: inline-size. Child: @container (min-width: 400px) { ... }
 - CSS has(): .card:has(img) { layout with image } — conditional layouts without JS state.
+- Scroll anchoring: [id] { scroll-margin-top: 4rem; } — prevents sticky header from hiding anchor targets.
+- @property for animated CSS variables: @property --progress { syntax: '<percentage>'; initial-value: 0%; inherits: false; }
+  Enables smooth animation of CSS custom properties (normally not animatable).
+- View Transitions: if (document.startViewTransition) { document.startViewTransition(() => router.push(href)) }
+  Progressive enhancement — zero config, dramatic perceived performance improvement on page navigation.
 `
 
 // ---------------------------------------------------------------------------
@@ -1146,6 +1155,16 @@ CONTEXT-DEPENDENT ANIMATION INTENSITY:
 - SaaS app pages: subtle entrance/exit, spring transitions
 - Landing/Marketing: full creative expression, stagger reveals, clip-path
 - Banking/Finance/Medical: near-zero animation, functional only
+
+TOOLTIP GROUP PATTERN:
+- First tooltip in hover group: normal delay + animation.
+- Subsequent tooltips (user moving between icons): instant, no animation.
+  Use Radix Tooltip with delayDuration={0} after first open.
+
+DRAG/RESIZE PERFORMANCE:
+- For frequent pointer-move updates, NEVER use CSS variables:
+  BAD: element.style.setProperty('--x', value) — recalculates ALL children
+  GOOD: element.style.transform = \`translateX(\${value}px)\` — only this element
 `
 
 export const RULES_NEXTJS = `
