@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.6.69] — 2026-04-09
+
+### Added
+- **Quality score** — `coherent check` shows 0-100 score (Excellent/Good/Needs work/Critical). Available in JSON output for CI.
+- **Tailwind v4 auto-detection** — reads package.json for @tailwindcss/postcss, injects v4-specific constraints (CSS-first config, @theme, @utility)
+- **Project context** — reads components.json and installed UI components before generation. AI knows what's available.
+
 ## [0.6.67] — 2026-04-09
 
 ### Added
