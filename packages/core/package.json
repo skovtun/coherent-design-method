@@ -3,7 +3,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.6.64",
+  "version": "0.6.65",
   "description": "Core design system engine for Coherent",
   "type": "module",
   "main": "./dist/index.js",
