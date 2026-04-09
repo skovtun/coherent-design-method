@@ -34,6 +34,11 @@ const COPY_EXCLUDE = new Set([
   'recommendations.md',
   '.env',
   '.env.local',
+  '.env.development',
+  '.env.production',
+  '.env.test',
+  'coherent.figma-import.json',
+  'coherent.figma-component-map.json',
 ])
 
 async function copyDir(src: string, dest: string): Promise<void> {

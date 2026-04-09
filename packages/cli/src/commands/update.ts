@@ -20,7 +20,7 @@
 
 import chalk from 'chalk'
 import ora from 'ora'
-import { readFileSync, existsSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { join } from 'path'
 import { DesignSystemManager, CLI_VERSION } from '@getcoherent/core'
 import { findConfig, exitNotCoherent } from '../utils/find-config.js'
@@ -214,7 +214,6 @@ function patchGlobalsCss(projectRoot: string, missingVars: string[]) {
   const globalsPath = join(projectRoot, 'app', 'globals.css')
   if (!existsSync(globalsPath) || missingVars.length === 0) return
 
-  const { writeFileSync } = require('fs') as typeof import('fs')
   let content = readFileSync(globalsPath, 'utf-8')
 
   const defaultValues: Record<string, string> = {

@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.6.70] — 2026-04-09
+
+### Fixed
+- **Export security** — `.env.development`, `.env.production`, `.env.test` now excluded from export (prevents secret leakage)
+- **Export cleanup** — `coherent.figma-import.json` and `coherent.figma-component-map.json` excluded from export
+- **ESM compliance** — replaced `require('fs')` with static import in update.ts
+- **baseUrl deprecation** — removed `baseUrl` from both tsconfig.json files (deprecated in TS 7, unnecessary with moduleResolution: "bundler")
+
+### Added
+- **Validator: transition-all** — detects `transition-all` (should use specific transition-colors/transform)
+- **Validator: excessive padding** — detects `p-8` through `p-20` (max is p-6 per constraints)
+- **QUICK_REFERENCE** — added `update`, `rules`, `migrate` commands
+
+### Changed
+- **Removed unused handlebars** from core dependencies
+- **Removed dead code** — `logger.ts` (never imported), `setDefaultLightTheme` (never called)
+
 ## [0.6.69] — 2026-04-09
 
 ### Added

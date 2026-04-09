@@ -17,6 +17,8 @@ const COLOR_PROP_RE = /\b(?:color|accentColor|iconColor|fillColor)=["']#[0-9a-fA
 const HEX_IN_CLASS_RE = /className="[^"]*#[0-9a-fA-F]{3,8}[^"]*"/g
 const TEXT_BASE_RE = /\btext-base\b/g
 const HEAVY_SHADOW_RE = /\bshadow-(md|lg|xl|2xl)\b/g
+const TRANSITION_ALL_RE = /\btransition-all\b/g
+const EXCESSIVE_PADDING_RE = /\bp-(8|10|12|14|16|20)\b/g
 const SM_BREAKPOINT_RE = /\bsm:/g
 const XL_BREAKPOINT_RE = /\bxl:/g
 const XXL_BREAKPOINT_RE = /\b2xl:/g
@@ -189,6 +191,24 @@ export function validatePageQuality(
   )
   issues.push(
     ...checkLines(code, HEAVY_SHADOW_RE, 'HEAVY_SHADOW', 'Heavy shadow detected — use shadow-sm or none', 'warning'),
+  )
+  issues.push(
+    ...checkLines(
+      code,
+      TRANSITION_ALL_RE,
+      'TRANSITION_ALL',
+      'transition-all detected — specify: transition-colors, transition-transform, etc.',
+      'warning',
+    ),
+  )
+  issues.push(
+    ...checkLines(
+      code,
+      EXCESSIVE_PADDING_RE,
+      'EXCESSIVE_PADDING',
+      'Excessive padding (>p-6) — max is p-6 for content areas',
+      'warning',
+    ),
   )
   issues.push(
     ...checkLines(

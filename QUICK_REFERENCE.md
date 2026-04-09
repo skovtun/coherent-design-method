@@ -17,6 +17,9 @@ coherent fix                     # Auto-fix all issues
 coherent sync                    # Sync Design System after manual edits
 coherent export                  # Export clean project for deployment
 coherent undo                    # Revert last coherent chat
+coherent update                  # Apply platform updates to project
+coherent rules                   # Show active design constraint rules
+coherent migrate                 # Run version migrations
 ```
 
 ## Typical Workflow

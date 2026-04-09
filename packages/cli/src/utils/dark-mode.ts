@@ -49,15 +49,6 @@ export async function setDefaultDarkTheme(projectRoot: string): Promise<boolean>
 /**
  * Remove default dark class from <html> (for "switch to light mode" if needed later).
  */
-export async function setDefaultLightTheme(projectRoot: string): Promise<boolean> {
-  const layoutPath = join(projectRoot, 'app', 'layout.tsx')
-  if (!existsSync(layoutPath)) return false
-  let content = await readFile(layoutPath, 'utf-8')
-  content = content.replace(/\s*className="dark"\s*/, ' ').replace(/\s*className='dark'\s*/, ' ')
-  await writeFile(layoutPath, content, 'utf-8')
-  return true
-}
-
 /**
  * Create ThemeToggle shared component (layout type) and integrate into root layout.
  * Idempotent: if ThemeToggle already exists in manifest, only runs layout integration.
