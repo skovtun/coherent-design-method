@@ -6,6 +6,8 @@
  */
 
 import chalk from 'chalk'
+import { existsSync, readFileSync, readdirSync } from 'fs'
+import { resolve } from 'path'
 import type { DesignSystemConfig, ModificationRequest, ComponentSpec } from '@getcoherent/core'
 import { ComponentManager } from '@getcoherent/core'
 import { createAIProvider, type AIProvider } from '../utils/ai-provider.js'
@@ -43,6 +45,7 @@ export interface ParseModificationOptions {
   planOnly?: boolean
   lightweight?: boolean
   pageSections?: string[]
+  projectRoot?: string
 }
 
 export async function parseModification(
@@ -91,6 +94,7 @@ export async function parseModification(
     tieredComponentsPrompt: options?.tieredComponentsPrompt,
     reusePlanDirective: options?.reusePlanDirective,
     pageSections: options?.pageSections,
+    projectRoot: options?.projectRoot,
   })
 
   const raw = await ai.parseModification(prompt)
@@ -175,6 +179,42 @@ Rules:
 }
 
 /**
+ * Read components.json and installed UI components to build project-specific context.
+ * This tells the AI exactly what's available in the user's project.
+ */
+function buildProjectContext(projectRoot?: string): string {
+  if (!projectRoot) return ''
+  const parts: string[] = []
+
+  // Read components.json (shadcn config)
+  const componentsJsonPath = resolve(projectRoot, 'components.json')
+  if (existsSync(componentsJsonPath)) {
+    try {
+      const raw = JSON.parse(readFileSync(componentsJsonPath, 'utf-8'))
+      if (raw.style) parts.push(`shadcn style: ${raw.style}`)
+      if (raw.tailwind?.cssVariables !== undefined) parts.push(`CSS variables: ${raw.tailwind.cssVariables}`)
+      if (raw.aliases?.components) parts.push(`component alias: ${raw.aliases.components}`)
+    } catch {
+      /* ignore parse errors */
+    }
+  }
+
+  // List installed UI components
+  const uiDir = resolve(projectRoot, 'components', 'ui')
+  if (existsSync(uiDir)) {
+    try {
+      const files = readdirSync(uiDir).filter((f: string) => f.endsWith('.tsx'))
+      const names = files.map((f: string) => f.replace('.tsx', ''))
+      if (names.length > 0) parts.push(`Installed shadcn components: ${names.join(', ')}`)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return parts.length > 0 ? `\nProject Context:\n${parts.join('\n')}` : ''
+}
+
+/**
  * Build prompt for Claude to parse modification
  */
 function buildModificationPrompt(
@@ -187,6 +227,7 @@ function buildModificationPrompt(
     tieredComponentsPrompt?: string
     reusePlanDirective?: string
     pageSections?: string[]
+    projectRoot?: string
   },
 ): string {
   const now = new Date().toISOString()
@@ -238,7 +279,7 @@ ${designQuality}
 ${visualDepth}
 ${contextualRules}
 ${interactionPatterns}
-${expandedHint}
+${expandedHint}${buildProjectContext(options?.projectRoot)}
 Current Design System:
 - Name: ${config.name}
 - App Type: ${config.settings.appType}
