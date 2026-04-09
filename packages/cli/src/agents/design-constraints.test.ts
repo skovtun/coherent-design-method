@@ -86,47 +86,38 @@ describe('Fix G: auth max-w-md', () => {
   })
 })
 
-describe('Fix H: toolbar flex-1', () => {
-  it('DESIGN_QUALITY_APP includes toolbar rules', () => {
-    const result = getDesignQualityForType('app')
-    expect(result).toContain('flex-1')
-    expect(result).toContain('FILTER TOOLBAR')
-  })
-})
-
-describe('DESIGN_QUALITY_APP reference snippets', () => {
-  it('contains SelectTrigger snippet (not native select)', () => {
-    const quality = getDesignQualityForType('app')
-    expect(quality).toContain('<SelectTrigger')
-    expect(quality).toContain('<SelectContent>')
-    expect(quality).toContain('<SelectItem')
-  })
-
-  it('contains filter toolbar snippet', () => {
-    const quality = getDesignQualityForType('app')
-    expect(quality).toContain('flex flex-wrap items-center gap-2')
-    expect(quality).toContain('relative flex-1')
-  })
-
-  it('contains page header snippet', () => {
+describe('DESIGN_QUALITY_APP design principles', () => {
+  it('contains page header direction', () => {
     const quality = getDesignQualityForType('app')
     expect(quality).toContain('text-2xl font-bold tracking-tight')
-    expect(quality).toContain('space-y-1')
   })
 
-  it('contains empty state snippet', () => {
+  it('contains stat metrics variation guidance', () => {
     const quality = getDesignQualityForType('app')
-    expect(quality).toContain('flex flex-col items-center justify-center py-12')
+    expect(quality).toContain('STAT METRICS')
+    expect(quality).toContain('not always 4 identical cards')
   })
 
-  it('warns against native option elements', () => {
+  it('contains filter area with Select requirement', () => {
     const quality = getDesignQualityForType('app')
-    expect(quality).toContain('NEVER use <Select> with native <option>')
+    expect(quality).toContain('NEVER native <option>')
+    expect(quality).toContain('SelectTrigger')
   })
 
-  it('warns against standalone filter icon buttons', () => {
+  it('contains badge placement rules', () => {
     const quality = getDesignQualityForType('app')
-    expect(quality).toContain('Do NOT add standalone filter icon buttons')
+    expect(quality).toContain('badge')
+    expect(quality).toContain('gap-2')
+  })
+
+  it('contains empty state guidance', () => {
+    const quality = getDesignQualityForType('app')
+    expect(quality).toContain('EMPTY STATE')
+  })
+
+  it('contains layout variety options', () => {
+    const quality = getDesignQualityForType('app')
+    expect(quality).toContain('Layout')
   })
 })
 

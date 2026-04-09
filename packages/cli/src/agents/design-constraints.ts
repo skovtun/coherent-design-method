@@ -321,13 +321,14 @@ const DESIGN_QUALITY_MARKETING = `
 - Title bar (optional): flex with 3 dots (bg-zinc-700 rounded-full w-2.5 h-2.5) + title text-zinc-500 text-[11px]
 - Copy button: text-zinc-500 hover:text-zinc-300
 
-### Hero Section
-- Minimum height: min-h-[80vh] flex items-center justify-center
-- Content: centered, max-w-3xl, flex flex-col items-center text-center gap-8
-- Badge above headline: small, outline, text-xs tracking-wide
-- Gradient text on key phrase: bg-gradient-to-r from-white to-zinc-500 bg-clip-text text-transparent
-- Subheadline: text-muted-foreground max-w-2xl text-base md:text-lg
-- CTA row: flex items-center gap-4
+### Hero Section — VARY the layout (don't always center everything)
+Choose ONE hero style per project. Don't default to centered:
+- Split hero: text left (60%) + visual right (40%). Asymmetric, editorial feel.
+- Centered hero: only for bold statement pages. min-h-[80vh], max-w-3xl centered.
+- Offset hero: text with large py-20, image/visual breaking into next section with negative margin.
+Gradient text: use ONLY on one key phrase, not entire headline. Never on metrics.
+Badge above headline: optional, not required. When used: outline variant, text-xs.
+CTA row: flex items-center gap-4. Primary + secondary (outline).
 
 ### Comparison Sections (before/after, with/without)
 - Two cards side by side: grid md:grid-cols-2 gap-6
@@ -355,122 +356,33 @@ NEVER include app-style elements (sidebar widgets, data tables, filters) on mark
 const DESIGN_QUALITY_APP = `
 ## DESIGN QUALITY — APP PAGES
 
-### Reference Patterns (COPY these exact patterns)
+### Design Principles for App Pages (NOT templates — principles)
 
-PAGE HEADER:
-\`\`\`
-<div className="flex items-center justify-between">
-  <div className="space-y-1">
-    <h1 className="text-2xl font-bold tracking-tight">Page Title</h1>
-    <p className="text-sm text-muted-foreground">Page description</p>
-  </div>
-  <Button><Plus className="size-4 mr-2 shrink-0" />New Item</Button>
-</div>
-\`\`\`
+Do NOT copy these literally. Use them as DIRECTION, then vary the implementation.
 
-FILTER TOOLBAR (search + dropdowns + action):
-\`\`\`
-<div className="flex flex-wrap items-center gap-2">
-  <div className="relative flex-1">
-    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground shrink-0" />
-    <Input placeholder="Search..." className="pl-9" />
-  </div>
-  <Select>
-    <SelectTrigger className="w-[180px]">
-      <SelectValue placeholder="All Status" />
-    </SelectTrigger>
-    <SelectContent>
-      <SelectItem value="all">All Status</SelectItem>
-      <SelectItem value="active">Active</SelectItem>
-    </SelectContent>
-  </Select>
-  <Button><Plus className="size-4 mr-2 shrink-0" />New Item</Button>
-</div>
-\`\`\`
-CRITICAL: NEVER use <Select> with native <option> elements. Always use the shadcn compound pattern above (SelectTrigger + SelectValue + SelectContent + SelectItem).
-Do NOT add standalone filter icon buttons. The Select dropdowns ARE the filters.
+PAGE HEADER: flex items-center justify-between. Title left (text-2xl font-bold tracking-tight + description), primary action right.
 
-STATS GRID:
-\`\`\`
-<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-  <Card>
-    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-      <CardTitle className="text-sm font-medium">Metric Name</CardTitle>
-      <TrendingUp className="size-4 text-muted-foreground shrink-0" />
-    </CardHeader>
-    <CardContent>
-      <div className="text-2xl font-bold">1,234</div>
-      <p className="text-xs text-muted-foreground">+12% from last month</p>
-    </CardContent>
-  </Card>
-</div>
-\`\`\`
+FILTER AREA: search Input with Search icon (pl-9), Select dropdowns for filters, primary action button. Use shadcn Select (SelectTrigger + SelectValue + SelectContent + SelectItem), NEVER native <option>.
 
-DATA TABLE:
-\`\`\`
-<div className="overflow-x-auto">
-  <Table>
-    <TableHeader>
-      <TableRow>
-        <TableHead>Name</TableHead>
-        <TableHead>Status</TableHead>
-        <TableHead className="w-[50px]"></TableHead>
-      </TableRow>
-    </TableHeader>
-    <TableBody>
-      <TableRow className="hover:bg-muted/50">
-        <TableCell className="font-medium">Item name</TableCell>
-        <TableCell><Badge variant="default">Active</Badge></TableCell>
-        <TableCell>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon"><MoreHorizontal className="size-4 shrink-0" /></Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem>Edit</DropdownMenuItem>
-              <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </TableCell>
-      </TableRow>
-    </TableBody>
-  </Table>
-</div>
-\`\`\`
+STAT METRICS: vary presentation — not always 4 identical cards. Options:
+- Horizontal row with border-r dividers (no cards): metric inline with label
+- 2 large + 2 small cards (hierarchy, not uniform)
+- Metric embedded in page header (no separate row)
+- Single hero metric + supporting stats as text
+NEVER: 4 identical cards with same layout as the default.
 
-EMPTY STATE (when list/table has zero items):
-\`\`\`
-<div className="flex flex-col items-center justify-center py-12 text-center">
-  <Inbox className="size-12 text-muted-foreground mb-4 shrink-0" />
-  <h3 className="text-lg font-semibold">No items yet</h3>
-  <p className="text-sm text-muted-foreground mt-1 max-w-sm">Create your first item to get started.</p>
-  <Button className="mt-4"><Plus className="size-4 mr-2 shrink-0" />Create Item</Button>
-</div>
-\`\`\`
+DATA DISPLAY: match format to data type:
+- Structured data → Table with TableHeader/TableBody, hover:bg-muted/50, actions via DropdownMenu
+- Visual items (projects, products) → Card grid, vary card sizes, include progress/avatars/badges
+- Activity/timeline → Vertical list with left border, avatars, timestamps
+- Tasks → Compact list rows with inline Badge for status, assignee avatar right-aligned
+NEVER: identical card grid for everything.
 
-DATA CARD GRID:
-\`\`\`
-<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-  <Card className="hover:border-border/30 transition-colors">
-    <CardHeader className="flex flex-row items-start justify-between space-y-0">
-      <div className="space-y-1">
-        <CardTitle>Item Name</CardTitle>
-        <p className="text-sm text-muted-foreground">Description</p>
-      </div>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon"><MoreHorizontal className="size-4 shrink-0" /></Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem>Edit</DropdownMenuItem>
-          <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </CardHeader>
-    <CardContent>...</CardContent>
-  </Card>
-</div>
-\`\`\`
+EMPTY STATES: icon (size-10 text-muted-foreground) + heading + description + CTA button. Must feel inviting, not blank.
+
+CARD HEADER WITH STATUS: title and badge on same line in flex row with gap-2:
+  <div className="flex items-center gap-2"><CardTitle>Name</CardTitle><Badge variant="secondary">Status</Badge></div>
+NEVER position badge before title. NEVER overlap badge on title text.
 
 ### Layout Variety (CRITICAL — avoid identical dashboards)
 Choose ONE layout per page. Do NOT default to "stats + cards + table" every time:

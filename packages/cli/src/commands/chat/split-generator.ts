@@ -350,10 +350,26 @@ export function buildAnchorPagePrompt(
   const groupLayout = plan?.groups.find(g => g.pages.includes(homePage.route))?.layout
 
   if (groupLayout === 'sidebar' || pageType === 'dashboard') {
-    return `Create ONE page called "${homePage.name}" at route "${homePage.route}". Context: ${message}. This REPLACES the default placeholder page — generate a complete application page. Generate complete pageCode. Do NOT include a sidebar or top navigation — these are handled by the layout. Focus on the main content area. Make it visually polished — this page sets the design direction for the entire site. Do not generate other pages.`
+    return `Create ONE page called "${homePage.name}" at route "${homePage.route}". Context: ${message}. This REPLACES the default placeholder page — generate a complete application page. Generate complete pageCode. Do NOT include a sidebar or top navigation — these are handled by the layout. Focus on the main content area.
+
+DESIGN DIRECTION — this page sets the visual tone for the entire app:
+- Stats: do NOT use 4 identical stat cards — use 2 large + 2 small, or inline metrics with dividers
+- Layout: use asymmetric 2/3 + 1/3 split, not uniform sections
+- Data: show real-feeling content with diverse names and specific numbers
+- Make each section visually distinct — vary density and treatment
+Do not generate other pages.`
   }
 
-  return `Create ONE page called "${homePage.name}" at route "${homePage.route}". Context: ${message}. This REPLACES the default placeholder page — generate a complete, content-rich landing page for the project described above. Generate complete pageCode. Include a branded site-wide <header> with navigation links to ALL these pages: ${allPagesList}. Use these EXACT routes in navigation: ${allRoutes}. Include a <footer> at the bottom. Make it visually polished — this page sets the design direction for the entire site. Do not generate other pages.`
+  return `Create ONE page called "${homePage.name}" at route "${homePage.route}". Context: ${message}. This REPLACES the default placeholder page — generate a complete, content-rich landing page for the project described above. Generate complete pageCode. Include a branded site-wide <header> with navigation links to ALL these pages: ${allPagesList}. Use these EXACT routes in navigation: ${allRoutes}. Include a <footer> at the bottom.
+
+DESIGN DIRECTION — this page sets the visual tone for the entire site:
+- Hero: choose split layout (text left, visual right) OR centered — not always centered
+- Make it feel designed, not templated. Vary section density, alternate backgrounds
+- Feature section: NOT identical 3-column icon+heading+text cards — vary the treatment
+- Pricing: highlighted tier must stand out clearly (ring-2 ring-primary, scale slightly larger)
+- Testimonials: asymmetric layout, not 3 identical cards
+- Use real-feeling content: diverse names, specific metrics, concrete descriptions
+Do not generate other pages.`
 }
 
 function getGroupLayoutForRoute(route: string, plan: ArchitecturePlan | null): string | undefined {
