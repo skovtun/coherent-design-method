@@ -110,6 +110,15 @@ ICONS:
 - Size: ALWAYS size-4 (16px). Color: ALWAYS text-muted-foreground. Import: ALWAYS from lucide-react.
 - ALWAYS add shrink-0 to icon className to prevent flex containers from squishing them.
 
+ACCESSIBILITY (mandatory):
+- Icon-only buttons: ALWAYS add <span className="sr-only">Label</span> inside, or aria-label prop.
+- Images: ALWAYS add alt text. Decorative images: alt="".
+- Expandable elements (accordion, dropdown): aria-expanded={isOpen}.
+- Live regions (toast, loading indicators): aria-live="polite" or role="status".
+- Form errors: link error message to input via aria-describedby.
+- Semantic HTML: use <nav>, <main>, <aside>, <section> with aria-label when multiple of same type.
+- Color alone: never use color as the ONLY indicator — add icon or text alongside.
+
 ANTI-PATTERNS (NEVER DO):
 - text-base as body text → use text-sm
 - text-lg/xl on card titles → use text-sm font-medium
@@ -1049,12 +1058,40 @@ Z-INDEX HIERARCHY:
 - NEVER use arbitrary z-index values above z-50 except for toast (z-[100]).
 
 ADVANCED ANIMATION (beyond the basics in DESIGN QUALITY COMMON):
+- Frequency rule: the more often an element is used, the LESS animation it needs. Navigation = zero animation. Rare actions = can have delight.
+- Hover timing: instant ON (0ms), ease OFF (150ms). Use transition-duration on the base state, override to 0ms on :hover.
 - Timing by element: tooltips 125-200ms, dropdowns 150-250ms, modals 200-400ms, page transitions 300-500ms.
 - Enter animations: start from scale(0.95) + opacity-0, never scale(0). Nothing disappears completely.
+- Transform-origin for popups: open FROM the trigger element, not from center. Use data-side attribute.
 - Stagger delays: 30-80ms between items for list/grid reveals. Cap total stagger at 500ms.
 - Reduced motion: always provide @media (prefers-reduced-motion: reduce) alternative (fade instead of slide).
 - Allowed: hover effects, accordion open/close, dialog enter/exit, dropdown appear, toast slide in, staggered list reveals.
-- BANNED: bounce easing, elastic/overshoot, parallax, auto-playing carousels, decorative animations that delay content, linear easing on UI.
+- BANNED: bounce easing, elastic/overshoot, parallax, auto-playing carousels, decorative animations, linear easing on UI, keyframes for interruptible elements (use transitions).
+`
+
+export const RULES_NEXTJS = `
+NEXT.JS APP ROUTER RULES:
+
+DIRECTIVES:
+- "use client" at top of file when using: useState, useEffect, usePathname, onClick, onChange, any browser API.
+- Server Components (no "use client"): for static pages, metadata export, data fetching with async/await.
+- NEVER mix: "use client" + export const metadata. Choose one.
+
+PERFORMANCE:
+- Images: use next/image <Image> with width/height or fill prop. Never raw <img> for content images.
+- Links: use next/link <Link>. Never raw <a> for internal navigation.
+- Fonts: import from next/font/google. Use variable fonts when available.
+- Dynamic imports: use next/dynamic for heavy components (charts, editors, maps) not needed on initial load.
+
+SEO (marketing pages only):
+- Export metadata object: title, description, openGraph (title, description, url, images).
+- Structured heading hierarchy: one h1 per page, h2 for sections, h3 for subsections.
+- Canonical URL in metadata.
+
+PATTERNS:
+- Loading UI: create loading.tsx in route folder for automatic Suspense boundaries.
+- Error boundary: create error.tsx with "use client" for graceful error handling.
+- Not found: create not-found.tsx for custom 404 pages.
 `
 
 // ---------------------------------------------------------------------------
@@ -1161,6 +1198,10 @@ const CONTEXTUAL_CATEGORIES: ContextualCategory[] = [
   {
     keywords: /sidebar|select|dropdown|sheet|dialog|modal|command|trigger|asChild|menu/i,
     rules: RULES_SHADCN_APIS,
+  },
+  {
+    keywords: /image|seo|metadata|font|performance|loading\.tsx|error\.tsx|dynamic|suspense|next.?image/i,
+    rules: RULES_NEXTJS,
   },
 ]
 
