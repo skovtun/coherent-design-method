@@ -63,6 +63,7 @@ program
     'Component type for --new-component: layout, navigation, data-display, form, feedback, section',
   )
   .option('-i, --interactive', 'Interactive chat mode')
+  .option('--dry-run', 'Show what would change without applying')
   .action(chatCommand)
 
 program.command('preview').description('Launch dev server for preview').action(previewCommand)

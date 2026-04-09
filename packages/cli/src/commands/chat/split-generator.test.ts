@@ -224,8 +224,12 @@ describe('inferPageType', () => {
     expect(inferPageType('/pricing', 'Plans')).toBe('pricing')
   })
 
+  it('infers projects from route', () => {
+    expect(inferPageType('/projects', 'Projects')).toBe('projects')
+  })
+
   it('returns null for unknown page', () => {
-    expect(inferPageType('/projects', 'Projects')).toBeNull()
+    expect(inferPageType('/custom-xyz', 'Custom XYZ')).toBeNull()
   })
 
   it('infers team from route', () => {

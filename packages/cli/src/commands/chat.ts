@@ -64,6 +64,7 @@ export async function chatCommand(
     interactive?: boolean
     newComponent?: string
     type?: string
+    dryRun?: boolean
     _throwOnError?: boolean
   },
 ) {
@@ -670,6 +671,33 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
       config.navigation?.items?.map(i => ({ label: i.label, href: i.route || `/${i.label.toLowerCase()}` })),
       config.navigation?.type,
     )
+
+    // Dry-run: show what would change without applying
+    if (options.dryRun) {
+      spinner.succeed('Dry run — showing planned changes:')
+      console.log('')
+      for (const request of normalizedRequests) {
+        const changes = request.changes as Record<string, unknown>
+        const name = (changes?.name as string) || (changes?.id as string) || request.target || 'unknown'
+        const route = (changes?.route as string) || ''
+        const icon =
+          request.type === 'add-page'
+            ? '📄'
+            : request.type === 'update-page'
+              ? '✏️'
+              : request.type === 'add-component'
+                ? '🧩'
+                : request.type === 'modify-component'
+                  ? '🔧'
+                  : request.type === 'update-token'
+                    ? '🎨'
+                    : '📦'
+        console.log(`  ${icon} ${request.type}: ${name}${route ? ` (${route})` : ''}`)
+      }
+      console.log(`\n  Total: ${normalizedRequests.length} modification(s)`)
+      console.log(chalk.dim('  Run without --dry-run to apply.\n'))
+      return
+    }
 
     // Apply modifications
     spinner.start('Applying modifications...')

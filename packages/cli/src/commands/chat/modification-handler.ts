@@ -65,11 +65,11 @@ const DEBUG = process.env.COHERENT_DEBUG === '1'
  * Also strips div-based footers preceded by Footer comments in JSX.
  * The root layout provides these via shared components — pages must not include them.
  */
-function isSiteWideHeader(block: string): boolean {
+export function isSiteWideHeader(block: string): boolean {
   return /<Link\b/.test(block) || /<a\s+href/.test(block) || /<nav\b/.test(block)
 }
 
-function isSiteWideFooter(block: string): boolean {
+export function isSiteWideFooter(block: string): boolean {
   return /©|&copy;|All rights|<Link\b/.test(block) || (/<a\s+href/.test(block) && block.split('<a ').length >= 3)
 }
 
@@ -77,7 +77,7 @@ function isSiteWideNav(block: string): boolean {
   return /<Link\b/.test(block) || (/<a\s+href/.test(block) && block.split(/<a\s+href/).length >= 3)
 }
 
-function stripInlineLayoutElements(code: string): { code: string; stripped: string[] } {
+export function stripInlineLayoutElements(code: string): { code: string; stripped: string[] } {
   let result = code
   const stripped: string[] = []
 
@@ -130,7 +130,7 @@ export default function Home() {
  * Detect if the AI generated a SPA-style home page (multiple inline views
  * with useState toggling) and replace it with a simple redirect.
  */
-function detectAndFixSpaHomePage(code: string, route: string): { code: string; fixed: boolean } {
+export function detectAndFixSpaHomePage(code: string, route: string): { code: string; fixed: boolean } {
   if (route !== '/' && route !== '') return { code, fixed: false }
   const hasMultipleRenders = (code.match(/const render\w+\s*=\s*\(\)/g) || []).length >= 2
   const hasPageToggle = /useState\s*\(\s*['"](?:dashboard|home|page)/i.test(code)
@@ -1138,8 +1138,12 @@ export function inferPageType(route: string, name: string): string | null {
   if (/\bteam\b|\bmember\b/.test(key)) return 'team'
   if (/\btasks?\b/.test(key) && /\[id\]|\bdetail\b/.test(key)) return 'task-detail'
   if (/\btasks?\b/.test(key)) return 'tasks'
+  if (/\bforgot.?password\b/.test(key)) return 'forgot-password'
   if (/\breset.?password\b/.test(key)) return 'reset-password'
   if (/\bprofile\b|\baccount\b/.test(key)) return 'profile'
+  if (/\bfeatures?\b/.test(key)) return 'features'
+  if (/\bprojects?\b/.test(key) && /\[id\]|\bdetail\b/.test(key)) return 'project-detail'
+  if (/\bprojects?\b/.test(key)) return 'projects'
   return null
 }
 
