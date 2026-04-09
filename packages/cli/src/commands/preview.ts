@@ -9,6 +9,7 @@ import chalk from 'chalk'
 import ora from 'ora'
 import { spawn, ChildProcess } from 'child_process'
 import { existsSync, rmSync, readFileSync, writeFileSync, readdirSync } from 'fs'
+import { readFile, writeFile } from 'fs/promises'
 import { resolve, join } from 'path'
 import { readdir } from 'fs/promises'
 import { findConfig, exitNotCoherent, warnIfVolatile } from '../utils/find-config.js'
@@ -125,14 +126,19 @@ async function listPageFiles(appDir: string): Promise<string[]> {
 async function validateSyntax(projectRoot: string): Promise<void> {
   const appDir = join(projectRoot, 'app')
   const pages = await listPageFiles(appDir)
-  for (const file of pages) {
-    const content = readFileSync(file, 'utf-8')
+  // Read all files in parallel
+  const contents = await Promise.all(pages.map(f => readFile(f, 'utf-8')))
+  // Fix and write back only changed files
+  const writes: Promise<void>[] = []
+  for (let i = 0; i < pages.length; i++) {
+    const content = contents[i]
     const fixed = fixUnescapedLtInJsx(sanitizeMetadataStrings(ensureUseClientIfNeeded(content)))
     if (fixed !== content) {
-      writeFileSync(file, fixed, 'utf-8')
-      console.log(chalk.dim(`   ✔ Auto-fixed syntax: ${file.replace(projectRoot, '.').replace(/^\.[/\\]/, '')}`))
+      writes.push(writeFile(pages[i], fixed, 'utf-8'))
+      console.log(chalk.dim(`   ✔ Auto-fixed syntax: ${pages[i].replace(projectRoot, '.').replace(/^\.[/\\]/, '')}`))
     }
   }
+  await Promise.all(writes)
 }
 
 /** Auto-fix component files that are missing exports expected by page files. */
@@ -153,8 +159,11 @@ async function fixMissingComponentExports(projectRoot: string): Promise<void> {
 
   const neededExports = new Map<string, Set<string>>()
 
-  for (const file of pages) {
-    const content = readFileSync(file, 'utf-8')
+  // Read all page files in parallel
+  const pageContents = await Promise.all(pages.map(f => readFile(f, 'utf-8')))
+
+  for (let pi = 0; pi < pages.length; pi++) {
+    const content = pageContents[pi]
     const importRe = /import\s*\{([^}]+)\}\s*from\s*['"]@\/components\/ui\/([^'"]+)['"]/g
     let m
     while ((m = importRe.exec(content)) !== null) {

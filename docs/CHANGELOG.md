@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.6.74] — 2026-04-09
+
+### Added
+- **25 new tests** (686 → 711): export.test.ts (10), check.test.ts (7), quality-validator (8)
+- **Banned names validator** — catches "John Doe", "Jane Smith", "Acme Corp", "TechCorp"
+- **Banned copy validator** — catches "Seamless", "Elevate", "Unleash", "Next-Gen", "Game-changer"
+- **Dynamic component discovery** — `listNames()` scans `components/ui/` on disk, future-proof for new shadcn components
+
 ## [0.6.73] — 2026-04-09
 
 ### Fixed
