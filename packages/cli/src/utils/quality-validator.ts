@@ -1565,6 +1565,68 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
     fixes.push('icon prop: ReactNode → ElementType (forwardRef compat)')
   }
 
+  // ─── VISUAL POLISH PASS ────────────────────────────────────────────
+  // Deterministic fixes that improve visual quality without AI calls
+
+  // 1. transition-all → transition-colors (safest default, avoids layout janking)
+  const beforeTransition = fixed
+  fixed = fixed.replace(/\btransition-all\b/g, 'transition-colors')
+  if (fixed !== beforeTransition) {
+    fixes.push('transition-all → transition-colors')
+  }
+
+  // 2. Excessive padding → p-6 max
+  const beforePadding = fixed
+  fixed = fixed.replace(/\bp-(8|10|12|14|16|20)\b/g, 'p-6')
+  if (fixed !== beforePadding) {
+    fixes.push('excessive padding → p-6')
+  }
+
+  // 3. Add focus-visible to interactive elements missing it
+  const beforeFocus = fixed
+  // Buttons without focus-visible (that aren't already handled by shadcn Button)
+  fixed = fixed.replace(/(<(?:button|a)\s[^>]*className="[^"]*)(hover:[^"]*")/g, (match, before, hover) => {
+    if (match.includes('focus-visible:')) return match
+    return `${before}focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${hover}`
+  })
+  if (fixed !== beforeFocus) {
+    fixes.push('added focus-visible to interactive elements')
+  }
+
+  // 4. Banned placeholder names expansion
+  const beforeNames = fixed
+  fixed = fixed.replace(/"Jane Smith"/g, '"Elena Vasquez"')
+  fixed = fixed.replace(/'Jane Smith'/g, "'Elena Vasquez'")
+  fixed = fixed.replace(/"Acme Corp"/g, '"Meridian Labs"')
+  fixed = fixed.replace(/'Acme Corp'/g, "'Meridian Labs'")
+  fixed = fixed.replace(/"TechCorp"/g, '"Canopy Health"')
+  fixed = fixed.replace(/'TechCorp'/g, "'Canopy Health'")
+  fixed = fixed.replace(/"SmartFlow"/g, '"Brickwell Partners"')
+  fixed = fixed.replace(/'SmartFlow'/g, "'Brickwell Partners'")
+  fixed = fixed.replace(/"Nexus Inc"/g, '"Verde Analytics"')
+  fixed = fixed.replace(/'Nexus Inc'/g, "'Verde Analytics'")
+  if (fixed !== beforeNames) {
+    fixes.push('banned names → diverse alternatives')
+  }
+
+  // 5. Strip extra borders/shadows from TabsList
+  const beforeTabs = fixed
+  fixed = fixed.replace(
+    /(TabsList[^>]*className="[^"]*)\b(?:border|shadow|ring|border-border|shadow-sm|ring-1)[^"]*(")/g,
+    (match, before, after) => {
+      // Only strip if it's adding extra decoration beyond default
+      const cleaned = match
+        .replace(/\bborder(?:-\w+)?\b/g, '')
+        .replace(/\bshadow(?:-\w+)?\b/g, '')
+        .replace(/\bring(?:-\w+)?\b/g, '')
+        .replace(/\s{2,}/g, ' ')
+      return cleaned
+    },
+  )
+  if (fixed !== beforeTabs) {
+    fixes.push('stripped extra borders from TabsList')
+  }
+
   return { code: fixed, fixes }
 }
 

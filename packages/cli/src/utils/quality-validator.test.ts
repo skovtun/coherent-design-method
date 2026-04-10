@@ -1113,3 +1113,34 @@ describe('banned copy detection', () => {
     expect(issues.some(i => i.type === 'BANNED_COPY')).toBe(false)
   })
 })
+
+describe('visual polish auto-fixes', () => {
+  it('replaces transition-all with transition-colors', async () => {
+    const code = `'use client'\nexport default function Page() {\n  return <div className="transition-all duration-200">Test</div>\n}`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('transition-colors')
+    expect(fixed).not.toContain('transition-all')
+    expect(fixes).toContain('transition-all → transition-colors')
+  })
+
+  it('replaces excessive padding with p-6', async () => {
+    const code = `'use client'\nexport default function Page() {\n  return <div className="p-10">Test</div>\n}`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('p-6')
+    expect(fixed).not.toContain('p-10')
+  })
+
+  it('replaces Jane Smith with diverse name', async () => {
+    const code = `'use client'\nexport default function Page() {\n  return <p>"Jane Smith"</p>\n}`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('Elena Vasquez')
+    expect(fixed).not.toContain('Jane Smith')
+  })
+
+  it('replaces Acme Corp with realistic company', async () => {
+    const code = `'use client'\nexport default function Page() {\n  return <p>"Acme Corp"</p>\n}`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('Meridian Labs')
+    expect(fixed).not.toContain('Acme Corp')
+  })
+})
