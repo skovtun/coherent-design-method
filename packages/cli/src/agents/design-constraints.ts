@@ -380,6 +380,13 @@ NEVER: identical card grid for everything.
 
 EMPTY STATES: icon (size-10 text-muted-foreground) + heading + description + CTA button. Must feel inviting, not blank.
 
+LAYOUT FILES (layout.tsx): NEVER import data components (tables, lists, feeds) into layout files.
+Layout files only contain: navigation, theme providers, wrappers. Data components go in page.tsx files.
+
+SHARED COMPONENT PROPS: when using a shared component, pass ALL required props matching its interface.
+If the component expects user: string, pass a string — not an object with name/avatar fields.
+Read the component's interface before using it.
+
 CARD HEADER WITH STATUS: title and badge on same line in flex row with gap-2:
   <div className="flex items-center gap-2"><CardTitle>Name</CardTitle><Badge variant="secondary">Status</Badge></div>
 NEVER position badge before title. NEVER overlap badge on title text.
