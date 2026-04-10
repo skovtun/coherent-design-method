@@ -100,8 +100,9 @@ describe('DESIGN_QUALITY_APP design principles', () => {
 
   it('contains filter area with Select requirement', () => {
     const quality = getDesignQualityForType('app')
-    expect(quality).toContain('NEVER native <option>')
+    expect(quality).toContain('NEVER use native <select>')
     expect(quality).toContain('SelectTrigger')
+    expect(quality).toContain('NEVER render filter options as inline text')
   })
 
   it('contains badge placement rules', () => {

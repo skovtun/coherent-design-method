@@ -173,6 +173,7 @@ ANTI-PATTERNS (NEVER DO):
 - Badge overlapping title text → Badge AFTER title in flex row with gap-2
 - Extra border/shadow on TabsList → TabsList has built-in styling, don't add more
 - Colored dots/circles without text for priority → use Badge with text label
+- Filter options as inline text/buttons/tabs → ALWAYS use Select dropdown with chevron
 
 COMPONENT VARIANT RULES (CRITICAL):
 - NEVER use <Button> with custom bg-*/text-* classes for navigation or tabs without variant="ghost".
@@ -362,7 +363,11 @@ Do NOT copy these literally. Use them as DIRECTION, then vary the implementation
 
 PAGE HEADER: flex items-center justify-between. Title left (text-2xl font-bold tracking-tight + description), primary action right.
 
-FILTER AREA: search Input with Search icon (pl-9), Select dropdowns for filters, primary action button. Use shadcn Select (SelectTrigger + SelectValue + SelectContent + SelectItem), NEVER native <option>.
+FILTER AREA: search Input with Search icon (pl-9), Select dropdowns for filters, primary action button.
+- Filters MUST use shadcn Select component: <Select><SelectTrigger className="w-[180px]"><SelectValue placeholder="All Status" /></SelectTrigger><SelectContent><SelectItem value="all">All Status</SelectItem></SelectContent></Select>
+- NEVER render filter options as inline text, buttons, tabs, or badges — ALWAYS a Select dropdown with chevron.
+- NEVER use native <select> with <option> — use shadcn compound pattern (SelectTrigger + SelectValue + SelectContent + SelectItem).
+- Multiple filters: place side by side as separate Select dropdowns, each with own trigger.
 
 STAT METRICS: vary presentation — not always 4 identical cards. Options:
 - Horizontal row with border-r dividers (no cards): metric inline with label
