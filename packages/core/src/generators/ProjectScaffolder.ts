@@ -137,7 +137,7 @@ export class ProjectScaffolder {
         'class-variance-authority': '^0.7.0',
         clsx: '^2.1.0',
         'tailwind-merge': '^2.2.0',
-        'lucide-react': '^0.460.0',
+        'lucide-react': '^1.8.0',
       },
       devDependencies: {
         typescript: `^${FRAMEWORK_VERSIONS.typescript}`,

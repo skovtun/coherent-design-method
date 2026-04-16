@@ -445,14 +445,20 @@ export async function splitGeneratePages(
     }
 
     const planRaw = planResult as unknown as Record<string, unknown>
-    if (typeof planRaw.appName === 'string' && planRaw.appName && modCtx.config.name === 'My App') {
+    const explicitNameFromPrompt = extractAppNameFromPrompt(message)
+    if (explicitNameFromPrompt) {
+      modCtx.config.name = explicitNameFromPrompt
+    } else if (typeof planRaw.appName === 'string' && planRaw.appName && modCtx.config.name === 'My App') {
       modCtx.config.name = planRaw.appName
     }
   } catch {
     spinner.text = 'AI plan failed — extracting pages from your request...'
   }
 
-  if (modCtx.config.name === 'My App') {
+  const promptName = extractAppNameFromPrompt(message)
+  if (promptName) {
+    modCtx.config.name = promptName
+  } else if (modCtx.config.name === 'My App') {
     const nameFromPrompt = extractAppNameFromPrompt(message)
     if (nameFromPrompt) modCtx.config.name = nameFromPrompt
   }
