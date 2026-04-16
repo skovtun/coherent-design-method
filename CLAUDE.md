@@ -5,7 +5,7 @@
 > Coherent's job is to make that impossible — by encoding design decisions
 > as a tiered constraint system that runs before the AI writes a single line of code.
 
-**Current version:** 0.6.85
+**Current version:** 0.6.86
 **Packages:** `@getcoherent/core` + `@getcoherent/cli` (published together, same version)
 **Tests:** 771 passing
 
@@ -59,8 +59,8 @@ npx prettier --check 'packages/*/src/**/*.{ts,tsx}'  # Format check
 git add -A && git commit -m "v0.6.XX — description"
 git push origin main
 
-cd packages/core && npm publish
-cd packages/cli && npm publish
+cd packages/core && pnpm publish --no-git-checks
+cd packages/cli && pnpm publish --no-git-checks
 ```
 
 ### Git Workflow
