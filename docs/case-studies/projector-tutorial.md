@@ -169,8 +169,8 @@ The output shows what was built:
 ```
 📁 Location: ~/projector
 📊 Statistics:
-   Pages: 14
-   Components: 19
+   Pages: 12
+   Components: 18
    Design tokens: 52
 ```
 
@@ -324,7 +324,7 @@ npx vercel
 31 minutes. One prompt to generate. A few prompts to refine.
 
 The result:
-- **14+ pages** — landing, dashboard, projects, tasks, team, settings, auth flow, detail pages
+- **12 pages** — landing, dashboard, projects, tasks, team, settings, 4 auth flows, 2 detail routes
 - **10 shared components** — automatically extracted, registered with IDs, reusable
 - **Dark and light mode** — design tokens cascade, both work out of the box
 - **100+ design rules** — enforced during generation, not bolted on after
