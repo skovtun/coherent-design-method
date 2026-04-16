@@ -148,6 +148,11 @@ LINKS & INTERACTIVE STATES (consistency is critical):
 - ALL interactive elements MUST have visible hover and focus-visible states.
 - CRITICAL: Every <Link> MUST have an href prop. Missing href causes runtime errors. Never use <Link className="..."> or <Button asChild><Link> without href.
 - When shared components exist (@/components/shared/*), ALWAYS import and use them instead of re-implementing similar patterns inline.
+- SHARED COMPONENT ABSTRACTION LEVELS (choose deliberately):
+  - MINIMAL PRIMITIVES: single atomic element (Avatar, Badge, StatusBadge). No composed text or layout. Every page composes freely around them.
+  - COMPLETE BLOCKS: full self-contained unit (MemberCard, PricingCard, ActivityFeedItem) — include all their visuals + labels. Page drops them in as-is.
+  - AVOID MID-LEVEL (e.g. "avatar + name inline"): if a component wraps an avatar with a name next to it, pages needing richer info (avatar + name + email + role) will import it AND re-render the name — producing visible duplication.
+  - Rule of thumb: if you feel the urge to put text next to a shared component you just imported, the component is mid-level — use the primitive (Avatar) instead and compose inline, OR use the complete block (MemberCard) and drop it in without additional text.
 
 ICONS:
 - Size: ALWAYS size-4 (16px). Color: ALWAYS text-muted-foreground. Import: ALWAYS from lucide-react.

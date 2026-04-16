@@ -1,0 +1,210 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - link "Test Projector V2" [ref=e5] [cursor=pointer]:
+          - /url: /
+        - generic [ref=e6]:
+          - link "Dashboard" [ref=e7] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Projects" [ref=e8] [cursor=pointer]:
+            - /url: /projects
+          - link "Tasks" [ref=e9] [cursor=pointer]:
+            - /url: /tasks
+          - link "Team" [ref=e10] [cursor=pointer]:
+            - /url: /team
+          - link "Settings" [ref=e11] [cursor=pointer]:
+            - /url: /settings
+      - generic [ref=e12]:
+        - link "Login" [ref=e13] [cursor=pointer]:
+          - /url: /login
+        - link "Register" [ref=e14] [cursor=pointer]:
+          - /url: /register
+        - button "Toggle theme" [ref=e15]:
+          - img [ref=e16]
+  - link "Design System" [ref=e18] [cursor=pointer]:
+    - /url: /design-system
+  - generic [ref=e20]:
+    - generic [ref=e23]:
+      - generic [ref=e24]: "New: Advanced Analytics Dashboard"
+      - heading "Project management that scales with your vision" [level=1] [ref=e25]
+      - paragraph [ref=e26]: Streamline workflows, track progress, and collaborate seamlessly with the premium project management solution trusted by modern teams.
+      - generic [ref=e27]:
+        - link "Get Started" [ref=e28] [cursor=pointer]:
+          - /url: /
+          - text: Get Started
+          - img
+        - link "View Demo" [ref=e29] [cursor=pointer]:
+          - /url: /
+    - generic [ref=e31]:
+      - generic [ref=e32]:
+        - heading "Everything you need to succeed" [level=2] [ref=e33]
+        - paragraph [ref=e34]: Powerful features designed to help teams of all sizes deliver exceptional results.
+      - generic [ref=e35]:
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - img [ref=e39]
+            - generic [ref=e47]: Intelligent Planning
+          - paragraph [ref=e49]: AI-powered project planning that adapts to your team's workflow patterns and automatically optimizes resource allocation.
+        - generic [ref=e50]:
+          - generic [ref=e51]:
+            - img [ref=e53]
+            - generic [ref=e58]: Real-time Collaboration
+          - paragraph [ref=e60]: Work together seamlessly with live updates, instant notifications, and integrated communication tools.
+        - generic [ref=e61]:
+          - generic [ref=e62]:
+            - img [ref=e64]
+            - generic [ref=e66]: Advanced Analytics
+          - paragraph [ref=e68]: Deep insights into team performance, project health, and resource utilization with beautiful, actionable dashboards.
+    - generic [ref=e70]:
+      - generic [ref=e71]:
+        - heading "Simple, transparent pricing" [level=2] [ref=e72]
+        - paragraph [ref=e73]: Choose the perfect plan for your team's needs. Upgrade or downgrade at any time.
+      - generic [ref=e74]:
+        - generic [ref=e75]:
+          - generic [ref=e76]:
+            - generic [ref=e77]: Starter
+            - generic [ref=e78]: $0/month
+            - paragraph [ref=e79]: Perfect for small teams getting started
+          - generic [ref=e80]:
+            - list [ref=e81]:
+              - listitem [ref=e82]:
+                - img [ref=e83]
+                - text: Up to 5 team members
+              - listitem [ref=e85]:
+                - img [ref=e86]
+                - text: 10 projects
+              - listitem [ref=e88]:
+                - img [ref=e89]
+                - text: Basic task management
+              - listitem [ref=e91]:
+                - img [ref=e92]
+                - text: Email support
+            - link "Get Started" [ref=e94] [cursor=pointer]:
+              - /url: /
+        - generic [ref=e95]:
+          - generic [ref=e96]: Most Popular
+          - generic [ref=e97]:
+            - generic [ref=e98]: Pro
+            - generic [ref=e99]: $19/month
+            - paragraph [ref=e100]: Best for growing teams and businesses
+          - generic [ref=e101]:
+            - list [ref=e102]:
+              - listitem [ref=e103]:
+                - img [ref=e104]
+                - text: Up to 25 team members
+              - listitem [ref=e106]:
+                - img [ref=e107]
+                - text: Unlimited projects
+              - listitem [ref=e109]:
+                - img [ref=e110]
+                - text: Advanced task management
+              - listitem [ref=e112]:
+                - img [ref=e113]
+                - text: Time tracking
+              - listitem [ref=e115]:
+                - img [ref=e116]
+                - text: Priority support
+            - link "Start Free Trial" [ref=e118] [cursor=pointer]:
+              - /url: /
+        - generic [ref=e119]:
+          - generic [ref=e120]:
+            - generic [ref=e121]: Business
+            - generic [ref=e122]: $49/month
+            - paragraph [ref=e123]: For large teams and enterprises
+          - generic [ref=e124]:
+            - list [ref=e125]:
+              - listitem [ref=e126]:
+                - img [ref=e127]
+                - text: Unlimited team members
+              - listitem [ref=e129]:
+                - img [ref=e130]
+                - text: Unlimited projects
+              - listitem [ref=e132]:
+                - img [ref=e133]
+                - text: Advanced analytics
+              - listitem [ref=e135]:
+                - img [ref=e136]
+                - text: Custom integrations
+              - listitem [ref=e138]:
+                - img [ref=e139]
+                - text: 24/7 phone support
+            - link "Contact Sales" [ref=e141] [cursor=pointer]:
+              - /url: /
+    - generic [ref=e143]:
+      - generic [ref=e144]:
+        - heading "Trusted by teams worldwide" [level=2] [ref=e145]
+        - paragraph [ref=e146]: See what our customers are saying about Projector.
+      - generic [ref=e147]:
+        - generic [ref=e149]:
+          - generic [ref=e150]:
+            - img [ref=e151]
+            - img [ref=e153]
+            - img [ref=e155]
+            - img [ref=e157]
+            - img [ref=e159]
+          - paragraph [ref=e161]: "\"Projector has transformed how our team collaborates. The intelligent planning features have reduced our project planning time by 70%.\""
+          - generic [ref=e162]:
+            - generic [ref=e164]: SC
+            - generic [ref=e165]:
+              - paragraph [ref=e166]: Sarah Chen
+              - paragraph [ref=e167]: Product Manager, TechCorp
+        - generic [ref=e169]:
+          - generic [ref=e170]:
+            - img [ref=e171]
+            - img [ref=e173]
+            - img [ref=e175]
+            - img [ref=e177]
+            - img [ref=e179]
+          - paragraph [ref=e181]: "\"The analytics dashboard gives us incredible insights into our team's performance. We've improved our delivery speed by 40%.\""
+          - generic [ref=e182]:
+            - generic [ref=e184]: MW
+            - generic [ref=e185]:
+              - paragraph [ref=e186]: Marcus Williams
+              - paragraph [ref=e187]: Engineering Lead, StartupCo
+        - generic [ref=e189]:
+          - generic [ref=e190]:
+            - img [ref=e191]
+            - img [ref=e193]
+            - img [ref=e195]
+            - img [ref=e197]
+            - img [ref=e199]
+          - paragraph [ref=e201]: "\"Finally, a project management tool that doesn't get in the way. Projector just works, and our team loves using it every day.\""
+          - generic [ref=e202]:
+            - generic [ref=e204]: ER
+            - generic [ref=e205]:
+              - paragraph [ref=e206]: Emily Rodriguez
+              - paragraph [ref=e207]: Creative Director, DesignLab
+    - generic [ref=e209]:
+      - heading "Ready to transform your workflow?" [level=2] [ref=e210]
+      - paragraph [ref=e211]: Join thousands of teams who have already revolutionized their project management with Projector.
+      - generic [ref=e212]:
+        - link "Start Free Trial" [ref=e213] [cursor=pointer]:
+          - /url: /
+          - text: Start Free Trial
+          - img
+        - link "View Demo" [ref=e214] [cursor=pointer]:
+          - /url: /
+      - paragraph [ref=e215]: No credit card required • 14-day free trial • Cancel anytime
+  - contentinfo [ref=e216]:
+    - generic [ref=e217]:
+      - generic [ref=e218]:
+        - generic [ref=e219]:
+          - link "Test Projector V2" [ref=e220] [cursor=pointer]:
+            - /url: /
+          - paragraph [ref=e221]: Modern project management for teams of all sizes.
+        - generic [ref=e222]:
+          - paragraph [ref=e223]: Product
+          - link "Dashboard" [ref=e224] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Projects" [ref=e225] [cursor=pointer]:
+            - /url: /projects
+          - link "Tasks" [ref=e226] [cursor=pointer]:
+            - /url: /tasks
+          - link "Team" [ref=e227] [cursor=pointer]:
+            - /url: /team
+      - generic [ref=e228]:
+        - paragraph [ref=e229]: © 2026 Test Projector V2. All rights reserved.
+        - generic [ref=e230]:
+          - generic [ref=e231]: Privacy Policy
+          - generic [ref=e232]: Terms of Service

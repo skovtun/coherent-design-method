@@ -1,0 +1,197 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - link "Test Projector V2" [ref=e5] [cursor=pointer]:
+          - /url: /
+        - generic [ref=e6]:
+          - link "Dashboard" [ref=e7] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Projects" [ref=e8] [cursor=pointer]:
+            - /url: /projects
+          - link "Tasks" [ref=e9] [cursor=pointer]:
+            - /url: /tasks
+          - link "Team" [ref=e10] [cursor=pointer]:
+            - /url: /team
+          - link "Settings" [ref=e11] [cursor=pointer]:
+            - /url: /settings
+      - generic [ref=e12]:
+        - link "Login" [ref=e13] [cursor=pointer]:
+          - /url: /login
+        - link "Register" [ref=e14] [cursor=pointer]:
+          - /url: /register
+        - button "Toggle theme" [ref=e15]:
+          - img [ref=e16]
+  - link "Design System" [ref=e18] [cursor=pointer]:
+    - /url: /design-system
+  - main [ref=e20]:
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - heading "Dashboard" [level=1] [ref=e23]
+        - paragraph [ref=e24]: Welcome back! Here's an overview of your projects and tasks.
+      - generic [ref=e25]:
+        - generic [ref=e26]:
+          - generic [ref=e28]: Active Projects
+          - generic [ref=e29]:
+            - generic [ref=e30]: "12"
+            - generic [ref=e31]:
+              - img [ref=e32]
+              - generic [ref=e35]: "+2"
+        - generic [ref=e36]:
+          - generic [ref=e38]: Total Tasks
+          - generic [ref=e39]:
+            - generic [ref=e40]: "147"
+            - generic [ref=e41]:
+              - img [ref=e42]
+              - generic [ref=e45]: "+18"
+        - generic [ref=e46]:
+          - generic [ref=e48]: Completed This Week
+          - generic [ref=e49]:
+            - generic [ref=e50]: "23"
+            - generic [ref=e51]:
+              - img [ref=e52]
+              - generic [ref=e55]: +12%
+        - generic [ref=e56]:
+          - generic [ref=e58]: Team Members
+          - generic [ref=e60]: "8"
+      - generic [ref=e61]:
+        - generic [ref=e62]:
+          - generic [ref=e64]: Recent Activity
+          - generic [ref=e66]:
+            - generic [ref=e67]:
+              - img [ref=e69]
+              - generic [ref=e72]:
+                - paragraph [ref=e73]: Payment integration completed
+                - paragraph [ref=e74]: Emily Davis marked "Fix payment gateway integration" as complete
+                - paragraph [ref=e75]: 2 hours ago
+            - generic [ref=e76]:
+              - img [ref=e78]
+              - generic [ref=e80]:
+                - paragraph [ref=e81]: Project Alpha milestone reached
+                - paragraph [ref=e82]: Development phase completed with 15 tasks finished
+                - paragraph [ref=e83]: 4 hours ago
+            - generic [ref=e84]:
+              - img [ref=e86]
+              - generic [ref=e91]:
+                - paragraph [ref=e92]: New team member added
+                - paragraph [ref=e93]: John Smith joined as Senior Frontend Developer
+                - paragraph [ref=e94]: 1 day ago
+            - generic [ref=e95]:
+              - img [ref=e97]
+              - generic [ref=e100]:
+                - paragraph [ref=e101]: Task assigned to Mike Chen
+                - paragraph [ref=e102]: "\"Design mobile responsive layout\" assigned with medium priority"
+                - paragraph [ref=e103]: 1 day ago
+            - generic [ref=e104]:
+              - img [ref=e106]
+              - generic [ref=e108]:
+                - paragraph [ref=e109]: Comment on Project Beta
+                - paragraph [ref=e110]: Lisa Park added feedback on the UI mockups
+                - paragraph [ref=e111]: 2 days ago
+        - generic [ref=e112]:
+          - generic [ref=e114]: Upcoming Tasks
+          - generic [ref=e116]:
+            - generic [ref=e118]: Tasks
+            - generic [ref=e120]:
+              - generic [ref=e121]:
+                - generic [ref=e122]:
+                  - generic [ref=e123]:
+                    - generic [ref=e124]: Update user authentication flow
+                    - generic [ref=e125]: in-progress
+                    - generic [ref=e126]: high
+                  - generic [ref=e127]:
+                    - generic [ref=e128]:
+                      - img [ref=e129]
+                      - generic [ref=e131]: 6/18/2024
+                    - generic [ref=e132]:
+                      - img [ref=e133]
+                      - generic [ref=e136]: Project Alpha
+                - generic [ref=e137]:
+                  - generic [ref=e139]: S
+                  - generic [ref=e140]: Sarah Johnson
+              - generic [ref=e141]:
+                - generic [ref=e142]:
+                  - generic [ref=e143]:
+                    - generic [ref=e144]: Design mobile responsive layout
+                    - generic [ref=e145]: todo
+                    - generic [ref=e146]: medium
+                  - generic [ref=e147]:
+                    - generic [ref=e148]:
+                      - img [ref=e149]
+                      - generic [ref=e151]: 6/20/2024
+                    - generic [ref=e152]:
+                      - img [ref=e153]
+                      - generic [ref=e156]: Project Beta
+                - generic [ref=e157]:
+                  - generic [ref=e159]: M
+                  - generic [ref=e160]: Mike Chen
+              - generic [ref=e161]:
+                - generic [ref=e162]:
+                  - generic [ref=e163]:
+                    - generic [ref=e164]: Fix payment gateway integration
+                    - generic [ref=e165]: done
+                    - generic [ref=e166]: high
+                  - generic [ref=e167]:
+                    - generic [ref=e168]:
+                      - img [ref=e169]
+                      - generic [ref=e171]: 6/17/2024
+                    - generic [ref=e172]:
+                      - img [ref=e173]
+                      - generic [ref=e176]: Project Gamma
+                - generic [ref=e177]:
+                  - generic [ref=e179]: E
+                  - generic [ref=e180]: Emily Davis
+              - generic [ref=e181]:
+                - generic [ref=e182]:
+                  - generic [ref=e183]:
+                    - generic [ref=e184]: Write API documentation
+                    - generic [ref=e185]: todo
+                    - generic [ref=e186]: low
+                  - generic [ref=e187]:
+                    - generic [ref=e188]:
+                      - img [ref=e189]
+                      - generic [ref=e191]: 6/25/2024
+                    - generic [ref=e192]:
+                      - img [ref=e193]
+                      - generic [ref=e196]: Project Alpha
+                - generic [ref=e197]:
+                  - generic [ref=e199]: A
+                  - generic [ref=e200]: Alex Thompson
+              - generic [ref=e201]:
+                - generic [ref=e202]:
+                  - generic [ref=e203]:
+                    - generic [ref=e204]: Implement dark mode toggle
+                    - generic [ref=e205]: in-progress
+                    - generic [ref=e206]: medium
+                  - generic [ref=e207]:
+                    - generic [ref=e208]:
+                      - img [ref=e209]
+                      - generic [ref=e211]: 6/19/2024
+                    - generic [ref=e212]:
+                      - img [ref=e213]
+                      - generic [ref=e216]: Project Beta
+                - generic [ref=e217]:
+                  - generic [ref=e219]: L
+                  - generic [ref=e220]: Lisa Park
+  - contentinfo [ref=e221]:
+    - generic [ref=e222]:
+      - generic [ref=e223]:
+        - generic [ref=e224]:
+          - link "Test Projector V2" [ref=e225] [cursor=pointer]:
+            - /url: /
+          - paragraph [ref=e226]: Modern project management for teams of all sizes.
+        - generic [ref=e227]:
+          - paragraph [ref=e228]: Product
+          - link "Dashboard" [ref=e229] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Projects" [ref=e230] [cursor=pointer]:
+            - /url: /projects
+          - link "Tasks" [ref=e231] [cursor=pointer]:
+            - /url: /tasks
+          - link "Team" [ref=e232] [cursor=pointer]:
+            - /url: /team
+      - generic [ref=e233]:
+        - paragraph [ref=e234]: © 2026 Test Projector V2. All rights reserved.
+        - generic [ref=e235]:
+          - generic [ref=e236]: Privacy Policy
+          - generic [ref=e237]: Terms of Service

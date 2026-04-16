@@ -40,6 +40,7 @@ import {
   formatMemoryForPrompt,
   truncateMemory,
 } from '../../utils/design-memory.js'
+import { validateLayoutIntegrity } from '../../utils/layout-integrity.js'
 
 const MAX_EXISTING_PAGES_CONTEXT = 3
 
@@ -559,13 +560,29 @@ export async function splitGeneratePages(
             mkdirSync(resolve(parseOpts.projectRoot, 'components', 'shared'), { recursive: true })
             writeFileSync(sidebarPath, sidebarCode, 'utf-8')
             console.log(chalk.dim('  ✔ Generated AppSidebar component'))
-          } catch {
-            /* best-effort — fix command will catch this later */
+
+            const appLayoutPath = resolve(parseOpts.projectRoot, 'app', '(app)', 'layout.tsx')
+            if (existsSync(appLayoutPath)) {
+              const current = readFileSync(appLayoutPath, 'utf-8')
+              const hasSidebarWiring = /SidebarProvider|AppSidebar/.test(current)
+              if (!hasSidebarWiring) {
+                const { buildAppLayoutCode } = await import('./code-generator.js')
+                const newLayout = buildAppLayoutCode('sidebar', modCtx.config.name)
+                writeFileSync(appLayoutPath, newLayout, 'utf-8')
+                console.log(chalk.dim('  ✔ Rewired (app)/layout.tsx to use SidebarProvider + AppSidebar'))
+              }
+            }
+          } catch (err) {
+            console.warn(
+              chalk.yellow(`  ⚠ AppSidebar integration failed: ${err instanceof Error ? err.message : String(err)}`),
+            )
+            console.warn(chalk.dim('    Run `coherent fix` to retry'))
           }
         }
       }
-    } catch {
-      spinner.warn('Phase 2/6 — Plan generation failed (continuing without plan)')
+    } catch (err) {
+      spinner.warn(`Phase 2/6 — Plan generation failed: ${err instanceof Error ? err.message : String(err)}`)
+      console.warn(chalk.dim('  Continuing without architecture plan — pages may not be grouped correctly'))
     }
   }
 
@@ -934,6 +951,19 @@ export async function splitGeneratePages(
       truncateMemory(projectRoot)
     } catch {
       /* memory is best-effort */
+    }
+  }
+
+  if (projectRoot && plan) {
+    const integrityIssues = validateLayoutIntegrity(projectRoot, plan)
+    if (integrityIssues.length > 0) {
+      console.log('')
+      console.log(chalk.yellow('⚠ Layout integrity issues detected:'))
+      for (const issue of integrityIssues) {
+        const icon = issue.severity === 'error' ? chalk.red('✗') : chalk.yellow('⚠')
+        console.log(`  ${icon} ${issue.message}`)
+      }
+      console.log(chalk.cyan('\n  👉 Run `coherent fix` to repair automatically.\n'))
     }
   }
 

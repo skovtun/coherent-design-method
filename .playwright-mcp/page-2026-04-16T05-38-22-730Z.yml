@@ -1,0 +1,24 @@
+- generic [ref=e5]:
+  - generic [ref=e6]:
+    - generic [ref=e7]: Welcome back
+    - paragraph [ref=e8]: Enter your credentials to access your projects
+  - generic [ref=e10]:
+    - generic [ref=e11]:
+      - generic [ref=e12]: Email address
+      - textbox "Email address" [ref=e13]:
+        - /placeholder: name@company.com
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - generic [ref=e16]: Password
+        - link "Forgot password?" [ref=e17] [cursor=pointer]:
+          - /url: "#"
+      - generic [ref=e18]:
+        - textbox "Password" [ref=e19]:
+          - /placeholder: Enter your password
+        - button [ref=e20]:
+          - img
+    - button "Sign in" [ref=e21]
+  - paragraph [ref=e23]:
+    - text: Don't have an account?
+    - link "Sign up" [ref=e24] [cursor=pointer]:
+      - /url: "#"

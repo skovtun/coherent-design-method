@@ -697,9 +697,13 @@ export async function applyModification(
                     }
                   }
                 } catch (tscAiErr) {
-                  console.log(
-                    chalk.dim(`  ⚠ AI tsc fix skipped: ${tscAiErr instanceof Error ? tscAiErr.message : 'unknown'}`),
-                  )
+                  const { surfaceAIError } = await import('../../utils/credits-error.js')
+                  const handled = surfaceAIError(tscAiErr, `TypeScript auto-fix for ${page.name || 'page'}`)
+                  if (!handled) {
+                    console.log(
+                      chalk.dim(`  ⚠ AI tsc fix skipped: ${tscAiErr instanceof Error ? tscAiErr.message : 'unknown'}`),
+                    )
+                  }
                 }
               }
             }

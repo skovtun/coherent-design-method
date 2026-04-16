@@ -3,7 +3,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.6.86",
+  "version": "0.6.87",
   "description": "Core design system engine for Coherent",
   "type": "module",
   "main": "./dist/index.js",
@@ -36,7 +36,8 @@
     "dev": "tsup --watch",
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "vitest"
+    "test": "vitest",
+    "prepublishOnly": "node -e \"if (!(process.env.npm_config_user_agent || '').includes('pnpm')) { console.error('\\n❌ Use pnpm publish, not npm publish.\\nReason: npm does not resolve workspace:* protocol, publishing will break global install.\\nRun: pnpm publish --no-git-checks\\n'); process.exit(1); }\""
   },
   "dependencies": {
     "zod": "^3.22.4"

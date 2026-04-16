@@ -411,6 +411,22 @@ export async function checkCommand(opts: CheckOptions = {}) {
     }
   }
 
+  // ─── Layout Integrity (plan vs filesystem) ──────────────────────────
+  const { validateLayoutIntegrity, loadPlanFromDisk } = await import('../utils/layout-integrity.js')
+  const plan = loadPlanFromDisk(projectRoot)
+  if (plan && !opts.json) {
+    const layoutIssues = validateLayoutIntegrity(projectRoot, plan)
+    if (layoutIssues.length > 0) {
+      console.log(chalk.cyan(`\n  🏗  Layout Integrity`) + chalk.dim(` (${layoutIssues.length} issue(s))\n`))
+      for (const issue of layoutIssues) {
+        const icon = issue.severity === 'error' ? chalk.red('✗') : chalk.yellow('⚠')
+        const file = issue.file ? chalk.dim(` [${issue.file}]`) : ''
+        console.log(`  ${icon} [${issue.type}]${file} ${issue.message}`)
+        if (issue.severity === 'error') result.pages.withErrors++
+      }
+    }
+  }
+
   // ─── Summary ────────────────────────────────────────────────────────
 
   if (opts.json) {

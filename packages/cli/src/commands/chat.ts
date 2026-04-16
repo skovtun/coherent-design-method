@@ -26,6 +26,7 @@ import { isAuthRoute } from '../agents/page-templates.js'
 import { ensureAuthRouteGroup } from '../utils/auth-route-group.js'
 import { setDefaultDarkTheme, ensureThemeToggle } from '../utils/dark-mode.js'
 import { readFile, writeFile, acquireProjectLock } from '../utils/files.js'
+import { compareSemver } from '../utils/migrations.js'
 import { appendFile } from 'fs/promises'
 import { appendRecentChanges, type RecentChange } from '../utils/recent-changes.js'
 import { createBackup, logBackupCreated } from '../utils/backup.js'
@@ -114,11 +115,25 @@ export async function chatCommand(
 
     if (config.coherentVersion && config.coherentVersion !== CLI_VERSION) {
       spinner.stop()
-      console.log(chalk.yellow('\n⚠️  Version mismatch detected\n'))
+      const cliOlder = compareSemver(CLI_VERSION, config.coherentVersion) < 0
+      if (cliOlder) {
+        console.log(chalk.red('\n❌ CLI is older than the project — refusing to run\n'))
+        console.log(chalk.gray('   Project created with: ') + chalk.white(`v${config.coherentVersion}`))
+        console.log(chalk.gray('   Installed CLI:        ') + chalk.red(`v${CLI_VERSION}`))
+        console.log(
+          chalk.yellow(
+            '\n   Running an older CLI on a newer project produces stale output\n   (missing features, broken layouts, missing validator rules).',
+          ),
+        )
+        console.log(chalk.cyan('\n   👉 Update your global CLI:'))
+        console.log(chalk.white('      npm install -g @getcoherent/cli@latest\n'))
+        process.exit(1)
+      }
+      console.log(chalk.yellow('\n⚠️  Project is older than CLI\n'))
       console.log(chalk.gray('   Project created with: ') + chalk.white(`v${config.coherentVersion}`))
-      console.log(chalk.gray('   Current CLI version: ') + chalk.white(`v${CLI_VERSION}`))
-      console.log(chalk.cyan('\n   💡 Run `coherent update` to apply latest changes to your project.\n'))
-      console.log(chalk.dim('   Continuing anyway...\n'))
+      console.log(chalk.gray('   Current CLI version:  ') + chalk.white(`v${CLI_VERSION}`))
+      console.log(chalk.cyan('\n   💡 Run `coherent update` to apply latest rules/templates to your project.\n'))
+      console.log(chalk.dim('   Continuing with current project config...\n'))
       spinner.start('Loading design system configuration...')
     }
 
