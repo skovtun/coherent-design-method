@@ -76,6 +76,72 @@ describe('validatePageQuality', () => {
     const issues = validatePageQuality(code)
     expect(issues.find(i => i.type === 'NO_H1')).toBeDefined()
   })
+
+  it('flags CLICKABLE_DIV with onClick but no role/tabIndex', () => {
+    const code = `export default function P() { return <div onClick={() => {}}>Click</div> }`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'CLICKABLE_DIV')).toBe(true)
+  })
+
+  it('does NOT flag CLICKABLE_DIV when role and tabIndex present', () => {
+    const code = `export default function P() { return <div role="button" tabIndex={0} onClick={() => {}} onKeyDown={() => {}}>Click</div> }`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'CLICKABLE_DIV')).toBe(false)
+  })
+
+  it('flags RAW_IMG_TAG for <img> usage', () => {
+    const code = `export default function P() { return <img src="/a.png" alt="x" /> }`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'RAW_IMG_TAG')).toBe(true)
+  })
+
+  it('does NOT flag RAW_IMG_TAG when only <Image> is used', () => {
+    const code = `import Image from 'next/image'\nexport default function P() { return <Image src="/a.png" alt="x" width={100} height={100} /> }`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'RAW_IMG_TAG')).toBe(false)
+  })
+
+  it('flags IMAGE_MISSING_DIMENSIONS when <Image> lacks width/height/fill', () => {
+    const code = `import Image from 'next/image'\nexport default function P() { return <Image src="/a.png" alt="x" /> }`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'IMAGE_MISSING_DIMENSIONS')).toBe(true)
+  })
+
+  it('does NOT flag IMAGE_MISSING_DIMENSIONS when width+height present', () => {
+    const code = `import Image from 'next/image'\nexport default function P() { return <Image src="/a.png" alt="x" width={100} height={100} /> }`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'IMAGE_MISSING_DIMENSIONS')).toBe(false)
+  })
+
+  it('does NOT flag IMAGE_MISSING_DIMENSIONS when fill prop is present', () => {
+    const code = `import Image from 'next/image'\nexport default function P() { return <div className="relative h-40"><Image src="/a.png" alt="x" fill /></div> }`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'IMAGE_MISSING_DIMENSIONS')).toBe(false)
+  })
+
+  it('flags MISSING_METADATA on marketing pages without metadata export', () => {
+    const code = `export default function HomePage() { return <div><h1>Welcome</h1></div> }`
+    const issues = validatePageQuality(code, undefined, 'marketing')
+    expect(issues.some(i => i.type === 'MISSING_METADATA')).toBe(true)
+  })
+
+  it('does NOT flag MISSING_METADATA when metadata export is present', () => {
+    const code = `export const metadata = { title: 'Home', description: 'Hi' }\nexport default function HomePage() { return <div><h1>Welcome</h1></div> }`
+    const issues = validatePageQuality(code, undefined, 'marketing')
+    expect(issues.some(i => i.type === 'MISSING_METADATA')).toBe(false)
+  })
+
+  it('does NOT flag MISSING_METADATA on app pages', () => {
+    const code = `export default function DashboardPage() { return <div><h1>Dashboard</h1></div> }`
+    const issues = validatePageQuality(code, undefined, 'app')
+    expect(issues.some(i => i.type === 'MISSING_METADATA')).toBe(false)
+  })
+
+  it('does NOT flag MISSING_METADATA when page is "use client"', () => {
+    const code = `"use client"\nexport default function P() { return <div><h1>Hi</h1></div> }`
+    const issues = validatePageQuality(code, undefined, 'marketing')
+    expect(issues.some(i => i.type === 'MISSING_METADATA')).toBe(false)
+  })
 })
 
 describe('RAW_COLOR_RE shadow detection', () => {

@@ -461,6 +461,70 @@ export function validatePageQuality(
     })
   }
 
+  // CLICKABLE_DIV: <div> or <span> with onClick but no role/tabIndex — keyboard-inaccessible
+  const clickableTagRe = /<(div|span)\b[^>]*\bonClick\s*=[^>]*>/g
+  for (const m of code.matchAll(clickableTagRe)) {
+    const tag = m[0]
+    const hasRole = /\brole\s*=\s*["'](?:button|link|tab|menuitem|option|switch|checkbox)["']/.test(tag)
+    const hasTabIndex = /\btabIndex\s*=/.test(tag)
+    if (!hasRole || !hasTabIndex) {
+      const lineNumber = code.slice(0, m.index || 0).split('\n').length
+      issues.push({
+        line: lineNumber,
+        type: 'CLICKABLE_DIV',
+        message: `<${m[1]} onClick> without role and tabIndex — keyboard-inaccessible. Use <button>/<a> or add role="button" + tabIndex={0} + onKeyDown.`,
+        severity: 'warning',
+      })
+      break
+    }
+  }
+
+  // RAW_IMG_TAG: <img> in Next.js project — use next/image for optimization + CLS prevention
+  const rawImgTags = code.match(/<img\b[^>]*>/g) || []
+  if (rawImgTags.length > 0) {
+    const firstLine = code.slice(0, code.indexOf(rawImgTags[0]!)).split('\n').length
+    issues.push({
+      line: firstLine,
+      type: 'RAW_IMG_TAG',
+      message: `<img> tag found — prefer <Image> from next/image for lazy-loading, format negotiation, and CLS-safe dimensions.`,
+      severity: 'info',
+    })
+  }
+
+  // IMAGE_MISSING_DIMENSIONS: <Image> without width+height and without fill — causes CLS
+  const nextImageTags = code.match(/<Image\b[^>]*\/?>(?![^<]*<\/Image>)/g) || []
+  for (const tag of nextImageTags) {
+    const hasWidth = /\bwidth\s*=/.test(tag)
+    const hasHeight = /\bheight\s*=/.test(tag)
+    const hasFill = /\bfill(\s|=|\/|>)/.test(tag)
+    if (!hasFill && (!hasWidth || !hasHeight)) {
+      const lineNumber = code.slice(0, code.indexOf(tag)).split('\n').length
+      issues.push({
+        line: lineNumber,
+        type: 'IMAGE_MISSING_DIMENSIONS',
+        message:
+          '<Image> without width/height (and no fill prop) — causes CLS. Add width={...} height={...} or use fill inside a sized parent.',
+        severity: 'warning',
+      })
+      break
+    }
+  }
+
+  // MISSING_METADATA: marketing page without SEO metadata — hurts discoverability
+  if (pageType === 'marketing') {
+    const isClient = /^["']use client["']/m.test(code) || /\n["']use client["']/.test(code)
+    const hasMetadata = /export\s+(?:const|async\s+function)\s+(?:metadata|generateMetadata)\b/.test(code)
+    if (!isClient && !hasMetadata) {
+      issues.push({
+        line: 0,
+        type: 'MISSING_METADATA',
+        message:
+          'Marketing page without metadata export — add `export const metadata = { title, description }` for SEO.',
+        severity: 'warning',
+      })
+    }
+  }
+
   // NO_EMPTY_STATE: tables/lists/grids without empty state handling (warning)
   const hasTableOrList = /<Table\b|<table\b|\.map\s*\(|<ul\b|<ol\b/.test(code)
   const hasEmptyCheck =
