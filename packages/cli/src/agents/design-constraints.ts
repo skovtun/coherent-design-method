@@ -73,6 +73,21 @@ MOTION DECISION FRAMEWORK (before adding ANY animation):
 2. Is it keyboard-initiated? (yes → never animate)
 3. Purpose must be: state change, feedback, preventing jarring change, or spatial orientation
 4. If purpose is "looks cool" and user sees it often → don't animate
+
+SIMPLICITY DISCIPLINE (solve TODAY's request, not TOMORROW's):
+- Build only what the instruction asks for. No speculative fields, no "flexible" configurability for hypothetical future use.
+- Prefer one concrete component over a generic abstraction with props. Three similar sections beat one clever reusable renderer.
+- No dead affordances: every button, tab, filter, and empty state must have a visible reason to exist on THIS page.
+- Skip settings panels, preferences toggles, and "advanced options" unless explicitly requested.
+- Would a senior engineer skim this and say "why is this here?" — if yes, remove it.
+
+SELF-CHECK BEFORE RETURNING (mentally verify each item):
+- [ ] Visual hierarchy is obvious at a squint (one dominant element, clear focal point)
+- [ ] Zero raw Tailwind colors — only semantic tokens (bg-muted, text-foreground, etc.)
+- [ ] Content feels real — no placeholder names, no cliché copy, no round numbers
+- [ ] Page matches requested type (marketing/app/auth) in layout density and spacing
+- [ ] No AI-slop fingerprints (purple-to-blue gradients, glassmorphism default, neon on dark)
+- [ ] Every interactive element has a genuine purpose — no scope creep beyond the request
 `
 
 // ---------------------------------------------------------------------------

@@ -338,7 +338,19 @@ ${currentCode}
 
 Instruction: ${instruction}
 
-Rules: Return COMPLETE modified code, not snippets. Preserve "use client" if present (no metadata export with it). Keep existing content unless instructed to change. Honor exact CSS/colors if specified. Tailwind + shadcn/ui only. Raw TSX only, no markdown.`,
+SURGICAL EDIT RULES (critical — violation wastes the user's time):
+- Change ONLY the lines needed to satisfy the instruction. Leave every other line byte-identical.
+- Do NOT rewrite, reformat, rename, or "improve" unrelated sections. No quote-style changes, no import reordering, no whitespace reflow.
+- Do NOT add features the user didn't ask for. No "while we're here" additions.
+- Preserve all existing imports, comments, content, and structure outside the edited region.
+- If the instruction is ambiguous, pick the narrowest interpretation — smaller scope beats broader.
+
+Before returning, verify:
+- Diff vs. current code is as small as possible to satisfy the instruction.
+- No unrelated code changed.
+- "use client" preserved if present (no metadata export alongside it).
+- Honor exact CSS/colors if specified. Tailwind + shadcn/ui only.
+- Return COMPLETE modified code (not snippets). Raw TSX only, no markdown fence.`,
         },
       ],
       system: 'Return only the raw TSX code, no markdown, no comments before or after.',
