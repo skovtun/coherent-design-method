@@ -142,6 +142,21 @@ describe('validatePageQuality', () => {
     const issues = validatePageQuality(code, undefined, 'marketing')
     expect(issues.some(i => i.type === 'MISSING_METADATA')).toBe(false)
   })
+
+  it('flags COMPONENT_TOO_LONG when page exceeds 300 lines', () => {
+    const lines = Array.from({ length: 350 }, (_, i) => `// line ${i}`).join('\n')
+    const code = `export default function P() {\n${lines}\nreturn <div><h1>Hi</h1></div>\n}`
+    const issues = validatePageQuality(code)
+    const issue = issues.find(i => i.type === 'COMPONENT_TOO_LONG')
+    expect(issue).toBeDefined()
+    expect(issue?.severity).toBe('info')
+  })
+
+  it('does NOT flag COMPONENT_TOO_LONG under 300 lines', () => {
+    const code = `export default function P() { return <div><h1>Hi</h1></div> }`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'COMPONENT_TOO_LONG')).toBe(false)
+  })
 })
 
 describe('RAW_COLOR_RE shadow detection', () => {

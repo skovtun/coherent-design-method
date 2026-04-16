@@ -672,6 +672,17 @@ export function validatePageQuality(
   // Component variant misuse (e.g. Button without variant="ghost" in nav)
   issues.push(...detectComponentIssues(code))
 
+  // COMPONENT_TOO_LONG: page component over 300 lines → consider extracting sections
+  const lineCount = code.split('\n').length
+  if (lineCount > 300) {
+    issues.push({
+      line: 0,
+      type: 'COMPONENT_TOO_LONG',
+      message: `Page is ${lineCount} lines — consider extracting sections (data table, form, chart) into subcomponents.`,
+      severity: 'info',
+    })
+  }
+
   return issues
 }
 

@@ -127,7 +127,7 @@ LAYOUT PATTERNS:
 - Anti-center: NEVER center all content on app pages — left-aligned asymmetric layouts read as designed, not generated
 - Centered form (login/signup): auth layout handles centering — just output div w-full max-w-md with Card inside
 - Page content wrapper: flex flex-1 flex-col gap-4 p-4 lg:p-6
-- Responsive: primary md: and lg:. Use sm:/xl: only when genuinely needed. Avoid 2xl:. NEVER arbitrary like min-[800px].
+- Responsive (mobile-first): write default styles for mobile (no prefix), md: for tablet (768px+), lg: for desktop (1024px+). Use sm:/xl: only when genuinely needed. Avoid 2xl:. NEVER arbitrary like min-[800px]. Test at 320px, 768px, 1024px, 1440px breakpoints.
 
 COMPONENT IMPORTS (mandatory — NEVER native HTML):
 - NEVER use native <button>. Always: import { Button } from "@/components/ui/button".
@@ -189,6 +189,7 @@ ANTI-PATTERNS (NEVER DO):
 - Extra border/shadow on TabsList → TabsList has built-in styling, don't add more
 - Colored dots/circles without text for priority → use Badge with text label
 - Filter options as inline text/buttons/tabs → ALWAYS use Select dropdown with chevron
+- Component over 200 lines → extract logical sections (data table, chart, form) into named subcomponents. Prefer composition over monolith.
 
 COMPONENT VARIANT RULES (CRITICAL):
 - NEVER use <Button> with custom bg-*/text-* classes for navigation or tabs without variant="ghost".
