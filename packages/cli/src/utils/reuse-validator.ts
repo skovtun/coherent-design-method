@@ -33,6 +33,7 @@ export function validateReuse(
   for (const comp of manifest.shared) {
     if (!relevantTypes.has(comp.type)) continue
     if (plannedComponentNames && !plannedComponentNames.has(comp.name)) continue
+    if (isLayoutMounted(comp.usedIn)) continue
 
     const isImported =
       generatedCode.includes(`from '@/components/shared/`) &&
@@ -86,6 +87,11 @@ export function validateReuse(
   }
 
   return warnings
+}
+
+function isLayoutMounted(usedIn: string[] | undefined): boolean {
+  if (!usedIn || usedIn.length === 0) return false
+  return usedIn.some(path => /(^|\/)layout\.tsx$/.test(path))
 }
 
 function parseProps(propsStr: string): Set<string> {

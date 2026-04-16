@@ -22,8 +22,18 @@ export interface ArchitecturePlanGroup {
   pages: string[]
 }
 
+export interface ArchitecturePlanSharedComponent {
+  name: string
+  description?: string
+  props?: string
+  usedBy?: string[]
+  type?: string
+  shadcnDeps?: string[]
+}
+
 export interface ArchitecturePlanShape {
   groups: ArchitecturePlanGroup[]
+  sharedComponents?: ArchitecturePlanSharedComponent[]
 }
 
 /**

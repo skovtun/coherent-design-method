@@ -371,25 +371,39 @@ export async function checkCommand(opts: CheckOptions = {}) {
     try {
       const { validateReuse } = await import('../utils/reuse-validator.js')
       const { inferPageTypeFromRoute } = await import('../agents/design-constraints.js')
+      const { loadPlanFromDisk } = await import('../utils/layout-integrity.js')
       const manifest = await loadManifest(projectRoot)
+      const plan = loadPlanFromDisk(projectRoot)
+
+      const plannedByRoute = new Map<string, Set<string>>()
+      if (plan?.sharedComponents) {
+        for (const comp of plan.sharedComponents) {
+          for (const route of comp.usedBy ?? []) {
+            if (!plannedByRoute.has(route)) plannedByRoute.set(route, new Set())
+            plannedByRoute.get(route)!.add(comp.name)
+          }
+        }
+      }
 
       const appDir = resolve(projectRoot, 'app')
-      const pageFiles = existsSync(appDir) ? findTsxFiles(appDir) : []
+      const allTsx = existsSync(appDir) ? findTsxFiles(appDir) : []
+      const pageFiles = allTsx.filter(f => /\/page\.tsx$/.test(f))
 
       if (manifest.shared.length > 0 && pageFiles.length > 0) {
         const reuseWarnings: Array<{ file: string; message: string }> = []
+        const planExists = !!plan?.sharedComponents
 
         for (const file of pageFiles) {
           const code = readFileSync(file, 'utf-8')
           const relativePath = file.replace(projectRoot + '/', '')
-          const route =
-            '/' +
-            relativePath
-              .replace(/^app\//, '')
-              .replace(/\/page\.tsx$/, '')
-              .replace(/^\(.*?\)\//, '')
-          const pageType = inferPageTypeFromRoute(route)
-          const warnings = validateReuse(manifest, code, pageType)
+          const routeRaw = relativePath
+            .replace(/^app\//, '')
+            .replace(/\/?page\.tsx$/, '')
+            .replace(/^\(.*?\)\/?/, '')
+          const normalizedRoute = routeRaw === '' ? '/' : '/' + routeRaw.replace(/\/$/, '')
+          const pageType = inferPageTypeFromRoute(normalizedRoute)
+          const plannedNames = planExists ? (plannedByRoute.get(normalizedRoute) ?? new Set<string>()) : undefined
+          const warnings = validateReuse(manifest, code, pageType, undefined, plannedNames)
 
           for (const w of warnings) {
             reuseWarnings.push({ file: relativePath, message: w.message })

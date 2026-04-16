@@ -54,6 +54,48 @@ export default function Dashboard() {
     expect(headerWarnings).toHaveLength(0)
   })
 
+  it('does not warn for layout-mounted components (AppSidebar in layout.tsx)', () => {
+    const layoutMountedManifest: SharedComponentsManifest = {
+      shared: [
+        {
+          id: 'CID-009',
+          name: 'AppSidebar',
+          type: 'navigation',
+          file: 'components/shared/app-sidebar.tsx',
+          usedIn: ['app/(app)/layout.tsx'],
+          dependencies: [],
+        },
+        {
+          id: 'CID-007',
+          name: 'FilterBar',
+          type: 'form',
+          file: 'components/shared/filter-bar.tsx',
+          usedIn: ['app/(app)/projects/page.tsx'],
+          dependencies: [],
+        },
+      ],
+      nextId: 10,
+    }
+    const code = `export default function Settings() { return <div>Settings</div> }`
+    const warnings = validateReuse(layoutMountedManifest, code, 'app')
+    const sidebarWarnings = warnings.filter(w => w.componentId === 'CID-009')
+    expect(sidebarWarnings).toHaveLength(0)
+    const filterWarnings = warnings.filter(w => w.componentId === 'CID-007')
+    expect(filterWarnings.length).toBeGreaterThan(0)
+  })
+
+  it('respects plannedComponentNames — only warns for components planned for this page', () => {
+    const planned = new Set(['StatsCard'])
+    const code = `export default function Settings() { return <div>Settings</div> }`
+    const warnings = validateReuse(manifest, code, 'app', undefined, planned)
+    expect(warnings.filter(w => w.type === 'missed-reuse')).toHaveLength(1)
+    expect(warnings[0].componentName).toBe('StatsCard')
+
+    const emptyPlan = new Set<string>()
+    const warningsEmpty = validateReuse(manifest, code, 'app', undefined, emptyPlan)
+    expect(warningsEmpty.filter(w => w.type === 'missed-reuse')).toHaveLength(0)
+  })
+
   it('warns on duplicate creation', () => {
     const code = `export default function Dashboard() { return <div /> }`
     const newFiles = [
