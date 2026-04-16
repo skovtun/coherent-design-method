@@ -30,8 +30,15 @@ import { autoFixCode } from '../../utils/quality-validator.js'
 import { isAuthRoute, detectPageType } from '../../agents/page-templates.js'
 import chalk from 'chalk'
 import { getDesignQualityForType, inferPageTypeFromRoute } from '../../agents/design-constraints.js'
-import type { ArchitecturePlan } from './plan-generator.js'
-import { generateArchitecturePlan, updateArchitecturePlan, loadPlan, getPageType } from './plan-generator.js'
+import type { ArchitecturePlan, Atmosphere } from './plan-generator.js'
+import {
+  generateArchitecturePlan,
+  updateArchitecturePlan,
+  loadPlan,
+  getPageType,
+  renderAtmosphereDirective,
+  extractAtmosphereFromMessage,
+} from './plan-generator.js'
 import { buildReusePlan, buildReusePlanDirective, verifyReusePlan } from '../../utils/reuse-planner.js'
 import {
   readDesignMemory,
@@ -350,15 +357,20 @@ export function buildAnchorPagePrompt(
   const pageType = detectPageType(homePage.name) || detectPageType(homePage.route)
   const authPageTypes = new Set(['login', 'register', 'reset-password'])
   const isAuth = isAuthRoute(homePage.route) || isAuthRoute(homePage.name) || authPageTypes.has(pageType || '')
+  const atmosphere = renderAtmosphereDirective(plan?.atmosphere)
 
   if (isAuth) {
-    return `Create ONE page called "${homePage.name}" at route "${homePage.route}". Context: ${message}. This is the application's entry point — a clean, centered authentication form. Generate complete pageCode. Do NOT include site-wide <header>, <nav>, or <footer> — this page has its own minimal layout. Make it visually polished with proper form validation UI — this page sets the design direction for the entire site. Do not generate other pages.`
+    return `Create ONE page called "${homePage.name}" at route "${homePage.route}".
+${atmosphere}
+Context: ${message}. This is the application's entry point — a clean, centered authentication form. Generate complete pageCode. Do NOT include site-wide <header>, <nav>, or <footer> — this page has its own minimal layout. Make it visually polished with proper form validation UI — this page sets the design direction for the entire site. Do not generate other pages.`
   }
 
   const groupLayout = plan?.groups.find(g => g.pages.includes(homePage.route))?.layout
 
   if (groupLayout === 'sidebar' || pageType === 'dashboard') {
-    return `Create ONE page called "${homePage.name}" at route "${homePage.route}". Context: ${message}. This REPLACES the default placeholder page — generate a complete application page. Generate complete pageCode. Do NOT include a sidebar or top navigation — these are handled by the layout. Focus on the main content area.
+    return `Create ONE page called "${homePage.name}" at route "${homePage.route}".
+${atmosphere}
+Context: ${message}. This REPLACES the default placeholder page — generate a complete application page. Generate complete pageCode. Do NOT include a sidebar or top navigation — these are handled by the layout. Focus on the main content area.
 
 DESIGN DIRECTION — this page sets the visual tone for the entire app:
 - Stats: do NOT use 4 identical stat cards — use 2 large + 2 small, or inline metrics with dividers
@@ -368,7 +380,9 @@ DESIGN DIRECTION — this page sets the visual tone for the entire app:
 Do not generate other pages.`
   }
 
-  return `Create ONE page called "${homePage.name}" at route "${homePage.route}". Context: ${message}. This REPLACES the default placeholder page — generate a complete, content-rich landing page for the project described above. Generate complete pageCode. Include a branded site-wide <header> with navigation links to ALL these pages: ${allPagesList}. Use these EXACT routes in navigation: ${allRoutes}. Include a <footer> at the bottom.
+  return `Create ONE page called "${homePage.name}" at route "${homePage.route}".
+${atmosphere}
+Context: ${message}. This REPLACES the default placeholder page — generate a complete, content-rich landing page for the project described above. Generate complete pageCode. Include a branded site-wide <header> with navigation links to ALL these pages: ${allPagesList}. Use these EXACT routes in navigation: ${allRoutes}. Include a <footer> at the bottom.
 
 DESIGN DIRECTION — this page sets the visual tone for the entire site:
 - Hero: choose split layout (text left, visual right) OR centered — not always centered
@@ -518,6 +532,38 @@ export async function splitGeneratePages(
         planWarnings = result.warnings
       }
       if (plan) {
+        // Merge AI-supplied atmosphere with deterministic extraction.
+        // Deterministic extractor catches mood phrases the AI plan-generator might
+        // have skipped or filled with safe defaults. Deterministic wins on confident
+        // matches because the AI tends to default to "minimal-paper / split-text-image"
+        // even when the user explicitly asked for "premium and dark".
+        const deterministic = extractAtmosphereFromMessage(message)
+        const aiAtmosphere = plan.atmosphere || ({} as Partial<Atmosphere>)
+        const aiLooksDefault =
+          (!aiAtmosphere.background || aiAtmosphere.background === 'minimal-paper') &&
+          (!aiAtmosphere.accents || aiAtmosphere.accents === 'monochrome')
+        const merged: Atmosphere = {
+          moodPhrase: aiAtmosphere.moodPhrase || deterministic.moodPhrase || '',
+          background:
+            (aiLooksDefault && deterministic.background) ||
+            aiAtmosphere.background ||
+            deterministic.background ||
+            'minimal-paper',
+          heroLayout:
+            (aiLooksDefault && deterministic.heroLayout) ||
+            aiAtmosphere.heroLayout ||
+            deterministic.heroLayout ||
+            'split-text-image',
+          spacing:
+            (aiLooksDefault && deterministic.spacing) || aiAtmosphere.spacing || deterministic.spacing || 'medium',
+          accents:
+            (aiLooksDefault && deterministic.accents) || aiAtmosphere.accents || deterministic.accents || 'monochrome',
+          fontStyle:
+            (aiLooksDefault && deterministic.fontStyle) || aiAtmosphere.fontStyle || deterministic.fontStyle || 'sans',
+          primaryHint: aiAtmosphere.primaryHint || deterministic.primaryHint || '',
+        }
+        plan.atmosphere = merged
+
         const groupsSummary = plan.groups.map(g => `${g.id} (${g.layout}, ${g.pages.length} pages)`).join(', ')
         const sharedSummary =
           plan.sharedComponents.length > 0
@@ -527,6 +573,11 @@ export async function splitGeneratePages(
         spinner.succeed(`Phase 2/6 — Architecture plan created`)
         console.log(chalk.dim(`  Groups: ${groupsSummary}`))
         if (sharedSummary) console.log(chalk.dim(`  Shared: ${sharedSummary}`))
+        console.log(
+          chalk.dim(
+            `  Atmosphere: ${merged.background} / ${merged.heroLayout} / ${merged.spacing} / ${merged.accents}${merged.primaryHint ? ` / primary=${merged.primaryHint}` : ''}`,
+          ),
+        )
         console.log(chalk.dim(`  Total: ${totalPages} pages, ${plan.sharedComponents.length} shared components`))
 
         if (plan.sharedComponents.length > 0 && parseOpts.projectRoot) {
@@ -837,8 +888,11 @@ export async function splitGeneratePages(
         }
       }
 
+      const atmosphereDirective = renderAtmosphereDirective(plan?.atmosphere)
+
       const prompt = [
         `Create ONE page called "${name}" at route "${route}".`,
+        atmosphereDirective,
         `Context: ${message}.`,
         `Generate complete pageCode for this single page only. Do not generate other pages.`,
         `FORBIDDEN in pageCode: <header>, <nav>, <footer>, site-wide navigation, copyright footers. The layout provides all of these.`,

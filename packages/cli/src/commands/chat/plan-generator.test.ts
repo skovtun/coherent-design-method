@@ -4,6 +4,7 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import {
   ArchitecturePlanSchema,
+  AtmosphereSchema,
   routeToKey,
   getPageGroup,
   getPageType,
@@ -12,6 +13,8 @@ import {
   updateArchitecturePlan,
   savePlan,
   loadPlan,
+  extractAtmosphereFromMessage,
+  renderAtmosphereDirective,
 } from './plan-generator.js'
 
 describe('routeToKey', () => {
@@ -541,5 +544,73 @@ describe('generateSharedComponentsFromPlan', () => {
     expect(results).toHaveLength(1)
     expect(results[0].code).toContain('export function FilterBar')
     expect(results[0].code).not.toContain('export default')
+  })
+})
+
+describe('extractAtmosphereFromMessage', () => {
+  it('detects "premium and focused, Notion meets Linear" as dark-zinc monochrome tight', () => {
+    const a = extractAtmosphereFromMessage(
+      'Build a project app. The design should feel premium and focused — think Notion meets Linear.',
+    )
+    expect(a.background).toBe('dark-zinc')
+    expect(a.spacing).toBe('tight')
+    expect(a.accents).toBe('monochrome')
+    expect(a.primaryHint).toBe('zinc')
+    expect(a.fontStyle).toBe('mono-labels')
+  })
+
+  it('detects "bold and playful" as gradient-bold + multi-gradient', () => {
+    const a = extractAtmosphereFromMessage('Make it bold and playful for consumer onboarding.')
+    expect(a.background).toBe('gradient-bold')
+    expect(a.heroLayout).toBe('centered-bold')
+    expect(a.spacing).toBe('wide')
+    expect(a.accents).toBe('multi-gradient')
+  })
+
+  it('detects "editorial" as left-editorial with serif headings', () => {
+    const a = extractAtmosphereFromMessage('Editorial blog with long-form content.')
+    expect(a.background).toBe('minimal-paper')
+    expect(a.heroLayout).toBe('left-editorial')
+    expect(a.fontStyle).toBe('serif-headings')
+  })
+
+  it('detects "developer" as code-bg + emerald primary', () => {
+    const a = extractAtmosphereFromMessage('Developer tool with terminal vibe and CLI aesthetic.')
+    expect(a.background).toBe('code-bg')
+    expect(a.heroLayout).toBe('code-preview')
+    expect(a.accents).toBe('code-mono')
+    expect(a.primaryHint).toBe('emerald')
+  })
+
+  it('returns empty object for vague input', () => {
+    const a = extractAtmosphereFromMessage('Build me an app')
+    expect(Object.keys(a).length).toBe(0)
+  })
+})
+
+describe('renderAtmosphereDirective', () => {
+  it('emits empty string for undefined atmosphere', () => {
+    expect(renderAtmosphereDirective(undefined)).toBe('')
+  })
+
+  it('emits empty string for default atmosphere with no mood phrase', () => {
+    const def = AtmosphereSchema.parse({})
+    expect(renderAtmosphereDirective(def)).toBe('')
+  })
+
+  it('emits imperative directive when atmosphere is non-default', () => {
+    const out = renderAtmosphereDirective({
+      moodPhrase: 'premium, Notion meets Linear',
+      background: 'dark-zinc',
+      heroLayout: 'split-text-image',
+      spacing: 'tight',
+      accents: 'monochrome',
+      fontStyle: 'mono-labels',
+      primaryHint: 'zinc',
+    })
+    expect(out).toContain('ATMOSPHERE DIRECTIVE')
+    expect(out).toContain('bg-zinc-950')
+    expect(out).toContain('mono')
+    expect(out).toContain('REJECT these defaults')
   })
 })
