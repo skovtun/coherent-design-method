@@ -221,6 +221,19 @@ MOCK/SAMPLE DATA (for demo arrays, fake users, fake tasks, etc.):
   Intl.RelativeTimeFormat, or date-fns if already imported.
   BAD:  { createdAt: "2 hours ago" }
   GOOD: { createdAt: "2024-06-15T10:30:00Z" }
+  CRITICAL — never render raw ISO in JSX. ALWAYS pass through a formatter:
+    BAD:  <span>{item.createdAt}</span>          // shows "2026-04-16T07:45:05.094Z"
+    BAD:  <span>{item.date.toString()}</span>
+    GOOD: <span>{new Date(item.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+    GOOD: <span>{formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}</span>
+  Helper to add at top of any file rendering dates (no extra deps):
+    const formatRelative = (iso: string) => {
+      const d = (Date.now() - new Date(iso).getTime()) / 60000
+      if (d < 60) return \`\${Math.round(d)}m ago\`
+      if (d < 1440) return \`\${Math.round(d / 60)}h ago\`
+      if (d < 10080) return \`\${Math.round(d / 1440)}d ago\`
+      return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    }
 - Images: use https://i.pravatar.cc/150?u=unique-id for avatars. "/placeholder.svg?height=40&width=40" for non-avatar images. Never broken paths.
 - IDs: sequential numbers (1, 2, 3) or short slugs ("proj-1"). Never random UUIDs.
 `

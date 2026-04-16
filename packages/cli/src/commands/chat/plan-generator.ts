@@ -150,6 +150,14 @@ Rules:
 - Page types: "marketing" (landing, features, pricing — spacious, section-based), "app" (dashboard, settings — compact, data-dense), "auth" (login, register — centered card form)
 - Component props should be a TypeScript-like interface string
 - shadcnDeps lists the shadcn/ui atoms the component will need (e.g., "card", "badge", "avatar")
+- Component "type" rules — choose carefully, this controls auto-injection into root layout:
+  - "layout" — RESERVED for site chrome only: Header, Footer, Topbar, Navbar. Do NOT use for DataTable, ProgressBar, etc.
+  - "navigation" — sidebar/menu/breadcrumb components
+  - "data-display" — tables, lists, grids of records (DataTable, Timeline, ActivityFeed)
+  - "form" — inputs, validation, login forms (FilterBar, SearchBar, LoginForm)
+  - "feedback" — alerts, toasts, skeletons
+  - "section" — full landing-page sections (PricingTable, FeatureGrid, Testimonials)
+  - "widget" — small reusable cards (StatCard, ProjectCard, MemberCard)
 - Cross-page links: map link labels to target routes (e.g., {"Sign in": "/login"})
 - Maximum 8 shared components
 

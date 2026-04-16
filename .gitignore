@@ -59,3 +59,7 @@ examples/*/.next/
 
 # Next.js in monorepo
 **/.next/
+
+# Playwright MCP scratch
+.playwright-mcp/
+.claude/scheduled_tasks.lock

@@ -36,7 +36,11 @@ function toPascalCase(name: string): string {
  */
 export async function integrateSharedLayoutIntoRootLayout(projectRoot: string): Promise<boolean> {
   const manifest = await loadManifest(projectRoot)
-  const layoutComponents = manifest.shared.filter(e => e.type === 'layout')
+  // Only header/footer/nav components belong in root layout. AI plans sometimes
+  // mis-tag widgets (DataTable, ProgressBar) as type='layout'; injecting those
+  // into <body> blows up at runtime because they have required props.
+  const looksLikeChrome = (name: string) => /\b(header|footer|topbar|nav|navbar)\b/i.test(name)
+  const layoutComponents = manifest.shared.filter(e => e.type === 'layout' && looksLikeChrome(e.name))
   if (layoutComponents.length === 0) return false
 
   const hasSidebar = manifest.shared.some(

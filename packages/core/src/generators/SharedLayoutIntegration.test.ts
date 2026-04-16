@@ -95,6 +95,21 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     expect(mockWriteFile).not.toHaveBeenCalled()
   })
 
+  it('does NOT inject mis-tagged widgets (DataTable type=layout) into root layout', async () => {
+    mockLoadManifest.mockResolvedValue({
+      shared: [
+        { name: 'DataTable', type: 'layout' },
+        { name: 'ProgressBar', type: 'layout' },
+      ],
+    })
+    mockReadFile.mockResolvedValue(LAYOUT_WITH_APPNAV)
+    mockWriteFile.mockResolvedValue(undefined)
+
+    const result = await integrateSharedLayoutIntoRootLayout('/fake')
+    expect(result).toBe(false)
+    expect(mockWriteFile).not.toHaveBeenCalled()
+  })
+
   it('skips Header/Footer injection when manifest has AppSidebar (sidebar project)', async () => {
     mockLoadManifest.mockResolvedValue({
       shared: [

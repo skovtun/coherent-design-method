@@ -553,6 +553,41 @@ export async function splitGeneratePages(
       if (plan && parseOpts.projectRoot) {
         const hasSidebar = plan.groups.some(g => g.layout === 'sidebar' || g.layout === 'both')
         const sidebarPath = resolve(parseOpts.projectRoot, 'components', 'shared', 'sidebar.tsx')
+        if (hasSidebar) {
+          // Sync nav config with plan: type → 'sidebar' + pre-populate items from plan pages
+          // so generateSharedSidebarCode emits real menu items on first render (not empty <SidebarContent/>).
+          if (modCtx.config.navigation) {
+            modCtx.config.navigation.type = 'sidebar'
+            const sidebarGroup = plan.groups.find(g => g.layout === 'sidebar' || g.layout === 'both')
+            if (sidebarGroup && Array.isArray(sidebarGroup.pages)) {
+              const existingRoutes = new Set((modCtx.config.navigation.items || []).map(i => i.route))
+              const labelize = (route: string) =>
+                route === '/'
+                  ? 'Home'
+                  : route
+                      .replace(/^\//, '')
+                      .replace(/\[.+?\]/g, '')
+                      .replace(/[-/]+/g, ' ')
+                      .trim()
+                      .split(' ')
+                      .filter(Boolean)
+                      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+                      .join(' ')
+              const items = modCtx.config.navigation.items || []
+              for (const route of sidebarGroup.pages) {
+                if (!existingRoutes.has(route) && !route.includes('[')) {
+                  items.push({
+                    label: labelize(route),
+                    route,
+                    requiresAuth: true,
+                    order: items.length + 1,
+                  })
+                }
+              }
+              modCtx.config.navigation.items = items
+            }
+          }
+        }
         if (hasSidebar && !existsSync(sidebarPath)) {
           try {
             const sidebarUiPath = resolve(parseOpts.projectRoot, 'components', 'ui', 'sidebar.tsx')
