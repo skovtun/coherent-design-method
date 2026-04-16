@@ -427,6 +427,13 @@ STAT METRICS: vary presentation — not always 4 identical cards. Options:
 - Single hero metric + supporting stats as text
 NEVER: 4 identical cards with same layout as the default.
 
+STAT METRICS POSITION (CRITICAL — fixes "metrics at bottom" bug):
+When a page has BOTH a summary metrics strip AND a detail view (table/list/grid):
+- Metrics ALWAYS go ABOVE the detail view, not below it.
+- Reading order: Page header → summary metrics → filters/search → detail view.
+- Rationale: summary is the scanning layer (quick state check), detail is the drill-in layer. Burying summary below the table forces the user to scroll past all data before seeing totals — an anti-pattern that makes a dashboard feel "built wrong".
+- Exception: on pure detail pages (single-record view, settings form), no summary strip is needed — skip the metrics entirely rather than placing them below.
+
 DATA DISPLAY: match format to data type:
 - Structured data → Table with TableHeader/TableBody, hover:bg-muted/50, actions via DropdownMenu
 - Visual items (projects, products) → Card grid, vary card sizes, include progress/avatars/badges

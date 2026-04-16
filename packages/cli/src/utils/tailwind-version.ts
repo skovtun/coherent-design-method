@@ -202,14 +202,20 @@ export function generateV4GlobalsCss(config: DesignSystemConfig): string {
   --chart-5: ${dark.info || dark.primary};
 }
 
-* {
-  border-color: var(--border);
-}
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--border);
+  }
 
-body {
-  background-color: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: Arial, Helvetica, sans-serif;
+  }
 }
 `
 }
