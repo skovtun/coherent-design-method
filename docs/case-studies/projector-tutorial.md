@@ -226,6 +226,28 @@ The `--page` flag scopes changes to that one page. Nothing else moves.
 
 ![Dashboard after targeted refinement via --page flag.](screenshots/10-dashboard-refined.png)
 
+**Change the visual system itself — tokens, not just pages:**
+
+Iteration isn't limited to page layouts. You can rewrite the design foundation — primary color, border radius, font — and every page re-renders with the new choices instantly. Because everything is token-driven, there are no hunt-and-replace edits.
+
+```bash
+# Swap the primary color across the entire app
+coherent chat "Change the primary color from blue to emerald green."
+
+# Change card corners from rounded to square
+coherent chat "Make all card corners square (rounded-none) and buttons rounded-md."
+
+# Swap the font family
+coherent chat "Use Geist Sans as the primary font and JetBrains Mono for code."
+
+# Shift the whole app towards a warmer palette
+coherent chat "Tint the neutrals warm — swap bg-muted from cool gray to a warm stone tone."
+```
+
+Each of these mutates `design-system.config.ts` and `globals.css`, and every page that uses semantic tokens inherits the change. Buttons change color. Cards change radius. Fonts swap globally. No page-level edits needed.
+
+> **Why this works and single-file AI tools don't:** Coherent separates the design system (tokens + shared components) from the pages that consume it. When the system changes, consumers update automatically. In tools that generate one HTML file per prompt, there's nothing to cascade into — every change is a rewrite.
+
 ---
 
 ## Step 8: The killer feature — shared components
