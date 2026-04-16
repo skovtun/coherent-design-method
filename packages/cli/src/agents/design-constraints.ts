@@ -60,6 +60,22 @@ Before writing code, describe the page feel in evocative terms — not technical
 - NOT "dark" → "obsidian surface with luminous content hierarchy"
 This shapes decisions throughout generation without explicit rules.
 
+MOOD → CONCRETE CSS (when the user's prompt mentions a mood phrase, ENFORCE these choices, not just "consider" them):
+
+| Mood phrase                       | Background                                    | Hero treatment                                            | Spacing             | Accents                                              |
+|-----------------------------------|-----------------------------------------------|-----------------------------------------------------------|---------------------|------------------------------------------------------|
+| "premium" / "Notion meets Linear" | bg-zinc-950 dark sections OR bg-stone-50 cards| split layout, monochrome image, 1 brand color accent only | tight (gap-3, p-4)  | font-mono labels, hairline borders (border/40)       |
+| "bold" / "playful"                | gradient hero (primary→accent at >130% sat)   | huge centered headline (text-7xl) with tracking-tighter   | wide (gap-8, p-8)   | rounded-2xl, shadow-xl, multiple accent colors       |
+| "minimal" / "editorial"           | bg-background, no decoration                  | left-aligned hero, generous max-w-prose                   | wide (py-24)        | one accent color, serif heading, thin borders        |
+| "dark and focused"                | bg-zinc-950, single accent                    | centered hero with glow CTA (shadow-primary/40)           | tight (gap-2)       | mono font for labels, neon-free                      |
+| "warm" / "approachable"           | warm tinted muted (use accent token)          | photo hero with people, soft cards (rounded-xl)           | medium (gap-6)      | rounded full buttons, soft shadow-sm                 |
+| "technical" / "developer"         | bg-background, code block hero                | code preview as visual, monospace labels                  | tight (gap-2)       | inline-code styling, no gradients                    |
+
+If the user writes "[adjective1] and [adjective2] — think [BrandA] meets [BrandB]":
+1. Pick the closest row above. Apply ALL four columns, not just one.
+2. The "BrandA meets BrandB" hint outweighs generic SaaS defaults — REJECT centered-hero + 3-card-feature-grid + cliché copy if the hint says otherwise.
+3. If two moods conflict (e.g. "bold and minimal"), pick the one that comes second — it's the dominant.
+
 AI SLOP TEST (mentally run before finalizing any page):
 "If someone saw this and you said 'AI made it' — would they immediately believe you?"
 Red flags → redesign that section:
