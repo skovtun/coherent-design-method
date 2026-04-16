@@ -33,6 +33,13 @@ import { getDesignQualityForType, inferPageTypeFromRoute } from '../../agents/de
 import type { ArchitecturePlan } from './plan-generator.js'
 import { generateArchitecturePlan, updateArchitecturePlan, loadPlan, getPageType } from './plan-generator.js'
 import { buildReusePlan, buildReusePlanDirective, verifyReusePlan } from '../../utils/reuse-planner.js'
+import {
+  readDesignMemory,
+  extractDecisionsFromCode,
+  appendDecisions,
+  formatMemoryForPrompt,
+  truncateMemory,
+} from '../../utils/design-memory.js'
 
 const MAX_EXISTING_PAGES_CONTEXT = 3
 
@@ -610,6 +617,17 @@ export async function splitGeneratePages(
     }
   }
 
+  if (projectRoot && homePageCode) {
+    try {
+      const anchorDecisions = extractDecisionsFromCode(homePageCode)
+      if (anchorDecisions.length > 0) {
+        appendDecisions(projectRoot, homePage.name, homePage.route, anchorDecisions)
+      }
+    } catch {
+      /* memory is best-effort */
+    }
+  }
+
   spinner.start('Phase 4/6 — Extracting design patterns...')
   const styleContext = homePageCode ? extractStyleContext(homePageCode) : ''
   if (styleContext) {
@@ -670,6 +688,8 @@ export async function splitGeneratePages(
   }
 
   spinner.start(`Phase 5/6 — Generating ${remainingPages.length} pages in parallel...`)
+
+  const designMemoryBlock = projectRoot ? formatMemoryForPrompt(readDesignMemory(projectRoot)) : ''
 
   const sharedComponentsNote = buildSharedComponentsNote(parseOpts.sharedComponentsSummary)
   const currentManifest = projectRoot ? await loadManifest(projectRoot) : null
@@ -775,6 +795,7 @@ export async function splitGeneratePages(
         pageType !== 'auth' ? existingAppPageNote : undefined,
         existingPagesContext,
         styleContext,
+        designMemoryBlock,
       ]
         .filter(Boolean)
         .join('\n\n')
@@ -838,6 +859,18 @@ export async function splitGeneratePages(
           }
         }
 
+        if (projectRoot && codePage) {
+          const finalPageCode = (codePage.changes as Record<string, unknown>)?.pageCode as string
+          if (finalPageCode) {
+            try {
+              const decisions = extractDecisionsFromCode(finalPageCode)
+              if (decisions.length > 0) appendDecisions(projectRoot, name, route, decisions)
+            } catch {
+              /* memory is best-effort */
+            }
+          }
+        }
+
         return codePage || { type: 'add-page' as const, target: 'new', changes: { id, name, route } }
       } catch {
         phase5Done++
@@ -895,6 +928,15 @@ export async function splitGeneratePages(
   } else {
     spinner.succeed(`Phase 5/6 — Generated ${allRequests.length} pages (${withCode} with full code)`)
   }
+
+  if (projectRoot) {
+    try {
+      truncateMemory(projectRoot)
+    } catch {
+      /* memory is best-effort */
+    }
+  }
+
   return { requests: allRequests, plan }
 }
 
