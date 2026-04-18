@@ -86,24 +86,26 @@ Coherent is a CLI (command-line interface) tool. You describe your UI in plain E
 
 ## Install Coherent
 
+Open your terminal and run this command:
+
 ```bash
 npm install -g @getcoherent/cli
 ```
 
-One command. You only need to do this once.
+That's it — one command, and you're ready. You only need to do this once.
 
 ---
 
 ## Step 1: Create the project
 
-Replace `my-app-name` with whatever you want to call your project (e.g., `projector`, `taskflow`, `my-saas`):
+Now create your project. Replace `my-app-name` with whatever you want to call it (e.g., `projector`, `taskflow`, `my-saas`):
 
 ```bash
 coherent init my-app-name
 cd my-app-name
 ```
 
-This scaffolds a Next.js 15 app with Tailwind CSS, shadcn/ui, design tokens, and a live Design System Viewer — zero configuration required.
+Wait about 30 seconds — Coherent scaffolds a Next.js 15 app with Tailwind CSS, shadcn/ui, design tokens, and a live Design System Viewer. No configuration needed.
 
 **Cost:** $0 — no AI calls yet
 **Time:** ~30 seconds
@@ -111,6 +113,8 @@ This scaffolds a Next.js 15 app with Tailwind CSS, shadcn/ui, design tokens, and
 ---
 
 ## Step 2: See what you're starting with
+
+Let's see what you're starting with. Run this in your terminal:
 
 ```bash
 coherent preview
@@ -126,7 +130,7 @@ Try the theme toggle (sun/moon icon) to switch between light and dark mode. Both
 
 ## Step 3: Generate the entire app in one prompt
 
-This is where it gets interesting. Notice: the prompt isn't just a feature list — it describes how the app should *feel*.
+This is where it gets interesting. Paste this command into your terminal and press Enter. Notice: the prompt isn't just a feature list — it describes how the app should *feel*.
 
 ```bash
 coherent chat "Build a project management app called Projector. The design should feel premium and focused — think Notion meets Linear. Dark sidebar navigation for app pages. Landing page: bold hero with gradient headline, 3-column feature grid with icon containers, 3-tier pricing (Starter $0, Pro $19/mo, Business $49/mo) with the middle plan highlighted, and a testimonials section. Dashboard: 4 KPI stat cards at the top, recent activity feed on the left, upcoming tasks list on the right. Projects page: card grid showing each project with a progress indicator, team member avatars, and last-updated timestamp. Tasks page: full data table with columns (Task, Status, Priority, Assignee, Due Date), filter dropdowns for status and priority. Team page: member cards with avatar, name, role badge, and email. Settings page: 3 tabs — Profile (form with avatar upload area), Notifications (toggle switches for each channel), Integrations (connected service cards with status badges)."
@@ -138,7 +142,7 @@ coherent chat "Build a project management app called Projector. The design shoul
 - **Specific data** — actual prices ($0, $19, $49), column names (Task, Status, Priority), tab names (Profile, Notifications, Integrations). The more concrete the prompt, the more realistic the output.
 - **No auth pages listed** — Coherent auto-generates `/login`, `/register`, `/forgot-password`, and `/reset-password` when it detects your app has protected pages. Same for detail routes like `/projects/[id]`.
 
-**Behind the scenes**, the terminal shows 6 pipeline phases:
+This takes 2–5 minutes. You'll see progress in the terminal — 6 pipeline phases:
 
 ```
 Phase 1/6 — Planning pages...
@@ -171,11 +175,13 @@ The dashboard is the heart of any SaaS UI. Notice how the sidebar, stat cards, a
 
 ## Step 5: Walk through every page
 
+Check what was built. Run:
+
 ```bash
 coherent status
 ```
 
-The output shows what was built:
+You'll see something like:
 
 ```
 📁 Location: ~/my-app-name
@@ -207,7 +213,7 @@ The app organizes into three layout groups automatically:
 
 ## Step 6: Inspect the Design System
 
-Every component Coherent generates is backed by a real token system — not random colors. Visit `/design-system` in the preview to see it live.
+Every component Coherent generates is backed by a real token system — not random colors. With the preview still running, visit `/design-system` in your browser to see it live.
 
 ![Projector — Design System Viewer showing color tokens, typography scale, and component inventory.](screenshots/08-design-system.png)
 
@@ -296,6 +302,8 @@ Every page that uses StatCard — Dashboard, Project Detail — gets the update.
 
 ## Step 9: Quality check — 100+ design rules
 
+Now let's verify the output. Run the quality checker:
+
 ```bash
 coherent check
 ```
@@ -311,23 +319,26 @@ Coherent scans every page against 100+ design rules:
 - **Link integrity** — every `<Link>` has `href`, internal links point to existing routes
 
 ```
-📄 Pages (14 scanned)
+📄 Pages (12 scanned)
   ✔ 7 clean pages
-  ⚠ 7 with warnings
+  ⚠ 5 with warnings
 
-🔗 Shared Components (10 checked)
+🔗 Internal Links — all links resolve ✓
+
+🧩 Shared Components (12 registered)
   ✔ All healthy
 
-7 clean pages | 7 with warnings | 10 healthy shared
+7 clean pages | 5 with warnings | 12 healthy shared
+Quality Score: 79/100 (Good)
 ```
 
-Fix issues automatically:
+Found issues? Fix them automatically:
 
 ```bash
 coherent fix
 ```
 
-TypeScript errors, missing components, raw color values, layout inconsistencies — resolved in one command.
+This resolves raw color values, missing components, TypeScript errors, and layout inconsistencies — all in one command.
 
 ![Coherent check output — per-page quality report with issue types and severity.](screenshots/11-check.png)
 
@@ -335,8 +346,10 @@ TypeScript errors, missing components, raw color values, layout inconsistencies 
 
 ## Step 10: Export
 
+When you're happy with the result, export a clean production-ready project:
+
 ```bash
-coherent export --output ./projector-export
+coherent export --output ./my-app-export
 ```
 
 The export strips Coherent dev tooling (Design System Viewer, overlay) and produces a clean Next.js project. From here, a developer can:
