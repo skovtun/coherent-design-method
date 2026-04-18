@@ -40,6 +40,7 @@ import {
   extractAtmosphereFromMessage,
 } from './plan-generator.js'
 import { buildReusePlan, buildReusePlanDirective, verifyReusePlan } from '../../utils/reuse-planner.js'
+import { resolveColorPreset } from '../../utils/color-presets.js'
 import {
   readDesignMemory,
   extractDecisionsFromCode,
@@ -67,7 +68,17 @@ function filterManifestForPage(
   const filtered = manifest.shared.filter(e => plannedForPage.includes(e.name.toLowerCase()) || e.type === 'layout')
   // Always include at least layout components; fall back to full if filter is too aggressive
   if (filtered.length === 0) return manifest
-  return { ...manifest, shared: filtered }
+
+  // Overlay plan's props interface onto manifest entries (plan is source of truth)
+  const enriched = filtered.map(entry => {
+    const planned = plan.sharedComponents.find(c => c.name.toLowerCase() === entry.name.toLowerCase())
+    if (planned?.props && planned.props !== '{}') {
+      return { ...entry, propsInterface: planned.props }
+    }
+    return entry
+  })
+
+  return { ...manifest, shared: enriched }
 }
 
 function buildExistingPagesContext(config: DesignSystemConfig, forPageType?: string): string {
@@ -564,6 +575,13 @@ export async function splitGeneratePages(
         }
         plan.atmosphere = merged
 
+        // Token regeneration: apply primaryHint to actual design tokens
+        const colorOverride = resolveColorPreset(merged.primaryHint)
+        if (colorOverride && modCtx.config.tokens?.colors) {
+          modCtx.config.tokens.colors.light.primary = colorOverride.light
+          modCtx.config.tokens.colors.dark.primary = colorOverride.dark
+        }
+
         const groupsSummary = plan.groups.map(g => `${g.id} (${g.layout}, ${g.pages.length} pages)`).join(', ')
         const sharedSummary =
           plan.sharedComponents.length > 0
@@ -750,7 +768,7 @@ export async function splitGeneratePages(
   // Phase 4.5: Extract shared components — plan-based or legacy extraction
   if (remainingPages.length >= 2 && projectRoot) {
     if (plan && plan.sharedComponents.length > 0) {
-      spinner.start(`Phase 4.5/6 — Generating ${plan.sharedComponents.length} shared components from plan...`)
+      spinner.start(`Phase 5/6 — Generating ${plan.sharedComponents.length} shared components from plan...`)
       try {
         const { generateSharedComponentsFromPlan } = await import('./plan-generator.js')
         const generated = await generateSharedComponentsFromPlan(
@@ -763,30 +781,30 @@ export async function splitGeneratePages(
           const updatedManifest = await loadManifest(projectRoot)
           parseOpts.sharedComponentsSummary = buildSharedComponentsSummary(updatedManifest)
           const names = generated.map(c => c.name).join(', ')
-          spinner.succeed(`Phase 4.5/6 — Generated ${generated.length} shared components (${names})`)
+          spinner.succeed(`Phase 5/6 — Generated ${generated.length} shared components (${names})`)
         } else {
-          spinner.succeed('Phase 4.5/6 — No shared components generated')
+          spinner.succeed('Phase 5/6 — No shared components generated')
         }
       } catch {
-        spinner.warn('Phase 4.5/6 — Could not generate shared components (continuing without)')
+        spinner.warn('Phase 5/6 — Could not generate shared components (continuing without)')
       }
     } else if (homePageCode) {
       const manifest = await loadManifest(projectRoot)
       const shouldSkip = reusedExistingAnchor && manifest.shared.some(e => e.type !== 'layout')
 
       if (!shouldSkip) {
-        spinner.start('Phase 4.5/6 — Extracting shared components (legacy)...')
+        spinner.start('Phase 5/6 — Extracting shared components (legacy)...')
         try {
           const extraction = await extractSharedComponents(homePageCode, projectRoot, provider ?? 'auto')
           parseOpts.sharedComponentsSummary = extraction.summary
           if (extraction.components.length > 0) {
             const names = extraction.components.map(c => c.name).join(', ')
-            spinner.succeed(`Phase 4.5/6 — Extracted ${extraction.components.length} shared components (${names})`)
+            spinner.succeed(`Phase 5/6 — Extracted ${extraction.components.length} shared components (${names})`)
           } else {
-            spinner.succeed('Phase 4.5/6 — No shared components extracted')
+            spinner.succeed('Phase 5/6 — No shared components extracted')
           }
         } catch {
-          spinner.warn('Phase 4.5/6 — Could not extract shared components (continuing without)')
+          spinner.warn('Phase 5/6 — Could not extract shared components (continuing without)')
         }
       }
     }
@@ -796,7 +814,7 @@ export async function splitGeneratePages(
     return { requests: homeRequest ? [homeRequest] : [], plan }
   }
 
-  spinner.start(`Phase 5/6 — Generating ${remainingPages.length} pages in parallel...`)
+  spinner.start(`Phase 6/6 — Generating ${remainingPages.length} pages in parallel...`)
 
   const designMemoryBlock = projectRoot ? formatMemoryForPrompt(readDesignMemory(projectRoot)) : ''
 
@@ -915,7 +933,7 @@ export async function splitGeneratePages(
       try {
         const result = await parseModification(prompt, modCtx, provider, { ...parseOpts, pageSections })
         phase5Done++
-        spinner.text = `Phase 5/6 — ${phase5Done}/${remainingPages.length} pages generated...`
+        spinner.text = `Phase 6/6 — ${phase5Done}/${remainingPages.length} pages generated...`
         const codePage = result.requests.find((r: ModificationRequest) => r.type === 'add-page')
 
         if (currentReusePlan && currentReusePlan.reuse.length > 0 && codePage) {
@@ -986,7 +1004,7 @@ export async function splitGeneratePages(
         return codePage || { type: 'add-page' as const, target: 'new', changes: { id, name, route } }
       } catch {
         phase5Done++
-        spinner.text = `Phase 5/6 — ${phase5Done}/${remainingPages.length} pages generated...`
+        spinner.text = `Phase 6/6 — ${phase5Done}/${remainingPages.length} pages generated...`
         return { type: 'add-page' as const, target: 'new', changes: { id, name, route } }
       }
     },
@@ -1036,9 +1054,9 @@ export async function splitGeneratePages(
 
   const withCode = allRequests.filter(r => (r.changes as Record<string, unknown>)?.pageCode).length
   if (withCode === 0) {
-    spinner.warn(`Phase 5/6 — Generated ${allRequests.length} pages (0 with full code — AI may have failed)`)
+    spinner.warn(`Phase 6/6 — Generated ${allRequests.length} pages (0 with full code — AI may have failed)`)
   } else {
-    spinner.succeed(`Phase 5/6 — Generated ${allRequests.length} pages (${withCode} with full code)`)
+    spinner.succeed(`Phase 6/6 — Generated ${allRequests.length} pages (${withCode} with full code)`)
   }
 
   if (projectRoot) {

@@ -217,5 +217,15 @@ export function generateV4GlobalsCss(config: DesignSystemConfig): string {
     font-family: Arial, Helvetica, sans-serif;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 `
 }

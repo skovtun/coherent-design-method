@@ -342,6 +342,16 @@ export default config
     color: var(--foreground);
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 `
     await this.writeFile('app/globals.css', content)
   }

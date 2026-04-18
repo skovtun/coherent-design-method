@@ -262,7 +262,9 @@ export async function resolveTargetFlags(
       if (existsSync(filePath)) {
         currentCode = readFileSync(filePath, 'utf-8')
       }
-      const codeSnippet = currentCode ? `\n\nCurrent code of ${entry.name}:\n\`\`\`tsx\n${currentCode}\n\`\`\`` : ''
+      const codeSnippet = currentCode
+        ? `\n\nCurrent code of ${entry.name} page:\n\`\`\`tsx\n${currentCode}\n\`\`\``
+        : `\n\n${entry.name} page does not exist yet — generate it from scratch based on the request below.`
       return `Modify the shared component ${entry.name} (${entry.id}, file: ${entry.file}): ${message}. Read the current code below and apply the requested changes. Return the full updated component code as pageCode.${codeSnippet}`
     }
     console.log(chalk.yellow(`\n⚠️  Component "${target}" not found in shared components.`))
