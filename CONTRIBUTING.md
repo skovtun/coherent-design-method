@@ -123,7 +123,9 @@ coherent-design-method/
 | Change | Package | Key files |
 |--------|---------|-----------|
 | New CLI command | `cli` | `src/commands/`, `src/index.ts` |
-| Modify AI prompts | `cli` | `src/commands/chat.ts`, `src/utils/design-constraints.ts` |
+| Design constraints (AI rules) | `cli` | `src/agents/design-constraints.ts` (most important file) |
+| Architecture planner | `cli` | `src/commands/chat/plan-generator.ts` |
+| Generation pipeline | `cli` | `src/commands/chat/split-generator.ts` |
 | Quality rules | `cli` | `src/utils/quality-validator.ts` |
 | Component templates | `core` | `src/generators/ComponentGenerator.ts` |
 | Page templates | `core` | `src/generators/templates/pages/` |
@@ -171,10 +173,19 @@ Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`
 
 ## Pull Requests
 
-1. Ensure your changes build without errors: `pnpm build`
-2. Test with a real project (create one with `coherent init` + `coherent chat`)
-3. Write a clear PR description explaining what changed and why
-4. Reference any related issues
+Before submitting:
+
+```bash
+pnpm build                                           # must succeed
+npx vitest run                                       # all tests pass (800+)
+npx tsc --noEmit -p packages/cli/tsconfig.json       # no TypeScript errors
+npx prettier --check 'packages/*/src/**/*.{ts,tsx}'   # formatting clean
+```
+
+Then:
+1. Test with a real project (`coherent init` + `coherent chat`)
+2. Write a clear PR description explaining what changed and why
+3. Reference any related issues
 
 ## Code Style
 

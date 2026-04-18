@@ -83,18 +83,19 @@ Every change respects the existing design system. New pages inherit shared compo
 
 ## How It Works
 
-When you request multiple pages, Coherent uses a 4-phase architecture to ensure visual consistency:
+When you request multiple pages, Coherent uses a 6-phase pipeline to ensure visual consistency:
 
 ```
-Phase 1: Plan           →  AI plans all pages (names, routes, descriptions)
-Phase 2: Generate Home  →  AI generates the home page with header, footer, full styling
-Phase 3: Extract        →  Local processing: extracts header/footer as shared components,
-                           captures style patterns (cards, spacing, colors, typography)
-Phase 4: Generate Rest  →  AI generates remaining pages with extracted style context
-                           injected into each prompt — ensuring visual consistency
+Phase 1: Plan Pages         →  AI plans pages, routes, layout groups (sidebar/header/auth)
+Phase 2: Architecture Plan  →  AI creates component architecture + extracts atmosphere
+                               ("premium, Notion meets Linear" → dark-zinc, tight spacing, mono labels)
+Phase 3: Generate Home      →  AI generates the landing/home page (sets visual direction)
+Phase 4: Extract Patterns   →  Captures style patterns (cards, spacing, colors, typography)
+Phase 5: Shared Components  →  Generates reusable components (StatCard, DataTable, etc.)
+Phase 6: Generate Pages     →  AI generates remaining pages in parallel with shared context
 ```
 
-Phase 3 extracts style patterns from the home page and injects them as concrete CSS classes into subsequent page prompts — ensuring every page uses the same card styles, spacing, typography, and color patterns.
+Phase 2 extracts **atmosphere** from your prompt — mood phrases like "premium and focused" get mapped to concrete CSS choices (backgrounds, spacing, accents). Phase 4 captures the visual patterns from the home page and injects them into every subsequent page prompt.
 
 ## CLI Commands
 
@@ -295,7 +296,7 @@ The viewer updates automatically when you add pages or run `coherent sync`.
 
 ## Quality System
 
-Coherent validates generated code against 97 design rules covering typography, spacing, accessibility, and color usage.
+Coherent validates generated code against 100+ design rules covering typography, spacing, accessibility, color usage, touch targets, and interaction states.
 
 ### `coherent check` (read-only diagnostics)
 
