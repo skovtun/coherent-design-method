@@ -1225,3 +1225,35 @@ describe('visual polish auto-fixes', () => {
     expect(fixed).not.toContain('Acme Corp')
   })
 })
+
+describe('new quality rules v0.6.94', () => {
+  it('MISSING_ARIA_LABEL: flags icon-only button without aria-label', () => {
+    const code = '<Button variant="ghost" size="icon"><Search className="size-4" /></Button>'
+    const issues = validatePageQuality(code, [])
+    expect(issues.some(i => i.type === 'MISSING_ARIA_LABEL')).toBe(true)
+  })
+
+  it('MISSING_ARIA_LABEL: passes when aria-label present', () => {
+    const code = '<Button variant="ghost" size="icon" aria-label="Search"><Search className="size-4" /></Button>'
+    const issues = validatePageQuality(code, [])
+    expect(issues.some(i => i.type === 'MISSING_ARIA_LABEL')).toBe(false)
+  })
+
+  it('SMALL_TOUCH_TARGET: flags size="icon" without min sizing', () => {
+    const code = '<Button variant="ghost" size="icon" className="size-6"><X /></Button>'
+    const issues = validatePageQuality(code, [])
+    expect(issues.some(i => i.type === 'SMALL_TOUCH_TARGET')).toBe(true)
+  })
+
+  it('EMOJI_IN_UI: flags emoji unicode', () => {
+    const code = '<span>Welcome! \u{1F389}</span>'
+    const issues = validatePageQuality(code, [])
+    expect(issues.some(i => i.type === 'EMOJI_IN_UI')).toBe(true)
+  })
+
+  it('EMOJI_IN_UI: passes clean text', () => {
+    const code = '<span>Welcome back</span>'
+    const issues = validatePageQuality(code, [])
+    expect(issues.some(i => i.type === 'EMOJI_IN_UI')).toBe(false)
+  })
+})

@@ -672,7 +672,7 @@ export function validatePageQuality(
   // Component variant misuse (e.g. Button without variant="ghost" in nav)
   issues.push(...detectComponentIssues(code))
 
-  // COMPONENT_TOO_LONG: page component over 300 lines → consider extracting sections
+  // COMPONENT_TOO_LONG: page component over 300 lines - consider extracting sections
   const lineCount = code.split('\n').length
   if (lineCount > 300) {
     issues.push({
@@ -680,6 +680,50 @@ export function validatePageQuality(
       type: 'COMPONENT_TOO_LONG',
       message: `Page is ${lineCount} lines — consider extracting sections (data table, form, chart) into subcomponents.`,
       severity: 'info',
+    })
+  }
+
+  // MISSING_ARIA_LABEL: icon-only button/link without aria-label
+  const iconButtonRe = /<(?:Button|button)\b([^>]*)>[\s\n]*<(?:[A-Z]\w+)\s[^>]*\/?>[\s\n]*<\/(?:Button|button)>/g
+  let iconMatch
+  while ((iconMatch = iconButtonRe.exec(code)) !== null) {
+    if (!iconMatch[1].includes('aria-label')) {
+      const line = code.slice(0, iconMatch.index).split('\n').length
+      issues.push({
+        line,
+        type: 'MISSING_ARIA_LABEL',
+        message: 'Icon-only button without aria-label — add aria-label="description" for accessibility',
+        severity: 'warning',
+      })
+    }
+  }
+
+  // SMALL_TOUCH_TARGET: size="icon" without sufficient padding/sizing
+  const sizeIconRe = /size="icon"[^>]*/g
+  let touchMatch
+  while ((touchMatch = sizeIconRe.exec(code)) !== null) {
+    const context = touchMatch[0]
+    if (!/min-h-\[4[4-9]|min-w-\[4[4-9]|p-[3-9]\b|p-2\.5/.test(context)) {
+      const line = code.slice(0, touchMatch.index).split('\n').length
+      issues.push({
+        line,
+        type: 'SMALL_TOUCH_TARGET',
+        message: 'Icon button may be < 44px touch target — add min-h-[44px] or increase padding',
+        severity: 'warning',
+      })
+    }
+  }
+
+  // EMOJI_IN_UI: emoji unicode in JSX
+  const emojiRe = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u
+  if (emojiRe.test(code)) {
+    const lines = code.split('\n')
+    const lineIdx = lines.findIndex(l => emojiRe.test(l))
+    issues.push({
+      line: lineIdx + 1,
+      type: 'EMOJI_IN_UI',
+      message: 'Emoji character in UI — use Lucide icon instead (vector, scalable, theme-aware)',
+      severity: 'warning',
     })
   }
 
