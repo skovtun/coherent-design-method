@@ -108,7 +108,7 @@ coherent fix     # auto-installs missing shadcn components
 If the issue persists, install the specific component:
 
 ```bash
-npx shadcn-ui@latest add button    # replace 'button' with the missing component
+npx shadcn@latest add button    # replace 'button' with the missing component
 ```
 
 ### "Export ... doesn't exist in target module"
@@ -202,6 +202,19 @@ coherent export
 ### "@/components" or "@/lib" warning during export
 
 This warning is safe to ignore — these are local path aliases, not npm packages.
+
+---
+
+## Reverting Changes
+
+### Want to undo the last `coherent chat`?
+
+Coherent creates a backup before each generation:
+
+```bash
+coherent undo          # restore to state before last chat
+coherent undo --list   # see available backups
+```
 
 ---
 
