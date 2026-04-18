@@ -145,8 +145,8 @@ Phase 1/6 — Planning pages...
 Phase 2/6 — Generating architecture plan...
 Phase 3/6 — Generating Home page (sets design direction)...
 Phase 4/6 — Extracting design patterns...
-Phase 4.5/6 — Generating shared components from plan...
-Phase 5/6 — Generating 8 pages in parallel...
+Phase 5/6 — Generating shared components from plan...
+Phase 6/6 — Generating pages in parallel...
 ```
 
 Phase 3 generates the landing page first and locks in the visual direction. Phase 4 extracts the style patterns — container widths, spacing rhythm, color palette, typography choices. Every subsequent page inherits this contract, so a card on the Dashboard uses the same border-radius, shadow, and spacing as a card on the Projects page.
@@ -178,7 +178,7 @@ coherent status
 The output shows what was built:
 
 ```
-📁 Location: ~/projector
+📁 Location: ~/my-app-name
 📊 Statistics:
    Pages: 12
    Components: 18
@@ -263,7 +263,7 @@ Each of these mutates `design-system.config.ts` and `globals.css`, and every pag
 
 ## Step 8: The killer feature — shared components
 
-When Coherent generated the app, it didn't just write 14 pages of code. It identified which UI patterns appear across multiple pages, extracted them into shared components, and registered each one with a unique ID.
+When Coherent generated the app, it didn't just write pages of code. It identified which UI patterns appear across multiple pages, extracted them into shared components, and registered each one with a unique ID.
 
 ```bash
 coherent components list
@@ -346,7 +346,7 @@ The export strips Coherent dev tooling (Design System Viewer, overlay) and produ
 - Deploy to Vercel, Netlify, Fly.io, Railway — it's a standard Next.js 15 app
 
 ```bash
-cd projector-export
+cd my-app-export
 npx vercel
 ```
 
