@@ -245,6 +245,7 @@ MOCK/SAMPLE DATA (for demo arrays, fake users, fake tasks, etc.):
   Helper to add at top of any file rendering dates (no extra deps):
     const formatRelative = (iso: string) => {
       const d = (Date.now() - new Date(iso).getTime()) / 60000
+      if (d < 0) return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
       if (d < 60) return \`\${Math.round(d)}m ago\`
       if (d < 1440) return \`\${Math.round(d / 60)}h ago\`
       if (d < 10080) return \`\${Math.round(d / 1440)}d ago\`
@@ -252,6 +253,12 @@ MOCK/SAMPLE DATA (for demo arrays, fake users, fake tasks, etc.):
     }
 - Images: use https://i.pravatar.cc/150?u=unique-id for avatars. "/placeholder.svg?height=40&width=40" for non-avatar images. Never broken paths.
 - IDs: sequential numbers (1, 2, 3) or short slugs ("proj-1"). Never random UUIDs.
+
+ACCESSIBILITY (WCAG AA — mandatory):
+- Icon-only buttons/links MUST have aria-label describing the action (e.g., aria-label="Close dialog")
+- Interactive elements: minimum 44×44px touch target. Use p-2.5 or min-h-[44px] min-w-[44px] on small buttons.
+- No emoji characters in UI text or labels — use Lucide icons (vector, scalable, theme-aware)
+- All images must have alt text. Decorative images: alt=""
 `
 
 // ---------------------------------------------------------------------------
@@ -340,6 +347,11 @@ export const DESIGN_QUALITY_COMMON = `
   Enables smooth animation of CSS custom properties (normally not animatable).
 - View Transitions: if (document.startViewTransition) { document.startViewTransition(() => router.push(href)) }
   Progressive enhancement — zero config, dramatic perceived performance improvement on page navigation.
+
+MOTION ACCESSIBILITY:
+- All CSS animations MUST respect prefers-reduced-motion. Add to globals.css:
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+- Tailwind: use motion-safe: and motion-reduce: modifiers for inline transitions
 `
 
 // ---------------------------------------------------------------------------
@@ -1233,6 +1245,17 @@ export const INTERACTION_PATTERNS = `
 - For operations >1s: show what's happening ("Saving changes...", "Loading dashboard...")
 - For operations >3s: show progress or steps ("Step 2 of 3: Generating layout...")
 - After completion: confirm success with brief feedback ("Changes saved" or toast/banner)
+
+LOADING STATES (async operations):
+- Buttons triggering async operations: set disabled={loading} + show spinner icon while pending
+- Pattern: const [loading, setLoading] = useState(false)
+  onClick: setLoading(true) → try { await action() } finally { setLoading(false) }
+- NEVER leave a submit/action button clickable during an async operation
+
+ESCAPE ROUTES:
+- Every Dialog/Sheet/Drawer MUST have: visible close button (X) + onOpenChange handler
+- Modal forms: always provide Cancel button alongside Submit
+- Esc key must dismiss (shadcn Dialog default, but verify onOpenChange is wired)
 - Skeleton > spinner for page loads. Spinner > skeleton for inline actions (button submit)
 
 ### Feedback & Confirmation
