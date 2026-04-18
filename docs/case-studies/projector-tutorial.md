@@ -67,11 +67,19 @@ set OPENAI_API_KEY=sk-your-key-here
 
 ---
 
-## How to open a terminal
+## Why a terminal?
 
+If you've never used a terminal before — it's just a text window where you type commands instead of clicking buttons. Think of it as texting your computer: you type what you want, press Enter, it does it.
+
+Coherent is a CLI (command-line interface) tool. You describe your UI in plain English, Coherent talks to an AI model, and the result is a real Next.js project on your machine. No browser-based editor, no account to create, no canvas to drag things onto.
+
+**Where to find a terminal:**
+
+- **VS Code / Cursor** — press `` Ctrl + ` `` (or `Cmd + J` on Mac) to open the built-in terminal. This is the easiest option if you already use an editor — you can see your files and terminal side by side.
 - **macOS** — press `Cmd + Space`, type "Terminal", press Enter
-- **Windows** — press `Win + R`, type "cmd", press Enter
-- **VS Code** — press `` Ctrl + ` `` to open the built-in terminal
+- **Windows** — press `Win + R`, type "cmd", press Enter (or search for "Terminal" in the Start menu)
+
+> **Can I use Coherent without a terminal?** Not yet — it's a CLI tool for now. But if you use VS Code or Cursor, the built-in terminal feels like part of the editor, not a separate app. You type commands in the bottom panel, your generated files appear in the sidebar.
 
 ---
 
