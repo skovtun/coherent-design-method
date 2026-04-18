@@ -11,6 +11,7 @@ Here's exactly how — every command, every prompt, every result.
 **What you'll need:**
 - A Mac or PC (Windows/macOS/Linux)
 - Node.js 20+ — [download here](https://nodejs.org) if you don't have it
+- A terminal — Coherent is a command-line tool. You type commands, it generates code. If you've used `npm install` before, you already know enough. If not — the next section explains how to open one.
 - An API key — Claude (Anthropic) or ChatGPT (OpenAI) — see below
 - ~30 minutes
 
@@ -95,9 +96,11 @@ One command. You only need to do this once.
 
 ## Step 1: Create the project
 
+Replace `my-app-name` with whatever you want to call your project (e.g., `projector`, `taskflow`, `my-saas`):
+
 ```bash
-coherent init projector
-cd projector
+coherent init my-app-name
+cd my-app-name
 ```
 
 This scaffolds a Next.js 15 app with Tailwind CSS, shadcn/ui, design tokens, and a live Design System Viewer — zero configuration required.
