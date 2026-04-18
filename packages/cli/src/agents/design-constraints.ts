@@ -462,6 +462,13 @@ SHARED COMPONENT PROPS: when using a shared component, pass ALL required props m
 If the component expects user: string, pass a string — not an object with name/avatar fields.
 Read the component's interface before using it.
 
+SHARED COMPONENT HEADERS (prevents duplicate titles):
+When a shared component (ActivityFeed, TaskList, DataTable, etc.) already renders its own title/header inside the component, do NOT wrap it in a section with a duplicate heading. One title per visual block.
+  BAD:  <div><h3>Recent Activity</h3><ActivityFeed /></div>  — ActivityFeed already has "Recent Activity" inside
+  GOOD: <ActivityFeed />  — component handles its own header
+  GOOD: <div><ActivityFeed title="Recent Activity" /></div>  — pass title as prop, component renders it once
+If you want a section label (uppercase mono like "ACTIVITY"), use it INSTEAD of the component's built-in heading, not alongside it.
+
 CARD HEADER WITH STATUS: title and badge on same line in flex row with gap-2:
   <div className="flex items-center gap-2"><CardTitle>Name</CardTitle><Badge variant="secondary">Status</Badge></div>
 NEVER position badge before title. NEVER overlap badge on title text.
