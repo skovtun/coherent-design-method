@@ -157,6 +157,13 @@ Phase 3 generates the landing page first and locks in the visual direction. Phas
 
 This step takes 2–5 minutes.
 
+> **What if a page shows an error?** AI generation is probabilistic — occasionally a page may crash with a runtime error (like "Cannot read properties of undefined"). This is normal. Run `coherent fix` to auto-repair most issues. If a specific page is broken, regenerate just that page:
+> ```bash
+> coherent fix                              # auto-fix common issues
+> coherent chat --page "Projects" "fix errors on this page"   # regenerate one page
+> ```
+> You can also undo the entire generation and retry: `coherent undo`
+
 ![Projector — Landing page with hero, features, and pricing. Notice the consistent spacing rhythm and semantic color tokens.](screenshots/01-landing.png)
 
 ![Projector — Same landing page in dark mode. Design tokens cascade — every color adapts, not just the background.](screenshots/01-landing-dark.png)
