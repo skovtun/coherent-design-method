@@ -2,6 +2,32 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.6.94] — 2026-04-18
+
+### Quality Overhaul — competitive gap closure + 5 bug fixes
+
+Driven by competitive analysis vs ui-ux-pro-max-skill (67K stars, 161 rules). Closes accessibility, interaction, and performance gaps while fixing all 5 known E2E bugs.
+
+### Fixed
+- **primaryHint reaches page generation.** `renderAtmosphereDirective()` now emits primary color directive ("Use zinc tones for --primary token").
+- **Negative dates "-2341m ago" → clean format.** `formatRelative` helper guards `d < 0` for future-dated mock data.
+- **--page refine ~50% failure → graceful handling.** `resolveTargetFlags` sends "generate from scratch" message instead of empty code block when page file missing.
+- **FilterBar contract drift.** `filterManifestForPage` overlays plan's authoritative props interface onto stale manifest entries.
+- **Plan cap raised 8→12.** Prevents sharedComponents validation failure when existing plan + AI additions exceed old limit.
+- **Phase 4.5 → Phase 5.** Renumbered pipeline phases to clean 1-6 sequence (no fractional phases).
+
+### Added
+- **9 quality rules** (closes gaps vs ui-ux-pro-max-skill):
+  - Pre-gen: aria-label on icon buttons, 44px touch targets, no emoji in UI, loading states for async buttons, escape routes in dialogs, prefers-reduced-motion
+  - Post-gen validator: MISSING_ARIA_LABEL, SMALL_TOUCH_TARGET, EMOJI_IN_UI checks
+- **Token regeneration from atmosphere.primaryHint.** "zinc" → `--primary: #18181b`. 8 color presets: zinc, emerald, indigo, rose, amber, teal, violet, slate. Buttons, links, focus rings change to match mood.
+- **Industry mood presets.** Healthcare → soft-warm/blue, ecommerce → minimal-paper/amber keywords auto-detected by `extractAtmosphereFromMessage`.
+- **prefers-reduced-motion** in scaffold globals.css (both v3 and v4 paths).
+- **color-presets.ts** — new utility: primaryHint → hex mapping with light/dark variants.
+
+### Tests
+813 passing (+22 new). 60 test files.
+
 ## [0.6.93] — 2026-04-16
 
 ### Fixed
