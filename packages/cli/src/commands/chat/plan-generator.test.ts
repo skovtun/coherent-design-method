@@ -79,10 +79,10 @@ describe('ArchitecturePlanSchema', () => {
     expect(result.sharedComponents[0].shadcnDeps).toEqual([])
   })
 
-  it('caps sharedComponents at 8', () => {
+  it('caps sharedComponents at 12', () => {
     const tooMany = {
       ...validPlan,
-      sharedComponents: Array.from({ length: 9 }, (_, i) => ({
+      sharedComponents: Array.from({ length: 13 }, (_, i) => ({
         name: `C${i}`,
         description: 'd',
         props: '{}',
@@ -612,5 +612,48 @@ describe('renderAtmosphereDirective', () => {
     expect(out).toContain('bg-zinc-950')
     expect(out).toContain('mono')
     expect(out).toContain('REJECT these defaults')
+  })
+})
+
+describe('renderAtmosphereDirective includes primaryHint', () => {
+  it('emits primary color directive when primaryHint is set', () => {
+    const out = renderAtmosphereDirective({
+      moodPhrase: 'premium',
+      background: 'dark-zinc',
+      heroLayout: 'split-text-image',
+      spacing: 'tight',
+      accents: 'monochrome',
+      fontStyle: 'mono-labels',
+      primaryHint: 'zinc',
+    })
+    expect(out).toContain('zinc')
+    expect(out).toContain('Primary')
+  })
+
+  it('omits primary line when primaryHint is empty', () => {
+    const out = renderAtmosphereDirective({
+      moodPhrase: 'premium',
+      background: 'dark-zinc',
+      heroLayout: 'split-text-image',
+      spacing: 'tight',
+      accents: 'monochrome',
+      fontStyle: 'sans',
+      primaryHint: '',
+    })
+    expect(out).not.toContain('Primary')
+  })
+})
+
+describe('extractAtmosphereFromMessage — industry presets', () => {
+  it('detects healthcare keywords', () => {
+    const a = extractAtmosphereFromMessage('Build a patient portal for a healthcare clinic')
+    expect(a.background).toBe('soft-warm')
+    expect(a.primaryHint).toBe('blue')
+  })
+
+  it('detects ecommerce keywords', () => {
+    const a = extractAtmosphereFromMessage('Create an online store with product listings')
+    expect(a.background).toBe('minimal-paper')
+    expect(a.primaryHint).toBe('amber')
   })
 })

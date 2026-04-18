@@ -134,7 +134,7 @@ export const ArchitecturePlanSchema = z.object({
   appName: z.string().optional(),
   atmosphere: AtmosphereSchema.optional(),
   groups: z.array(RouteGroupSchema),
-  sharedComponents: z.array(PlannedComponentSchema).max(8).default([]),
+  sharedComponents: z.array(PlannedComponentSchema).max(12).default([]),
   pageNotes: z.record(z.string(), PageNoteSchema).default({}),
 })
 
@@ -177,7 +177,7 @@ Rules:
   - "section" — full landing-page sections (PricingTable, FeatureGrid, Testimonials)
   - "widget" — small reusable cards (StatCard, ProjectCard, MemberCard)
 - Cross-page links: map link labels to target routes (e.g., {"Sign in": "/login"})
-- Maximum 8 shared components
+- Maximum 12 shared components
 
 ATMOSPHERE EXTRACTION (CRITICAL — this drives every page's visual treatment):
 The user's message contains mood/brand hints. Capture them into an atmosphere object that page generators MUST follow.
@@ -311,6 +311,18 @@ export function extractAtmosphereFromMessage(message: string): Partial<Atmospher
     out.fontStyle = 'mono-labels'
     out.primaryHint = out.primaryHint || 'emerald'
   }
+  if (/\b(?:healthcare|medical|patient|clinic|hospital|health)\b/i.test(m) && !out.background) {
+    out.background = 'soft-warm'
+    out.heroLayout = 'photo-warm'
+    out.accents = 'warm-soft'
+    out.primaryHint = out.primaryHint || 'blue'
+  }
+  if (/\b(?:shop|store|product|ecommerce|e-commerce|retail|marketplace)\b/i.test(m) && !out.background) {
+    out.background = 'minimal-paper'
+    out.spacing = 'medium'
+    out.accents = 'warm-soft'
+    out.primaryHint = out.primaryHint || 'amber'
+  }
 
   return out
 }
@@ -380,6 +392,11 @@ export function renderAtmosphereDirective(atmosphere: Atmosphere | undefined): s
     `- Accents: ${accentRule[atmosphere.accents]}`,
   ]
   if (fontRule[atmosphere.fontStyle]) lines.push(`- Typography: ${fontRule[atmosphere.fontStyle]}`)
+  if (atmosphere.primaryHint) {
+    lines.push(
+      `- Primary: Use ${atmosphere.primaryHint} tones for --primary token. Buttons, links, active states, and focus rings should use this color family — not the default blue.`,
+    )
+  }
   lines.push(
     '',
     'REJECT these defaults (they violate the atmosphere): centered-headline + 3-card-feature-grid + bg-white + multi-color icon containers + cliché copy ("Seamless", "Elevate"). If you find yourself writing that, STOP and apply the directive above instead.',
