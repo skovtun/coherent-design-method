@@ -250,31 +250,31 @@ export default function DesignSystemPage() {
           <h2 className="text-sm font-medium mb-3">Quick links</h2>
           <div className="space-y-2">
             <Link href="/design-system/components" className="flex items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-muted transition-colors">
-              <span>Components ({components.length})</span>
-              <span className="text-xs text-muted-foreground">→</span>
+              <span>Components</span>
+              <span className="text-xs text-muted-foreground">{components.length} →</span>
             </Link>
             <Link href="/design-system/shared" className="flex items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-muted transition-colors">
-              <span>Shared Components ({sharedCount})</span>
-              <span className="text-xs text-muted-foreground">→</span>
+              <span>Shared Components</span>
+              <span className="text-xs text-muted-foreground">{sharedCount} →</span>
             </Link>
             <Link href="/design-system/tokens/colors" className="flex items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-muted transition-colors">
               <div className="flex items-center gap-2">
-                <span>Colors ({colorCount})</span>
+                <span>Colors</span>
                 <div className="flex gap-0.5">
                   <div className="size-3 rounded-sm bg-primary" />
                   <div className="size-3 rounded-sm bg-secondary border" />
                   <div className="size-3 rounded-sm bg-destructive" />
                 </div>
               </div>
-              <span className="text-xs text-muted-foreground">→</span>
+              <span className="text-xs text-muted-foreground">{colorCount} →</span>
             </Link>
             <Link href="/design-system/tokens/typography" className="flex items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-muted transition-colors">
               <span>Typography</span>
               <span className="text-xs text-muted-foreground">→</span>
             </Link>
             <Link href="/design-system/tokens/spacing" className="flex items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-muted transition-colors">
-              <span>Spacing & Radius ({spacingCount + radiusCount})</span>
-              <span className="text-xs text-muted-foreground">→</span>
+              <span>Spacing & Radius</span>
+              <span className="text-xs text-muted-foreground">{spacingCount + radiusCount} →</span>
             </Link>
             <Link href="/design-system/docs" className="flex items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-muted transition-colors">
               <span>Documentation</span>
