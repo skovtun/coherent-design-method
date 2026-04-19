@@ -35,9 +35,20 @@ export interface SharedExtractionItem {
   code: string
 }
 
+/**
+ * Options passed to every AI provider method call.
+ *
+ * Currently only carries an AbortSignal so callers can cancel in-flight
+ * requests (used by `withAbortableTimeout` to kill a hung LLM call and avoid
+ * leaking a background HTTP request + tokens).
+ */
+export interface AIRequestOptions {
+  signal?: AbortSignal
+}
+
 export interface AIProviderInterface {
   generateConfig(discovery: DiscoveryResult): Promise<DesignSystemConfig>
-  parseModification(prompt: string): Promise<ParseModificationOutput>
+  parseModification(prompt: string, options?: AIRequestOptions): Promise<ParseModificationOutput>
   /** Send a system+user prompt and return raw parsed JSON (no requests wrapper). */
   generateJSON(systemPrompt: string, userPrompt: string): Promise<unknown>
   testConnection(): Promise<boolean>

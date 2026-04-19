@@ -46,6 +46,12 @@ export interface ParseModificationOptions {
   lightweight?: boolean
   pageSections?: string[]
   projectRoot?: string
+  /**
+   * Optional AbortSignal — wires through to the provider SDK so a timeout or
+   * user interrupt actually kills the in-flight HTTP request instead of just
+   * ignoring its response.
+   */
+  signal?: AbortSignal
 }
 
 export async function parseModification(
@@ -58,14 +64,14 @@ export async function parseModification(
 
   if (options?.planOnly) {
     const prompt = buildPlanOnlyPrompt(message, context.config)
-    const raw = await ai.parseModification(prompt)
+    const raw = await ai.parseModification(prompt, options?.signal ? { signal: options.signal } : undefined)
     const requestsArray = Array.isArray(raw) ? raw : (raw?.requests ?? [])
     const navigation = !Array.isArray(raw) && raw?.navigation ? (raw.navigation as { type: string }) : undefined
     return { requests: requestsArray as ModificationRequest[], uxRecommendations: undefined, navigation }
   }
 
   if (options?.lightweight) {
-    const raw = await ai.parseModification(message)
+    const raw = await ai.parseModification(message, options?.signal ? { signal: options.signal } : undefined)
     const requestsArray = Array.isArray(raw) ? raw : (raw?.requests ?? [])
     return { requests: requestsArray as ModificationRequest[], uxRecommendations: undefined }
   }
@@ -97,7 +103,7 @@ export async function parseModification(
     projectRoot: options?.projectRoot,
   })
 
-  const raw = await ai.parseModification(prompt)
+  const raw = await ai.parseModification(prompt, options?.signal ? { signal: options.signal } : undefined)
   const requestsArray = Array.isArray(raw) ? raw : (raw?.requests ?? [])
   const uxRecommendations = Array.isArray(raw)
     ? undefined

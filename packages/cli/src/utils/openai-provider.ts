@@ -9,7 +9,12 @@
 // We'll use dynamic import in createAIProvider instead
 import type { DiscoveryResult, DesignSystemConfig } from '@getcoherent/core'
 import { validateConfig } from '@getcoherent/core'
-import type { AIProviderInterface, ParseModificationOutput, SharedExtractionItem } from './ai-provider.js'
+import type {
+  AIProviderInterface,
+  AIRequestOptions,
+  ParseModificationOutput,
+  SharedExtractionItem,
+} from './ai-provider.js'
 
 export class OpenAIClient implements AIProviderInterface {
   private client: any
@@ -87,24 +92,27 @@ export class OpenAIClient implements AIProviderInterface {
   /**
    * Parse modification request from natural language
    */
-  async parseModification(prompt: string): Promise<ParseModificationOutput> {
+  async parseModification(prompt: string, options?: AIRequestOptions): Promise<ParseModificationOutput> {
     try {
-      const response = await this.client.chat.completions.create({
-        model: this.defaultModel,
-        messages: [
-          {
-            role: 'system',
-            content: `Design system modification parser. Parse requests into ModificationRequest JSON. Check component registry before creating new. Return valid JSON: { "requests": [...], "uxRecommendations": "brief markdown or omit" }. Escape quotes with \\", no newlines in string values.`,
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.3, // Lower temperature for more structured output
-        max_tokens: 16384,
-      })
+      const response = await this.client.chat.completions.create(
+        {
+          model: this.defaultModel,
+          messages: [
+            {
+              role: 'system',
+              content: `Design system modification parser. Parse requests into ModificationRequest JSON. Check component registry before creating new. Return valid JSON: { "requests": [...], "uxRecommendations": "brief markdown or omit" }. Escape quotes with \\", no newlines in string values.`,
+            },
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.3, // Lower temperature for more structured output
+          max_tokens: 16384,
+        },
+        options?.signal ? { signal: options.signal } : undefined,
+      )
 
       if (response.choices[0]?.finish_reason === 'length') {
         const err = new Error('AI response truncated (max_tokens reached)')

@@ -405,6 +405,35 @@ export function renderAtmosphereDirective(atmosphere: Atmosphere | undefined): s
   return lines.join('\n')
 }
 
+/**
+ * Compact style hint derived from atmosphere — background + accents + primary.
+ *
+ * Why separate from `renderAtmosphereDirective`: that one emits hero/layout
+ * rules that are page-specific. For shared components generated without a
+ * concrete home page (the experimental Phase 3 ∥ Phase 5 mode), we only need
+ * color/surface guidance. This hint is passed as `styleContext` to
+ * `generateSharedComponentsFromPlan` when the home-page styleContext isn't
+ * available yet.
+ */
+export function renderAtmosphereStyleHint(atmosphere: Atmosphere | undefined): string {
+  if (!atmosphere) return ''
+  const parts: string[] = []
+  if (atmosphere.background && atmosphere.background !== 'minimal-paper') {
+    parts.push(`background: ${atmosphere.background}`)
+  }
+  if (atmosphere.accents && atmosphere.accents !== 'monochrome') {
+    parts.push(`accents: ${atmosphere.accents}`)
+  }
+  if (atmosphere.spacing && atmosphere.spacing !== 'medium') {
+    parts.push(`spacing: ${atmosphere.spacing}`)
+  }
+  if (atmosphere.fontStyle && atmosphere.fontStyle !== 'sans') {
+    parts.push(`fonts: ${atmosphere.fontStyle}`)
+  }
+  if (atmosphere.primaryHint) parts.push(`primary: ${atmosphere.primaryHint}`)
+  return parts.length > 0 ? parts.join(', ') : ''
+}
+
 export async function generateArchitecturePlan(
   pages: Array<{ name: string; id: string; route: string }>,
   userMessage: string,

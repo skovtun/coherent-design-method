@@ -8,7 +8,12 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { DiscoveryResult, DesignSystemConfig } from '@getcoherent/core'
 import { validateConfig } from '@getcoherent/core'
-import type { AIProviderInterface, ParseModificationOutput, SharedExtractionItem } from './ai-provider.js'
+import type {
+  AIProviderInterface,
+  AIRequestOptions,
+  ParseModificationOutput,
+  SharedExtractionItem,
+} from './ai-provider.js'
 
 export class ClaudeClient implements AIProviderInterface {
   private client: Anthropic
@@ -206,19 +211,22 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
   /**
    * Parse modification request from natural language
    */
-  async parseModification(prompt: string): Promise<ParseModificationOutput> {
+  async parseModification(prompt: string, options?: AIRequestOptions): Promise<ParseModificationOutput> {
     try {
-      const response = await this.client.messages.create({
-        model: this.defaultModel,
-        max_tokens: 16384,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        system: `Design system modification parser. Parse requests into ModificationRequest JSON. Check component registry before creating new. Return valid JSON only: { "requests": [...], "uxRecommendations": "brief markdown or omit" }. Escape quotes with \\", no newlines in string values.`,
-      })
+      const response = await this.client.messages.create(
+        {
+          model: this.defaultModel,
+          max_tokens: 16384,
+          messages: [
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+          system: `Design system modification parser. Parse requests into ModificationRequest JSON. Check component registry before creating new. Return valid JSON only: { "requests": [...], "uxRecommendations": "brief markdown or omit" }. Escape quotes with \\", no newlines in string values.`,
+        },
+        options?.signal ? { signal: options.signal } : undefined,
+      )
 
       // Detect truncated response (AI hit token limit before finishing)
       if (response.stop_reason === 'max_tokens') {
