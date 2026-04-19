@@ -339,6 +339,8 @@ Coherent scans every page against 100+ design rules:
 Quality Score: 79/100 (Good)
 ```
 
+![Coherent check output — per-page quality report with issue types and severity.](screenshots/11-check.png)
+
 Found issues? Fix them automatically:
 
 ```bash
@@ -346,8 +348,6 @@ coherent fix
 ```
 
 This resolves raw color values, missing components, TypeScript errors, and layout inconsistencies — all in one command.
-
-![Coherent check output — per-page quality report with issue types and severity.](screenshots/11-check.png)
 
 ---
 
