@@ -513,6 +513,7 @@ ${sections}
 
     return `import type { Metadata, Viewport } from 'next'
 import type { ReactNode } from 'react'
+import Link from 'next/link'
 import './globals.css'
 ${navEnabled ? "import { AppNav } from './AppNav'\n" : ''}
 
@@ -551,6 +552,13 @@ export default function RootLayout({
       </head>
       <body className="${this.getBodyClasses()}">
 ${navEnabled ? `        ${navRendered}\n        ` : ''}        <div className="flex-1${this.isSidebarNav() ? '' : ' flex flex-col'}">{children}</div>
+        <Link
+          href="/design-system"
+          className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full border border-border/20 bg-background/80 backdrop-blur-md px-4 py-2 text-xs shadow-sm hover:bg-muted transition-colors"
+          title="Design System"
+        >
+          Design System
+        </Link>
       </body>
     </html>
   )
@@ -677,14 +685,6 @@ export function AppNav() {
         </div>
       </nav>
       )}
-      <Link
-        href="/design-system"
-        className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full border border-white/20 bg-black/60 backdrop-blur-md text-white px-4 py-2 text-xs shadow-sm hover:bg-black/80 transition-all"
-        title="Design System"
-      >
-        <CoherentLogo size={14} />
-        Design System
-      </Link>
     </Fragment>
   )
 }
@@ -1101,13 +1101,6 @@ export function AppSidebar() {
 ${allGroups}
         </SidebarContent>
       </Sidebar>
-      <Link
-        href="/design-system"
-        className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full border border-white/20 bg-black/60 backdrop-blur-md text-white px-4 py-2 text-xs shadow-sm hover:bg-black/80 transition-all"
-        title="Design System"
-      >
-        Design System
-      </Link>
     </>
   )
 }
