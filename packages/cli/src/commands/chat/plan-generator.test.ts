@@ -670,14 +670,14 @@ describe('renderAtmosphereStyleHint', () => {
       background: 'dark-zinc',
       heroLayout: 'split-text-image',
       spacing: 'tight',
-      accents: 'neon',
-      fontStyle: 'mono',
+      accents: 'code-mono',
+      fontStyle: 'mono-labels',
       primaryHint: 'emerald',
     })
     expect(hint).toContain('background: dark-zinc')
-    expect(hint).toContain('accents: neon')
+    expect(hint).toContain('accents: code-mono')
     expect(hint).toContain('spacing: tight')
-    expect(hint).toContain('fonts: mono')
+    expect(hint).toContain('fonts: mono-labels')
     expect(hint).toContain('primary: emerald')
   })
 
