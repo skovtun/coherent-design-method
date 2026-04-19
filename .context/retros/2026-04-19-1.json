@@ -1,0 +1,41 @@
+{
+  "date": "2026-04-19",
+  "window": "7d",
+  "metrics": {
+    "commits": 43,
+    "contributors": 1,
+    "prs_merged": 2,
+    "insertions": 5830,
+    "deletions": 2139,
+    "net_loc": 3691,
+    "test_loc": 981,
+    "test_ratio": 0.16,
+    "active_days": 4,
+    "sessions": 8,
+    "deep_sessions": 3,
+    "avg_session_minutes": 49,
+    "loc_per_session_hour": 560,
+    "feat_pct": 0.09,
+    "fix_pct": 0.12,
+    "peak_hour": 15,
+    "ai_assisted_commits": 42
+  },
+  "authors": {
+    "Sergei Kovtun": {
+      "commits": 43,
+      "insertions": 5830,
+      "deletions": 2139,
+      "test_ratio": 0.16,
+      "top_area": "packages/cli"
+    }
+  },
+  "version_range": ["0.6.90", "0.6.98"],
+  "streak_days": 2,
+  "tweetable": "Week of Apr 13: 43 commits (solo), 3.7k net LOC, 16% tests, 2 PRs, 9 versions shipped, peak: 15h | Streak: 2d",
+  "test_health": {
+    "total_test_files": 60,
+    "tests_added_this_period": 40,
+    "regression_test_commits": 3,
+    "test_files_changed": 10
+  }
+}
