@@ -15,6 +15,7 @@ import {
   loadPlan,
   extractAtmosphereFromMessage,
   renderAtmosphereDirective,
+  renderAtmosphereStyleHint,
 } from './plan-generator.js'
 
 describe('routeToKey', () => {
@@ -641,6 +642,58 @@ describe('renderAtmosphereDirective includes primaryHint', () => {
       primaryHint: '',
     })
     expect(out).not.toContain('Primary')
+  })
+})
+
+describe('renderAtmosphereStyleHint', () => {
+  it('returns empty string when atmosphere is undefined', () => {
+    expect(renderAtmosphereStyleHint(undefined)).toBe('')
+  })
+
+  it('returns empty string when all fields are defaults', () => {
+    expect(
+      renderAtmosphereStyleHint({
+        moodPhrase: '',
+        background: 'minimal-paper',
+        heroLayout: 'split-text-image',
+        spacing: 'medium',
+        accents: 'monochrome',
+        fontStyle: 'sans',
+        primaryHint: '',
+      }),
+    ).toBe('')
+  })
+
+  it('emits non-default fields as comma-separated list', () => {
+    const hint = renderAtmosphereStyleHint({
+      moodPhrase: 'dark fintech',
+      background: 'dark-zinc',
+      heroLayout: 'split-text-image',
+      spacing: 'tight',
+      accents: 'neon',
+      fontStyle: 'mono',
+      primaryHint: 'emerald',
+    })
+    expect(hint).toContain('background: dark-zinc')
+    expect(hint).toContain('accents: neon')
+    expect(hint).toContain('spacing: tight')
+    expect(hint).toContain('fonts: mono')
+    expect(hint).toContain('primary: emerald')
+  })
+
+  it('omits hero layout (irrelevant for shared components)', () => {
+    const hint = renderAtmosphereStyleHint({
+      moodPhrase: '',
+      background: 'warm-stone',
+      heroLayout: 'centered-bold',
+      spacing: 'medium',
+      accents: 'monochrome',
+      fontStyle: 'sans',
+      primaryHint: '',
+    })
+    expect(hint).toContain('background: warm-stone')
+    expect(hint).not.toContain('hero')
+    expect(hint).not.toContain('centered-bold')
   })
 })
 

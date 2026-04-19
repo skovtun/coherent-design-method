@@ -415,11 +415,10 @@ export function getDefaultRequestTimeoutMs(): number {
  * Races a promise against a timeout so a single hung LLM call can't freeze the
  * CLI indefinitely.
  *
- * The underlying request is NOT cancelled — the provider SDK doesn't accept
- * AbortSignal on the current interface. The request will finish in the
- * background and its result is discarded; the process exits on rejection
- * anyway. User impact: they see the failure and can retry, instead of staring
- * at a frozen spinner.
+ * Legacy mode: the underlying request is NOT cancelled (the passed Promise
+ * has already started). Use `withAbortableTimeout` instead whenever the
+ * callee supports `AbortSignal` — that variant actually kills the HTTP
+ * request and stops metering tokens.
  *
  * Pass `timeoutMs: 0` to disable (mainly for tests that mock providers).
  */
@@ -436,6 +435,43 @@ export async function withRequestTimeout<T>(
   })
   try {
     return await Promise.race([promise, timeoutPromise])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+/**
+ * Runs a request factory with a timeout that actually aborts the in-flight
+ * call via `AbortController`.
+ *
+ * Why: `withRequestTimeout` races a Promise that's already started, so the
+ * HTTP request keeps running and tokens keep getting metered even after the
+ * timeout fires. `withAbortableTimeout` creates the controller up-front and
+ * passes its signal to the factory — the provider SDK then aborts the fetch.
+ *
+ * Pass `timeoutMs: 0` to disable (the controller still exists but its abort
+ * is never triggered, so the request runs to completion).
+ */
+export async function withAbortableTimeout<T>(
+  startRequest: (signal: AbortSignal) => Promise<T>,
+  label: string,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<T> {
+  const controller = new AbortController()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let timedOut = false
+  if (timeoutMs > 0) {
+    timer = setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, timeoutMs)
+    if (typeof (timer as any).unref === 'function') (timer as any).unref()
+  }
+  try {
+    return await startRequest(controller.signal)
+  } catch (err) {
+    if (timedOut) throw new RequestTimeoutError(label, timeoutMs)
+    throw err
   } finally {
     if (timer) clearTimeout(timer)
   }

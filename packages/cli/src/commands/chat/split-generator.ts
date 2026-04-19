@@ -27,6 +27,7 @@ import {
   readAnchorPageCodeFromDisk,
   startSpinnerHeartbeat,
   withRequestTimeout,
+  withAbortableTimeout,
   startPhaseTimer,
 } from './utils.js'
 import { pMap } from '../../utils/concurrency.js'
@@ -43,6 +44,7 @@ import {
   loadPlan,
   getPageType,
   renderAtmosphereDirective,
+  renderAtmosphereStyleHint,
   extractAtmosphereFromMessage,
 } from './plan-generator.js'
 import { buildReusePlan, buildReusePlanDirective, verifyReusePlan } from '../../utils/reuse-planner.js'
@@ -461,8 +463,8 @@ export async function splitGeneratePages(
   spinner.start('Phase 1/6 — Planning pages...')
   const endPhase1Timer = startPhaseTimer('Phase 1 plan pages')
   try {
-    const planResult = await withRequestTimeout(
-      parseModification(message, modCtx, provider, { ...parseOpts, planOnly: true }),
+    const planResult = await withAbortableTimeout(
+      signal => parseModification(message, modCtx, provider, { ...parseOpts, planOnly: true, signal }),
       'Phase 1 plan pages',
     )
     const pageReqs = planResult.requests.filter((r: ModificationRequest) => r.type === 'add-page')
@@ -745,6 +747,45 @@ export async function splitGeneratePages(
     }
   }
 
+  // Experimental: launch Phase 5 (shared components) concurrently with Phase 3
+  // (home page) when `COHERENT_EXPERIMENTAL_PARALLEL_PHASES=1`. Phase 5 falls
+  // back to atmosphere-derived style hint instead of the home-page styleContext
+  // (which doesn't exist yet). Saves ~20-30s on runs where both phases would be
+  // sequential LLM calls. Default OFF until we have a visual regression
+  // benchmark that confirms no quality drop.
+  const parallelPhasesEnabled =
+    process.env.COHERENT_EXPERIMENTAL_PARALLEL_PHASES === '1' &&
+    !reusedExistingAnchor &&
+    !!plan &&
+    plan.sharedComponents.length > 0 &&
+    !!projectRoot
+  let phase5ParallelPromise: Promise<
+    Awaited<ReturnType<(typeof import('./plan-generator.js'))['generateSharedComponentsFromPlan']>>
+  > | null = null
+  let endPhase5ParallelTimer: (() => void) | null = null
+  if (parallelPhasesEnabled && plan && projectRoot) {
+    const sharedCount = plan.sharedComponents.length
+    const atmosphereHint = renderAtmosphereStyleHint(plan.atmosphere) || 'default'
+    console.log(
+      chalk.dim(
+        `  [experimental] Phase 5 running parallel with Phase 3 — using atmosphere hint (${atmosphereHint}) as style fallback.`,
+      ),
+    )
+    endPhase5ParallelTimer = startPhaseTimer(`Phase 5 shared components (${sharedCount}) [parallel]`)
+    phase5ParallelPromise = (async () => {
+      const { generateSharedComponentsFromPlan } = await import('./plan-generator.js')
+      const ai = await createAIProvider(provider ?? 'auto')
+      try {
+        return await withRequestTimeout(
+          generateSharedComponentsFromPlan(plan, atmosphereHint, projectRoot, ai),
+          'Phase 5 shared components (parallel)',
+        )
+      } catch {
+        return []
+      }
+    })()
+  }
+
   if (!reusedExistingAnchor) {
     spinner.start(`Phase 3/6 — Generating ${homePage.name} page (sets design direction)...`)
     const stopPhase3Heartbeat = startSpinnerHeartbeat(spinner, [
@@ -755,8 +796,8 @@ export async function splitGeneratePages(
     const endPhase3Timer = startPhaseTimer(`Phase 3 ${homePage.name} page`)
     try {
       const anchorPrompt = buildAnchorPagePrompt(homePage, message, allPagesList, allRoutes, plan)
-      const homeResult = await withRequestTimeout(
-        parseModification(anchorPrompt, modCtx, provider, parseOpts),
+      const homeResult = await withAbortableTimeout(
+        signal => parseModification(anchorPrompt, modCtx, provider, { ...parseOpts, signal }),
         `Phase 3 ${homePage.name} page generation`,
       )
       const codePage = homeResult.requests.find((r: ModificationRequest) => r.type === 'add-page')
@@ -810,32 +851,56 @@ export async function splitGeneratePages(
   if (remainingPages.length >= 2 && projectRoot) {
     if (plan && plan.sharedComponents.length > 0) {
       const sharedCount = plan.sharedComponents.length
-      spinner.start(`Phase 5/6 — Generating ${sharedCount} shared components from plan...`)
-      const stopPhase5Heartbeat = startSpinnerHeartbeat(spinner, [
-        { after: 10, text: `Phase 5/6 — Building ${sharedCount} shared components...` },
-        { after: 25, text: `Phase 5/6 — Writing component code (${sharedCount} components)...` },
-        { after: 50, text: `Phase 5/6 — Finalizing shared components...` },
-      ])
-      const endPhase5Timer = startPhaseTimer(`Phase 5 shared components (${sharedCount})`)
-      try {
-        const { generateSharedComponentsFromPlan } = await import('./plan-generator.js')
-        const generated = await withRequestTimeout(
-          generateSharedComponentsFromPlan(plan, styleContext, projectRoot, await createAIProvider(provider ?? 'auto')),
-          `Phase 5 shared components generation`,
-        )
-        if (generated.length > 0) {
-          const updatedManifest = await loadManifest(projectRoot)
-          parseOpts.sharedComponentsSummary = buildSharedComponentsSummary(updatedManifest)
-          const names = generated.map(c => c.name).join(', ')
-          spinner.succeed(`Phase 5/6 — Generated ${generated.length} shared components (${names})`)
-        } else {
-          spinner.succeed('Phase 5/6 — No shared components generated')
+      if (phase5ParallelPromise) {
+        spinner.start(`Phase 5/6 — Awaiting parallel shared-component generation (${sharedCount})...`)
+        try {
+          const generated = await phase5ParallelPromise
+          if (generated.length > 0) {
+            const updatedManifest = await loadManifest(projectRoot)
+            parseOpts.sharedComponentsSummary = buildSharedComponentsSummary(updatedManifest)
+            const names = generated.map(c => c.name).join(', ')
+            spinner.succeed(`Phase 5/6 — Generated ${generated.length} shared components in parallel (${names})`)
+          } else {
+            spinner.succeed('Phase 5/6 — No shared components generated (parallel)')
+          }
+        } catch {
+          spinner.warn('Phase 5/6 — Parallel shared-component generation failed (continuing without)')
+        } finally {
+          endPhase5ParallelTimer?.()
         }
-      } catch {
-        spinner.warn('Phase 5/6 — Could not generate shared components (continuing without)')
-      } finally {
-        stopPhase5Heartbeat()
-        endPhase5Timer()
+      } else {
+        spinner.start(`Phase 5/6 — Generating ${sharedCount} shared components from plan...`)
+        const stopPhase5Heartbeat = startSpinnerHeartbeat(spinner, [
+          { after: 10, text: `Phase 5/6 — Building ${sharedCount} shared components...` },
+          { after: 25, text: `Phase 5/6 — Writing component code (${sharedCount} components)...` },
+          { after: 50, text: `Phase 5/6 — Finalizing shared components...` },
+        ])
+        const endPhase5Timer = startPhaseTimer(`Phase 5 shared components (${sharedCount})`)
+        try {
+          const { generateSharedComponentsFromPlan } = await import('./plan-generator.js')
+          const generated = await withRequestTimeout(
+            generateSharedComponentsFromPlan(
+              plan,
+              styleContext,
+              projectRoot,
+              await createAIProvider(provider ?? 'auto'),
+            ),
+            `Phase 5 shared components generation`,
+          )
+          if (generated.length > 0) {
+            const updatedManifest = await loadManifest(projectRoot)
+            parseOpts.sharedComponentsSummary = buildSharedComponentsSummary(updatedManifest)
+            const names = generated.map(c => c.name).join(', ')
+            spinner.succeed(`Phase 5/6 — Generated ${generated.length} shared components (${names})`)
+          } else {
+            spinner.succeed('Phase 5/6 — No shared components generated')
+          }
+        } catch {
+          spinner.warn('Phase 5/6 — Could not generate shared components (continuing without)')
+        } finally {
+          stopPhase5Heartbeat()
+          endPhase5Timer()
+        }
       }
     } else if (homePageCode) {
       const manifest = await loadManifest(projectRoot)
@@ -981,8 +1046,8 @@ export async function splitGeneratePages(
         .join('\n\n')
 
       try {
-        const result = await withRequestTimeout(
-          parseModification(prompt, modCtx, provider, { ...parseOpts, pageSections }),
+        const result = await withAbortableTimeout(
+          signal => parseModification(prompt, modCtx, provider, { ...parseOpts, pageSections, signal }),
           `Phase 6 page ${name}`,
         )
         phase5Done++

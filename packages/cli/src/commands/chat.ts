@@ -48,7 +48,7 @@ import {
   AUTH_SYNONYMS,
   isMultiPageRequest,
   startSpinnerHeartbeat,
-  withRequestTimeout,
+  withAbortableTimeout,
   startPhaseTimer,
   RequestTimeoutError,
 } from './chat/utils.js'
@@ -417,9 +417,10 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
         ])
         const endPhaseTimer = startPhaseTimer('single-path parseModification')
         let result: Awaited<ReturnType<typeof parseModification>>
+        const requestMessage = message
         try {
-          result = await withRequestTimeout(
-            parseModification(message, modCtx, provider, { ...parseOpts, reusePlanDirective }),
+          result = await withAbortableTimeout(
+            signal => parseModification(requestMessage, modCtx, provider, { ...parseOpts, reusePlanDirective, signal }),
             'single-path parseModification',
           )
         } finally {

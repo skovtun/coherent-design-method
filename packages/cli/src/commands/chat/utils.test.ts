@@ -16,6 +16,7 @@ import {
   isMultiPageRequest,
   MULTI_PAGE_KEYWORD_THRESHOLD,
   withRequestTimeout,
+  withAbortableTimeout,
   RequestTimeoutError,
   getDefaultRequestTimeoutMs,
   startPhaseTimer,
@@ -510,6 +511,65 @@ describe('withRequestTimeout', () => {
   it('propagates underlying rejection even before timeout', async () => {
     const p = Promise.reject(new Error('boom'))
     await expect(withRequestTimeout(p, 'test', 5000)).rejects.toThrow('boom')
+  })
+})
+
+describe('withAbortableTimeout', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('passes the signal to the factory and resolves on success', async () => {
+    let receivedSignal: AbortSignal | null = null
+    const result = await withAbortableTimeout(
+      signal => {
+        receivedSignal = signal
+        return Promise.resolve('ok')
+      },
+      'test',
+      5000,
+    )
+    expect(result).toBe('ok')
+    expect(receivedSignal).not.toBeNull()
+    expect(receivedSignal!.aborted).toBe(false)
+  })
+
+  it('aborts the signal and throws RequestTimeoutError when timeout fires', async () => {
+    let receivedSignal: AbortSignal | null = null
+    const racing = withAbortableTimeout(
+      signal => {
+        receivedSignal = signal
+        return new Promise((_, reject) => {
+          signal.addEventListener('abort', () => reject(new Error('aborted by signal')))
+        })
+      },
+      'test',
+      500,
+    )
+    vi.advanceTimersByTime(600)
+    await expect(racing).rejects.toBeInstanceOf(RequestTimeoutError)
+    expect(receivedSignal!.aborted).toBe(true)
+  })
+
+  it('propagates non-timeout rejection without wrapping', async () => {
+    await expect(withAbortableTimeout(() => Promise.reject(new Error('boom')), 'test', 5000)).rejects.toThrow('boom')
+  })
+
+  it('timeoutMs=0 disables abort (request runs to completion)', async () => {
+    let receivedSignal: AbortSignal | null = null
+    const result = await withAbortableTimeout(
+      signal => {
+        receivedSignal = signal
+        return Promise.resolve('ok')
+      },
+      'test',
+      0,
+    )
+    expect(result).toBe('ok')
+    expect(receivedSignal!.aborted).toBe(false)
   })
 })
 

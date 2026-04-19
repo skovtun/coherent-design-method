@@ -92,8 +92,9 @@ coherent sync --dry-run      # Preview changes without writing
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `COHERENT_REQUEST_TIMEOUT_MS` | `180000` | Per-LLM-call timeout. Raise for very large apps, set `0` to disable. |
+| `COHERENT_REQUEST_TIMEOUT_MS` | `180000` | Per-LLM-call timeout. Raise for very large apps, set `0` to disable. LLM HTTP request is aborted via `AbortSignal` when exceeded. |
 | `COHERENT_DEBUG` | unset | Set to `1` to log per-phase elapsed times and internal diagnostics. |
+| `COHERENT_EXPERIMENTAL_PARALLEL_PHASES` | unset | Set to `1` to run Phase 3 (home page) and Phase 5 (shared components) concurrently. Saves ~20-30s per multi-page run; shared components use atmosphere-derived style hint instead of home-page context. |
 | `ANTHROPIC_API_KEY` | — | Claude provider credentials. |
 | `OPENAI_API_KEY` | — | OpenAI provider credentials. |
 
