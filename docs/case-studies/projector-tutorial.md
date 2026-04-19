@@ -1,4 +1,4 @@
-# From prompt to a complete UI prototype in 31 minutes
+# I Generated a Full SaaS UI in 31 Minutes — With One Prompt
 
 *No Figma. No CSS. No design system. Just natural language.*
 
