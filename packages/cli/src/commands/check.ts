@@ -488,6 +488,25 @@ export async function checkCommand(opts: CheckOptions = {}) {
     console.log(chalk.cyan(`\n  Auto-fixable: ${result.autoFixable} issues. Run: coherent fix`))
   }
 
+  // Generate design recommendations
+  try {
+    const { generateDesignRecommendations } = await import('../utils/design-recommendations.js')
+    const { writeFileSync } = await import('fs')
+    const recsContent = generateDesignRecommendations(projectRoot)
+    if (recsContent) {
+      writeFileSync(resolve(projectRoot, 'recommendations.md'), recsContent, 'utf-8')
+      const recCount = (recsContent.match(/^🔴|^🟡|^💡/gm) || []).length
+      if (recCount > 0) {
+        console.log(chalk.cyan(`  📋 ${recCount} design recommendation(s) → recommendations.md`))
+        console.log(chalk.dim(`     View at /design-system/recommendations\n`))
+      }
+    }
+  } catch (err) {
+    if (process.env.COHERENT_DEBUG === '1') {
+      console.error(chalk.dim(`  ⚠ Design recommendations failed: ${err instanceof Error ? err.message : String(err)}`))
+    }
+  }
+
   console.log('')
 
   const hasErrors = result.pages.withErrors > 0 || result.links.broken.length > 0
