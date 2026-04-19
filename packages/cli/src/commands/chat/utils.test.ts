@@ -11,6 +11,14 @@ import {
   warnInlineDuplicates,
   injectMissingSharedImports,
   deduplicatePages,
+  hasBroadAppIntent,
+  startSpinnerHeartbeat,
+  isMultiPageRequest,
+  MULTI_PAGE_KEYWORD_THRESHOLD,
+  withRequestTimeout,
+  RequestTimeoutError,
+  getDefaultRequestTimeoutMs,
+  startPhaseTimer,
 } from './utils.js'
 import { ArchitecturePlanSchema } from './plan-generator.js'
 
@@ -343,5 +351,200 @@ describe('injectMissingSharedImports', () => {
     const code = `export default function Page() {}`
     const result = injectMissingSharedImports(code, [])
     expect(result).toBe(code)
+  })
+})
+
+describe('hasBroadAppIntent', () => {
+  it.each([
+    'create me ui for a financial app',
+    'build a SaaS platform for teachers',
+    'generate a full website for my bakery',
+    'make a project management tool',
+    'scaffold a dashboard portal',
+    'start a prototype for fintech',
+    'develop a web app for booking',
+  ])('matches broad intent: %s', msg => {
+    expect(hasBroadAppIntent(msg)).toBe(true)
+  })
+
+  it('does not match a single-screen request', () => {
+    expect(hasBroadAppIntent('create a dashboard with stats')).toBe(false)
+  })
+
+  it('does not match "update the login page"', () => {
+    expect(hasBroadAppIntent('update the login page')).toBe(false)
+  })
+
+  it('does not match "build login page" (no multi-page noun)', () => {
+    expect(hasBroadAppIntent('build login page')).toBe(false)
+  })
+
+  it('does not fire across sentence boundaries', () => {
+    expect(hasBroadAppIntent('create a heading. it should link to the app store.')).toBe(false)
+  })
+})
+
+describe('startSpinnerHeartbeat', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('advances spinner text through stages as time passes', () => {
+    const spinner = { text: 'initial' }
+    const stop = startSpinnerHeartbeat(spinner, [
+      { after: 2, text: 'stage A' },
+      { after: 5, text: 'stage B' },
+    ])
+
+    vi.advanceTimersByTime(1000)
+    expect(spinner.text).toBe('initial')
+
+    vi.advanceTimersByTime(2000) // 3s total
+    expect(spinner.text).toBe('stage A')
+
+    vi.advanceTimersByTime(3000) // 6s total
+    expect(spinner.text).toBe('stage B')
+
+    stop()
+  })
+
+  it('stop() prevents further text changes', () => {
+    const spinner = { text: 'initial' }
+    const stop = startSpinnerHeartbeat(spinner, [{ after: 1, text: 'should not appear' }])
+    stop()
+    vi.advanceTimersByTime(5000)
+    expect(spinner.text).toBe('initial')
+  })
+
+  it('empty stages returns a noop stop without errors', () => {
+    const spinner = { text: 'initial' }
+    const stop = startSpinnerHeartbeat(spinner, [])
+    expect(() => stop()).not.toThrow()
+    vi.advanceTimersByTime(5000)
+    expect(spinner.text).toBe('initial')
+  })
+
+  it('handles unsorted stages correctly', () => {
+    const spinner = { text: 'initial' }
+    const stop = startSpinnerHeartbeat(spinner, [
+      { after: 5, text: 'B' },
+      { after: 2, text: 'A' },
+    ])
+    vi.advanceTimersByTime(3000)
+    expect(spinner.text).toBe('A')
+    vi.advanceTimersByTime(3000)
+    expect(spinner.text).toBe('B')
+    stop()
+  })
+
+  it('skips text update when spinner is not spinning', () => {
+    const spinner = { text: 'initial', isSpinning: false }
+    const stop = startSpinnerHeartbeat(spinner, [{ after: 1, text: 'should not set' }])
+    vi.advanceTimersByTime(2000)
+    expect(spinner.text).toBe('initial')
+    stop()
+  })
+})
+
+describe('isMultiPageRequest', () => {
+  it.each([
+    'create me ui for a financial app',
+    'build a SaaS platform for teachers',
+    'generate a full website for my bakery',
+    'scaffold a dashboard portal',
+  ])('triggers on broad app intent: %s', msg => {
+    expect(isMultiPageRequest(msg)).toBe(true)
+  })
+
+  it('triggers on "pages: a, b, c" form', () => {
+    expect(isMultiPageRequest('build me something with pages: home, pricing, login')).toBe(true)
+  })
+
+  it('triggers when ≥3 known page keywords appear', () => {
+    expect(isMultiPageRequest('I need dashboard, settings, and a pricing page')).toBe(true)
+  })
+
+  it('does NOT trigger on a single-page request', () => {
+    expect(isMultiPageRequest('add a pricing page')).toBe(false)
+  })
+
+  it('does NOT trigger on "change primary color to green"', () => {
+    expect(isMultiPageRequest('change primary color to green')).toBe(false)
+  })
+
+  it('threshold is 3', () => {
+    expect(MULTI_PAGE_KEYWORD_THRESHOLD).toBe(3)
+  })
+})
+
+describe('withRequestTimeout', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('resolves when promise settles before timeout', async () => {
+    const p = Promise.resolve('ok')
+    await expect(withRequestTimeout(p, 'test', 1000)).resolves.toBe('ok')
+  })
+
+  it('rejects with RequestTimeoutError when promise exceeds timeout', async () => {
+    // Promise that never resolves in test scope
+    const neverSettles = new Promise(() => {})
+    const racing = withRequestTimeout(neverSettles, 'test', 500)
+    vi.advanceTimersByTime(600)
+    await expect(racing).rejects.toBeInstanceOf(RequestTimeoutError)
+    await expect(racing).rejects.toMatchObject({ code: 'REQUEST_TIMEOUT', label: 'test' })
+  })
+
+  it('disabled when timeoutMs <= 0 (returns original promise)', async () => {
+    const p = Promise.resolve('passthrough')
+    await expect(withRequestTimeout(p, 'test', 0)).resolves.toBe('passthrough')
+  })
+
+  it('propagates underlying rejection even before timeout', async () => {
+    const p = Promise.reject(new Error('boom'))
+    await expect(withRequestTimeout(p, 'test', 5000)).rejects.toThrow('boom')
+  })
+})
+
+describe('getDefaultRequestTimeoutMs', () => {
+  it('returns a positive number', () => {
+    expect(getDefaultRequestTimeoutMs()).toBeGreaterThan(0)
+  })
+})
+
+describe('startPhaseTimer', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('is a no-op when COHERENT_DEBUG is not set', () => {
+    const original = process.env.COHERENT_DEBUG
+    delete process.env.COHERENT_DEBUG
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const end = startPhaseTimer('test phase')
+    end()
+    expect(spy).not.toHaveBeenCalled()
+    if (original !== undefined) process.env.COHERENT_DEBUG = original
+  })
+
+  it('logs elapsed when COHERENT_DEBUG=1', () => {
+    const original = process.env.COHERENT_DEBUG
+    process.env.COHERENT_DEBUG = '1'
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const end = startPhaseTimer('probe phase')
+    end()
+    expect(spy).toHaveBeenCalled()
+    const logged = String(spy.mock.calls[0][0])
+    expect(logged).toContain('probe phase')
+    expect(logged).toMatch(/\d+\.\d+s/)
+    if (original === undefined) delete process.env.COHERENT_DEBUG
+    else process.env.COHERENT_DEBUG = original
   })
 })

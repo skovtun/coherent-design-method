@@ -88,12 +88,22 @@ coherent sync --patterns     # Extract style patterns only
 coherent sync --dry-run      # Preview changes without writing
 ```
 
+## Environment Variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `COHERENT_REQUEST_TIMEOUT_MS` | `180000` | Per-LLM-call timeout. Raise for very large apps, set `0` to disable. |
+| `COHERENT_DEBUG` | unset | Set to `1` to log per-phase elapsed times and internal diagnostics. |
+| `ANTHROPIC_API_KEY` | — | Claude provider credentials. |
+| `OPENAI_API_KEY` | — | OpenAI provider credentials. |
+
 ## Safety Rules
 
 1. **Always commit before `coherent chat`** — so you can revert if needed
 2. **Don't edit the same file in your editor and via CLI simultaneously**
 3. **Run `coherent sync` after manual edits** — keeps Design System in sync
 4. **Use `coherent undo`** to revert the last chat change
+5. **Press Ctrl+C any time** — the CLI stops cleanly, releases the project lock, and exits 130
 
 ```bash
 # Safe workflow

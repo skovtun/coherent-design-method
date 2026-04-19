@@ -40,7 +40,18 @@ import {
 } from '../utils/self-heal.js'
 
 import { validatePageQuality } from '../utils/quality-validator.js'
-import { requireProject, loadConfig, routeToFsPath, resolveTargetFlags, AUTH_SYNONYMS } from './chat/utils.js'
+import {
+  requireProject,
+  loadConfig,
+  routeToFsPath,
+  resolveTargetFlags,
+  AUTH_SYNONYMS,
+  isMultiPageRequest,
+  startSpinnerHeartbeat,
+  withRequestTimeout,
+  startPhaseTimer,
+  RequestTimeoutError,
+} from './chat/utils.js'
 import { extractInternalLinks, normalizeRequest, applyDefaults, AUTH_FLOW_PATTERNS } from './chat/request-parser.js'
 import { splitGeneratePages, buildSharedComponentsSummary } from './chat/split-generator.js'
 import { buildReusePlan, buildReusePlanDirective } from '../utils/reuse-planner.js'
@@ -85,6 +96,20 @@ export async function chatCommand(
   }
 
   const spinner = ora('Processing your request...').start()
+
+  // Graceful Ctrl+C: stop the spinner, release the project lock, exit 130.
+  // Without this, SIGINT leaves the spinner frame stuck in the terminal and
+  // the .coherent/.lock file on disk, blocking subsequent runs.
+  const onSigint = () => {
+    if (spinner.isSpinning) spinner.fail('Interrupted (Ctrl+C)')
+    try {
+      releaseLock?.()
+    } catch {
+      /* lock already released or never acquired */
+    }
+    process.exit(130)
+  }
+  process.once('SIGINT', onSigint)
 
   const project = requireProject()
   const projectRoot = project.root
@@ -317,14 +342,7 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
     const modCtx = { config: dsm.getConfig(), componentManager: cm }
 
     const explicitPageTarget = !!(options.page || options.component)
-    const multiPageHint =
-      !explicitPageTarget &&
-      (/\b(pages?|sections?)\s*[:]\s*\w/i.test(message) ||
-        (
-          message.match(
-            /\b(?:registration|about|catal|account|contact|pricing|dashboard|settings|login|sign.?up|blog|portfolio|features)\b/gi,
-          ) || []
-        ).length >= SPLIT_THRESHOLD)
+    const multiPageHint = !explicitPageTarget && isMultiPageRequest(message)
 
     if (multiPageHint) {
       try {
@@ -390,7 +408,24 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
       }
 
       try {
-        const result = await parseModification(message, modCtx, provider, { ...parseOpts, reusePlanDirective })
+        const stopHeartbeat = startSpinnerHeartbeat(spinner, [
+          { after: 5, text: 'Planning page structure...' },
+          { after: 18, text: 'Generating component code...' },
+          { after: 40, text: 'Writing full pages (large requests take longer)...' },
+          { after: 80, text: 'Finalizing pages...' },
+          { after: 150, text: 'Still working — large requests can take 2+ minutes...' },
+        ])
+        const endPhaseTimer = startPhaseTimer('single-path parseModification')
+        let result: Awaited<ReturnType<typeof parseModification>>
+        try {
+          result = await withRequestTimeout(
+            parseModification(message, modCtx, provider, { ...parseOpts, reusePlanDirective }),
+            'single-path parseModification',
+          )
+        } finally {
+          stopHeartbeat()
+          endPhaseTimer()
+        }
         requests = result.requests
         uxRecommendations = result.uxRecommendations
 
@@ -421,6 +456,16 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
           }
         }
       } catch (firstError: any) {
+        if (firstError instanceof RequestTimeoutError) {
+          spinner.fail(firstError.message)
+          console.log(
+            chalk.yellow(
+              '\n💡 Tip: try a smaller request (one page at a time) or raise the timeout via COHERENT_REQUEST_TIMEOUT_MS.\n',
+            ),
+          )
+          if (options._throwOnError) throw firstError
+          process.exit(1)
+        }
         const isTruncated = firstError?.code === 'RESPONSE_TRUNCATED'
         const isJsonError =
           firstError?.message?.includes('Unterminated string') ||
@@ -1208,6 +1253,7 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
     }
     process.exit(1)
   } finally {
+    process.removeListener('SIGINT', onSigint)
     releaseLock?.()
   }
 }
