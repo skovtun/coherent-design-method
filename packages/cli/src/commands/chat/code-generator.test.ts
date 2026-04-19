@@ -92,9 +92,9 @@ describe('buildPublicLayoutCodeForSidebar', () => {
     expect(code).toContain("from '@/components/shared/footer'")
   })
 
-  it('includes max-w-7xl content wrapper', () => {
+  it('uses full-width layout (no max-w-7xl wrapper) so landing pages control their own width', () => {
     const code = buildPublicLayoutCodeForSidebar()
-    expect(code).toContain('max-w-7xl')
+    expect(code).not.toContain('max-w-7xl')
   })
 
   it('renders Header before main and Footer after', () => {
@@ -300,7 +300,7 @@ describe('ensurePlanGroupLayouts', () => {
     await ensurePlanGroupLayouts(tmpDir, plan)
 
     const publicLayout = readFileSync(join(tmpDir, 'app', '(public)', 'layout.tsx'), 'utf-8')
-    expect(publicLayout).toContain('max-w-7xl')
+    expect(publicLayout).not.toContain('max-w-7xl')
     expect(publicLayout).toContain('Header')
     expect(publicLayout).toContain('Footer')
 

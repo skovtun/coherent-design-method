@@ -303,3 +303,178 @@ export async function resolveTargetFlags(
 
   return message
 }
+
+/**
+ * Detects broad "build an app/site/platform" intent in a user message.
+ *
+ * Why: Without this, phrases like "create me ui for a financial app" miss the
+ * keyword-count threshold and fall into the single-shot parseModification path
+ * — one blocking LLM call with no visible progress. This regex promotes them to
+ * the staged splitGeneratePages pipeline (Phase 1/6…6/6) so the user sees work
+ * happening.
+ *
+ * Scope: matches {verb} … {multi-page noun}. Keeps "create a dashboard" (single
+ * screen) and "build login page" out by limiting the noun set to things that
+ * imply >1 page.
+ */
+const BROAD_APP_INTENT_RE =
+  /\b(?:create|build|generate|make|design|scaffold|develop|start)\b[^.!?\n]{0,60}\b(?:app|application|web.?app|website|site|saas|platform|portal|product|mvp|prototype|project|tool|system|suite)\b/i
+
+export function hasBroadAppIntent(message: string): boolean {
+  return BROAD_APP_INTENT_RE.test(message)
+}
+
+export interface SpinnerLike {
+  text: string
+  /** Optional ora field — when present and `false`, heartbeat skips updates. */
+  isSpinning?: boolean
+}
+
+export interface HeartbeatStage {
+  /** Seconds after heartbeat start when this text should appear. */
+  after: number
+  text: string
+}
+
+/**
+ * Rotates spinner text through stages while a long blocking call runs.
+ *
+ * Why: parseModification is one awaited LLM call (can take 30–90s on broad
+ * prompts). A static "Parsing your request..." makes it look frozen. This ticks
+ * spinner.text at the configured elapsed marks so the user sees liveness.
+ *
+ * In non-TTY environments (CI, piped output) the spinner frame is invisible, so
+ * each stage is also emitted to stderr via `console.error` — progress still
+ * reaches logs.
+ *
+ * `spinner.isSpinning` (ora) is checked on each tick to avoid overwriting text
+ * on a spinner the caller has already stopped/failed.
+ *
+ * Returns a stop() function — call it in a `finally` to clear the interval.
+ */
+export function startSpinnerHeartbeat(spinner: SpinnerLike, stages: HeartbeatStage[]): () => void {
+  if (stages.length === 0) return () => {}
+  const sorted = [...stages].sort((a, b) => a.after - b.after)
+  const started = Date.now()
+  const isTTY = typeof process !== 'undefined' && !!process.stderr?.isTTY
+  let nextIdx = 0
+  const timer = setInterval(() => {
+    const elapsed = (Date.now() - started) / 1000
+    while (nextIdx < sorted.length && elapsed >= sorted[nextIdx].after) {
+      const stage = sorted[nextIdx]
+      if (spinner.isSpinning !== false) {
+        spinner.text = stage.text
+        if (!isTTY) console.error(chalk.dim(`  … ${stage.text}`))
+      }
+      nextIdx++
+    }
+    if (nextIdx >= sorted.length) clearInterval(timer)
+  }, 1000)
+  if (typeof (timer as any).unref === 'function') (timer as any).unref()
+  return () => clearInterval(timer)
+}
+
+/**
+ * Error thrown by `withRequestTimeout` when the deadline is reached.
+ *
+ * `.code === 'REQUEST_TIMEOUT'` lets callers distinguish this from other
+ * failures (e.g., the existing `RESPONSE_TRUNCATED` flow in chat.ts).
+ */
+export class RequestTimeoutError extends Error {
+  readonly code = 'REQUEST_TIMEOUT'
+  constructor(
+    public readonly label: string,
+    public readonly timeoutMs: number,
+  ) {
+    super(
+      `${label} timed out after ${Math.round(timeoutMs / 1000)}s. Set COHERENT_REQUEST_TIMEOUT_MS to raise the limit.`,
+    )
+    this.name = 'RequestTimeoutError'
+  }
+}
+
+/**
+ * Default request timeout read once from env. `0` disables the timeout.
+ *
+ * Why module-level: avoids re-parsing per call and per fork. If a user sets
+ * this via `.env`, they've already loaded it before the CLI starts.
+ */
+const DEFAULT_TIMEOUT_MS = (() => {
+  const raw = process.env.COHERENT_REQUEST_TIMEOUT_MS
+  if (!raw) return 180_000
+  const parsed = Number.parseInt(raw, 10)
+  if (!Number.isFinite(parsed) || parsed < 0) return 180_000
+  return parsed
+})()
+
+export function getDefaultRequestTimeoutMs(): number {
+  return DEFAULT_TIMEOUT_MS
+}
+
+/**
+ * Races a promise against a timeout so a single hung LLM call can't freeze the
+ * CLI indefinitely.
+ *
+ * The underlying request is NOT cancelled — the provider SDK doesn't accept
+ * AbortSignal on the current interface. The request will finish in the
+ * background and its result is discarded; the process exits on rejection
+ * anyway. User impact: they see the failure and can retry, instead of staring
+ * at a frozen spinner.
+ *
+ * Pass `timeoutMs: 0` to disable (mainly for tests that mock providers).
+ */
+export async function withRequestTimeout<T>(
+  promise: Promise<T>,
+  label: string,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<T> {
+  if (timeoutMs <= 0) return promise
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new RequestTimeoutError(label, timeoutMs)), timeoutMs)
+    if (typeof (timer as any).unref === 'function') (timer as any).unref()
+  })
+  try {
+    return await Promise.race([promise, timeoutPromise])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+/**
+ * Single source of truth for "should this message go to splitGeneratePages?"
+ *
+ * Kept alongside `hasBroadAppIntent` so all the trigger conditions live in one
+ * tested place. Threshold is 3 (down from 4) — three mentioned page names is
+ * already enough output to risk JSON truncation in a single-shot call.
+ */
+const MULTI_PAGE_KEYWORD_RE =
+  /\b(?:registration|about|catalog?|account|contact|pricing|dashboard|settings|login|sign.?up|blog|portfolio|features|checkout|orders?|invoices?|analytics|reports?|billing|members?|teams?|projects?|tasks?|customers?|inventory|products?)\b/gi
+
+const PAGES_COLON_RE = /\b(pages?|sections?|screens?)\s*[:]\s*\w/i
+
+export const MULTI_PAGE_KEYWORD_THRESHOLD = 3
+
+export function isMultiPageRequest(message: string): boolean {
+  if (hasBroadAppIntent(message)) return true
+  if (PAGES_COLON_RE.test(message)) return true
+  const matches = message.match(MULTI_PAGE_KEYWORD_RE)
+  return (matches?.length ?? 0) >= MULTI_PAGE_KEYWORD_THRESHOLD
+}
+
+/**
+ * Measures elapsed time for a phase and logs it when `COHERENT_DEBUG=1`.
+ *
+ * Use as a lightweight `console.time`/`timeEnd` replacement — we want timing
+ * info in a single place, guarded by the project-wide DEBUG flag, not scattered
+ * `if (DEBUG) console.time(...)` pairs.
+ */
+export function startPhaseTimer(label: string): () => void {
+  const debug = process.env.COHERENT_DEBUG === '1'
+  if (!debug) return () => {}
+  const started = Date.now()
+  return () => {
+    const elapsed = Date.now() - started
+    console.error(chalk.dim(`  [timing] ${label}: ${(elapsed / 1000).toFixed(1)}s`))
+  }
+}

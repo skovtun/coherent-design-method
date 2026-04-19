@@ -2,6 +2,46 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.6.97] — 2026-04-19
+
+### Progress feedback, request timeouts, clean Ctrl+C
+
+Broad prompts like `coherent chat "create me ui for a financial app"` used to sit on `Parsing your request...` for 30–90s with no visible progress, and a hung LLM would freeze the CLI indefinitely. All fixed.
+
+### Added
+- **Broad-intent detection.** `hasBroadAppIntent()` promotes prompts like "create/build/generate … app/website/platform/saas" to the staged `splitGeneratePages` pipeline so the user sees `Phase 1/6…6/6` instead of one frozen spinner. Exposed via `isMultiPageRequest()` — single source of truth for the "is this multi-page?" decision.
+- **Spinner heartbeat.** `startSpinnerHeartbeat()` rotates spinner text through time-based stages during any single blocking LLM call. Active in:
+  - single-path `parseModification` (Planning → Generating → Writing → Finalizing → Still working @ 150s)
+  - Phase 2/6 architecture plan (Grouping → Planning shared components → Still thinking)
+  - Phase 3/6 home page (Drafting → Filling sections → Polishing)
+  - Phase 5/6 shared components (Building → Writing → Finalizing)
+- **Request timeouts.** `withRequestTimeout()` wraps every LLM call. Default 180s, override with `COHERENT_REQUEST_TIMEOUT_MS`. Fails with a clean `RequestTimeoutError` and a tip instead of an infinite hang.
+- **SIGINT handler.** Ctrl+C now stops the spinner, releases the project lock, and exits 130 cleanly — no more orphaned spinner frames or stale `.coherent/.lock` files.
+- **DEBUG phase timings.** `COHERENT_DEBUG=1` prints per-phase elapsed time (e.g. `[timing] Phase 3 Home page: 38.2s`) so bottlenecks are visible.
+- **Non-TTY progress.** In CI or piped output, heartbeat stages mirror to stderr as `… Planning page structure...` lines — progress reaches logs even when the spinner frame is invisible.
+
+### Changed
+- **Multi-page keyword threshold 4 → 3.** Three mentioned page names (e.g. "dashboard, settings, pricing") is already enough output to risk JSON truncation in a single-shot call; route them through the split pipeline.
+
+### Fixed
+- **Heartbeat respects `spinner.isSpinning`** — won't overwrite text on a spinner the caller has already failed/succeeded.
+- **Stale test for public layout width** — test asserted `max-w-7xl` but the layout was intentionally changed to full-width in v0.6.96.
+
+### Tests
+845 passing (+32 new for heartbeat, broad-intent, multi-page detection, timeout, debug timer). 60 test files.
+
+## [0.6.96] — 2026-04-18
+
+### Design recommendations engine + DS Quick Links consistency
+
+### Added
+- **`design-recommendations.ts`** — deterministic project analyzer. Runs automatically at the end of `coherent check` and writes `recommendations.md`. 10 checks: color system, empty states, layout variety, component reuse, spacing consistency, typography hierarchy, dark mode, interaction states, responsive breakpoints, accessibility.
+
+### Fixed
+- **Quick Links counters unified** — all counters in title, arrow always `→` (scannable right-aligned column).
+- **Landing/root layout is now full-width** — removed `max-w-7xl` wrapper so marketing pages control their own container widths.
+- **DS button placement** — consistent across root layout template and all public pages.
+
 ## [0.6.94] — 2026-04-18
 
 ### Quality Overhaul — competitive gap closure + 5 bug fixes

@@ -22,7 +22,13 @@ import {
   detectExplicitRootPage,
   isAppOnlyRequest,
 } from './request-parser.js'
-import { deduplicatePages, readAnchorPageCodeFromDisk } from './utils.js'
+import {
+  deduplicatePages,
+  readAnchorPageCodeFromDisk,
+  startSpinnerHeartbeat,
+  withRequestTimeout,
+  startPhaseTimer,
+} from './utils.js'
 import { pMap } from '../../utils/concurrency.js'
 import { createAIProvider, type AIProvider } from '../../utils/ai-provider.js'
 import { getComponentProvider } from '../../providers/index.js'
@@ -453,8 +459,12 @@ export async function splitGeneratePages(
   let pageNames: Array<{ name: string; id: string; route: string }> = []
 
   spinner.start('Phase 1/6 — Planning pages...')
+  const endPhase1Timer = startPhaseTimer('Phase 1 plan pages')
   try {
-    const planResult = await parseModification(message, modCtx, provider, { ...parseOpts, planOnly: true })
+    const planResult = await withRequestTimeout(
+      parseModification(message, modCtx, provider, { ...parseOpts, planOnly: true }),
+      'Phase 1 plan pages',
+    )
     const pageReqs = planResult.requests.filter((r: ModificationRequest) => r.type === 'add-page')
     pageNames = pageReqs.map((r: ModificationRequest) => {
       const c = r.changes as Record<string, unknown>
@@ -478,6 +488,8 @@ export async function splitGeneratePages(
     }
   } catch {
     spinner.text = 'AI plan failed — extracting pages from your request...'
+  } finally {
+    endPhase1Timer()
   }
 
   const promptName = extractAppNameFromPrompt(message)
@@ -529,18 +541,35 @@ export async function splitGeneratePages(
   let plan: ArchitecturePlan | null = null
   if (parseOpts.projectRoot) {
     spinner.start('Phase 2/6 — Generating architecture plan...')
+    const stopPhase2Heartbeat = startSpinnerHeartbeat(spinner, [
+      { after: 8, text: 'Phase 2/6 — Grouping pages by layout...' },
+      { after: 18, text: 'Phase 2/6 — Planning shared components...' },
+      { after: 35, text: 'Phase 2/6 — Still thinking (complex app layouts)...' },
+    ])
+    const endPhase2Timer = startPhaseTimer('Phase 2 architecture plan')
     try {
       const ai = await createAIProvider(provider ?? 'auto')
       const cachedPlan = loadPlan(parseOpts.projectRoot)
       let planWarnings: string[] = []
 
-      if (cachedPlan) {
-        plan = await updateArchitecturePlan(cachedPlan, pageNames, message, ai)
-      } else {
-        const layoutHint = modCtx.config.navigation?.type || null
-        const result = await generateArchitecturePlan(pageNames, message, ai, layoutHint)
-        plan = result.plan
-        planWarnings = result.warnings
+      try {
+        if (cachedPlan) {
+          plan = await withRequestTimeout(
+            updateArchitecturePlan(cachedPlan, pageNames, message, ai),
+            'Phase 2 architecture plan update',
+          )
+        } else {
+          const layoutHint = modCtx.config.navigation?.type || null
+          const result = await withRequestTimeout(
+            generateArchitecturePlan(pageNames, message, ai, layoutHint),
+            'Phase 2 architecture plan generation',
+          )
+          plan = result.plan
+          planWarnings = result.warnings
+        }
+      } finally {
+        stopPhase2Heartbeat()
+        endPhase2Timer()
       }
       if (plan) {
         // Merge AI-supplied atmosphere with deterministic extraction.
@@ -718,9 +747,18 @@ export async function splitGeneratePages(
 
   if (!reusedExistingAnchor) {
     spinner.start(`Phase 3/6 — Generating ${homePage.name} page (sets design direction)...`)
+    const stopPhase3Heartbeat = startSpinnerHeartbeat(spinner, [
+      { after: 10, text: `Phase 3/6 — Drafting ${homePage.name} layout...` },
+      { after: 25, text: `Phase 3/6 — Filling sections and components...` },
+      { after: 50, text: `Phase 3/6 — Polishing ${homePage.name} (this sets the whole app's style)...` },
+    ])
+    const endPhase3Timer = startPhaseTimer(`Phase 3 ${homePage.name} page`)
     try {
       const anchorPrompt = buildAnchorPagePrompt(homePage, message, allPagesList, allRoutes, plan)
-      const homeResult = await parseModification(anchorPrompt, modCtx, provider, parseOpts)
+      const homeResult = await withRequestTimeout(
+        parseModification(anchorPrompt, modCtx, provider, parseOpts),
+        `Phase 3 ${homePage.name} page generation`,
+      )
       const codePage = homeResult.requests.find((r: ModificationRequest) => r.type === 'add-page')
       if (codePage) {
         homeRequest = codePage
@@ -728,6 +766,9 @@ export async function splitGeneratePages(
       }
     } catch {
       /* handled below */
+    } finally {
+      stopPhase3Heartbeat()
+      endPhase3Timer()
     }
 
     if (!homeRequest) {
@@ -768,14 +809,19 @@ export async function splitGeneratePages(
   // Phase 4.5: Extract shared components — plan-based or legacy extraction
   if (remainingPages.length >= 2 && projectRoot) {
     if (plan && plan.sharedComponents.length > 0) {
-      spinner.start(`Phase 5/6 — Generating ${plan.sharedComponents.length} shared components from plan...`)
+      const sharedCount = plan.sharedComponents.length
+      spinner.start(`Phase 5/6 — Generating ${sharedCount} shared components from plan...`)
+      const stopPhase5Heartbeat = startSpinnerHeartbeat(spinner, [
+        { after: 10, text: `Phase 5/6 — Building ${sharedCount} shared components...` },
+        { after: 25, text: `Phase 5/6 — Writing component code (${sharedCount} components)...` },
+        { after: 50, text: `Phase 5/6 — Finalizing shared components...` },
+      ])
+      const endPhase5Timer = startPhaseTimer(`Phase 5 shared components (${sharedCount})`)
       try {
         const { generateSharedComponentsFromPlan } = await import('./plan-generator.js')
-        const generated = await generateSharedComponentsFromPlan(
-          plan,
-          styleContext,
-          projectRoot,
-          await createAIProvider(provider ?? 'auto'),
+        const generated = await withRequestTimeout(
+          generateSharedComponentsFromPlan(plan, styleContext, projectRoot, await createAIProvider(provider ?? 'auto')),
+          `Phase 5 shared components generation`,
         )
         if (generated.length > 0) {
           const updatedManifest = await loadManifest(projectRoot)
@@ -787,6 +833,9 @@ export async function splitGeneratePages(
         }
       } catch {
         spinner.warn('Phase 5/6 — Could not generate shared components (continuing without)')
+      } finally {
+        stopPhase5Heartbeat()
+        endPhase5Timer()
       }
     } else if (homePageCode) {
       const manifest = await loadManifest(projectRoot)
@@ -815,6 +864,7 @@ export async function splitGeneratePages(
   }
 
   spinner.start(`Phase 6/6 — Generating ${remainingPages.length} pages in parallel...`)
+  const endPhase6Timer = startPhaseTimer(`Phase 6 ${remainingPages.length} pages`)
 
   const designMemoryBlock = projectRoot ? formatMemoryForPrompt(readDesignMemory(projectRoot)) : ''
 
@@ -931,7 +981,10 @@ export async function splitGeneratePages(
         .join('\n\n')
 
       try {
-        const result = await parseModification(prompt, modCtx, provider, { ...parseOpts, pageSections })
+        const result = await withRequestTimeout(
+          parseModification(prompt, modCtx, provider, { ...parseOpts, pageSections }),
+          `Phase 6 page ${name}`,
+        )
         phase5Done++
         spinner.text = `Phase 6/6 — ${phase5Done}/${remainingPages.length} pages generated...`
         const codePage = result.requests.find((r: ModificationRequest) => r.type === 'add-page')
@@ -1051,6 +1104,8 @@ export async function splitGeneratePages(
       }
     }
   }
+
+  endPhase6Timer()
 
   const withCode = allRequests.filter(r => (r.changes as Record<string, unknown>)?.pageCode).length
   if (withCode === 0) {
