@@ -259,22 +259,22 @@ export default function DesignSystemPage() {
             </Link>
             <Link href="/design-system/tokens/colors" className="flex items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-muted transition-colors">
               <div className="flex items-center gap-2">
-                <span>Colors</span>
+                <span>Colors ({colorCount})</span>
                 <div className="flex gap-0.5">
                   <div className="size-3 rounded-sm bg-primary" />
                   <div className="size-3 rounded-sm bg-secondary border" />
                   <div className="size-3 rounded-sm bg-destructive" />
                 </div>
               </div>
-              <span className="text-xs text-muted-foreground">{colorCount} →</span>
+              <span className="text-xs text-muted-foreground">→</span>
             </Link>
             <Link href="/design-system/tokens/typography" className="flex items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-muted transition-colors">
               <span>Typography</span>
               <span className="text-xs text-muted-foreground">→</span>
             </Link>
             <Link href="/design-system/tokens/spacing" className="flex items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-muted transition-colors">
-              <span>Spacing & Radius</span>
-              <span className="text-xs text-muted-foreground">{spacingCount + radiusCount} →</span>
+              <span>Spacing & Radius ({spacingCount + radiusCount})</span>
+              <span className="text-xs text-muted-foreground">→</span>
             </Link>
             <Link href="/design-system/docs" className="flex items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-muted transition-colors">
               <span>Documentation</span>
