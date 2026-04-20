@@ -612,6 +612,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# coherent — fix session journals + backups (regeneratable, user-local)
+.coherent/fix-sessions/
+.coherent/backups/
 `
     await this.writeFile('.gitignore', content)
   }

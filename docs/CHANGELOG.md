@@ -2,6 +2,28 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.18] — 2026-04-20
+
+### `coherent fix --journal` — feedback loop between fix runs and memory
+
+Fix output carries a lot of signal: which validators fired, on which files, at which rate across sessions. Previously that signal evaporated after each run — every smoke test forced a fresh "what's left" analysis. Now it's captured for later wiki curation.
+
+### Added
+
+- **`coherent fix --journal`** (opt-in flag). After running the normal fix pipeline, writes a YAML summary to `.coherent/fix-sessions/YYYY-MM-DDTHHMMSSZ.yaml` with:
+  - Timestamp + coherent version in project.
+  - What auto-fixers fired this run.
+  - Totals: error/warning/info counts.
+  - Per-severity grouping of remaining issues: validator type, count, up to 5 sample `{ path, line }` pairs.
+  - File format is wiki-friendly YAML — future `coherent wiki` tooling can aggregate across many sessions to surface recurring patterns worth a `PATTERNS_JOURNAL.md` entry.
+- **Discovery hint.** Default `coherent fix` runs now print `ℹ Run with --journal to capture this session for later review.` when there are remaining issues, so the feature is discoverable.
+
+### Rationale
+The single biggest gap in the memory system (rated 6.5/10 as of 0.7.8) was that smoke-test feedback didn't feed back. Every session started by re-deriving the remaining-issue analysis. This flag closes that loop at its narrowest point: persist the raw data, defer the human-judgment synthesis to separate wiki tooling.
+
+### Next
+`coherent journal aggregate` (0.7.19+) — read `.coherent/fix-sessions/*`, rank validators by recurrence, produce `hypothesis`-tagged draft entries for `PATTERNS_JOURNAL.md`. Right now captured data sits until a human reviewer or future tooling digests it.
+
 ## [0.7.17] — 2026-04-20
 
 ### CHART_PLACEHOLDER autofix — animated bar skeleton
