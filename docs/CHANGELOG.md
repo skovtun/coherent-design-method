@@ -6,7 +6,7 @@ All notable changes to this project are documented in this file.
 
 ### Compact fix report + regex fixes for BROKEN_INTERNAL_LINK / HEAVY_SHADOW
 
-> 📹 **Demo video available:** [Watch the 0.7.x walkthrough](https://github.com/skovtun/coherent-design-method/releases/download/v0.7.15/Coherent.Design.Method.DEMO.mp4) (attached to the v0.7.15 GitHub release). Also embedded in the project [README](https://github.com/skovtun/coherent-design-method#demo).
+> 📹 **Demo video:** [Watch on YouTube](https://youtu.be/A-rCpn6O3SI) · [Download MP4](https://github.com/skovtun/coherent-design-method/releases/download/v0.7.15/Coherent.Design.Method.DEMO.mp4) · [View in README](https://github.com/skovtun/coherent-design-method#demo)
 
 
 Smoke-test on 0.7.14 showed two regressions and one UX problem:

@@ -26,9 +26,9 @@ Coherent is a CLI that creates production-ready Next.js projects with a built-in
 
 ## Demo
 
-<video src="https://github.com/skovtun/coherent-design-method/releases/download/v0.7.15/Coherent.Design.Method.DEMO.mp4" controls width="100%"></video>
+[![Coherent Design Method — AI-powered design system generator](https://img.youtube.com/vi/A-rCpn6O3SI/maxresdefault.jpg)](https://youtu.be/A-rCpn6O3SI)
 
-> [▶ Download / watch the demo](https://github.com/skovtun/coherent-design-method/releases/download/v0.7.15/Coherent.Design.Method.DEMO.mp4) — direct link if the embedded player doesn't render in your markdown viewer.
+> [▶ Watch on YouTube](https://youtu.be/A-rCpn6O3SI) · [Download MP4](https://github.com/skovtun/coherent-design-method/releases/download/v0.7.15/Coherent.Design.Method.DEMO.mp4)
 
 ## Quick Start
 
