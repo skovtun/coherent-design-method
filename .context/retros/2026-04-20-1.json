@@ -1,0 +1,55 @@
+{
+  "date": "2026-04-20",
+  "window": "7d",
+  "metrics": {
+    "commits": 75,
+    "contributors": 1,
+    "prs_merged": 26,
+    "insertions": 15587,
+    "deletions": 2537,
+    "net_loc": 13050,
+    "test_loc": 2657,
+    "test_ratio": 0.17,
+    "active_days": 3,
+    "sessions": 4,
+    "deep_sessions": 3,
+    "avg_session_minutes": 240,
+    "loc_per_session_hour": 815,
+    "feat_pct": 0.48,
+    "fix_pct": 0.09,
+    "peak_hour": 15,
+    "ai_assisted_commits": 75
+  },
+  "authors": {
+    "Sergei Kovtun": {
+      "commits": 75,
+      "insertions": 15587,
+      "deletions": 2537,
+      "test_ratio": 0.17,
+      "top_area": "packages/cli"
+    }
+  },
+  "version_range": ["0.6.95", "0.7.20"],
+  "streak_days": 3,
+  "tweetable": "Week of Apr 13: 75 commits (solo), +13.0k LOC, 17% tests, 26 PRs merged, v0.6.95 → v0.7.20 (26 versions) | Streak: 3d",
+  "test_health": {
+    "total_test_files": 68,
+    "tests_added_this_period": 8,
+    "regression_test_commits": 0,
+    "test_files_changed": 20
+  },
+  "notes": {
+    "ship_of_the_week": "v0.7.4 Wiki Retrieval (TF-IDF) — +926 LOC, keystone of memory feedback loop",
+    "major_themes": [
+      "Memory feedback loop shipped end-to-end (v0.7.2-0.7.4 + v0.7.18-0.7.19)",
+      "Destructive operations hardened (v0.7.5-0.7.11) — PJ-009 closed",
+      "workflow-optimizer skill built via TDD + pressure tested 4/4"
+    ],
+    "fix_chains": ["v0.7.5-0.7.11 (destructive ops / DOUBLE_SIGN, 7 versions)", "v0.7.14-0.7.15 (regex regressions)"],
+    "growth_areas": [
+      "Test ratio 17% — target 25% next retro",
+      "Pre-tag smoke-test to reduce hotfix count",
+      "gstack /review not running on any PR this week"
+    ]
+  }
+}
