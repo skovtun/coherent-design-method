@@ -6,6 +6,9 @@ All notable changes to this project are documented in this file.
 
 ### Compact fix report + regex fixes for BROKEN_INTERNAL_LINK / HEAVY_SHADOW
 
+> 📹 **Demo video available:** [Watch the 0.7.x walkthrough](https://github.com/skovtun/coherent-design-method/releases/download/v0.7.15/Coherent.Design.Method.DEMO.mp4) (attached to the v0.7.15 GitHub release). Also embedded in the project [README](https://github.com/skovtun/coherent-design-method#demo).
+
+
 Smoke-test on 0.7.14 showed two regressions and one UX problem:
 
 1. `coherent fix` correctly rewrote `<Link href="/accounts">` to `<Link href="#" data-stale-href="/accounts">` — but then the validator re-flagged it as BROKEN_INTERNAL_LINK because the regex matched `data-stale-href="/accounts"` as if it were a real href. Fixed.

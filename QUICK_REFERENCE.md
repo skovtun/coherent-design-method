@@ -14,7 +14,8 @@ coherent components list         # Show all shared + UI components
 coherent status                  # Show project stats (pages, components, tokens)
 coherent preview                 # Start dev server (http://localhost:3000)
 coherent check                   # Show quality issues (read-only)
-coherent fix                     # Auto-fix all issues
+coherent fix                     # Auto-fix all issues (compact report)
+coherent fix --verbose           # Auto-fix with per-file breakdown
 coherent sync                    # Sync Design System after manual edits
 coherent export                  # Export clean project for deployment
 coherent undo                    # Revert last coherent chat
