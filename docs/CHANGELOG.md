@@ -2,6 +2,39 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.1] — 2026-04-19
+
+### Patterns expansion + platform wiki
+
+Directly prompted by user bugs on Reports/Investments (inconsistent stat-cards) and Create New Budget dialog (full-width modal). Adds 5 more golden patterns and the meta-infrastructure for platform-level decision tracking.
+
+### Added — golden patterns (5 new)
+- `templates/patterns/dialog.tsx` — canonical shadcn Dialog with max-w-lg default.
+- `templates/patterns/dropdown-menu.tsx` — row actions / context menu (destructive items bottom, with Separator).
+- `templates/patterns/alert-dialog.tsx` — destructive confirmations only. Non-destructive prompts use regular Dialog.
+- `templates/patterns/sheet.tsx` — side drawer with side="right" default, sm:max-w-md width.
+- `templates/patterns/pagination.tsx` — shadcn Pagination with 5-page window + ellipsis.
+
+`pickGoldenPatterns()` now returns 9 total patterns (keyword-scoped).
+
+### Added — validators (3 new)
+- `DIALOG_FULL_WIDTH` — flags `<DialogContent|AlertDialogContent|SheetContent>` without a `max-w-*` class.
+- `DIALOG_CUSTOM_OVERLAY` — flags `<div className="fixed inset-0 bg-black/...">` when no shadcn Dialog imports are present (tells user to use shadcn primitives).
+- `ALERT_DIALOG_NON_DESTRUCTIVE` — flags AlertDialogAction labels that don't match destructive verbs (delete, remove, cancel, logout, etc.).
+
+### Added — CORE constraint
+- **OVERLAYS section** — Dialog / AlertDialog / Sheet / Popover / DropdownMenu rules: shadcn primitives only, explicit max-w, AlertDialog only for destructive actions.
+
+### Added — platform wiki
+- `docs/PATTERNS_JOURNAL.md` — append-only log of AI-output failure patterns we've observed, root causes, and responses. Format: bug → cause → rule/validator/pattern → version.
+- `docs/wiki/README.md` — index and usage guide.
+- `docs/wiki/ADR/0001-golden-patterns-over-word-rules.md` — first architectural decision record documenting the v0.7.0 philosophical shift.
+- `docs/wiki/MODEL_PROFILE.md` — empirical notes on Claude Sonnet 4's systematic behaviors (what it favours, where it breaks, how prompts respond).
+- `docs/wiki/RULES_MAP.md` — living index of every rule in design-constraints.ts with origin bug, validator, golden pattern, version history.
+
+### Tests
+947 passing (+14 new for dialog/dropdown/alert-dialog/sheet/pagination + 3 overlay validators). 63 test files.
+
 ## [0.7.0] — 2026-04-19
 
 ### Foundation: golden patterns, CLI strict mode, change summary, surgical edit guard, table schema rule

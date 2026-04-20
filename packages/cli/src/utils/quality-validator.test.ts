@@ -1336,6 +1336,66 @@ describe('RAW_NUMBER_FORMAT detection', () => {
   })
 })
 
+describe('DIALOG_FULL_WIDTH detection', () => {
+  it('flags DialogContent without max-w', () => {
+    const code = `<Dialog><DialogContent className="p-6">...</DialogContent></Dialog>`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'DIALOG_FULL_WIDTH')).toBe(true)
+  })
+
+  it('passes DialogContent with max-w-lg', () => {
+    const code = `<Dialog><DialogContent className="max-w-lg">...</DialogContent></Dialog>`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'DIALOG_FULL_WIDTH')).toBe(false)
+  })
+
+  it('passes SheetContent with sm:max-w-md', () => {
+    const code = `<SheetContent side="right" className="sm:max-w-md">...</SheetContent>`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'DIALOG_FULL_WIDTH')).toBe(false)
+  })
+
+  it('flags AlertDialogContent without max-w', () => {
+    const code = `<AlertDialogContent>...</AlertDialogContent>`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'DIALOG_FULL_WIDTH')).toBe(true)
+  })
+})
+
+describe('DIALOG_CUSTOM_OVERLAY detection', () => {
+  it('flags custom fixed-inset overlay div', () => {
+    const code = `<div className="fixed inset-0 bg-black/50"><div className="bg-white p-6">Modal content</div></div>`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'DIALOG_CUSTOM_OVERLAY')).toBe(true)
+  })
+
+  it('passes when shadcn Dialog is imported in the file', () => {
+    const code = `import { Dialog, DialogContent } from '@/components/ui/dialog'\n<Dialog open={open}><DialogContent className="max-w-lg">x</DialogContent></Dialog>`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'DIALOG_CUSTOM_OVERLAY')).toBe(false)
+  })
+})
+
+describe('ALERT_DIALOG_NON_DESTRUCTIVE detection', () => {
+  it('flags AlertDialog with non-destructive action', () => {
+    const code = `<AlertDialog><AlertDialogContent><AlertDialogAction>Save changes</AlertDialogAction></AlertDialogContent></AlertDialog>`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'ALERT_DIALOG_NON_DESTRUCTIVE')).toBe(true)
+  })
+
+  it('passes AlertDialog with Delete action', () => {
+    const code = `<AlertDialog><AlertDialogContent><AlertDialogAction>Delete</AlertDialogAction></AlertDialogContent></AlertDialog>`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'ALERT_DIALOG_NON_DESTRUCTIVE')).toBe(false)
+  })
+
+  it('passes AlertDialog with "Cancel subscription" action', () => {
+    const code = `<AlertDialog><AlertDialogContent><AlertDialogAction>Cancel subscription</AlertDialogAction></AlertDialogContent></AlertDialog>`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'ALERT_DIALOG_NON_DESTRUCTIVE')).toBe(false)
+  })
+})
+
 describe('SEARCH_ICON_MISPLACED detection', () => {
   it('flags Search icon as sibling of Input without absolute positioning', () => {
     const code = `

@@ -301,6 +301,87 @@ function detectSearchIconMisplaced(code: string): QualityIssue[] {
   return issues
 }
 
+/**
+ * Overlay sanity checks — Dialog, AlertDialog, Sheet, DropdownMenu, Popover.
+ *
+ * Covers three classes of bugs:
+ *
+ *   1. DIALOG_FULL_WIDTH — <DialogContent> / <SheetContent> without a max-w-*
+ *      class. Renders edge-to-edge on wide screens with content cramped on
+ *      one side. (Seen: Create New Budget modal on a 2400px screen.)
+ *
+ *   2. DIALOG_CUSTOM_OVERLAY — AI built a custom `<div className="fixed
+ *      inset-0 bg-black/50">` overlay near dialog-like content instead of
+ *      using shadcn Dialog (which handles overlay + focus trap + Escape).
+ *
+ *   3. ALERT_DIALOG_NON_DESTRUCTIVE — <AlertDialog> used for a non-destructive
+ *      confirmation (create, save, edit). Alert dialogs are reserved for
+ *      irreversible destructive actions.
+ */
+function detectOverlayIssues(code: string): QualityIssue[] {
+  const issues: QualityIssue[] = []
+
+  // 1. DIALOG_FULL_WIDTH — DialogContent / SheetContent without max-w-*.
+  const dialogContentRe = /<(Dialog|AlertDialog|Sheet)Content\b([^>]*)>/g
+  for (const m of code.matchAll(dialogContentRe)) {
+    const kind = m[1]
+    const attrs = m[2] || ''
+    const hasMaxW = /\bmax-w-(?:sm|md|lg|xl|2xl|3xl|\[[^\]]+\])\b/.test(attrs) || /\bsm:max-w-/.test(attrs)
+    // Sheet with side="left"/side="right" AND no max-w is also bad on desktop.
+    if (!hasMaxW) {
+      const lineNum = code.slice(0, m.index ?? 0).split('\n').length
+      issues.push({
+        line: lineNum,
+        type: 'DIALOG_FULL_WIDTH',
+        message: `<${kind}Content> without a max-w-* class renders full-width on wide screens. Add max-w-lg (default) or sm:max-w-md for Sheet.`,
+        severity: 'error',
+      })
+    }
+  }
+
+  // 2. DIALOG_CUSTOM_OVERLAY — fixed inset-0 with bg-black/darkness and no
+  //    shadcn Dialog nearby in the file.
+  //    Heuristic: look for the custom overlay class pattern. If file does not
+  //    import anything from @/components/ui/dialog — it's likely a custom
+  //    overlay, not the shadcn component.
+  const customOverlayRe = /<div\s+className="[^"]*\bfixed\s+inset-0\b[^"]*\bbg-(?:black|zinc-\d+|neutral-\d+)[^"]*"/g
+  const hasShadcnDialog = /from\s+["']@\/components\/ui\/(?:dialog|alert-dialog|sheet)["']/.test(code)
+  for (const m of code.matchAll(customOverlayRe)) {
+    if (!hasShadcnDialog) {
+      const lineNum = code.slice(0, m.index ?? 0).split('\n').length
+      issues.push({
+        line: lineNum,
+        type: 'DIALOG_CUSTOM_OVERLAY',
+        message:
+          'Custom fixed inset-0 overlay detected. Use shadcn <Dialog>/<AlertDialog>/<Sheet> — they handle overlay, focus trap, and Escape automatically.',
+        severity: 'error',
+      })
+      break // one warning is enough per file
+    }
+  }
+
+  // 3. ALERT_DIALOG_NON_DESTRUCTIVE — action text does not look destructive.
+  //    Heuristic: AlertDialogAction's children don't contain delete|remove|
+  //    cancel|discard|log\s+out|sign\s+out|terminate|revoke.
+  const alertActionRe = /<AlertDialogAction\b[^>]*>\s*([^<]+?)\s*<\/AlertDialogAction>/g
+  const destructiveVerbs =
+    /\b(?:delete|remove|cancel|discard|logout|log\s+out|sign\s+out|terminate|revoke|erase|clear\s+all|reset|wipe|unsubscribe)\b/i
+  for (const m of code.matchAll(alertActionRe)) {
+    const label = m[1].trim()
+    if (label && !destructiveVerbs.test(label)) {
+      const lineNum = code.slice(0, m.index ?? 0).split('\n').length
+      issues.push({
+        line: lineNum,
+        type: 'ALERT_DIALOG_NON_DESTRUCTIVE',
+        message: `AlertDialog "${label}" doesn't look destructive. AlertDialog is for irreversible actions (delete, cancel subscription, log out). Use a regular Dialog for "${label}".`,
+        severity: 'warning',
+      })
+    }
+  }
+
+  return issues
+}
+
 export function validatePageQuality(
   code: string,
   validRoutes?: string[],
@@ -485,6 +566,9 @@ export function validatePageQuality(
   // of absolute-positioning inside a relative wrapper, so the icon renders
   // above/below the field rather than inside it.
   issues.push(...detectSearchIconMisplaced(code))
+
+  // Overlay patterns — Dialog full-width, custom overlay divs, AlertDialog misuse.
+  issues.push(...detectOverlayIssues(code))
   issues.push(
     ...checkLines(
       code,
