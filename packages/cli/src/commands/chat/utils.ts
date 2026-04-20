@@ -274,13 +274,7 @@ export async function resolveTargetFlags(
 
   if (options.page) {
     const target = options.page
-    const page = config.pages.find(
-      p =>
-        p.name.toLowerCase() === target.toLowerCase() ||
-        p.id.toLowerCase() === target.toLowerCase() ||
-        p.route === target ||
-        p.route === '/' + target,
-    )
+    const page = resolvePageByFuzzyMatch(config.pages, target)
     if (page) {
       const relPath = page.route === '/' ? 'app/page.tsx' : `app${page.route}/page.tsx`
       const filePath = resolve(projectRoot, relPath)
@@ -302,6 +296,67 @@ export async function resolveTargetFlags(
   }
 
   return message
+}
+
+/**
+ * Best-effort resolution of a user-provided page identifier to an actual page
+ * in the config.
+ *
+ * The user may type `--page accounts` when the page's id is `account`, or
+ * `--page settings` when the route is `/settings`. Without this, the old
+ * strict-equals match fell back to "page not found" → pipeline regenerated
+ * the whole project.
+ *
+ * Match order, first win:
+ *   1. Exact id / name / route match (backward compatibility).
+ *   2. Plural ↔ singular swap (accounts → account, settings → setting).
+ *   3. Prefix match on id / name slug (3+ char prefix).
+ *   4. Route contains target as a path segment.
+ *
+ * Returns null when no reasonable match found. Caller warns and falls through
+ * to free-text interpretation.
+ */
+export function resolvePageByFuzzyMatch<T extends { id: string; name: string; route: string }>(
+  pages: readonly T[],
+  target: string,
+): T | null {
+  const t = target.toLowerCase().trim().replace(/^\//, '')
+  if (!t) return null
+
+  // 1. Exact match (same logic as before)
+  const exact = pages.find(
+    p =>
+      p.name.toLowerCase() === t ||
+      p.id.toLowerCase() === t ||
+      p.route === '/' + t ||
+      p.route === target ||
+      p.route.slice(1).toLowerCase() === t,
+  )
+  if (exact) return exact
+
+  // 2. Plural ↔ singular swap
+  const toggle = t.endsWith('s') ? t.slice(0, -1) : t + 's'
+  const swapped = pages.find(
+    p => p.name.toLowerCase() === toggle || p.id.toLowerCase() === toggle || p.route.slice(1).toLowerCase() === toggle,
+  )
+  if (swapped) return swapped
+
+  // 3. Prefix match (only if user supplied 3+ chars to avoid misfires on /a or /my)
+  if (t.length >= 3) {
+    const prefix = pages.find(p => p.id.toLowerCase().startsWith(t) || p.name.toLowerCase().startsWith(t))
+    if (prefix) return prefix
+  }
+
+  // 4. Route segment match (e.g. target "detail" → /accounts/[id] does NOT match,
+  //    but "accounts" → /accounts/[id] picks the list page because the first
+  //    segment matches)
+  const segMatch = pages.find(p => {
+    const segments = p.route.split('/').filter(Boolean)
+    return segments[0]?.toLowerCase() === t
+  })
+  if (segMatch) return segMatch
+
+  return null
 }
 
 /**

@@ -21,6 +21,9 @@ coherent undo                    # Revert last coherent chat
 coherent update                  # Apply platform updates to project
 coherent rules                   # Show active design constraint rules
 coherent migrate                 # Run version migrations
+coherent baseline                # Structural regression check (fingerprints + compares pages)
+coherent baseline --save         # Record new baseline without comparing
+coherent report-issue --page X   # Pre-filled GitHub issue URL with project context
 ```
 
 ## Typical Workflow

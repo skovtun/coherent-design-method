@@ -20,6 +20,7 @@ import {
   RequestTimeoutError,
   getDefaultRequestTimeoutMs,
   startPhaseTimer,
+  resolvePageByFuzzyMatch,
 } from './utils.js'
 import { ArchitecturePlanSchema } from './plan-generator.js'
 
@@ -606,5 +607,59 @@ describe('startPhaseTimer', () => {
     expect(logged).toMatch(/\d+\.\d+s/)
     if (original === undefined) delete process.env.COHERENT_DEBUG
     else process.env.COHERENT_DEBUG = original
+  })
+})
+
+describe('resolvePageByFuzzyMatch', () => {
+  const pages = [
+    { id: 'home', name: 'Home', route: '/' },
+    { id: 'account', name: 'Account', route: '/account' },
+    { id: 'dashboard', name: 'Dashboard', route: '/dashboard' },
+    { id: 'settings', name: 'Settings', route: '/settings' },
+    { id: 'accounts-list', name: 'Accounts', route: '/accounts' },
+  ]
+
+  it('exact id match wins first', () => {
+    expect(resolvePageByFuzzyMatch(pages, 'account')?.id).toBe('account')
+  })
+
+  it('exact route match (plural) wins when both exist', () => {
+    expect(resolvePageByFuzzyMatch(pages, 'accounts')?.id).toBe('accounts-list')
+  })
+
+  it('plural → singular: "accounts" finds /account when /accounts does not exist', () => {
+    const narrower = pages.filter(p => p.id !== 'accounts-list')
+    expect(resolvePageByFuzzyMatch(narrower, 'accounts')?.id).toBe('account')
+  })
+
+  it('singular → plural: "setting" finds /settings', () => {
+    expect(resolvePageByFuzzyMatch(pages, 'setting')?.id).toBe('settings')
+  })
+
+  it('prefix match: "dash" finds /dashboard', () => {
+    expect(resolvePageByFuzzyMatch(pages, 'dash')?.id).toBe('dashboard')
+  })
+
+  it('too-short prefix does not match', () => {
+    expect(resolvePageByFuzzyMatch(pages, 'da')).toBeNull()
+  })
+
+  it('returns null for no match', () => {
+    expect(resolvePageByFuzzyMatch(pages, 'billing')).toBeNull()
+  })
+
+  it('handles leading slash in target', () => {
+    expect(resolvePageByFuzzyMatch(pages, '/account')?.id).toBe('account')
+  })
+
+  it('route segment match: falls back to first-segment match when no plural/prefix hit', () => {
+    // Only a detail page exists, no list. Plural "accounts" has no exact hit,
+    // plural→singular swap fails (no /account), prefix fails (no id starts with
+    // "accounts"). Segment match picks the detail page.
+    const detailOnly = [
+      { id: 'home', name: 'Home', route: '/' },
+      { id: 'accounts-id', name: 'Account Detail', route: '/accounts/[id]' },
+    ]
+    expect(resolvePageByFuzzyMatch(detailOnly, 'accounts')?.id).toBe('accounts-id')
   })
 })

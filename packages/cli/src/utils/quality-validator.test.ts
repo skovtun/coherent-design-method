@@ -1257,3 +1257,200 @@ describe('new quality rules v0.6.94', () => {
     expect(issues.some(i => i.type === 'EMOJI_IN_UI')).toBe(false)
   })
 })
+
+describe('CHART_PLACEHOLDER detection', () => {
+  it('flags "Chart visualization would go here"', () => {
+    const code = '<div>Chart visualization would go here</div>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'CHART_PLACEHOLDER')).toBe(true)
+  })
+
+  it('flags "Category breakdown chart would go here"', () => {
+    const code = '<p>Category breakdown chart would go here</p>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'CHART_PLACEHOLDER')).toBe(true)
+  })
+
+  it('flags "Graph coming soon"', () => {
+    const code = '<span>Graph coming soon</span>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'CHART_PLACEHOLDER')).toBe(true)
+  })
+
+  it('passes real chart components', () => {
+    const code = '<ChartContainer><AreaChart data={data}><Area dataKey="revenue" /></AreaChart></ChartContainer>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'CHART_PLACEHOLDER')).toBe(false)
+  })
+})
+
+describe('CHART_EMPTY_BOX detection', () => {
+  it('flags self-closing empty muted box with height', () => {
+    const code = '<div className="h-[300px] bg-muted rounded-lg" />'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'CHART_EMPTY_BOX')).toBe(true)
+  })
+
+  it('flags empty muted box with children whitespace only', () => {
+    const code = '<div className="h-[200px] bg-muted"></div>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'CHART_EMPTY_BOX')).toBe(true)
+  })
+
+  it('passes a div with actual content', () => {
+    const code = '<div className="h-[300px] bg-muted">Actual content</div>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'CHART_EMPTY_BOX')).toBe(false)
+  })
+
+  it('passes a div without bg-muted (not a chart stand-in)', () => {
+    const code = '<div className="h-[300px] border" />'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'CHART_EMPTY_BOX')).toBe(false)
+  })
+})
+
+describe('RAW_NUMBER_FORMAT detection', () => {
+  it('flags ${value.toFixed(2)} with currency symbol', () => {
+    const code = '<span>${value.toFixed(2)}</span>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'RAW_NUMBER_FORMAT')).toBe(true)
+  })
+
+  it('flags template literal $\\${amount.toFixed(2)}', () => {
+    const code = 'const display = `$${amount.toFixed(2)}`'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'RAW_NUMBER_FORMAT')).toBe(true)
+  })
+
+  it('passes Intl.NumberFormat', () => {
+    const code = `const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value)`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'RAW_NUMBER_FORMAT')).toBe(false)
+  })
+
+  it('passes toFixed without currency symbol (non-money context)', () => {
+    const code = `const score = rating.toFixed(1) // 4.5`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'RAW_NUMBER_FORMAT')).toBe(false)
+  })
+})
+
+describe('TABLE_COLUMN_MISMATCH detection', () => {
+  it('flags when TableHead count differs from first-row TableCell count', () => {
+    const code = `
+<Table>
+  <TableHeader><TableRow>
+    <TableHead>Overview</TableHead>
+    <TableHead>Account</TableHead>
+    <TableHead>Category</TableHead>
+    <TableHead>Amount</TableHead>
+    <TableHead>Date</TableHead>
+  </TableRow></TableHeader>
+  <TableBody>
+    {txs.map(tx => (
+      <TableRow key={tx.id}>
+        <TableCell>{tx.overview}</TableCell>
+        <TableCell>{tx.amount}</TableCell>
+      </TableRow>
+    ))}
+  </TableBody>
+</Table>`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'TABLE_COLUMN_MISMATCH')).toBe(true)
+  })
+
+  it('passes when counts match', () => {
+    const code = `
+<Table>
+  <TableHeader><TableRow>
+    <TableHead>Name</TableHead>
+    <TableHead>Email</TableHead>
+  </TableRow></TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>Alice</TableCell>
+      <TableCell>alice@example.com</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'TABLE_COLUMN_MISMATCH')).toBe(false)
+  })
+
+  it('skips check when no TableHeader block', () => {
+    const code = '<div>no table here</div>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'TABLE_COLUMN_MISMATCH')).toBe(false)
+  })
+
+  it('skips check when body has only empty state row (0 TableCell)', () => {
+    const code = `
+<Table>
+  <TableHeader><TableRow>
+    <TableHead>Name</TableHead>
+    <TableHead>Email</TableHead>
+  </TableRow></TableHeader>
+  <TableBody>
+    <TableRow>
+      <td colSpan={2}>No results</td>
+    </TableRow>
+  </TableBody>
+</Table>`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'TABLE_COLUMN_MISMATCH')).toBe(false)
+  })
+})
+
+describe('DOUBLE_SIGN detection', () => {
+  it('flags ternary with ± prefix rendering currency', () => {
+    const code = `<span>{amount < 0 ? '-' : '+'}\${Math.abs(amount).toFixed(2)}</span>`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'DOUBLE_SIGN')).toBe(true)
+  })
+
+  it('flags template literal with ternary sign', () => {
+    const code = "const label = `$${amount < 0 ? '-' : '+'}${Math.abs(v).toFixed(2)}`"
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'DOUBLE_SIGN')).toBe(true)
+  })
+
+  it('passes Intl.NumberFormat with signDisplay', () => {
+    const code = `const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', signDisplay: 'always' })`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'DOUBLE_SIGN')).toBe(false)
+  })
+
+  it('does not flag normal string operations', () => {
+    const code = `const direction = up ? 'up' : 'down'`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'DOUBLE_SIGN')).toBe(false)
+  })
+})
+
+describe('INLINE_MOCK_DATA detection', () => {
+  it('flags 5+ element inline object array', () => {
+    const code = `const users = [
+  { name: "Alice", age: 30 },
+  { name: "Bob", age: 25 },
+  { name: "Carol", age: 28 },
+  { name: "Dave", age: 35 },
+  { name: "Eve", age: 27 },
+  { name: "Frank", age: 32 }
+]`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'INLINE_MOCK_DATA')).toBe(true)
+  })
+
+  it('passes arrays with <5 elements', () => {
+    const code = `const users = [{ name: "Alice" }, { name: "Bob" }, { name: "Carol" }]`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'INLINE_MOCK_DATA')).toBe(false)
+  })
+
+  it('passes arrays of primitives (not object literals)', () => {
+    const code = `const nums = [1, 2, 3, 4, 5, 6, 7, 8]`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'INLINE_MOCK_DATA')).toBe(false)
+  })
+})

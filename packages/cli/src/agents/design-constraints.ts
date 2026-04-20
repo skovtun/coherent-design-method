@@ -200,6 +200,7 @@ ANTI-PATTERNS (NEVER DO):
 - Monospace as "developer aesthetic" → proper type scale; mono only for actual code
 - Large rounded icon container above every heading → only when icon adds meaning
 - Glassmorphism as default → ONLY landing hero, never app pages
+- Nested bordered containers (card-in-card, or border+shadow wrapper around a list of bordered cards) → ONE level of visual depth per section. If the section header already sits in a Card, render children flat (stack of Cards with gap-y, or rows separated by <Separator />). Never: Card > div.border.rounded.shadow-sm > Card.border.shadow-sm[]. Yes: Section title outside + flat stack of Cards, OR single outer Card with <Separator /> rows.
 - Sparklines as decoration → only with real, readable data
 - shadow-md on cards → shadow-sm with tinted color, or no shadow
 - Inline mock data arrays in components → extract to src/data/
@@ -231,6 +232,16 @@ CONTENT (zero placeholders, zero generic):
 - BANNED metric values: 100%, 50%, 99.99%, round thousands. Use realistic numbers (87%, 1,247, 34.2%, $18,750).
 - BANNED copy: "Seamless", "Elevate", "Unleash", "Next-Gen", "Game-changer", "Delve", "Cutting-edge". Write specific, concrete descriptions.
 
+CHARTS (zero placeholders, real recharts):
+- NEVER: "Chart visualization would go here", "Graph coming soon", empty <div className="h-[...] bg-muted"/> as chart stand-in, fake pie icon instead of a chart.
+- ALWAYS: shadcn Chart + recharts. Specific imports, chart-type picking, colors (chart-1..5 CSS vars), heights (h-[200/300/400]), data shape, ChartTooltip/ChartLegend: see RULES_DATA_DISPLAY when building dashboard/analytics/reports pages.
+
+NUMBER FORMATTING (Intl.NumberFormat always):
+- Money: \`new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value)\`. NEVER \`\${value.toFixed(2)}\` concatenation.
+- Percent: Intl.NumberFormat with style: "percent", value in 0..1 range.
+- Thousand separators: never manual .replace(/regex/) — Intl handles locale correctly.
+- Define a helper once per file, reuse: \`const money = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n)\`
+
 MOCK/SAMPLE DATA (for demo arrays, fake users, fake tasks, etc.):
 - Dates: ALWAYS ISO 8601 strings in data ("2024-06-15T10:30:00Z").
   Display with date formatting: new Date(item.date).toLocaleDateString() or
@@ -253,6 +264,10 @@ MOCK/SAMPLE DATA (for demo arrays, fake users, fake tasks, etc.):
     }
 - Images: use https://i.pravatar.cc/150?u=unique-id for avatars. "/placeholder.svg?height=40&width=40" for non-avatar images. Never broken paths.
 - IDs: sequential numbers (1, 2, 3) or short slugs ("proj-1"). Never random UUIDs.
+- Location: if an array has 5+ elements, extract to src/data/<kebab-name>.ts and import — keeps page components readable.
+    BAD (inline in app/dashboard/page.tsx): \`const transactions = [{...}, ..., {...}, ..., {...}, ..., {...}, ..., {...}]\`
+    GOOD: \`// src/data/transactions.ts\`  \`export const mockTransactions = [{...}, ...]\` then \`import { mockTransactions } from "@/src/data/transactions"\` in the page.
+    Applies to: chart data arrays, table rows, user/product lists, activity feeds — anything with repeated object shape.
 
 ACCESSIBILITY (WCAG AA — mandatory):
 - Icon-only buttons/links MUST have aria-label describing the action (e.g., aria-label="Close dialog")
@@ -772,6 +787,44 @@ TRUNCATION:
 - When to truncate: card descriptions (2 lines), table cells (single line), list item subtitles (1-2 lines).
 - Always set title={fullText} for accessibility on truncated text.
 
+CHARTS (full detail — applies any time the page needs charts/graphs/analytics):
+- Install once in project: \`pnpm dlx shadcn@latest add chart\`. This adds @/components/ui/chart.tsx and the required CSS vars (--chart-1..5) to globals.css.
+- Required imports:
+    import { Area, AreaChart, Bar, BarChart, Line, LineChart, Pie, PieChart, Cell, XAxis, YAxis, CartesianGrid } from "recharts"
+    import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent, type ChartConfig } from "@/components/ui/chart"
+- Chart picking:
+    AreaChart — trends over time (revenue, users over weeks/months). Smooth filled area.
+    BarChart — category comparisons (sales by region, tasks by status). Vertical bars by default; use horizontal only for long labels.
+    LineChart — multi-series trends (2-4 series compared over time).
+    PieChart — portions of a whole, max 6 slices. If more categories, use BarChart instead.
+- Colors: ONLY chart CSS vars — stroke="var(--chart-1)", fill="var(--chart-1)". Cycle chart-1 → chart-5 for series. NEVER raw colors (stroke="#3b82f6"), NEVER theme tokens (var(--primary) for charts — reserves primary for UI actions).
+- Height: pick exactly one — h-[200px] (sparkline in stat card), h-[300px] (primary section chart), h-[400px] (full-width detail). No arbitrary heights.
+- Data shape: array of { label: string, ...numericKeys }. Min 8 points for line/area/bar, 2-6 slices for pie. Extract arrays with 5+ items to src/data/<name>.ts (see CONTENT rules).
+    Example: const revenueData = [{ month: "Jan", revenue: 42180, expenses: 28340 }, ...]
+- Axis: always include <XAxis dataKey="month" /> + <YAxis />. Hide extras: axisLine={false} tickLine={false}. tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}. No gridlines on small charts; <CartesianGrid strokeDasharray="3 3" vertical={false} /> only on h-[300/400px] detail charts.
+- Tooltip: ALWAYS wrap in ChartContainer + use ChartTooltip content={<ChartTooltipContent />}. NEVER import Tooltip from "recharts" directly.
+- Multi-series: include <ChartLegend content={<ChartLegendContent />} />. Placement: bottom (default), never side.
+- Chart title/description: in CardHeader above the ChartContainer, not inside the chart SVG.
+- Empty state: when data.length === 0, render <p className="text-muted-foreground text-sm flex items-center justify-center h-full">No data yet. Start tracking to see trends.</p> inside the chart area instead of an empty chart frame.
+- Full pattern example:
+    <Card>
+      <CardHeader>
+        <CardTitle>Revenue</CardTitle>
+        <CardDescription>Last 12 months</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ChartContainer config={chartConfig} className="h-[300px] w-full">
+          <AreaChart data={revenueData}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="month" axisLine={false} tickLine={false} />
+            <YAxis axisLine={false} tickLine={false} />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <Area dataKey="revenue" stroke="var(--chart-1)" fill="var(--chart-1)" fillOpacity={0.2} />
+          </AreaChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
+
 SEARCH INPUT: See the Filter Toolbar reference pattern in DESIGN QUALITY — APP PAGES. Use the search input + Select layout shown there.
 - Clear button: X icon on right when value is not empty.
 - Debounce: 300ms on keystroke. No search button.
@@ -987,7 +1040,10 @@ CARD & LAYOUT RULES:
 COMPONENT PATTERNS:
 - Card shadow: NONE or shadow-sm. NEVER shadow-md/lg/xl.
 - CardHeader for stat card: className="flex flex-row items-center justify-between space-y-0 pb-2"
-- NO nested cards (card inside card). Max 2 levels: Card > content.
+- NO nested visual containers. ONE border/shadow per section. Applies to any container with \`border + rounded + shadow-sm\` or similar — not just <Card>. A <div className="border rounded-lg shadow-sm"> wrapping a list of Cards is the same anti-pattern.
+  BAD: <Card><CardHeader>Budget</CardHeader><div className="border rounded-lg shadow-sm p-4"><Card>Groceries</Card><Card>Dining</Card></div></Card>
+  GOOD (flat stack): <div><h2>Budget</h2><div className="flex flex-col gap-4"><Card>Groceries</Card><Card>Dining</Card></div></div>
+  GOOD (single card, rows): <Card><CardHeader>Budget</CardHeader><CardContent><div className="divide-y"><div className="py-3">Groceries…</div><div className="py-3">Dining…</div></div></CardContent></Card>
 
 BADGE PLACEMENT (critical — prevents overlap):
 - Badge in CardHeader: ALWAYS after the title, never before. Use flex row with gap:
