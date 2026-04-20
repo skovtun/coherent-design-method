@@ -266,25 +266,40 @@ export async function checkCommand(opts: CheckOptions = {}) {
     }
 
     // Cross-page consistency — only run on multi-page scans (not --page X).
-    if (!opts.page && files.length >= 2) {
-      const pageFiles: PageFile[] = files.map(f => ({
-        path: f.replace(projectRoot + '/', ''),
-        code: fileContents.get(f)!,
-      }))
-      const crossIssues = validateCrossPage(pageFiles)
-      result.crossPage.issues = crossIssues.map(i => ({
-        type: i.type,
-        severity: i.severity,
-        message: i.message,
-      }))
-      if (!opts.json && crossIssues.length > 0) {
-        console.log(chalk.yellow(`\n  🔀 Cross-Page Consistency`) + chalk.dim(` (${crossIssues.length} issue(s))\n`))
-        for (const issue of crossIssues) {
-          console.log(chalk.yellow(`  ⚠ ${issue.type}`))
-          console.log(chalk.dim(`    ${issue.message}`))
+    // Scope to actual page.tsx files: layout/nav/shared components live under
+    // app/ too but aren't "pages" for drift-detection purposes, and mixing
+    // them in can create phantom minority clusters.
+    if (!opts.page) {
+      const pageOnlyFiles = files.filter(f => /\/page\.tsx$/.test(f))
+      if (pageOnlyFiles.length >= 2) {
+        const pageFiles: PageFile[] = pageOnlyFiles.map(f => ({
+          path: f.replace(projectRoot + '/', ''),
+          code: fileContents.get(f)!,
+        }))
+        let crossIssues: ReturnType<typeof validateCrossPage> = []
+        try {
+          crossIssues = validateCrossPage(pageFiles)
+        } catch {
+          // Cross-page is best-effort — a single bad page or malformed
+          // file shouldn't block the whole `coherent check` run.
+          crossIssues = []
         }
-      } else if (!opts.json && pageFiles.length >= 3) {
-        console.log(chalk.green(`\n  🔀 Cross-Page Consistency`) + chalk.dim(` — no drift detected ✓`))
+        result.crossPage.issues = crossIssues.map(i => ({
+          type: i.type,
+          severity: i.severity,
+          message: i.message,
+        }))
+        if (!opts.json && crossIssues.length > 0) {
+          console.log(chalk.yellow(`\n  🔀 Cross-Page Consistency`) + chalk.dim(` (${crossIssues.length} issue(s))\n`))
+          for (const issue of crossIssues) {
+            console.log(chalk.yellow(`  ⚠ ${issue.type}`))
+            console.log(chalk.dim(`    ${issue.message}`))
+          }
+        }
+        // Intentionally no "no drift detected" message: clusters are only
+        // meaningful with 3+ stat cards total across pages. Printing a
+        // green tick when the validator didn't actually cluster would be
+        // misleading — silence is honest.
       }
     }
 
@@ -508,7 +523,8 @@ export async function checkCommand(opts: CheckOptions = {}) {
     const wp = result.pages.withWarnings * 3
     const lp = result.links.broken.length * 15
     const up = result.shared.unused * 2
-    const s = Math.max(0, Math.min(100, 100 - ep - wp - lp - up))
+    const cp = result.crossPage.issues.length * 3
+    const s = Math.max(0, Math.min(100, 100 - ep - wp - lp - up - cp))
     console.log(JSON.stringify({ ...result, score: s }, null, 2))
     return
   }
@@ -528,6 +544,9 @@ export async function checkCommand(opts: CheckOptions = {}) {
   if (result.links.broken.length > 0) {
     summaryParts.push(chalk.red(`${result.links.broken.length} broken link(s)`))
   }
+  if (result.crossPage.issues.length > 0) {
+    summaryParts.push(chalk.yellow(`${result.crossPage.issues.length} cross-page drift`))
+  }
 
   console.log(`\n  ${summaryParts.join(' | ')}`)
 
@@ -537,7 +556,8 @@ export async function checkCommand(opts: CheckOptions = {}) {
   const warningPenalty = result.pages.withWarnings * 3
   const linkPenalty = result.links.broken.length * 15
   const unusedPenalty = result.shared.unused * 2
-  const totalPenalty = errorPenalty + warningPenalty + linkPenalty + unusedPenalty
+  const crossPagePenalty = result.crossPage.issues.length * 3
+  const totalPenalty = errorPenalty + warningPenalty + linkPenalty + unusedPenalty + crossPagePenalty
   const score = Math.max(0, Math.min(100, 100 - totalPenalty))
 
   const scoreColor = score >= 90 ? chalk.green : score >= 70 ? chalk.yellow : chalk.red
