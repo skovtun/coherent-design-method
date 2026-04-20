@@ -181,10 +181,11 @@ evidence: [sha:3408790, sha:163bf30]
 ---
 id: PJ-007
 type: bug
-confidence: hypothesis
-status: active
+confidence: verified
+status: resolved
 date: 2026-04-19
-evidence: [screenshot://image-cache/c8ef5aa8-.../8.png, screenshot://image-cache/c8ef5aa8-.../9.png]
+fixed_in: [0.7.21]
+evidence: [screenshot://image-cache/c8ef5aa8-.../8.png, screenshot://image-cache/c8ef5aa8-.../9.png, sha:d525d95]
 ---
 
 ### PJ-007 — Inconsistent stat cards across pages
@@ -195,9 +196,9 @@ evidence: [screenshot://image-cache/c8ef5aa8-.../8.png, screenshot://image-cache
 
 **Deeper issue:** no cross-page consistency check. `coherent check` validates individual pages; does not flag that Page A's stat card differs structurally from Page B's stat card.
 
-**Fix (planned, v0.7.20-21):**
-- `INCONSISTENT_CARD` cross-page validator — scans all pages, clusters stat-card-like structures, warns when clusters diverge.
-- Plan retrofit: at end of Phase 2, cross-reference `pageNotes[].sections` and auto-extend `usedBy` of shared components with matching page types.
+**Fix (shipped v0.7.21):** `INCONSISTENT_CARD` cross-page validator — scans all `page.tsx` files, extracts stat-card signatures (has-tinted-square × value-size × has-trend × has-description), clusters by signature, emits warnings for minority variants when ≥3 cards share a majority signature. Includes ReDoS-hardened regex set, position-aware trend detection, self-closing `<Card />` handling, bounded try/catch. 22 tests including ReDoS guard < 2000ms. PR #28, commit `d525d95`. See `packages/cli/src/utils/cross-page-validator.ts` + `.test.ts`.
+
+**Deferred:** plan retrofit (auto-extend `usedBy` in Phase 2) — not shipped in v0.7.21. Validator catches the drift at `coherent check` time; plan-side prevention remains an open improvement (tracked in IDEAS_BACKLOG).
 
 ---
 id: PJ-008
