@@ -146,7 +146,20 @@ describe('PageGenerator', () => {
       expect(header).toContain('href="/dashboard"')
       expect(header).toContain('Projector')
       expect(header).toContain('ThemeToggle')
-      expect(header).toContain('Design System')
+    })
+
+    it('generateDSButtonCode returns a self-hiding client component linking to /design-system', () => {
+      const config = makeConfig([{ route: '/', label: 'Home' }], 'App')
+      const gen = new PageGenerator(config)
+      const code = gen.generateDSButtonCode()
+      expect(code).toContain("'use client'")
+      expect(code).toContain('usePathname')
+      expect(code).toContain("startsWith('/design-system')")
+      expect(code).toContain('href="/design-system"')
+      expect(code).toContain('Design System')
+      // Should use theme-adaptive tokens, never raw white/black.
+      expect(code).not.toMatch(/bg-(?:white|black)\b/)
+      expect(code).not.toMatch(/text-(?:white|black)\b/)
     })
 
     it('excludes dynamic routes from main nav; renders auth routes as buttons', () => {

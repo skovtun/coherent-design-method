@@ -433,6 +433,16 @@ export function cn(...inputs: ClassValue[]) {
     const code = await this.pageGenerator.generateLayout(layout, appType, { skipNav: true })
     await this.writeFile('app/layout.tsx', code)
 
+    // DS FAB as its own client component so it can self-hide on
+    // /design-system routes (root layout is a Server Component).
+    await generateSharedComponent(this.projectRoot, {
+      name: 'DSButton',
+      type: 'layout',
+      code: this.pageGenerator.generateDSButtonCode(),
+      description: 'Floating "Design System" button — hides itself on /design-system routes',
+      usedIn: ['app/layout.tsx'],
+    })
+
     if (this.config.navigation?.enabled && appType === 'multi-page') {
       const navType = this.config.navigation.type || 'header'
 
@@ -1026,13 +1036,6 @@ export function Header() {
           </div>
         </div>
       </nav>
-      <Link
-        href="/design-system"
-        className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full border border-white/20 bg-black/60 backdrop-blur-md text-white px-4 py-2 text-xs shadow-sm hover:bg-black/80 transition-all"
-        title="Design System"
-      >
-        Design System
-      </Link>
     </>
   )
 }
