@@ -105,6 +105,116 @@ const data = [
   </CardContent>
 </Card>`
 
+const DIALOG_PATTERN = `// GOLDEN: Dialog / Modal — shadcn Dialog with max-w-lg by default.
+// NEVER build a custom overlay div. Dialog handles overlay + focus trap + Escape.
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+
+<Dialog open={open} onOpenChange={onOpenChange}>
+  <DialogContent className="max-w-lg">
+    <DialogHeader>
+      <DialogTitle>Create New Budget</DialogTitle>
+      <DialogDescription>Set spending limits for a new category.</DialogDescription>
+    </DialogHeader>
+    <div className="space-y-4 py-4">
+      {/* form fields */}
+    </div>
+    <DialogFooter>
+      <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+      <Button onClick={onConfirm}>Create Budget</Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>`
+
+const DROPDOWN_MENU_PATTERN = `// GOLDEN: Dropdown Menu — shadcn DropdownMenu.
+// NEVER build a custom absolute floating panel. Destructive items at the bottom
+// after a DropdownMenuSeparator, with text-destructive class.
+import { MoreHorizontal, Pencil, Copy, Trash2 } from 'lucide-react'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Button } from '@/components/ui/button'
+
+<DropdownMenu>
+  <DropdownMenuTrigger asChild>
+    <Button variant="ghost" size="icon" aria-label="Row actions">
+      <MoreHorizontal className="size-4" />
+    </Button>
+  </DropdownMenuTrigger>
+  <DropdownMenuContent align="end">
+    <DropdownMenuItem onClick={onEdit}><Pencil className="size-4 mr-2" />Edit</DropdownMenuItem>
+    <DropdownMenuItem onClick={onDuplicate}><Copy className="size-4 mr-2" />Duplicate</DropdownMenuItem>
+    <DropdownMenuSeparator />
+    <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
+      <Trash2 className="size-4 mr-2" />Delete
+    </DropdownMenuItem>
+  </DropdownMenuContent>
+</DropdownMenu>`
+
+const ALERT_DIALOG_PATTERN = `// GOLDEN: Alert Dialog — ONLY for destructive/irreversible actions (delete, cancel subscription, log out).
+// For non-destructive prompts use regular Dialog. Action button gets destructive variant.
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
+
+<AlertDialog>
+  <AlertDialogTrigger asChild>
+    <Button variant="destructive">Delete budget</Button>
+  </AlertDialogTrigger>
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle>Delete "{budgetName}"?</AlertDialogTitle>
+      <AlertDialogDescription>This will remove {transactionCount} linked transactions and cannot be undone.</AlertDialogDescription>
+    </AlertDialogHeader>
+    <AlertDialogFooter>
+      <AlertDialogCancel>Cancel</AlertDialogCancel>
+      <AlertDialogAction onClick={onConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>`
+
+const SHEET_PATTERN = `// GOLDEN: Sheet (side drawer) — for filter panels, detail views, multi-field forms.
+// Side is right by default; left only for mobile nav drawers. Width sm:max-w-sm|md — NEVER full-screen on desktop.
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { Button } from '@/components/ui/button'
+import { Filter } from 'lucide-react'
+
+<Sheet open={open} onOpenChange={onOpenChange}>
+  <SheetTrigger asChild>
+    <Button variant="outline" className="h-10"><Filter className="size-4 mr-2" />Advanced filters</Button>
+  </SheetTrigger>
+  <SheetContent side="right" className="sm:max-w-md">
+    <SheetHeader>
+      <SheetTitle>Advanced Filters</SheetTitle>
+      <SheetDescription>Narrow down transactions by multiple criteria.</SheetDescription>
+    </SheetHeader>
+    <div className="flex-1 overflow-y-auto py-4 space-y-6">
+      {/* filter fields */}
+    </div>
+    <SheetFooter>
+      <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+      <Button onClick={onApply}>Apply filters</Button>
+    </SheetFooter>
+  </SheetContent>
+</Sheet>`
+
+const PAGINATION_PATTERN = `// GOLDEN: Pagination — shadcn Pagination. NEVER build custom Prev/Next with raw buttons.
+// Show max 5 page numbers; ellipsis when range is larger. Centered below table.
+import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
+
+<div className="flex justify-center mt-4">
+  <Pagination>
+    <PaginationContent>
+      <PaginationItem><PaginationPrevious href="#" onClick={e => { e.preventDefault(); goPrev() }} aria-disabled={currentPage === 1} /></PaginationItem>
+      {showLeftEllipsis ? <PaginationItem><PaginationEllipsis /></PaginationItem> : null}
+      {pages.map(page => (
+        <PaginationItem key={page}>
+          <PaginationLink href="#" isActive={page === currentPage} onClick={e => { e.preventDefault(); onPageChange(page) }}>{page}</PaginationLink>
+        </PaginationItem>
+      ))}
+      {showRightEllipsis ? <PaginationItem><PaginationEllipsis /></PaginationItem> : null}
+      <PaginationItem><PaginationNext href="#" onClick={e => { e.preventDefault(); goNext() }} aria-disabled={currentPage === totalPages} /></PaginationItem>
+    </PaginationContent>
+  </Pagination>
+</div>`
+
 interface PatternEntry {
   key: string
   keywords: RegExp
@@ -131,6 +241,31 @@ const PATTERNS: PatternEntry[] = [
     key: 'chart-card',
     keywords: /\b(?:chart|graph|analytics|dashboard|revenue|trend)\b/i,
     content: CHART_CARD_PATTERN,
+  },
+  {
+    key: 'dialog',
+    keywords: /\b(?:dialog|modal|create\s+new|edit\s+\w+\s+dialog|confirmation\s+modal)\b/i,
+    content: DIALOG_PATTERN,
+  },
+  {
+    key: 'dropdown-menu',
+    keywords: /\b(?:dropdown|row\s+actions?|action\s+menu|more\s+actions|context\s+menu)\b/i,
+    content: DROPDOWN_MENU_PATTERN,
+  },
+  {
+    key: 'alert-dialog',
+    keywords: /\b(?:confirm|delete\s+confirmation|are\s+you\s+sure|destructive\s+action|alert\s+dialog)\b/i,
+    content: ALERT_DIALOG_PATTERN,
+  },
+  {
+    key: 'sheet',
+    keywords: /\b(?:sheet|side\s+(?:drawer|panel)|slide-?over|advanced\s+filters|drawer)\b/i,
+    content: SHEET_PATTERN,
+  },
+  {
+    key: 'pagination',
+    keywords: /\b(?:pagination|page\s+\d+|prev(?:ious)?\s*\/?\s*next|paginat(?:e|ion))\b/i,
+    content: PAGINATION_PATTERN,
   },
 ]
 

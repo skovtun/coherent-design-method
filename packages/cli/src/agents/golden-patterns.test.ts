@@ -35,7 +35,37 @@ describe('pickGoldenPatterns', () => {
     expect(out).toContain('chart-card')
   })
 
-  it('exposes all four pattern keys', () => {
-    expect(GOLDEN_PATTERN_KEYS).toEqual(['filter-bar', 'stat-card', 'empty-state', 'chart-card'])
+  it('exposes all registered pattern keys', () => {
+    expect(GOLDEN_PATTERN_KEYS).toEqual([
+      'filter-bar',
+      'stat-card',
+      'empty-state',
+      'chart-card',
+      'dialog',
+      'dropdown-menu',
+      'alert-dialog',
+      'sheet',
+      'pagination',
+    ])
+  })
+
+  it('returns dialog pattern for "modal" keyword', () => {
+    expect(pickGoldenPatterns('add a modal to create budget')).toContain('dialog')
+  })
+
+  it('returns dropdown pattern for "row actions"', () => {
+    expect(pickGoldenPatterns('add row actions for transactions table')).toContain('dropdown-menu')
+  })
+
+  it('returns alert-dialog pattern for "delete confirmation"', () => {
+    expect(pickGoldenPatterns('add a delete confirmation prompt')).toContain('alert-dialog')
+  })
+
+  it('returns sheet pattern for "side drawer"', () => {
+    expect(pickGoldenPatterns('open a side drawer for advanced filters')).toContain('sheet')
+  })
+
+  it('returns pagination pattern for "pagination"', () => {
+    expect(pickGoldenPatterns('add pagination below the table')).toContain('pagination')
   })
 })

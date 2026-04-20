@@ -241,7 +241,19 @@ GOLDEN PATTERNS (copy verbatim when relevant — these are the ground truth):
 - Stat card: see templates/patterns/stat-card.tsx
 - Empty state: see templates/patterns/empty-state.tsx
 - Chart card: see templates/patterns/chart-card.tsx
+- Dialog / Modal: see templates/patterns/dialog.tsx
+- Dropdown Menu: see templates/patterns/dropdown-menu.tsx
+- Alert Dialog: see templates/patterns/alert-dialog.tsx
+- Sheet (side drawer): see templates/patterns/sheet.tsx
+- Pagination: see templates/patterns/pagination.tsx
 When the user asks for any of these patterns, the generated code MUST match the golden pattern's structure (JSX shape, className order, prop types). Deviations are flagged by the validator.
+
+OVERLAYS (Dialog / AlertDialog / Sheet / Popover / DropdownMenu):
+- ALWAYS use shadcn primitives. NEVER build custom \`<div className="fixed inset-0 bg-black/50">\` overlays — shadcn components handle overlay, focus trap, Escape key, and accessibility automatically.
+- Dialog/AlertDialog max-width: \`max-w-sm\` | \`max-w-md\` | \`max-w-lg\` (default) | \`max-w-xl\`. NEVER \`w-full\` or \`max-w-none\` — this is the full-screen-modal bug.
+- Sheet max-width: \`sm:max-w-sm\` | \`sm:max-w-md\`. NEVER full-screen on desktop.
+- AlertDialog is ONLY for destructive/irreversible actions (delete, cancel subscription). Non-destructive prompts use regular Dialog.
+- All overlays must have a Cancel/close action. Primary/action button goes on the right inside the Footer.
 
 FILTER BAR / TOOLBAR (search + selects + date range above tables/lists):
 - ONE row on desktop: \`<div className="flex flex-wrap items-center gap-3 mb-4">...</div>\`. Multi-row only with 5+ filters.
