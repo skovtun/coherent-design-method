@@ -552,6 +552,58 @@ export async function fixCommand(opts: FixOptions = {}) {
         .filter((r: any): r is string => typeof r === 'string' && r.length > 0),
     )
     validRouteSet.add('/')
+    // Keep auth routes: they live outside config.pages (login/signup/reset)
+    // but are emitted by the Header generator via an allowlist.
+    const ALWAYS_VALID_NAV = new Set<string>([
+      '/login',
+      '/signin',
+      '/sign-in',
+      '/signup',
+      '/sign-up',
+      '/register',
+      '/forgot-password',
+      '/reset-password',
+    ])
+    // Prune stale navigation.items before regen — otherwise the sweep just
+    // re-emits the dead links that already exist in the config.
+    const currentNav: any = (config as any).navigation
+    if (currentNav?.items?.length) {
+      const filteredItems = currentNav.items.filter(
+        (it: any) => validRouteSet.has(it.route) || ALWAYS_VALID_NAV.has(it.route),
+      )
+      const staleNavItems = currentNav.items.filter(
+        (it: any) => !validRouteSet.has(it.route) && !ALWAYS_VALID_NAV.has(it.route),
+      )
+      if (staleNavItems.length > 0) {
+        if (dryRun) {
+          fixes.push(
+            `Would prune ${staleNavItems.length} stale nav item(s): ${staleNavItems.map((i: any) => i.route).join(', ')}`,
+          )
+          console.log(
+            chalk.green(
+              `  ${'\u2714'} Would prune stale nav items: ${staleNavItems.map((i: any) => i.route).join(', ')}`,
+            ),
+          )
+        } else {
+          dsm.updateConfig({ ...config, navigation: { ...currentNav, items: filteredItems } } as any)
+          try {
+            await dsm.save()
+          } catch (err) {
+            console.log(
+              chalk.yellow(
+                `  ${'\u26A0'} Could not persist pruned nav items: ${err instanceof Error ? err.message : String(err)}`,
+              ),
+            )
+          }
+          fixes.push(`Pruned ${staleNavItems.length} stale nav item(s) from config`)
+          console.log(
+            chalk.green(
+              `  ${'\u2714'} Pruned stale nav items from config: ${staleNavItems.map((i: any) => i.route).join(', ')}`,
+            ),
+          )
+        }
+      }
+    }
     const sharedDir = resolve(projectRoot, 'components', 'shared')
     const navFiles = [
       { path: resolve(sharedDir, 'header.tsx'), kind: 'header' as const },
@@ -675,11 +727,18 @@ export async function fixCommand(opts: FixOptions = {}) {
   }
 
   // ─── Step 5c: Verify incremental edits ──────────────────────────────
+  // Shared components (components/shared/*) use named exports by design —
+  // the `missing-default-export` check is meaningful for app/**/page.tsx
+  // only, not for reusable library pieces.
   for (const file of modifiedFiles) {
     if (!backups.has(file)) continue
     const before = backups.get(file)!
     const after = readFileSync(file, 'utf-8')
-    const issues = verifyIncrementalEdit(before, after)
+    const rel = relative(projectRoot, file)
+    const isSharedComponent = rel.startsWith('components/shared/') || rel.startsWith('components/ui/')
+    const issues = verifyIncrementalEdit(before, after).filter(i =>
+      isSharedComponent ? i.type !== 'missing-default-export' : true,
+    )
     if (issues.length > 0) {
       for (const issue of issues) {
         remaining.push(`${relative(projectRoot, file)}: ${issue.message}`)

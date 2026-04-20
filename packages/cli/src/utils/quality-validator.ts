@@ -546,15 +546,34 @@ export function validatePageQuality(
       })
     }
   }
-  issues.push(
-    ...checkLines(
-      code,
-      DOUBLE_SIGN_RE,
-      'DOUBLE_SIGN',
-      'Manual +/- prefix on value that is already signed — renders as ++/-- in UI. Use Intl.NumberFormat with signDisplay: "always" or format once.',
-      'error',
-    ),
+  // DOUBLE_SIGN severity tiers:
+  //   - ERROR:  numeric comparison on the same value being formatted
+  //             (`amount > 0 ? '+' : '-'` + `amount.toFixed()` nearby) — the
+  //             value is already signed by the formatter, so the prefix will
+  //             double up.
+  //   - WARN:   type-string comparison (`type === 'credit' ? '+' : '-'` +
+  //             `formatCurrency(amount)`) — may or may not double-sign,
+  //             depends on whether the formatter or underlying value is
+  //             itself signed. The AI-preferred idiom is still
+  //             `Intl.NumberFormat({ signDisplay: 'always' })`, so we
+  //             surface it — just not as a blocking error.
+  const doubleSignLines = checkLines(
+    code,
+    DOUBLE_SIGN_RE,
+    'DOUBLE_SIGN',
+    'Manual +/- prefix — if the value is already signed (Intl.NumberFormat output, formatCurrency on a signed value), this renders as ++/-- in the UI. Prefer Intl.NumberFormat with signDisplay: "always".',
+    'error',
   )
+  const codeLinesForDs = code.split('\n')
+  const demotedDoubleSign = doubleSignLines.map(issue => {
+    const line = codeLinesForDs[issue.line - 1] || ''
+    const isNumericCompare =
+      /(?:amount|value|total|balance|change|delta|diff|sum|price|cost|profit|loss|pnl|qty|quantity)\s*[<>!=]=?\s*0\s*\?/i.test(
+        line,
+      )
+    return isNumericCompare ? issue : { ...issue, severity: 'warning' as const }
+  })
+  issues.push(...demotedDoubleSign)
   // TableHead / TableCell column mismatch — AI adds column headers but forgets
   // to render matching body cells, leaving empty columns in the UI.
   const tableMismatchIssues = detectTableColumnMismatch(code)
@@ -2223,6 +2242,22 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
   )
   if (hadDoubleSign) fixes.push('DOUBLE_SIGN → signDisplay or guarded sign')
   void doubleSignPatterns
+
+  // 10. RAW_NUMBER_FORMAT — `$${amount.toFixed(2)}` in JSX is the most common
+  //     currency footgun: no thousands separator, wrong locale, no signDisplay.
+  //     Replace with a USD Intl.NumberFormat call. Only fire on the exact
+  //     `$\{X.toFixed(N)}` or `$${X.toFixed(N)}` shapes — avoid touching
+  //     arbitrary toFixed calls that may be non-currency.
+  let hadCurrencyFix = false
+  fixed = fixed.replace(/\$\{([\w.[\]]+)\.toFixed\(\s*(\d+)\s*\)\}/g, (_m, valueVar, digits) => {
+    hadCurrencyFix = true
+    return `\${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: ${digits}, maximumFractionDigits: ${digits} }).format(${valueVar})}`
+  })
+  fixed = fixed.replace(/\$(?=\{)\{([\w.[\]]+)\.toFixed\(\s*(\d+)\s*\)\}/g, (_m, valueVar, digits) => {
+    hadCurrencyFix = true
+    return `{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: ${digits}, maximumFractionDigits: ${digits} }).format(${valueVar})}`
+  })
+  if (hadCurrencyFix) fixes.push('toFixed currency → Intl.NumberFormat')
 
   return { code: fixed, fixes }
 }
