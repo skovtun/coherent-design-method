@@ -17,6 +17,7 @@ import { exportCommand } from './commands/export.js'
 import { statusCommand } from './commands/status.js'
 import { regenerateDocsCommand } from './commands/regenerate-docs.js'
 import { reportIssueCommand } from './commands/report-issue.js'
+import { journalListCommand, journalAggregateCommand } from './commands/journal.js'
 import { baselineCommand } from './commands/baseline.js'
 import {
   wikiReflectCommand,
@@ -160,6 +161,14 @@ dsCmd
 program.addCommand(dsCmd)
 
 program.command('status').description('Show current project status').action(statusCommand)
+
+const journalCmd = new Command('journal').description('Review and aggregate captured `coherent fix --journal` sessions')
+journalCmd.command('list').description('List all captured fix sessions with summary counts').action(journalListCommand)
+journalCmd
+  .command('aggregate')
+  .description('Rank validators by total recurrence across all sessions')
+  .action(journalAggregateCommand)
+program.addCommand(journalCmd)
 
 program
   .command('report-issue')
