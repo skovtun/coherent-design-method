@@ -66,6 +66,7 @@ program
   )
   .option('-i, --interactive', 'Interactive chat mode')
   .option('--dry-run', 'Show what would change without applying')
+  .allowExcessArguments(false)
   .action(chatCommand)
 
 program.command('preview').description('Launch dev server for preview').action(previewCommand)
