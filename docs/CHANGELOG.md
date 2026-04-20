@@ -2,6 +2,30 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.22] — 2026-04-20
+
+### `coherent wiki audit` — extended checks (PR 2 from v0.7.x wiki refactor)
+
+Three new audit passes, one bug fix. All platform-wiki housekeeping — no user-facing behavior change.
+
+### Added
+
+- **ADR schema audit.** Every `docs/wiki/ADR/*.md` must have frontmatter with `id`, `status`, `date`, `confidence`. `id` must match `ADR-NNNN` (four-digit zero-padded). `confidence` must be one of hypothesis/observed/verified/established. Catches ADRs added without frontmatter (would break wiki retrieval).
+- **Version consistency audit.** `@getcoherent/core.version` must equal `@getcoherent/cli.version` (published together). CHANGELOG top entry must match. Mismatch is `error` for pkg/pkg, `warning` for pkg/CHANGELOG. Catches the "forgot to bump one package" drift that bit PR #28.
+
+### Fixed
+
+- **Evidence false-positive (PJ-001, PJ-009).** Audit now reads `evidence:` from frontmatter before falling back to body prose scan. Entries with evidence only in frontmatter (the canonical place per v0.7.3 schema) no longer get flagged. Previously `wiki audit` always printed 2 info lines against clean journal.
+
+### Tests
+
+- `packages/cli/src/commands/wiki.test.ts` — 9 new tests covering `extractFrontmatterAtTop`, `auditVersionConsistency` (match / cli-core mismatch / CHANGELOG drift / missing CHANGELOG / unbracketed heading).
+- Full suite: 1068 passing (was 1059).
+
+### Migration
+
+No migration required. Existing wikis will get new warnings only if their ADRs are actually missing frontmatter fields, or if their versions are drifted.
+
 ## [0.7.21] — 2026-04-20
 
 ### `coherent check` — first cross-page validator (INCONSISTENT_CARD)

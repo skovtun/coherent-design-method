@@ -80,6 +80,7 @@ interface WikiContext {
   backlogPath: string
   rulesMapPath: string
   patternsDir: string
+  adrDir: string
 }
 
 function detectRepoContext(): WikiContext | null {
@@ -96,6 +97,7 @@ function detectRepoContext(): WikiContext | null {
         backlogPath: join(dir, 'docs', 'wiki', 'IDEAS_BACKLOG.md'),
         rulesMapPath: join(dir, 'docs', 'wiki', 'RULES_MAP.md'),
         patternsDir: join(dir, 'packages', 'cli', 'templates', 'patterns'),
+        adrDir: join(dir, 'docs', 'wiki', 'ADR'),
       }
     }
     const parent = dirname(dir)
@@ -292,6 +294,7 @@ export async function wikiAuditCommand() {
     for (const entry of pjEntries) {
       const id = entry[1]
       const section = sliceSectionAt(journal, entry.index ?? 0)
+      const frontmatter = extractFrontmatterAbove(journal, entry.index ?? 0)
       if (!/\*\*Fix[^:*]*?:?\*\*/i.test(section) && !/fix\s+shipped/i.test(section) && !/fix\s*\(/i.test(section)) {
         issues.push({
           severity: 'info',
@@ -299,9 +302,12 @@ export async function wikiAuditCommand() {
           message: 'No Fix section found — entry may be incomplete',
         })
       }
-      const hasEvidence =
+      // Evidence may live in frontmatter (`evidence: [...]`) or in body prose.
+      // Frontmatter is the canonical place per v0.7.3 schema — check it first.
+      const hasFrontmatterEvidence = !!frontmatter?.evidence && !/^\[\s*\]$/.test(frontmatter.evidence.trim())
+      const hasBodyEvidence =
         /sha:[0-9a-f]{7,}/i.test(section) || /screenshot:/i.test(section) || /evidence:/i.test(section)
-      if (!hasEvidence) {
+      if (!hasFrontmatterEvidence && !hasBodyEvidence) {
         issues.push({
           severity: 'info',
           where: `PATTERNS_JOURNAL.md PJ-${id}`,
@@ -311,7 +317,6 @@ export async function wikiAuditCommand() {
 
       // W6 confidence check — frontmatter must declare confidence level so
       // future readers know how much to trust the entry.
-      const frontmatter = extractFrontmatterAbove(journal, entry.index ?? 0)
       if (!frontmatter || !frontmatter.confidence) {
         issues.push({
           severity: 'info',
@@ -354,6 +359,56 @@ export async function wikiAuditCommand() {
       }
     }
   }
+
+  // 2b. ADR files have required frontmatter fields (id / status / date / confidence).
+  // ADRs record architecturally-significant decisions — the schema is how we keep
+  // them queryable years later. A missing id breaks retrieval; a missing status
+  // makes it unclear whether the decision is still active.
+  if (existsSync(ctx.adrDir)) {
+    const REQUIRED_ADR_FIELDS = ['id', 'status', 'date', 'confidence'] as const
+    for (const f of readdirSync(ctx.adrDir)) {
+      if (!f.endsWith('.md') || f.toUpperCase().startsWith('README')) continue
+      const full = join(ctx.adrDir, f)
+      const content = readFileSync(full, 'utf-8')
+      const frontmatter = extractFrontmatterAtTop(content)
+      if (!frontmatter) {
+        issues.push({
+          severity: 'warning',
+          where: `ADR/${f}`,
+          message: 'Missing YAML frontmatter — ADRs need id/status/date/confidence',
+        })
+        continue
+      }
+      for (const field of REQUIRED_ADR_FIELDS) {
+        if (!frontmatter[field]) {
+          issues.push({
+            severity: 'warning',
+            where: `ADR/${f}`,
+            message: `Frontmatter missing required field: ${field}`,
+          })
+        }
+      }
+      if (frontmatter.id && !/^ADR-\d{4}$/.test(frontmatter.id)) {
+        issues.push({
+          severity: 'warning',
+          where: `ADR/${f}`,
+          message: `id "${frontmatter.id}" should match ADR-NNNN (four-digit zero-padded)`,
+        })
+      }
+      if (frontmatter.confidence && !VALID_CONFIDENCES.includes(frontmatter.confidence as Confidence)) {
+        issues.push({
+          severity: 'warning',
+          where: `ADR/${f}`,
+          message: `Invalid confidence "${frontmatter.confidence}" — must be one of: ${VALID_CONFIDENCES.join(', ')}`,
+        })
+      }
+    }
+  }
+
+  // 2c. Version consistency: core pkg == cli pkg == top CHANGELOG entry.
+  // When these drift, users get mismatched advertised vs shipped versions.
+  // Caught PJ-style incidents before (forgot to bump one package.json).
+  issues.push(...auditVersionConsistency(ctx))
 
   // 3. RULES_MAP.md has the auto-gen markers
   if (existsSync(ctx.rulesMapPath)) {
@@ -605,6 +660,66 @@ function sliceSectionAt(text: string, start: number): string {
   const nextSection = text.slice(start + 1).search(/\n### /)
   if (nextSection === -1) return text.slice(start)
   return text.slice(start, start + 1 + nextSection)
+}
+
+/**
+ * Parse a YAML frontmatter block at the top of a file (opening `---` on line 1).
+ * Returns null if the file doesn't start with `---`.
+ */
+export function extractFrontmatterAtTop(text: string): Record<string, string> | null {
+  if (!text.startsWith('---\n') && !text.startsWith('---\r\n')) return null
+  const rest = text.slice(4)
+  const closeIdx = rest.search(/^---\s*$/m)
+  if (closeIdx === -1) return null
+  const yaml = rest.slice(0, closeIdx).trim()
+  const parsed: Record<string, string> = {}
+  for (const line of yaml.split('\n')) {
+    const m = line.match(/^(\w+)\s*:\s*(.*?)\s*$/)
+    if (m) parsed[m[1]] = m[2]
+  }
+  return parsed
+}
+
+export function auditVersionConsistency(ctx: WikiContext): AuditIssue[] {
+  const issues: AuditIssue[] = []
+  const cliPkgPath = join(ctx.repoRoot, 'packages', 'cli', 'package.json')
+  const corePkgPath = join(ctx.repoRoot, 'packages', 'core', 'package.json')
+  const changelogPath = join(ctx.repoRoot, 'docs', 'CHANGELOG.md')
+
+  const readPkgVersion = (path: string): string | null => {
+    if (!existsSync(path)) return null
+    try {
+      return JSON.parse(readFileSync(path, 'utf-8')).version ?? null
+    } catch {
+      return null
+    }
+  }
+
+  const cliVer = readPkgVersion(cliPkgPath)
+  const coreVer = readPkgVersion(corePkgPath)
+  if (cliVer && coreVer && cliVer !== coreVer) {
+    issues.push({
+      severity: 'error',
+      where: 'package.json',
+      message: `Version mismatch: core=${coreVer} vs cli=${cliVer} — packages publish together, must match`,
+    })
+  }
+
+  if (existsSync(changelogPath)) {
+    const changelog = readFileSync(changelogPath, 'utf-8')
+    const topMatch = changelog.match(/^##\s+\[?(\d+\.\d+\.\d+)\]?/m)
+    const topVer = topMatch?.[1]
+    const pkgVer = cliVer ?? coreVer
+    if (topVer && pkgVer && topVer !== pkgVer) {
+      issues.push({
+        severity: 'warning',
+        where: 'CHANGELOG.md',
+        message: `Top entry is ${topVer} but package.json is ${pkgVer} — CHANGELOG out of sync`,
+      })
+    }
+  }
+
+  return issues
 }
 
 /**
