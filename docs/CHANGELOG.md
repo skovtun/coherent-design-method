@@ -2,6 +2,38 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.9] — 2026-04-19
+
+### Nav cleanup on delete-page + broader auto-fix coverage
+
+Triggered by live testing: user deleted `/account` page via `coherent chat "delete account page"`. The page file vanished, config.pages was updated — but the "Account" link stayed in the Header menu. Clicking it 404'd.
+
+Root cause was a three-way gap:
+1. `delete-page` handler removed from `config.pages` but not from `config.navigation.items`.
+2. Shared `components/shared/header.tsx` / `sidebar.tsx` were not regenerated after the delete.
+3. `coherent fix` called `validatePageQuality()` WITHOUT `validRoutes`, so the existing `BROKEN_INTERNAL_LINK` validator never fired against stale hrefs.
+
+### Fixed
+
+- **`delete-page` handler now updates navigation + regens shared Header/Sidebar.** After dropping the page from `config.pages` and `config.navigation.items` in one pass, imports `PageGenerator` and rewrites `components/shared/header.tsx` (or `sidebar.tsx`, per nav type) using the updated config. Stale link can't survive a delete.
+- **`coherent fix` Step 4d: stale nav link sweep.** Scans `components/shared/header.tsx` and `sidebar.tsx` for hrefs, cross-references against `config.pages` routes. Any stale href triggers regen of that file from the current config. Safe under `--dry-run` — reports what it would regen.
+- **`coherent fix` Step 6 now passes `validRoutes` to `validatePageQuality()`.** `BROKEN_INTERNAL_LINK` warnings finally surface during `fix`. Previously they only fired in `check`.
+
+### Added — broader quality auto-fix coverage
+
+User reported 10+ error classes surviving `coherent fix`. Highest-frequency error patterns are now auto-fixed rather than merely reported:
+
+- **`DIALOG_FULL_WIDTH` auto-fix.** `<DialogContent>` / `<AlertDialogContent>` without a `max-w-*` class gets `max-w-lg` injected. `<SheetContent>` gets `sm:max-w-md`. Existing `max-w-*` is preserved.
+- **`SMALL_TOUCH_TARGET` auto-fix.** `<Button size="icon">` without explicit sizing gets `min-h-[44px] min-w-[44px]` appended, unless padding/height classes already satisfy 44px.
+- **`MISSING_ARIA_LABEL` auto-fix.** Icon-only `<Button>/<button>` with a lucide-style icon child gets an inferred `aria-label`. Icon→label map handles the common set (`X`→Close, `Trash`→Delete, `Menu`→Open menu, `Pencil/Edit`→Edit, `Chevron*`→Expand/Collapse/Previous/Next, …). Buttons with visible text or an existing aria-label are left untouched.
+- **`DOUBLE_SIGN` auto-fix (narrow, high-confidence).** The common AI pattern `{amount > 0 ? '+' : ''}{amount.toFixed(2)}` on an already-signed value gets rewritten to `new Intl.NumberFormat({ signDisplay: "always", ... }).format(amount)`. Fix only applies when sign var === value var — broader patterns stay reported-only, since the transformation is risky.
+
+### Tests
+997 passing (+11 new autofix cases).
+
+### Memory quality score
+Unchanged at ~6.5/10. This release is product polish, not retrieval quality.
+
 ## [0.7.8] — 2026-04-20
 
 ### Compound delete + synonym expansion + prompt-injection guard

@@ -1613,3 +1613,82 @@ describe('INLINE_MOCK_DATA detection', () => {
     expect(issues.some(i => i.type === 'INLINE_MOCK_DATA')).toBe(false)
   })
 })
+
+describe('autoFixCode v0.7.9 — overlay, touch target, aria-label, double sign', () => {
+  it('injects max-w-lg into <DialogContent> without max-w-*', async () => {
+    const code = `<Dialog>\n  <DialogContent>\n    <p>Hi</p>\n  </DialogContent>\n</Dialog>`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('max-w-lg')
+    expect(fixes).toContain('Dialog/Sheet full-width → max-w-* default')
+  })
+
+  it('injects max-w-lg into DialogContent that already has a className', async () => {
+    const code = `<DialogContent className="p-6">Body</DialogContent>`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toMatch(/className="max-w-lg p-6"/)
+  })
+
+  it('uses sm:max-w-md for <SheetContent>', async () => {
+    const code = `<Sheet><SheetContent>Body</SheetContent></Sheet>`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('sm:max-w-md')
+  })
+
+  it('leaves existing max-w-xl on DialogContent alone', async () => {
+    const code = `<DialogContent className="max-w-xl">Body</DialogContent>`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('max-w-xl')
+    expect(fixed).not.toContain('max-w-lg')
+    expect(fixes).not.toContain('Dialog/Sheet full-width → max-w-* default')
+  })
+
+  it('adds min-h-[44px] min-w-[44px] to size="icon" Button without sizing', async () => {
+    const code = `<Button size="icon"><X /></Button>`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('min-h-[44px] min-w-[44px]')
+    expect(fixes).toContain('icon buttons → min 44px touch target')
+  })
+
+  it('skips icon buttons that already have sufficient padding', async () => {
+    const code = `<Button size="icon" className="p-3"><X /></Button>`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).not.toContain('min-h-[44px]')
+    expect(fixes).not.toContain('icon buttons → min 44px touch target')
+  })
+
+  it('adds aria-label to icon-only <Button> with lucide child', async () => {
+    const code = `<Button variant="ghost" size="icon"><Trash className="h-4 w-4" /></Button>`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toMatch(/aria-label="Delete"/)
+    expect(fixes).toContain('added aria-label to icon-only buttons')
+  })
+
+  it('maps X icon to "Close" aria-label', async () => {
+    const code = `<Button size="icon"><X /></Button>`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toMatch(/aria-label="Close"/)
+  })
+
+  it('does not overwrite an existing aria-label on an icon button', async () => {
+    const code = `<Button size="icon" aria-label="Dismiss"><X /></Button>`
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('aria-label="Dismiss"')
+    expect(fixed).not.toContain('aria-label="Close"')
+  })
+
+  it('rewrites double-sign pattern with .toFixed to Intl.NumberFormat', async () => {
+    const code = `<span>{amount > 0 ? '+' : ''}{amount.toFixed(2)}</span>`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('Intl.NumberFormat')
+    expect(fixed).toContain('signDisplay: "always"')
+    expect(fixed).not.toMatch(/amount > 0 \? '\+'/)
+    expect(fixes).toContain('DOUBLE_SIGN → signDisplay or guarded sign')
+  })
+
+  it('leaves double-sign alone when sign var and value var differ', async () => {
+    const code = `<span>{amountA > 0 ? '+' : ''}{amountB.toFixed(2)}</span>`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain("amountA > 0 ? '+' : ''")
+    expect(fixes).not.toContain('DOUBLE_SIGN → signDisplay or guarded sign')
+  })
+})

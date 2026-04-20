@@ -1118,10 +1118,9 @@ export async function applyModification(
     }
 
     case 'delete-page': {
-      // PJ-009: remove a page — delete its file, drop from config.pages, keep
-      // nav update as a follow-up (user can run `coherent chat 'remove X from nav'`).
-      // Backups are created at the chat command level (see chat.ts createBackup),
-      // so `coherent undo` restores.
+      // PJ-009: remove a page — delete its file, drop from config.pages AND
+      // navigation.items, regen shared Header/Sidebar so nav stops pointing
+      // at a 404. Backups at chat-command level; `coherent undo` restores.
       const target = request.target
       if (!target) {
         return { success: false, message: 'delete-page requires target (page id/name/route)', modified: [] }
@@ -1161,7 +1160,6 @@ export async function applyModification(
       const modified: string[] = []
       if (filePath) {
         await rm(filePath, { force: true })
-        // Remove the now-empty route directory so `app/` stays clean.
         try {
           await rm(dirname(filePath), { recursive: true, force: true })
         } catch {
@@ -1169,17 +1167,56 @@ export async function applyModification(
         }
         modified.push(filePath)
       }
-      // Drop from config.pages
+
+      // Drop from config.pages + config.navigation.items in one pass so the
+      // post-delete nav regen sees the final state.
+      const filteredPages = pages.filter((p: any) => p.id !== page.id)
+      const currentNav: any = (config as any).navigation
+      const updatedNav =
+        currentNav && currentNav.items
+          ? { ...currentNav, items: currentNav.items.filter((it: any) => it.route !== page.route) }
+          : currentNav
       const updated = {
         ...config,
-        pages: pages.filter((p: any) => p.id !== page.id),
+        pages: filteredPages,
+        ...(updatedNav ? { navigation: updatedNav } : {}),
       }
       dsm.updateConfig(updated as any)
       cm.updateConfig(updated as any)
       pm.updateConfig(updated as any)
+
+      // Regen shared Header / Sidebar so stale nav links can't 404.
+      try {
+        const { PageGenerator } = await import('@getcoherent/core')
+        const generator = new PageGenerator(updated as any)
+        const navType = updatedNav?.type || 'header'
+        const sharedDir = resolve(projectRoot, 'components', 'shared')
+        await mkdir(sharedDir, { recursive: true })
+        if (navType === 'header' || navType === 'both') {
+          const headerPath = resolve(sharedDir, 'header.tsx')
+          if (existsSync(headerPath)) {
+            await writeFile(headerPath, generator.generateSharedHeaderCode())
+            modified.push(headerPath)
+          }
+        }
+        if (navType === 'sidebar' || navType === 'both') {
+          const sidebarPath = resolve(sharedDir, 'sidebar.tsx')
+          if (existsSync(sidebarPath)) {
+            await writeFile(sidebarPath, generator.generateSharedSidebarCode())
+            modified.push(sidebarPath)
+          }
+        }
+      } catch (err) {
+        console.log(
+          chalk.yellow(
+            `  ⚠ Nav regen after delete-page failed: ${err instanceof Error ? err.message : String(err)}. Run \`coherent fix\` to clean stale nav links.`,
+          ),
+        )
+      }
+
       return {
         success: true,
-        message: `Deleted page "${page.name}" (${page.route}). Run \`coherent undo\` to restore.`,
+        message: `Deleted page "${page.name}" (${page.route}). Nav updated. Run \`coherent undo\` to restore.`,
         modified,
       }
     }

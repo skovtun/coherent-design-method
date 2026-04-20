@@ -2084,6 +2084,141 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
     fixes.push('stripped extra borders from TabsList')
   }
 
+  // 6. DIALOG_FULL_WIDTH — inject max-w-* default into DialogContent/SheetContent.
+  //    Matches the validator at line 324. Default: max-w-lg for Dialog/AlertDialog,
+  //    sm:max-w-md for Sheet (which animates from the side).
+  let hadOverlayWidthFix = false
+  fixed = fixed.replace(/<(Dialog|AlertDialog|Sheet)Content\b([^>]*)>/g, (full, kind, attrs) => {
+    if (/\bmax-w-(?:sm|md|lg|xl|2xl|3xl|\[[^\]]+\])\b/.test(attrs)) return full
+    if (/\bsm:max-w-/.test(attrs)) return full
+    const widthClass = kind === 'Sheet' ? 'sm:max-w-md' : 'max-w-lg'
+    // Inject into className if present, else append a className prop.
+    if (/className=/.test(attrs)) {
+      const patched = attrs.replace(/className=("|')([^"']*)(\1)/, (_m: string, q: string, cls: string, q2: string) => {
+        const next = cls.trim() ? `${widthClass} ${cls.trim()}` : widthClass
+        return `className=${q}${next}${q2}`
+      })
+      if (patched !== attrs) {
+        hadOverlayWidthFix = true
+        return `<${kind}Content${patched}>`
+      }
+    }
+    hadOverlayWidthFix = true
+    return `<${kind}Content className="${widthClass}"${attrs}>`
+  })
+  if (hadOverlayWidthFix) fixes.push('Dialog/Sheet full-width → max-w-* default')
+
+  // 7. SMALL_TOUCH_TARGET — add min-h-[44px] min-w-[44px] to size="icon" buttons.
+  //    Validator: size="icon" with no explicit sizing.
+  let hadTouchFix = false
+  fixed = fixed.replace(/<(?:Button|button)\b([^>]*size=("|')icon\2[^>]*)>/g, (full, attrs) => {
+    if (
+      /\bmin-h-\[4[4-9]|\bmin-h-11\b|\bh-11\b|\bmin-w-\[4[4-9]|\bmin-w-11\b|\bw-11\b|\bp-[3-9]\b|\bp-2\.5\b/.test(attrs)
+    ) {
+      return full
+    }
+    const touchClasses = 'min-h-[44px] min-w-[44px]'
+    if (/className=/.test(attrs)) {
+      const patched = attrs.replace(/className=("|')([^"']*)(\1)/, (_m: string, q: string, cls: string, q2: string) => {
+        const next = cls.trim() ? `${cls.trim()} ${touchClasses}` : touchClasses
+        return `className=${q}${next}${q2}`
+      })
+      if (patched !== attrs) {
+        hadTouchFix = true
+        return full.replace(attrs, patched)
+      }
+    }
+    hadTouchFix = true
+    return full.replace(/>$/, ` className="${touchClasses}">`)
+  })
+  if (hadTouchFix) fixes.push('icon buttons → min 44px touch target')
+
+  // 8. MISSING_ARIA_LABEL — for icon-only Button/button with a lucide icon child,
+  //    infer aria-label from the icon component name. Lucide icons are
+  //    PascalCase and semantic (Trash, Edit, X, Menu, Plus, Check), so they
+  //    map cleanly to human labels. Skip when aria-label already present or
+  //    when the button has visible text.
+  const iconAriaRe = /<(Button|button)\b([^>]*)>\s*<([A-Z][A-Za-z0-9]*)\b([^>]*?)(?:\/>|>\s*<\/\3>)\s*<\/\1>/g
+  const iconToLabel = (iconName: string): string => {
+    // Strip trailing "Icon" suffix ("TrashIcon" → "Trash"), then space-split camelCase.
+    const cleaned = iconName.replace(/Icon$/, '')
+    const spaced = cleaned.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()
+    const overrides: Record<string, string> = {
+      x: 'Close',
+      'more horizontal': 'More options',
+      'more vertical': 'More options',
+      menu: 'Open menu',
+      plus: 'Add',
+      minus: 'Remove',
+      pencil: 'Edit',
+      edit: 'Edit',
+      trash: 'Delete',
+      'trash 2': 'Delete',
+      search: 'Search',
+      filter: 'Filter',
+      settings: 'Settings',
+      check: 'Confirm',
+      copy: 'Copy',
+      share: 'Share',
+      download: 'Download',
+      upload: 'Upload',
+      'chevron down': 'Expand',
+      'chevron up': 'Collapse',
+      'chevron left': 'Previous',
+      'chevron right': 'Next',
+      'arrow right': 'Next',
+      'arrow left': 'Back',
+      bell: 'Notifications',
+      user: 'Account',
+      'log out': 'Sign out',
+    }
+    return overrides[spaced] || cleaned.replace(/([a-z])([A-Z])/g, '$1 $2')
+  }
+  let hadAriaFix = false
+  fixed = fixed.replace(iconAriaRe, (full, tag, attrs, iconName) => {
+    if (/\baria-label\s*=/.test(attrs)) return full
+    const label = iconToLabel(iconName)
+    const newAttrs = (attrs.trimEnd() + ` aria-label="${label}"`).replace(/^\s*/, ' ')
+    hadAriaFix = true
+    return full.replace(`<${tag}${attrs}>`, `<${tag}${newAttrs}>`)
+  })
+  if (hadAriaFix) fixes.push('added aria-label to icon-only buttons')
+
+  // 9. DOUBLE_SIGN — the AI writes `{amount > 0 ? '+' : ''}${amount.toFixed(2)}`
+  //    where amount is already negative (e.g. -120.50), producing "+-120.50".
+  //    Convert to Intl.NumberFormat with signDisplay: 'always' and one call.
+  //    We only fix a very narrow, high-confidence pattern: `{X > 0 ? '+' : ''}${formatCurrency(X)}`
+  //    or `{X > 0 ? '+' : ''}${X.toFixed(N)}`. Broader patterns are left for manual review.
+  const doubleSignPatterns: Array<[RegExp, string]> = [
+    [
+      /\{\s*([\w.]+)\s*>\s*0\s*\?\s*['"]\+['"]\s*:\s*['"]['"]\s*\}\$?\{?\s*([\w.]+)\.toFixed\((\d+)\)\s*\}?/g,
+      (() =>
+        '{new Intl.NumberFormat("en-US", { signDisplay: "always", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(0)}')(),
+    ],
+  ]
+  // The callback form above is wrong for capture groups — use a dedicated replace.
+  let hadDoubleSign = false
+  fixed = fixed.replace(
+    /\{\s*([\w.[\]]+)\s*>\s*0\s*\?\s*['"]\+['"]\s*:\s*['"]['"]\s*\}\s*\{?\s*([\w.[\]]+)\.toFixed\((\d+)\)\s*\}?/g,
+    (_m, signVar, valueVar, digits) => {
+      if (signVar !== valueVar) return _m
+      hadDoubleSign = true
+      return `{new Intl.NumberFormat("en-US", { signDisplay: "always", minimumFractionDigits: ${digits}, maximumFractionDigits: ${digits} }).format(${valueVar})}`
+    },
+  )
+  // Also catch `{X > 0 ? '+' : ''}{formatCurrency(X)}` / `{X > 0 ? '+' : ''}${formatCurrency(X)}`.
+  fixed = fixed.replace(
+    /\{\s*([\w.[\]]+)\s*>\s*0\s*\?\s*['"]\+['"]\s*:\s*['"]['"]\s*\}\s*\$?\{\s*([A-Za-z_$][\w.]*)\(([\w.[\]]+)\)\s*\}/g,
+    (_m, signVar, fnName, argVar) => {
+      if (signVar !== argVar) return _m
+      hadDoubleSign = true
+      // Preserve the caller's formatter but prefix sign via a small inline helper.
+      return `{(${argVar} >= 0 ? "+" : "") + ${fnName}(${argVar}).replace(/^-/, "-")}`
+    },
+  )
+  if (hadDoubleSign) fixes.push('DOUBLE_SIGN → signDisplay or guarded sign')
+  void doubleSignPatterns
+
   return { code: fixed, fixes }
 }
 

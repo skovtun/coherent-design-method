@@ -532,6 +532,69 @@ export async function fixCommand(opts: FixOptions = {}) {
     }
   }
 
+  // ─── Step 4d: Stale nav links → regen shared Header/Sidebar ────────
+  // After delete-page (or manual config edit), hrefs inside
+  // components/shared/header.tsx and sidebar.tsx may point at routes that no
+  // longer exist, producing 404s on click. Regen from current config.
+  if (!dsm) {
+    try {
+      dsm = new DesignSystemManager(project.configPath)
+      await dsm.load()
+    } catch {
+      dsm = null
+    }
+  }
+  if (dsm) {
+    const config = dsm.getConfig()
+    const validRouteSet = new Set<string>(
+      (config.pages || [])
+        .map((p: any) => p.route)
+        .filter((r: any): r is string => typeof r === 'string' && r.length > 0),
+    )
+    validRouteSet.add('/')
+    const sharedDir = resolve(projectRoot, 'components', 'shared')
+    const navFiles = [
+      { path: resolve(sharedDir, 'header.tsx'), kind: 'header' as const },
+      { path: resolve(sharedDir, 'sidebar.tsx'), kind: 'sidebar' as const },
+    ]
+    const hrefRe = /href\s*=\s*["'](\/[^"'#?]*)["']/g
+    for (const { path, kind } of navFiles) {
+      if (!existsSync(path)) continue
+      const code = readFileSync(path, 'utf-8')
+      const staleHrefs: string[] = []
+      let hm
+      while ((hm = hrefRe.exec(code)) !== null) {
+        const href = hm[1]
+        if (href.startsWith('/design-system') || href.startsWith('/api')) continue
+        if (!validRouteSet.has(href)) staleHrefs.push(href)
+      }
+      if (staleHrefs.length === 0) continue
+      const sample = [...new Set(staleHrefs)].slice(0, 3).join(', ')
+      if (dryRun) {
+        fixes.push(`Would regen ${kind} (stale links: ${sample})`)
+        console.log(chalk.green(`  ${'\u2714'} Would regen ${kind} (stale links: ${sample})`))
+        continue
+      }
+      try {
+        const { PageGenerator } = await import('@getcoherent/core')
+        const gen = new PageGenerator(config)
+        const newCode = kind === 'header' ? gen.generateSharedHeaderCode() : gen.generateSharedSidebarCode()
+        const navResult = safeWrite(path, newCode, projectRoot, backups)
+        if (navResult.ok) {
+          modifiedFiles.push(path)
+          fixes.push(`Regenerated ${kind} (removed ${staleHrefs.length} stale nav link(s))`)
+          console.log(chalk.green(`  ${'\u2714'} Regenerated ${kind} - removed stale links: ${sample}`))
+        } else {
+          console.log(chalk.yellow(`  ${'\u26A0'} ${kind} regen failed validation - kept original`))
+        }
+      } catch (err) {
+        console.log(
+          chalk.yellow(`  ${'\u26A0'} Could not regen ${kind}: ${err instanceof Error ? err.message : String(err)}`),
+        )
+      }
+    }
+  }
+
   // ─── Rebuild file lists after mutations ──────────────────
   allTsxFiles = listTsxFiles(appDir)
   userTsxFiles = allTsxFiles.filter(f => !f.includes('/design-system/'))
@@ -645,7 +708,10 @@ export async function fixCommand(opts: FixOptions = {}) {
       const isDesignSystem = relativePath.includes('design-system')
       if (isDesignSystem) continue
 
-      const issues = validatePageQuality(code)
+      const validRoutesForCheck = dsm
+        ? ((dsm.getConfig().pages || []) as any[]).map(p => p.route).filter((r): r is string => !!r)
+        : undefined
+      const issues = validatePageQuality(code, validRoutesForCheck)
       const suppressH1 = isNonPageFile || isAuthPage || isSharedComponent
       const filteredIssues = issues.filter(i => {
         if (suppressH1 && (i.type === 'NO_H1' || i.type === 'MULTIPLE_H1')) return false
