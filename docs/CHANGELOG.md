@@ -29,7 +29,10 @@ User reported 10+ error classes surviving `coherent fix`. Highest-frequency erro
 - **`DOUBLE_SIGN` auto-fix (narrow, high-confidence).** The common AI pattern `{amount > 0 ? '+' : ''}{amount.toFixed(2)}` on an already-signed value gets rewritten to `new Intl.NumberFormat({ signDisplay: "always", ... }).format(amount)`. Fix only applies when sign var === value var — broader patterns stay reported-only, since the transformation is risky.
 
 ### Tests
-997 passing (+11 new autofix cases).
+999 passing (+13 new cases: autofix + Sheet width exemption).
+
+### Also fixed
+- **Generated `components/shared/header.tsx` tripping its own validators.** The `generateSharedHeaderCode` Design-System FAB used raw `bg-black/60 text-white border-white/20` → now `bg-foreground/80 text-background border-foreground/20`. Mobile `SheetContent` used plain `w-72` without `max-w-*` → validator now recognizes `w-*` on Sheet as a valid width cap (it's a side drawer, not a centered modal).
 
 ### Memory quality score
 Unchanged at ~6.5/10. This release is product polish, not retrieval quality.

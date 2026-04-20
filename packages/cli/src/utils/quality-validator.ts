@@ -321,14 +321,17 @@ function detectSearchIconMisplaced(code: string): QualityIssue[] {
 function detectOverlayIssues(code: string): QualityIssue[] {
   const issues: QualityIssue[] = []
 
-  // 1. DIALOG_FULL_WIDTH — DialogContent / SheetContent without max-w-*.
+  // 1. DIALOG_FULL_WIDTH — DialogContent / SheetContent without an explicit
+  //    width cap. max-w-* is the common pattern; Sheet also commonly uses
+  //    a plain w-* (w-72, w-80, w-96) since it's a side drawer, not a
+  //    centered modal — accept that as sufficient width control.
   const dialogContentRe = /<(Dialog|AlertDialog|Sheet)Content\b([^>]*)>/g
   for (const m of code.matchAll(dialogContentRe)) {
     const kind = m[1]
     const attrs = m[2] || ''
     const hasMaxW = /\bmax-w-(?:sm|md|lg|xl|2xl|3xl|\[[^\]]+\])\b/.test(attrs) || /\bsm:max-w-/.test(attrs)
-    // Sheet with side="left"/side="right" AND no max-w is also bad on desktop.
-    if (!hasMaxW) {
+    const hasFixedWidth = kind === 'Sheet' && /\bw-(?:\d+|\[[^\]]+\]|\w+)\b/.test(attrs)
+    if (!hasMaxW && !hasFixedWidth) {
       const lineNum = code.slice(0, m.index ?? 0).split('\n').length
       issues.push({
         line: lineNum,
@@ -2091,6 +2094,8 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
   fixed = fixed.replace(/<(Dialog|AlertDialog|Sheet)Content\b([^>]*)>/g, (full, kind, attrs) => {
     if (/\bmax-w-(?:sm|md|lg|xl|2xl|3xl|\[[^\]]+\])\b/.test(attrs)) return full
     if (/\bsm:max-w-/.test(attrs)) return full
+    // Sheet with fixed w-* is already bounded — don't double-cap.
+    if (kind === 'Sheet' && /\bw-(?:\d+|\[[^\]]+\]|\w+)\b/.test(attrs)) return full
     const widthClass = kind === 'Sheet' ? 'sm:max-w-md' : 'max-w-lg'
     // Inject into className if present, else append a className prop.
     if (/className=/.test(attrs)) {

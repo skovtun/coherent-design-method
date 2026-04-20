@@ -1642,6 +1642,19 @@ describe('autoFixCode v0.7.9 — overlay, touch target, aria-label, double sign'
     expect(fixes).not.toContain('Dialog/Sheet full-width → max-w-* default')
   })
 
+  it('does not flag SheetContent that already has explicit w-* width', () => {
+    const code = `<Sheet><SheetContent className="w-72 p-4">Body</SheetContent></Sheet>`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'DIALOG_FULL_WIDTH')).toBe(false)
+  })
+
+  it('does not inject sm:max-w-md when SheetContent already has w-*', async () => {
+    const code = `<Sheet><SheetContent className="w-72 p-4">Body</SheetContent></Sheet>`
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).not.toContain('sm:max-w-md')
+    expect(fixes).not.toContain('Dialog/Sheet full-width → max-w-* default')
+  })
+
   it('adds min-h-[44px] min-w-[44px] to size="icon" Button without sizing', async () => {
     const code = `<Button size="icon"><X /></Button>`
     const { code: fixed, fixes } = await autoFixCode(code)
