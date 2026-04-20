@@ -16,6 +16,11 @@ coherent preview                 # Start dev server (http://localhost:3000)
 coherent check                   # Show quality issues (read-only)
 coherent fix                     # Auto-fix all issues (compact report)
 coherent fix --verbose           # Auto-fix with per-file breakdown
+coherent fix --journal           # Capture session YAML to .coherent/fix-sessions/ for later review
+coherent journal list            # List captured fix sessions
+coherent journal aggregate       # Rank validators by recurrence across all sessions
+coherent journal prune           # Delete sessions older than --keep-days (default 30)
+coherent journal prune --dry-run # Preview what would be deleted
 coherent sync                    # Sync Design System after manual edits
 coherent export                  # Export clean project for deployment
 coherent undo                    # Revert last coherent chat

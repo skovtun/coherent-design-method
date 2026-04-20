@@ -13,7 +13,7 @@
  */
 
 import chalk from 'chalk'
-import { existsSync, readdirSync, readFileSync } from 'fs'
+import { existsSync, readdirSync, readFileSync, unlinkSync } from 'fs'
 import { resolve, join } from 'path'
 import { findConfig } from '../utils/find-config.js'
 
@@ -227,5 +227,97 @@ export async function journalAggregateCommand(): Promise<void> {
       ),
     )
     console.log(chalk.dim('  (Manually draft a PJ-NNN entry with confidence: hypothesis for each.)\n'))
+  }
+}
+
+export interface PruneResult {
+  scanned: number
+  kept: number
+  deleted: string[]
+  cutoff: Date
+}
+
+/**
+ * Delete fix-session files older than `keepDays` days.
+ *
+ * Pure / testable: reads only the sessions directory, never the project
+ * outside it. Callers pass an absolute project root. Does NOT rely on
+ * `mtime` — derives age from the filename timestamp (ISO-like shape emitted
+ * by `fix --journal`) to stay stable across git clones / archive restores.
+ * Files that don't parse as timestamps are always kept (conservative).
+ *
+ * When `dryRun` is true, returns the list of files that would be deleted but
+ * does not touch the filesystem.
+ */
+export function pruneJournalSessions(
+  projectRoot: string,
+  keepDays: number,
+  opts: { dryRun?: boolean; now?: Date } = {},
+): PruneResult {
+  const dir = resolve(projectRoot, SESSIONS_DIR)
+  const now = opts.now ?? new Date()
+  const cutoff = new Date(now.getTime() - keepDays * 24 * 60 * 60 * 1000)
+  const result: PruneResult = { scanned: 0, kept: 0, deleted: [], cutoff }
+  if (!existsSync(dir)) return result
+  for (const f of readdirSync(dir)) {
+    if (!f.endsWith('.yaml')) continue
+    result.scanned += 1
+    const stem = f.replace(/\.yaml$/, '')
+    // Expected shape: 2026-04-20T120000Z or 2026-04-20T12-00-00Z — filename
+    // timestamps emitted by fix.ts. Reformat to ISO before Date parse.
+    const iso = stem.replace(/^(\d{4})-(\d{2})-(\d{2})T(\d{2})-?(\d{2})-?(\d{2})Z?$/, '$1-$2-$3T$4:$5:$6Z')
+    const date = new Date(iso)
+    if (Number.isNaN(date.getTime())) {
+      // Can't parse → keep (unknown file, don't destroy user data)
+      result.kept += 1
+      continue
+    }
+    if (date >= cutoff) {
+      result.kept += 1
+      continue
+    }
+    const path = resolve(dir, f)
+    if (!opts.dryRun) {
+      try {
+        unlinkSync(path)
+      } catch {
+        // Silently skip — don't block prune on one permission error
+        continue
+      }
+    }
+    result.deleted.push(f)
+  }
+  return result
+}
+
+export async function journalPruneCommand(opts: { keepDays?: string; dryRun?: boolean } = {}): Promise<void> {
+  const project = findConfig()
+  if (!project) {
+    console.log(chalk.yellow('\u26A0 Not in a Coherent project\n'))
+    process.exit(1)
+  }
+  const keepDays = Math.max(1, parseInt(opts.keepDays ?? '30', 10) || 30)
+  const result = pruneJournalSessions(project.root, keepDays, { dryRun: Boolean(opts.dryRun) })
+
+  if (result.scanned === 0) {
+    console.log(chalk.dim('\n  No journal sessions to prune.\n'))
+    return
+  }
+
+  const verb = opts.dryRun ? 'Would delete' : 'Deleted'
+  const cutoffISO = result.cutoff.toISOString().slice(0, 10)
+  console.log(chalk.cyan(`\n  Scanned ${result.scanned} sessions, keeping ${result.kept} (cutoff: ${cutoffISO})\n`))
+  if (result.deleted.length === 0) {
+    console.log(chalk.green('  ✓ Nothing to prune.\n'))
+    return
+  }
+  console.log(chalk.yellow(`  ${verb} ${result.deleted.length} session(s):`))
+  for (const f of result.deleted) {
+    console.log(chalk.dim(`    ${f}`))
+  }
+  if (opts.dryRun) {
+    console.log(chalk.dim('\n  Dry run \u2014 no files deleted. Re-run without --dry-run to apply.\n'))
+  } else {
+    console.log('')
   }
 }

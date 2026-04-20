@@ -17,7 +17,7 @@ import { exportCommand } from './commands/export.js'
 import { statusCommand } from './commands/status.js'
 import { regenerateDocsCommand } from './commands/regenerate-docs.js'
 import { reportIssueCommand } from './commands/report-issue.js'
-import { journalListCommand, journalAggregateCommand } from './commands/journal.js'
+import { journalListCommand, journalAggregateCommand, journalPruneCommand } from './commands/journal.js'
 import { baselineCommand } from './commands/baseline.js'
 import {
   wikiReflectCommand,
@@ -168,6 +168,12 @@ journalCmd
   .command('aggregate')
   .description('Rank validators by total recurrence across all sessions')
   .action(journalAggregateCommand)
+journalCmd
+  .command('prune')
+  .description('Delete fix sessions older than --keep-days (default 30)')
+  .option('--keep-days <n>', 'Number of days of sessions to keep', '30')
+  .option('--dry-run', 'Preview what would be deleted without touching the filesystem')
+  .action(journalPruneCommand)
 program.addCommand(journalCmd)
 
 program

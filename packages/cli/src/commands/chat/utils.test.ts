@@ -21,6 +21,7 @@ import {
   getDefaultRequestTimeoutMs,
   startPhaseTimer,
   resolvePageByFuzzyMatch,
+  resolveExplicitPageTarget,
 } from './utils.js'
 import { ArchitecturePlanSchema } from './plan-generator.js'
 
@@ -661,5 +662,37 @@ describe('resolvePageByFuzzyMatch', () => {
       { id: 'accounts-id', name: 'Account Detail', route: '/accounts/[id]' },
     ]
     expect(resolvePageByFuzzyMatch(detailOnly, 'accounts')?.id).toBe('accounts-id')
+  })
+})
+
+describe('resolveExplicitPageTarget', () => {
+  const pages = [
+    { id: 'home', name: 'Home', route: '/' },
+    { id: 'account', name: 'Account', route: '/account' },
+    { id: 'billing', name: 'Billing', route: '/billing' },
+  ]
+
+  it('returns the resolved page when --page matches', () => {
+    expect(resolveExplicitPageTarget({ page: 'account' }, pages)?.id).toBe('account')
+  })
+
+  it('returns null when --page not set', () => {
+    expect(resolveExplicitPageTarget({}, pages)).toBeNull()
+  })
+
+  it('returns null when --component is set (component path is non-surgical)', () => {
+    expect(resolveExplicitPageTarget({ page: 'account', component: 'Card' }, pages)).toBeNull()
+  })
+
+  it('returns null when --token is set (token path is non-surgical)', () => {
+    expect(resolveExplicitPageTarget({ page: 'account', token: 'primary' }, pages)).toBeNull()
+  })
+
+  it('returns null when --page does not resolve to any page', () => {
+    expect(resolveExplicitPageTarget({ page: 'nonexistent' }, pages)).toBeNull()
+  })
+
+  it('uses fuzzy match — plural → singular', () => {
+    expect(resolveExplicitPageTarget({ page: 'accounts' }, pages)?.id).toBe('account')
   })
 })

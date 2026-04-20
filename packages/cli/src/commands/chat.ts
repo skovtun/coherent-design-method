@@ -46,6 +46,7 @@ import {
   loadConfig,
   routeToFsPath,
   resolveTargetFlags,
+  resolveExplicitPageTarget,
   AUTH_SYNONYMS,
   isMultiPageRequest,
   startSpinnerHeartbeat,
@@ -185,7 +186,27 @@ export async function chatCommand(
 
     spinner.succeed('Configuration loaded')
 
-    message = await resolveTargetFlags(message!, options, config, projectRoot)
+    const originalMessage = message!
+    // Surgical edit short-circuit (v0.7.20, M7): when --page X resolves to a
+    // real page, skip the parseModification intent parse + full-page regen.
+    // Instead build an `update-page` request locally and let
+    // applyModification.update-page call ai.editPageCode() with the current
+    // file contents — a single LLM call focused on minimal-diff edits. Rationale
+    // in MODEL_PROFILE: full-page regens carry "Claude will often improve an
+    // instruction" risk (touches code the user didn't ask to change).
+    //
+    // Escape hatch: COHERENT_DISABLE_SURGICAL_EDITS=1 forces legacy behaviour
+    // (resolveTargetFlags wraps the message with embedded pageCode + full regen
+    // via parseModification).
+    const surgicalEditsEnabled = process.env.COHERENT_DISABLE_SURGICAL_EDITS !== '1'
+    const surgicalPageTarget =
+      surgicalEditsEnabled && options.page && !options.component && !options.token
+        ? resolveExplicitPageTarget(options, config.pages)
+        : null
+
+    message = surgicalPageTarget
+      ? originalMessage
+      : await resolveTargetFlags(originalMessage, options, config, projectRoot)
 
     // --new-component: create a shared component directly
     if (options.newComponent) {
@@ -346,7 +367,22 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
     const explicitPageTarget = !!(options.page || options.component)
     const multiPageHint = !explicitPageTarget && isMultiPageRequest(message)
 
-    if (multiPageHint) {
+    if (surgicalPageTarget) {
+      // M7 (v0.7.20): surgical --page X path. Skip parseModification entirely
+      // and submit an update-page request with just the instruction. The
+      // `update-page` case in modification-handler.ts reads the file from disk
+      // and calls `ai.editPageCode(currentCode, instruction, ...)` — a single
+      // focused LLM call with minimal-diff enforcement.
+      spinner.succeed(`Surgical edit — targeting ${chalk.bold(surgicalPageTarget.name)} (${surgicalPageTarget.route})`)
+      requests = [
+        {
+          type: 'update-page',
+          target: surgicalPageTarget.id,
+          changes: { instruction: originalMessage },
+        } as ModificationRequest,
+      ]
+      uxRecommendations = undefined
+    } else if (multiPageHint) {
       try {
         const splitResult = await splitGeneratePages(spinner, message, modCtx, provider, parseOpts)
         requests = splitResult.requests
