@@ -2,6 +2,34 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.17] — 2026-04-20
+
+### CHART_PLACEHOLDER autofix — animated bar skeleton
+
+The last remaining error class in `coherent fix` that we hadn't auto-fixed was `CHART_PLACEHOLDER` — the pattern where AI writes `<div>Chart visualization would go here</div>` instead of a real chart. A real recharts/shadcn Chart needs design intent (shape, data, axes) that a regex can't infer. But the placeholder text is objectively worse than showing something. Ship a visual skeleton.
+
+### Added
+
+- **`CHART_PLACEHOLDER` autofix.** Replaces the placeholder div with 7 animated bars using semantic tokens:
+  ```tsx
+  <div className="h-[200px] flex items-end gap-2 px-4 pb-4">
+    <div style={{ height: "40%" }} className="flex-1 bg-primary/30 rounded-t-sm transition-colors hover:bg-primary/60" aria-hidden />
+    ... 6 more bars with varying heights ...
+  </div>
+  ```
+  - Explicit bars (no `.map`) — avoids false-firing `NO_EMPTY_STATE` which looks for any `.map(`.
+  - `transition-colors` not `transition-all` — keeps `TRANSITION_ALL` quiet.
+  - `aria-hidden` — decorative, not semantic data.
+  - `bg-primary/30` + hover state — theme-adaptive, looks like a chart loading rather than dead text.
+
+### Impact on the smoke-test project
+- Errors: 3 → 1 (both `CHART_PLACEHOLDER` entries auto-fixed).
+- Only remaining error is a genuine `DOUBLE_SIGN` code bug in `transactions/tx-004`.
+- Realistic floor reached: every auto-fixable validator now has an autofix.
+
+### Tests
+1024 passing (+3).
+
 ## [0.7.16] — 2026-04-20
 
 ### Hotfix: CI flakiness in plan-generator tests

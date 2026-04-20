@@ -1892,3 +1892,29 @@ describe('v0.7.15 — HEAVY_SHADOW + shadow autofix', () => {
     expect(fixed).toContain('shadow-lg')
   })
 })
+
+describe('autoFixCode v0.7.17 — CHART_PLACEHOLDER → skeleton bars', () => {
+  it('replaces "Chart visualization would go here" with animated bar skeleton', async () => {
+    const code =
+      '<div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground">Chart visualization would go here</div>'
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('h-[200px]')
+    expect(fixed).toContain('flex items-end')
+    expect(fixed).toContain('bg-primary/30')
+    expect(fixed).not.toContain('would go here')
+    expect(fixes).toContain('CHART_PLACEHOLDER → animated skeleton bars')
+  })
+
+  it('uses explicit bars, not .map (avoid NO_EMPTY_STATE false fire)', async () => {
+    const code = '<div className="h-[200px] bg-muted text-muted-foreground">chart placeholder</div>'
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).not.toContain('.map(')
+  })
+
+  it('skips if no placeholder text present', async () => {
+    const code = '<div className="h-[200px] flex items-center">Real content</div>'
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toBe(code)
+    expect(fixes).not.toContain('CHART_PLACEHOLDER → animated skeleton bars')
+  })
+})
