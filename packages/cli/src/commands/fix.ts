@@ -10,6 +10,7 @@
  *   --dry-run     Show what would be fixed without writing
  *   --no-cache    Skip cache clearing
  *   --no-quality  Skip quality auto-fixes (only infrastructure + components + syntax)
+ *   --verbose     Show per-file breakdown instead of type-grouped summary
  */
 
 import chalk from 'chalk'
@@ -50,6 +51,7 @@ export interface FixOptions {
   dryRun?: boolean
   cache?: boolean
   quality?: boolean
+  verbose?: boolean
 }
 
 function extractComponentIdsFromCode(code: string): Set<string> {
@@ -849,7 +851,13 @@ export async function fixCommand(opts: FixOptions = {}) {
   // ─── Step 6: Validate remaining issues (read-only report) ──────────
   let totalErrors = 0
   let totalWarnings = 0
-  const fileIssues: Array<{ path: string; report: string }> = []
+  let totalInfo = 0
+  interface FileIssueEntry {
+    path: string
+    report: string
+    issues: ReturnType<typeof validatePageQuality>
+  }
+  const fileIssues: FileIssueEntry[] = []
 
   for (const file of allValidationFiles) {
     try {
@@ -882,10 +890,12 @@ export async function fixCommand(opts: FixOptions = {}) {
 
       const errors = filteredIssues.filter(i => i.severity === 'error').length
       const warnings = filteredIssues.filter(i => i.severity === 'warning').length
+      const info = filteredIssues.filter(i => i.severity === 'info').length
       totalErrors += errors
       totalWarnings += warnings
+      totalInfo += info
       const report = formatIssues(filteredIssues)
-      fileIssues.push({ path: relativePath, report })
+      fileIssues.push({ path: relativePath, report, issues: filteredIssues })
     } catch (err) {
       remaining.push(
         `${relative(projectRoot, file)}: validation error — ${err instanceof Error ? err.message : 'unknown'}`,
@@ -1066,11 +1076,83 @@ export async function fixCommand(opts: FixOptions = {}) {
 
   if (totalErrors > 0 || totalWarnings > 0 || remaining.length > 0) {
     console.log(chalk.dim('  ─'.repeat(25)))
-    console.log(chalk.yellow(`\n  Remaining (need manual fix or AI):`))
-    for (const { path, report } of fileIssues) {
-      console.log(chalk.dim(`  📄 ${path}`))
-      console.log(report)
+
+    const verbose = opts.verbose === true
+
+    if (verbose) {
+      // Legacy view: one section per file, every issue listed in full.
+      console.log(chalk.yellow(`\n  Remaining (need manual fix or AI):`))
+      for (const { path, report } of fileIssues) {
+        console.log(chalk.dim(`  📄 ${path}`))
+        console.log(report)
+      }
+    } else {
+      // Compact view: group by issue type, show severity tier, collapse
+      // file lists to the first three files plus a "+N more" suffix.
+      //   Errors    — exact file:line (users need to navigate)
+      //   Warnings  — type summary with up to 3 sample files
+      //   Info      — only the count; surfaced behind --verbose
+      type Aggregate = Record<
+        string,
+        { count: number; message: string; samples: Array<{ path: string; line: number }> }
+      >
+      const aggregate = (severity: 'error' | 'warning' | 'info'): Aggregate => {
+        const byType: Aggregate = {}
+        for (const { path, issues } of fileIssues) {
+          for (const issue of issues) {
+            if (issue.severity !== severity) continue
+            const cleanMessage = issue.message.replace(/\s*\([0-9]+ occurrences\)\s*$/, '').split(/\s[—-]\s/)[0]
+            if (!byType[issue.type]) {
+              byType[issue.type] = { count: 0, message: cleanMessage, samples: [] }
+            }
+            byType[issue.type].count++
+            if (byType[issue.type].samples.length < 3) {
+              byType[issue.type].samples.push({ path, line: issue.line })
+            }
+          }
+        }
+        return byType
+      }
+      // Ordinary basename collapses every page to "page.tsx". Use the
+      //   containing route slug instead: `dashboard/page.tsx → dashboard`,
+      //   `transactions/tx-004/page.tsx → transactions/tx-004`.
+      const shortName = (fullPath: string): string => {
+        const normalized = fullPath.replace(/^app\/(?:\([a-z]+\)\/)?/, '')
+        if (normalized.endsWith('/page.tsx')) {
+          return normalized.replace(/\/page\.tsx$/, '') || 'home'
+        }
+        if (normalized.includes('components/shared/')) {
+          return 'shared/' + basename(normalized).replace(/\.tsx$/, '')
+        }
+        return normalized.replace(/\.tsx$/, '')
+      }
+      const renderGroup = (byType: Aggregate, showLine: boolean) => {
+        const rows = Object.entries(byType).sort((a, b) => b[1].count - a[1].count)
+        for (const [type, info] of rows) {
+          const sampleText = info.samples
+            .map(s => (showLine && s.line > 0 ? `${shortName(s.path)}:${s.line}` : shortName(s.path)))
+            .join(', ')
+          const moreCount = info.count - info.samples.length
+          const tail = moreCount > 0 ? `, +${moreCount} more` : ''
+          const label = `${type.padEnd(22)}×${info.count}`
+          console.log(`    ${chalk.dim(label)}  ${sampleText}${tail}`)
+          console.log(chalk.dim(`      ${info.message}`))
+        }
+      }
+
+      if (totalErrors > 0) {
+        console.log(chalk.red(`\n  Errors (${totalErrors}):`))
+        renderGroup(aggregate('error'), true)
+      }
+      if (totalWarnings > 0) {
+        console.log(chalk.yellow(`\n  Warnings (${totalWarnings}):`))
+        renderGroup(aggregate('warning'), false)
+      }
+      if (totalInfo > 0) {
+        console.log(chalk.dim(`\n  ℹ ${totalInfo} info hints hidden. Use --verbose to see all.`))
+      }
     }
+
     for (const r of remaining) {
       console.log(chalk.yellow(`  ⚠ ${r}`))
     }

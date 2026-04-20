@@ -2,6 +2,45 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.15] — 2026-04-20
+
+### Compact fix report + regex fixes for BROKEN_INTERNAL_LINK / HEAVY_SHADOW
+
+Smoke-test on 0.7.14 showed two regressions and one UX problem:
+
+1. `coherent fix` correctly rewrote `<Link href="/accounts">` to `<Link href="#" data-stale-href="/accounts">` — but then the validator re-flagged it as BROKEN_INTERNAL_LINK because the regex matched `data-stale-href="/accounts"` as if it were a real href. Fixed.
+2. The regenerated `components/shared/ds-button.tsx` fires HEAVY_SHADOW on its `shadow-lg` class — but that shadow is the FAB affordance, not a mistake. Validator was context-blind.
+3. Report output was 80+ lines for a project with 14 real issues. Dense, hard to scan, info-level noise dominated errors.
+
+### Fixed
+
+- **BROKEN_INTERNAL_LINK regex.** Both the validator and the autofix now use negative lookbehind `(?<![\w-])href` to avoid matching `data-stale-href` or any other `data-*-href` attribute. Autofix output no longer re-triggers the warning.
+- **HEAVY_SHADOW exempts floating elements.** `fixed|absolute|sticky` in the same className → no warning. Matches design intent for FABs, pinned toolbars, popovers.
+- **Shadow autofix: greedy regex bug.** Old implementation used `[^"]*\bshadow-(md|lg|xl|2xl)\b[^"]*` with greedy `[^"]*` — only the LAST shadow-* per className was replaced. `shadow-lg … hover:shadow-xl` became `shadow-lg … hover:shadow-sm` instead of both demoted. Now iterates every match per className and skips floating elements entirely.
+
+### Changed
+
+- **`coherent fix` report overhauled — compact by default.** The old per-file dump is now behind `--verbose`. Default view groups issues by type with counts and sample files:
+  ```
+  Errors (3):
+    CHART_PLACEHOLDER     ×2  dashboard:255, dashboard:264
+      Chart placeholder text detected
+    DOUBLE_SIGN           ×1  transactions/tx-004:105
+      Manual +/- prefix
+
+  Warnings (9):
+    NO_EMPTY_STATE        ×5  budgets, reports, transactions/[id], +2 more
+    NO_LOADING_STATE      ×1  budgets
+    NO_H1                 ×1  profile
+    ...
+
+  ℹ 22 info hints hidden. Use --verbose to see all.
+  ```
+  Typical output drops from 80+ lines to ~20. Info-level issues are now suppressed by default (most are `SM_BREAKPOINT`, `INLINE_MOCK_DATA`, `FORM_NO_FEEDBACK` — not actionable without taste). File paths also shorten: `app/(app)/dashboard/page.tsx` → `dashboard`.
+
+### Tests
+1021 passing (+6 cases: data-stale-href validator × 2, HEAVY_SHADOW context × 2, shadow autofix × 2).
+
 ## [0.7.14] — 2026-04-20
 
 ### BROKEN_INTERNAL_LINK — dynamic-route awareness + autofix
