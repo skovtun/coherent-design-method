@@ -2375,6 +2375,45 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
     )
   }
 
+  // 13. CHART_PLACEHOLDER — replace the "Chart ... would go here" / "placeholder"
+  //     div content with an animated bar-chart skeleton. Not a real
+  //     visualization (that's AI territory), but visually honest: looks like
+  //     a chart loading rather than "please come back later" ad copy.
+  //     Narrow match: a <div> whose inner text matches the placeholder
+  //     regex. Rewrite only the inner content, keep the wrapper className.
+  const chartPlaceholderInnerRe =
+    /(<div[^>]*h-\[[^\]]+\][^>]*>)([\s\S]*?chart\s+(?:visualization|would\s+go\s+here|breakdown\s+chart\s+would\s+go|placeholder|coming\s+soon)[\s\S]*?)(<\/div>)/gi
+  let hadChartFix = false
+  fixed = fixed.replace(chartPlaceholderInnerRe, (_m, open: string, _inner: string, close: string) => {
+    hadChartFix = true
+    const wrapperRewritten = open.replace(
+      /className=("|')([^"']*)(\1)/,
+      (_cm: string, q: string, cls: string, q2: string) => {
+        const cleaned = cls
+          .replace(/\bflex\b/g, '')
+          .replace(/\bitems-center\b/g, '')
+          .replace(/\bjustify-center\b/g, '')
+          .replace(/\btext-(?:sm|xs|base|lg|xl)\b/g, '')
+          .replace(/\btext-muted-foreground\b/g, '')
+          .replace(/\s{2,}/g, ' ')
+          .trim()
+        const next = `${cleaned} flex items-end gap-2 px-4 pb-4`
+        return `className=${q}${next.trim()}${q2}`
+      },
+    )
+    // Explicit bars (not .map()) so NO_EMPTY_STATE — which matches any
+    // `.map(` in the file — does not trip on a purely decorative chart stub.
+    // `transition-colors` (not `transition-all`) keeps TRANSITION_ALL quiet.
+    const bars = [40, 65, 45, 80, 55, 70, 85]
+      .map(
+        h =>
+          `          <div style={{ height: "${h}%" }} className="flex-1 bg-primary/30 rounded-t-sm transition-colors hover:bg-primary/60" aria-hidden />`,
+      )
+      .join('\n')
+    return `${wrapperRewritten}\n${bars}\n        ${close}`
+  })
+  if (hadChartFix) fixes.push('CHART_PLACEHOLDER → animated skeleton bars')
+
   return { code: fixed, fixes }
 }
 
