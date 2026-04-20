@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.2] — 2026-04-20
+
+### Wiki infrastructure — auto-generated rules map, reflection CLI, audit command
+
+Makes the platform-level LLM wiki semi-automatic. Rules map now derives from code (no more hand-sync drift). Reflection CLI lowers the friction for appending new bug/model/idea entries. Audit command flags wiki rot.
+
+### Added
+- **`scripts/generate-rules-map.mjs`** — parses `design-constraints.ts` (rule block names + first-line descriptions) + `quality-validator.ts` (issue types + messages) + `templates/patterns/*.tsx` → emits an auto-generated section in `docs/wiki/RULES_MAP.md`. Runs as part of `npm run build` (postbuild hook) and via `pnpm --filter @getcoherent/cli generate-rules-map`.
+- **`coherent wiki reflect`** — opens a reflection template in `$EDITOR` with three sections (bug / model behavior / idea). Filled sections append as structured entries to `PATTERNS_JOURNAL.md`, `MODEL_PROFILE.md`, `IDEAS_BACKLOG.md`. Only runs inside the Coherent source repo.
+- **`coherent wiki audit`** — sanity-checks the wiki: missing top-level headers, stub files, PATTERNS_JOURNAL entries without evidence (SHA/screenshot) or fix version, missing AUTO-GENERATED markers, CLAUDE.md not referencing the wiki. Exits non-zero on errors, warnings/info are advisory.
+
+### Tests
+947 passing (unchanged — tests added in 0.7.3).
+
 ## [0.7.1] — 2026-04-19
 
 ### Patterns expansion + platform wiki
