@@ -1336,6 +1336,105 @@ describe('RAW_NUMBER_FORMAT detection', () => {
   })
 })
 
+describe('SEARCH_ICON_MISPLACED detection', () => {
+  it('flags Search icon as sibling of Input without absolute positioning', () => {
+    const code = `
+<div>
+  <Input placeholder="Search transactions..." />
+  <Search className="size-4 text-muted-foreground" />
+</div>`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'SEARCH_ICON_MISPLACED')).toBe(true)
+  })
+
+  it('passes when Input has pl-9 (icon assumed inside)', () => {
+    const code = `
+<div className="relative">
+  <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+  <Input placeholder="Search transactions..." className="pl-9 h-10" />
+</div>`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'SEARCH_ICON_MISPLACED')).toBe(false)
+  })
+
+  it('passes when Search icon has absolute class even without pl-9', () => {
+    const code = `
+<div>
+  <Search className="absolute" />
+  <Input placeholder="Search..." />
+</div>`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'SEARCH_ICON_MISPLACED')).toBe(false)
+  })
+
+  it('does not fire when there is no search icon', () => {
+    const code = `<Input placeholder="Search something" />`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'SEARCH_ICON_MISPLACED')).toBe(false)
+  })
+})
+
+describe('FILTER_DUPLICATE detection', () => {
+  it('flags same dimension as Select AND Button', () => {
+    const code = `
+<div>
+  <h2>Filter Transactions</h2>
+  <Select><SelectTrigger><SelectValue placeholder="All Categories" /></SelectTrigger></Select>
+  <Button variant="outline">Categories</Button>
+</div>`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'FILTER_DUPLICATE')).toBe(true)
+  })
+
+  it('normalises "All X" and "X" to the same label', () => {
+    const code = `
+<div>
+  <p>Filter users</p>
+  <SelectValue placeholder="All Status" />
+  <Button>Status</Button>
+</div>`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'FILTER_DUPLICATE')).toBe(true)
+  })
+
+  it('passes when Select and Button are for different dimensions', () => {
+    const code = `
+<div>
+  <h2>Filter</h2>
+  <SelectValue placeholder="All Categories" />
+  <Button>Date range</Button>
+</div>`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'FILTER_DUPLICATE')).toBe(false)
+  })
+})
+
+describe('FILTER_HEIGHT_MISMATCH detection', () => {
+  it('flags when filter controls use different heights', () => {
+    const code = `
+<div>
+  <h3>Filter Transactions</h3>
+  <Input className="h-10 pl-9" />
+  <SelectTrigger className="h-9 w-[140px]" />
+  <Button className="h-8">Apply</Button>
+</div>`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'FILTER_HEIGHT_MISMATCH')).toBe(true)
+  })
+
+  it('passes when all controls use the same height', () => {
+    const code = `
+<div>
+  <h3>Filter</h3>
+  <Input className="h-10 pl-9" />
+  <SelectTrigger className="h-10 w-[140px]" />
+  <Button className="h-10">Apply</Button>
+</div>`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'FILTER_HEIGHT_MISMATCH')).toBe(false)
+  })
+})
+
 describe('TABLE_COLUMN_MISMATCH detection', () => {
   it('flags when TableHead count differs from first-row TableCell count', () => {
     const code = `
