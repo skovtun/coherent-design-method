@@ -16,11 +16,18 @@
 
 ---
 
-## Demo
+<p align="center">
+  <a href="https://youtu.be/A-rCpn6O3SI">
+    <img src="https://img.youtube.com/vi/A-rCpn6O3SI/maxresdefault.jpg" alt="Coherent Design Method — AI-powered design system generator" width="100%">
+  </a>
+</p>
 
-[![Coherent Design Method — AI-powered design system generator](https://img.youtube.com/vi/A-rCpn6O3SI/maxresdefault.jpg)](https://youtu.be/A-rCpn6O3SI)
+<p align="center">
+  <a href="https://youtu.be/A-rCpn6O3SI">▶ Watch on YouTube</a> ·
+  <a href="https://github.com/skovtun/coherent-design-method/releases/download/v0.7.15/Coherent.Design.Method.DEMO.mp4">Download MP4</a>
+</p>
 
-> [▶ Watch on YouTube](https://youtu.be/A-rCpn6O3SI) · [Download MP4](https://github.com/skovtun/coherent-design-method/releases/download/v0.7.15/Coherent.Design.Method.DEMO.mp4)
+---
 
 ## What is Coherent?
 
