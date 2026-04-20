@@ -25,6 +25,7 @@ import {
 } from './design-constraints.js'
 import { pickGoldenPatterns } from './golden-patterns.js'
 import { loadIndex, retrieve } from '../utils/wiki-index.js'
+import { preParseDestructive, messageHasDestructiveIntent } from './destructive-preparser.js'
 import { resolve as pathResolve } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -64,6 +65,17 @@ export async function parseModification(
   provider: AIProvider = 'auto',
   options?: ParseModificationOptions,
 ): Promise<ParseModificationResult> {
+  // Deterministic destructive pre-parser — intercept "delete X page" BEFORE
+  // touching the LLM. AI was misinterpreting these ~30% of the time even
+  // after RULE 4 in prompt (PJ-009). Skip the LLM entirely for clear patterns.
+  if (!options?.planOnly && !options?.lightweight) {
+    const preParsed = preParseDestructive(message, context.config)
+    if (preParsed) {
+      console.log(chalk.dim(`  [pre-parser] ${preParsed.reason}`))
+      return { requests: [preParsed.request], uxRecommendations: undefined }
+    }
+  }
+
   const ai = await createAIProvider(provider)
 
   if (options?.planOnly) {

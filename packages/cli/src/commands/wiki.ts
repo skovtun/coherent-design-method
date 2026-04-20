@@ -474,6 +474,109 @@ export async function wikiSearchCommand(query: string, opts: { limit?: string } 
   }
 }
 
+/**
+ * Retrieval quality benchmark. Reads `docs/wiki/BENCH.yaml` (simple hand-rolled
+ * YAML parser, no dep) and evaluates precision@1 and @3 over its cases.
+ *
+ * Exit code: 0 if precision@1 ≥ 0.8, 1 otherwise. Used in CI to catch
+ * retrieval regressions (e.g., a ranking change that tanks quality).
+ */
+export async function wikiBenchCommand() {
+  const ctx = requireRepoContext()
+  const benchPath = join(ctx.repoRoot, 'docs', 'wiki', 'BENCH.yaml')
+  if (!existsSync(benchPath)) {
+    console.error(chalk.red('❌ BENCH.yaml not found at docs/wiki/BENCH.yaml'))
+    process.exit(1)
+  }
+
+  const benchSrc = readFileSync(benchPath, 'utf-8')
+  const cases = parseBenchYaml(benchSrc)
+  if (cases.length === 0) {
+    console.error(chalk.yellow('⚠ No benchmark cases found.'))
+    return
+  }
+
+  // Rebuild index fresh so benchmark reflects current state.
+  const wikiDir = join(ctx.repoRoot, 'docs', 'wiki')
+  const entries = scanWiki({ wikiDir, journalFile: ctx.journalPath })
+  const index = buildIndex(entries)
+
+  let top1Hits = 0
+  let top3Hits = 0
+  const misses: Array<{ query: string; expected: string; got: string[] }> = []
+  for (const c of cases) {
+    const results = retrieve(index, c.query, 3)
+    const topIds = results.map(r => r.entry.id)
+    if (topIds[0] === c.expected) top1Hits++
+    if (topIds.includes(c.expected)) top3Hits++
+    else misses.push({ query: c.query, expected: c.expected, got: topIds })
+  }
+
+  const p1 = top1Hits / cases.length
+  const p3 = top3Hits / cases.length
+
+  console.log(chalk.cyan(`\n📊 Wiki retrieval benchmark (${cases.length} cases):\n`))
+  console.log(`  precision@1: ${(p1 * 100).toFixed(1)}%  (${top1Hits}/${cases.length})`)
+  console.log(`  precision@3: ${(p3 * 100).toFixed(1)}%  (${top3Hits}/${cases.length})\n`)
+
+  if (misses.length > 0) {
+    console.log(chalk.yellow(`Misses (not in top-3):\n`))
+    for (const m of misses) {
+      console.log(`  ${chalk.bold(m.query)}`)
+      console.log(chalk.dim(`    expected: ${m.expected}`))
+      console.log(chalk.dim(`    got:      ${m.got.join(', ') || '(none)'}`))
+    }
+    console.log()
+  }
+
+  if (p1 < 0.8) {
+    console.log(chalk.red(`❌ precision@1 below 0.8 threshold — retrieval quality regression.`))
+    process.exit(1)
+  }
+  console.log(chalk.green(`✓ Retrieval quality OK.\n`))
+}
+
+/**
+ * Minimal YAML reader for BENCH.yaml — supports only the simple shape we use:
+ * a `cases:` list of `- query: ...\n  expected_top: ...\n  description: ...`
+ * dict items. Avoids adding a YAML dep just for this one file.
+ */
+function parseBenchYaml(src: string): Array<{ query: string; expected: string; description?: string }> {
+  const cases: Array<{ query: string; expected: string; description?: string }> = []
+  const lines = src.split('\n')
+  let current: Partial<{ query: string; expected: string; description: string }> | null = null
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const listStart = line.match(/^\s*-\s+(\w+):\s*(.+?)\s*$/)
+    if (listStart) {
+      if (current?.query && current.expected) {
+        cases.push({ query: current.query, expected: current.expected, description: current.description })
+      }
+      current = { [listStart[1] === 'expected_top' ? 'expected' : listStart[1]]: unquote(listStart[2]) }
+      continue
+    }
+    const fieldMatch = line.match(/^\s{4,}(\w+):\s*(.+?)\s*$/)
+    if (fieldMatch && current) {
+      const key = fieldMatch[1] === 'expected_top' ? 'expected' : fieldMatch[1]
+      ;(current as any)[key] = unquote(fieldMatch[2])
+    }
+  }
+  if (current?.query && current.expected) {
+    cases.push({ query: current.query, expected: current.expected, description: current.description })
+  }
+  return cases
+}
+
+function unquote(s: string): string {
+  const t = s.trim()
+  if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
+    return t.slice(1, -1)
+  }
+  return t
+}
+
 function entryLabel(e: WikiEntry): string {
   const tag = `[${e.type}]`
   const title = e.title || e.id

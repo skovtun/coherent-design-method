@@ -18,7 +18,13 @@ import { statusCommand } from './commands/status.js'
 import { regenerateDocsCommand } from './commands/regenerate-docs.js'
 import { reportIssueCommand } from './commands/report-issue.js'
 import { baselineCommand } from './commands/baseline.js'
-import { wikiReflectCommand, wikiAuditCommand, wikiIndexCommand, wikiSearchCommand } from './commands/wiki.js'
+import {
+  wikiReflectCommand,
+  wikiAuditCommand,
+  wikiIndexCommand,
+  wikiSearchCommand,
+  wikiBenchCommand,
+} from './commands/wiki.js'
 import { fixCommand } from './commands/fix.js'
 import { checkCommand } from './commands/check.js'
 import { repairCommand } from './commands/repair.js'
@@ -203,6 +209,10 @@ wikiCmd
   .description('Semantic-ish search over the wiki (TF-IDF). Returns top matches with score.')
   .option('--limit <n>', 'Max results to show', '5')
   .action((queryParts: string[], opts: { limit?: string }) => wikiSearchCommand(queryParts.join(' '), opts))
+wikiCmd
+  .command('bench')
+  .description('Run retrieval quality benchmark (precision@1 and @3) against docs/wiki/BENCH.yaml')
+  .action(wikiBenchCommand)
 program.addCommand(wikiCmd)
 
 // ─── Deprecated aliases (hidden from help, still work) ──────────────

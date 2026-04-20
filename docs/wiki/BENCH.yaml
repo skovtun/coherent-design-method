@@ -1,0 +1,52 @@
+# Wiki Retrieval Benchmarks
+#
+# Deterministic queries with expected top-result IDs. Used by
+# `coherent wiki bench` to measure retrieval precision@1 and @3 over time.
+#
+# Add a case when:
+#   - A new PJ entry is added (verify it's findable by the obvious query)
+#   - You notice a retrieval miss in practice (codify the fix)
+#
+# Do NOT add cases for cherry-picked queries that already work.
+# Goal: catch regressions when code changes retrieval behavior.
+
+cases:
+  - query: "filter bar failures"
+    expected_top: "PJ-006"
+    description: "Classic filter-bar bug should be the top hit for its natural query."
+
+  - query: "inconsistent stat cards between pages"
+    expected_top: "PJ-007"
+    description: "Cross-page StatCard consistency issue."
+
+  - query: "full width modal dialog"
+    expected_top: "PJ-008"
+    description: "Create New Budget modal bug."
+
+  - query: "delete page feature misinterpretation"
+    expected_top: "PJ-009"
+    description: "delete account page regression."
+
+  - query: "chart placeholder empty box"
+    expected_top: "PJ-002"
+    description: "Chart visualization would go here."
+
+  - query: "double sign currency toFixed"
+    expected_top: "PJ-003"
+    description: "++$4,850 double-sign bug."
+
+  - query: "empty table columns head cell count"
+    expected_top: "PJ-004"
+    description: "TableHead without matching TableCell."
+
+  - query: "golden patterns over word rules"
+    expected_top: "wiki/ADR/0001-golden-patterns-over-word-rules"
+    description: "The ADR defining our philosophical shift."
+
+  - query: "page account accounts singular plural"
+    expected_top: "PJ-005"
+    description: "--page fuzzy match bug."
+
+  - query: "nested card in card border shadow"
+    expected_top: "PJ-001"
+    description: "Budget Progress triple-border bug."
