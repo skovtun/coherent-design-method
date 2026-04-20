@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
@@ -409,7 +409,24 @@ describe('updateArchitecturePlan', () => {
   })
 })
 
-describe('generateSharedComponentsFromPlan', () => {
+// CI runners routinely take 2-3× local wall-time for filesystem-heavy
+// suites. Local runs of this file hit ~4s; the default 5s per-test
+// timeout leaves zero margin. Set a generous 15s so the hermetic
+// tests below don't go flaky on slower runners.
+describe('generateSharedComponentsFromPlan', { timeout: 15000 }, () => {
+  // Tests write coherent.components.json + component files through
+  // generateSharedComponent. Using a shared `/tmp` caused cross-test
+  // pollution on CI (leftover malformed JSON from a prior run parsed
+  // mid-test). Per-test fresh tmpdir keeps each case hermetic.
+  let projectRoot: string
+  beforeEach(() => {
+    projectRoot = mkdtempSync(join(tmpdir(), 'coherent-plan-gen-'))
+    mkdirSync(join(projectRoot, 'components', 'shared'), { recursive: true })
+  })
+  afterEach(() => {
+    rmSync(projectRoot, { recursive: true, force: true })
+  })
+
   it('returns generated component code for each planned component', async () => {
     const mockProvider = {
       parseModification: vi.fn().mockResolvedValue({
@@ -439,7 +456,7 @@ describe('generateSharedComponentsFromPlan', () => {
       ],
       pageNotes: {},
     })
-    const results = await generateSharedComponentsFromPlan(plan, 'dark theme', '/tmp', mockProvider as any)
+    const results = await generateSharedComponentsFromPlan(plan, 'dark theme', projectRoot, mockProvider as any)
     expect(results).toHaveLength(1)
     expect(results[0].name).toBe('StatCard')
     expect(results[0].code).toContain('export function StatCard')
@@ -473,7 +490,7 @@ describe('generateSharedComponentsFromPlan', () => {
       ],
       pageNotes: {},
     })
-    const results = await generateSharedComponentsFromPlan(plan, '', '/tmp', mockProvider as any)
+    const results = await generateSharedComponentsFromPlan(plan, '', projectRoot, mockProvider as any)
     expect(results).toHaveLength(1)
     expect(results[0].name).toBe('B')
   })
@@ -505,7 +522,7 @@ describe('generateSharedComponentsFromPlan', () => {
       ],
       pageNotes: {},
     })
-    const results = await generateSharedComponentsFromPlan(plan, '', '/tmp', mockProvider as any)
+    const results = await generateSharedComponentsFromPlan(plan, '', projectRoot, mockProvider as any)
     expect(results).toHaveLength(0)
   })
 
@@ -542,7 +559,7 @@ describe('generateSharedComponentsFromPlan', () => {
       ],
       pageNotes: {},
     })
-    const results = await generateSharedComponentsFromPlan(plan, '', '/tmp', mockProvider as any)
+    const results = await generateSharedComponentsFromPlan(plan, '', projectRoot, mockProvider as any)
     expect(results).toHaveLength(1)
     expect(results[0].code).toContain('export function FilterBar')
     expect(results[0].code).not.toContain('export default')

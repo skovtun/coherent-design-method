@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.16] — 2026-04-20
+
+### Hotfix: CI flakiness in plan-generator tests
+
+`generateSharedComponentsFromPlan` tests passed `'/tmp'` as projectRoot. Each test writes `coherent.components.json` + component files to that shared location. Cross-run pollution on the GitHub Actions runner caused two tests to fail intermittently — one timed out (5s limit hit), another parsed a leftover manifest with stale content ("Unexpected non-whitespace character after JSON at position 322"). Locally 55/55 passed; on CI the same code failed 2/55.
+
+### Fixed
+
+- Per-test `mkdtempSync(tmpdir() + '/coherent-plan-gen-')` + `afterEach` cleanup. Tests are now hermetic — no shared state between cases or runs.
+- Suite-level `timeout: 15000`. The filesystem-heavy cases run ~4s locally; CI runners are 2-3× slower so the default 5s timeout left zero margin.
+
+No runtime code changes — tests only.
+
 ## [0.7.15] — 2026-04-20
 
 ### Compact fix report + regex fixes for BROKEN_INTERNAL_LINK / HEAVY_SHADOW
