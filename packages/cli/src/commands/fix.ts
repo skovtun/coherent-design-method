@@ -659,6 +659,96 @@ export async function fixCommand(opts: FixOptions = {}) {
   const sharedTsxFiles = listTsxFiles(resolve(projectRoot, 'components', 'shared'))
   const allValidationFiles = [...userTsxFiles, ...sharedTsxFiles]
 
+  // ─── Step 4e: Migrate inline "Design System" FAB → <DSButton /> ────
+  // Older scaffolds put a plain <Link href="/design-system"> inside
+  // app/layout.tsx. That can't self-hide on /design-system routes because
+  // the root layout is a Server Component, so the button shows up even on
+  // the Design System page itself (observed in 0.7.11 smoke-test). Migrate
+  // to a small client component that checks usePathname().
+  try {
+    const rootLayoutPath = resolve(projectRoot, 'app', 'layout.tsx')
+    if (existsSync(rootLayoutPath)) {
+      const layoutCode = readFileSync(rootLayoutPath, 'utf-8')
+      const inlineDsLinkRe = /<Link[\s\S]*?href=["']\/design-system["'][\s\S]*?>\s*Design System\s*<\/Link>/
+      const hasInlineFab = inlineDsLinkRe.test(layoutCode)
+      const usesDsButton = /<DSButton\s*\/?>/.test(layoutCode)
+      if (hasInlineFab || !usesDsButton) {
+        const dsButtonPath = resolve(projectRoot, 'components', 'shared', 'ds-button.tsx')
+        if (!dsm) {
+          try {
+            dsm = new DesignSystemManager(project.configPath)
+            await dsm.load()
+          } catch {
+            dsm = null
+          }
+        }
+        if (dsm) {
+          try {
+            const { PageGenerator } = await import('@getcoherent/core')
+            const gen = new PageGenerator(dsm.getConfig())
+            if (!dryRun) {
+              mkdirSync(resolve(projectRoot, 'components', 'shared'), { recursive: true })
+              const dsCode = gen.generateDSButtonCode()
+              const dsRes = safeWrite(dsButtonPath, dsCode, projectRoot, backups)
+              if (dsRes.ok) {
+                modifiedFiles.push(dsButtonPath)
+                fixes.push('Wrote components/shared/ds-button.tsx')
+                console.log(chalk.green('  ✔ Wrote components/shared/ds-button.tsx'))
+              }
+            } else {
+              fixes.push('Would write components/shared/ds-button.tsx')
+            }
+          } catch (err) {
+            console.log(
+              chalk.yellow(`  ⚠ Could not generate DSButton: ${err instanceof Error ? err.message : String(err)}`),
+            )
+          }
+        }
+        // Patch layout.tsx: replace inline <Link ... Design System> with <DSButton />,
+        // add the import if missing. Preserve every other byte of the file.
+        let patched = layoutCode
+        if (hasInlineFab) {
+          patched = patched.replace(inlineDsLinkRe, '<DSButton />')
+        } else if (!usesDsButton) {
+          // No inline FAB and no DSButton — inject before </body>.
+          patched = patched.replace(/<\/body>/, '        <DSButton />\n      </body>')
+        }
+        if (!/from\s+['"]@\/components\/shared\/ds-button['"]/.test(patched)) {
+          const importLine = "import { DSButton } from '@/components/shared/ds-button'"
+          const globalsImport = "import './globals.css'"
+          const globalsIdx = patched.indexOf(globalsImport)
+          if (globalsIdx !== -1) {
+            const lineEnd = patched.indexOf('\n', globalsIdx) + 1
+            patched = patched.slice(0, lineEnd) + importLine + '\n' + patched.slice(lineEnd)
+          } else {
+            patched = importLine + '\n' + patched
+          }
+        }
+        // Old inline FAB used `next/link` solely for the button. If no other
+        // `<Link` remains in the file, drop the now-unused import.
+        if (!/<Link\b/.test(patched)) {
+          patched = patched.replace(/^import\s+Link\s+from\s+['"]next\/link['"]\s*\n?/m, '')
+        }
+        if (patched !== layoutCode) {
+          if (!dryRun) {
+            const layoutRes = safeWrite(rootLayoutPath, patched, projectRoot, backups)
+            if (layoutRes.ok) {
+              modifiedFiles.push(rootLayoutPath)
+              fixes.push('Migrated root layout FAB → <DSButton /> (self-hides on /design-system)')
+              console.log(chalk.green('  ✔ Migrated root layout FAB → <DSButton /> (hides on /design-system)'))
+            } else {
+              console.log(chalk.yellow('  ⚠ Layout FAB migration rolled back (parse error)'))
+            }
+          } else {
+            fixes.push('Would migrate root layout FAB → <DSButton />')
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.log(chalk.yellow(`  ⚠ DS button migration skipped: ${err instanceof Error ? err.message : String(err)}`))
+  }
+
   // ─── Step 5: Auto-fix quality issues ────────────────────────────────
   if (!skipQuality) {
     let qualityFixCount = 0

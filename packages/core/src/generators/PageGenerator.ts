@@ -513,8 +513,8 @@ ${sections}
 
     return `import type { Metadata, Viewport } from 'next'
 import type { ReactNode } from 'react'
-import Link from 'next/link'
 import './globals.css'
+import { DSButton } from '@/components/shared/ds-button'
 ${navEnabled ? "import { AppNav } from './AppNav'\n" : ''}
 
 export const metadata: Metadata = {
@@ -552,13 +552,7 @@ export default function RootLayout({
       </head>
       <body className="${this.getBodyClasses()}">
 ${navEnabled ? `        ${navRendered}\n        ` : ''}        <div className="flex-1${this.isSidebarNav() ? '' : ' flex flex-col'}">{children}</div>
-        <Link
-          href="/design-system"
-          className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full border border-border/20 bg-background/80 backdrop-blur-md px-4 py-2 text-xs shadow-sm hover:bg-muted transition-colors"
-          title="Design System"
-        >
-          Design System
-        </Link>
+        <DSButton />
       </body>
     </html>
   )
@@ -877,14 +871,60 @@ export function Header() {
           </div>
         </div>
       </nav>
-      <Link
-        href="/design-system"
-        className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full border border-foreground/20 bg-foreground/80 backdrop-blur-md text-background px-4 py-2 text-xs shadow-sm hover:bg-foreground/90 transition-all"
-        title="Design System"
-      >
-        Design System
-      </Link>
     </>
+  )
+}
+`
+  }
+
+  /**
+   * Generate the floating "Design System" FAB as its own client component.
+   *
+   * Lives at components/shared/ds-button.tsx. The component:
+   *   1. Hides itself when pathname starts with /design-system (can't do this
+   *      in a Server Component root layout, which is why the FAB moved out of
+   *      the inline <Link> in app/layout.tsx).
+   *   2. Uses foreground/background tokens for maximum legibility in both
+   *      light and dark themes.
+   *   3. Includes a Sparkles glyph + subtle hover motion so it actually looks
+   *      like an affordance, not an accidental leftover.
+   */
+  generateDSButtonCode(): string {
+    return `'use client'
+
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+
+export function DSButton() {
+  const pathname = usePathname()
+  if (pathname?.startsWith('/design-system')) return null
+  return (
+    <Link
+      href="/design-system"
+      className="fixed bottom-4 right-4 z-50 group inline-flex items-center gap-2 rounded-full bg-foreground text-background px-4 py-2.5 text-sm font-medium shadow-lg shadow-foreground/25 ring-1 ring-foreground/10 hover:shadow-xl hover:shadow-foreground/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+      title="Open Design System"
+      aria-label="Open Design System"
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="transition-transform duration-300 group-hover:rotate-12"
+        aria-hidden="true"
+      >
+        <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+        <path d="M20 3v4" />
+        <path d="M22 5h-4" />
+        <path d="M4 17v2" />
+        <path d="M5 18H3" />
+      </svg>
+      Design System
+    </Link>
   )
 }
 `

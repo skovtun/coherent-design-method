@@ -2,6 +2,30 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.12] — 2026-04-20
+
+### DSButton client component: hides on /design-system + much more expressive
+
+Smoke-test on a real project showed the floating "Design System" pill still rendered ON `/design-system/*` pages — the pages it's meant to jump to. Reason: the button lived as an inline `<Link>` in `app/layout.tsx`, which is a Server Component, so it couldn't check `usePathname()` to self-hide. It also looked weak: `border-border/20 bg-background/80 backdrop-blur-md` is nearly invisible on a light background.
+
+### Added
+
+- **`DSButton` client component** at `components/shared/ds-button.tsx`. Self-hides via `usePathname().startsWith('/design-system')`. Visual redesign:
+  - Solid `bg-foreground text-background` — theme-adaptive maximum contrast.
+  - Sparkles icon that rotates 12° on hover.
+  - `shadow-lg shadow-foreground/25` + `ring-1 ring-foreground/10` — stands out without noise.
+  - `hover:scale-[1.02] active:scale-[0.98]` — feels like an affordance, not a sticker.
+- **`PageGenerator.generateDSButtonCode()`** — new generator method. Referenced by root layout template and emitted as a shared component during `coherent init`.
+
+### Fixed
+
+- **Root layout no longer emits inline FAB.** `generateNextJSLayout` now imports `DSButton` from `@/components/shared/ds-button` and renders `<DSButton />` before `</body>`.
+- **Legacy scaffold FAB removed from `generateInitialHeaderCode`** (ProjectScaffolder) — the root-layout-level DSButton covers it; having two was noisy.
+- **`coherent fix` Step 4e: auto-migrate existing projects.** Detects the old inline `<Link ... Design System>` in `app/layout.tsx`, writes `components/shared/ds-button.tsx`, replaces the inline link with `<DSButton />`, adds the import, and drops `next/link` if no other `<Link>` remains. Idempotent.
+
+### Tests
+1005 passing (+1: DSButton generator).
+
 ## [0.7.11] — 2026-04-20
 
 ### Hotfix: stale config reference in Step 4d + DOUBLE_SIGN Math.abs context
