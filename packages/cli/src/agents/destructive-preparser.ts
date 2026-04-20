@@ -43,14 +43,37 @@ const CREATE_DESTRUCTIVE_FEATURE_RE =
   /^\s*(?:add|create|make|build)\s+(?:a|an|the)?\s*(?:.*\s+)?(?:delete|remove|trash)\s+/i
 
 export interface PreParsedRequest {
-  request: ModificationRequest
+  requests: ModificationRequest[]
   reason: string
 }
 
 /**
+ * Split a compound delete target like "X page and Y page and Z" into a list
+ * of individual page names. Handles "and", "&", commas as separators.
+ *
+ * Input:  "account page and the delete-account"
+ * Output: ["account", "delete-account"]
+ *
+ * The trailing " page" is stripped if present on each part.
+ */
+function splitCompoundTargets(raw: string): string[] {
+  const separators = /\s+and\s+|\s*,\s*|\s+&\s+/i
+  return raw
+    .split(separators)
+    .map(part =>
+      part
+        .replace(/^\s*the\s+/i, '')
+        .replace(/\s+page\s*$/i, '')
+        .trim(),
+    )
+    .filter(Boolean)
+}
+
+/**
  * Attempt to detect a destructive intent in the user message. Returns null
- * when no safe match is found — in which case the caller falls through to
- * normal LLM-based parsing.
+ * when no safe match is found OR when the extracted target doesn't resolve
+ * to any existing page — in both cases the caller falls through to LLM
+ * parsing rather than failing with a wrong target.
  */
 export function preParseDestructive(message: string, config: DesignSystemConfig): PreParsedRequest | null {
   const trimmed = message.trim()
@@ -62,34 +85,53 @@ export function preParseDestructive(message: string, config: DesignSystemConfig)
   if (componentMatch) {
     const target = componentMatch[1].trim()
     return {
-      request: {
-        type: 'delete-component',
-        target,
-        changes: {},
-        reason: 'destructive intent detected deterministically (pre-parser)',
-      },
+      requests: [
+        {
+          type: 'delete-component',
+          target,
+          changes: {},
+          reason: 'destructive intent detected deterministically (pre-parser)',
+        },
+      ],
       reason: `Matched delete-component pattern for target "${target}".`,
     }
   }
 
   const pageMatch = trimmed.match(DELETE_PAGE_RE)
   if (pageMatch) {
-    const target = pageMatch[1].trim()
-    // Fuzzy-resolve to an existing page to get a stable target identifier.
-    // When no match is found, we still return the request with the raw target
-    // string — the handler will produce a helpful "page not found" error
-    // rather than silently creating the wrong page.
-    const resolved = resolvePageByFuzzyMatch(config.pages, target)
+    const rawTarget = pageMatch[1].trim()
+    // Handle compound: "X page and Y page and Z" → multiple requests.
+    const targets = splitCompoundTargets(rawTarget)
+    if (targets.length === 0) return null
+
+    const requests: ModificationRequest[] = []
+    const unresolved: string[] = []
+    for (const t of targets) {
+      const resolved = resolvePageByFuzzyMatch(config.pages, t)
+      if (resolved) {
+        requests.push({
+          type: 'delete-page',
+          target: resolved.id,
+          changes: { route: resolved.route, name: resolved.name },
+          reason: 'destructive intent detected deterministically (pre-parser)',
+        })
+      } else {
+        unresolved.push(t)
+      }
+    }
+
+    // Fall back to LLM if NO targets resolved — regex probably over-matched
+    // (e.g., "account page and settings" where the split produced garbage).
+    // Better to let the LLM reinterpret than fail loudly.
+    if (requests.length === 0) {
+      return null
+    }
+
+    const summary = requests.map(r => r.target).join(', ')
+    const warn = unresolved.length > 0 ? ` (unresolved, skipping: ${unresolved.join(', ')} — not in project pages)` : ''
     return {
-      request: {
-        type: 'delete-page',
-        target: resolved?.id ?? target,
-        changes: resolved ? { route: resolved.route, name: resolved.name } : {},
-        reason: 'destructive intent detected deterministically (pre-parser)',
-      },
-      reason: resolved
-        ? `Matched delete-page pattern → resolved "${target}" to page "${resolved.name}" (${resolved.route}).`
-        : `Matched delete-page pattern for target "${target}" (no existing page matched — handler will report error).`,
+      requests,
+      reason: `Matched delete-page pattern → ${requests.length} page(s) to delete: ${summary}${warn}`,
     }
   }
 
