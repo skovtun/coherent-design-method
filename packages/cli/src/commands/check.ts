@@ -16,6 +16,7 @@ import chalk from 'chalk'
 import { resolve } from 'path'
 import { readdirSync, readFileSync, statSync, existsSync } from 'fs'
 import { validatePageQuality, formatIssues } from '../utils/quality-validator.js'
+import { validateCrossPage, type PageFile } from '../utils/cross-page-validator.js'
 import { findConfig, exitNotCoherent } from '../utils/find-config.js'
 import { loadManifest } from '@getcoherent/core'
 import { resolvePageByFuzzyMatch } from './chat/utils.js'
@@ -69,6 +70,9 @@ interface CheckResult {
     total: number
     broken: Array<{ file: string; line: number; href: string }>
   }
+  crossPage: {
+    issues: Array<{ type: string; severity: string; message: string }>
+  }
   autoFixable: number
 }
 
@@ -107,6 +111,7 @@ export async function checkCommand(opts: CheckOptions = {}) {
     pages: { total: 0, clean: 0, withErrors: 0, withWarnings: 0, files: [] },
     shared: { total: 0, consistent: 0, unused: 0, withInlineDuplicates: 0, entries: [] },
     links: { total: 0, broken: [] },
+    crossPage: { issues: [] },
     autoFixable: 0,
   }
 
@@ -258,6 +263,44 @@ export async function checkCommand(opts: CheckOptions = {}) {
       }
     } else if (!opts.json && result.links.total > 0) {
       console.log(chalk.green(`\n  🔗 Internal Links`) + chalk.dim(` — all ${result.links.total} links resolve ✓`))
+    }
+
+    // Cross-page consistency — only run on multi-page scans (not --page X).
+    // Scope to actual page.tsx files: layout/nav/shared components live under
+    // app/ too but aren't "pages" for drift-detection purposes, and mixing
+    // them in can create phantom minority clusters.
+    if (!opts.page) {
+      const pageOnlyFiles = files.filter(f => /\/page\.tsx$/.test(f))
+      if (pageOnlyFiles.length >= 2) {
+        const pageFiles: PageFile[] = pageOnlyFiles.map(f => ({
+          path: f.replace(projectRoot + '/', ''),
+          code: fileContents.get(f)!,
+        }))
+        let crossIssues: ReturnType<typeof validateCrossPage> = []
+        try {
+          crossIssues = validateCrossPage(pageFiles)
+        } catch {
+          // Cross-page is best-effort — a single bad page or malformed
+          // file shouldn't block the whole `coherent check` run.
+          crossIssues = []
+        }
+        result.crossPage.issues = crossIssues.map(i => ({
+          type: i.type,
+          severity: i.severity,
+          message: i.message,
+        }))
+        if (!opts.json && crossIssues.length > 0) {
+          console.log(chalk.yellow(`\n  🔀 Cross-Page Consistency`) + chalk.dim(` (${crossIssues.length} issue(s))\n`))
+          for (const issue of crossIssues) {
+            console.log(chalk.yellow(`  ⚠ ${issue.type}`))
+            console.log(chalk.dim(`    ${issue.message}`))
+          }
+        }
+        // Intentionally no "no drift detected" message: clusters are only
+        // meaningful with 3+ stat cards total across pages. Printing a
+        // green tick when the validator didn't actually cluster would be
+        // misleading — silence is honest.
+      }
     }
 
     // Shared manifest file check
@@ -480,7 +523,8 @@ export async function checkCommand(opts: CheckOptions = {}) {
     const wp = result.pages.withWarnings * 3
     const lp = result.links.broken.length * 15
     const up = result.shared.unused * 2
-    const s = Math.max(0, Math.min(100, 100 - ep - wp - lp - up))
+    const cp = result.crossPage.issues.length * 3
+    const s = Math.max(0, Math.min(100, 100 - ep - wp - lp - up - cp))
     console.log(JSON.stringify({ ...result, score: s }, null, 2))
     return
   }
@@ -500,6 +544,9 @@ export async function checkCommand(opts: CheckOptions = {}) {
   if (result.links.broken.length > 0) {
     summaryParts.push(chalk.red(`${result.links.broken.length} broken link(s)`))
   }
+  if (result.crossPage.issues.length > 0) {
+    summaryParts.push(chalk.yellow(`${result.crossPage.issues.length} cross-page drift`))
+  }
 
   console.log(`\n  ${summaryParts.join(' | ')}`)
 
@@ -509,7 +556,8 @@ export async function checkCommand(opts: CheckOptions = {}) {
   const warningPenalty = result.pages.withWarnings * 3
   const linkPenalty = result.links.broken.length * 15
   const unusedPenalty = result.shared.unused * 2
-  const totalPenalty = errorPenalty + warningPenalty + linkPenalty + unusedPenalty
+  const crossPagePenalty = result.crossPage.issues.length * 3
+  const totalPenalty = errorPenalty + warningPenalty + linkPenalty + unusedPenalty + crossPagePenalty
   const score = Math.max(0, Math.min(100, 100 - totalPenalty))
 
   const scoreColor = score >= 90 ? chalk.green : score >= 70 ? chalk.yellow : chalk.red
