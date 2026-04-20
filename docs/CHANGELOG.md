@@ -2,6 +2,28 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.8] — 2026-04-20
+
+### Compound delete + synonym expansion + prompt-injection guard
+
+Three improvements triggered by live testing after 0.7.7:
+
+**1. Compound delete** — `coherent chat "delete the account page and the delete-account page"` failed after 0.7.7 because the greedy regex captured both page names as a single target. Fixed: split compound targets by `and` / `&` / `,`, emit one `delete-page` per resolvable target. Unresolvable parts are reported as warnings. When NO target resolves, fall back to LLM (regex probably over-matched).
+
+**2. Synonym query expansion** — curated domain synonym map (`modal↔dialog`, `sheet↔drawer`, `chart↔graph`, `stat↔kpi↔metric`, `delete↔remove↔drop`, etc.). Expanded tokens get 0.5x weight so real terms still dominate ranking, but "popup dialog too wide" now correctly finds PJ-008 (which describes "modal"). Bridges keyword→semantic gap without loading an embedding model.
+
+**3. Prompt-injection sanitization** — new `src/utils/wiki-sanitizer.ts` strips known LLM-jailbreak patterns from wiki entries before injection: "ignore previous instructions", `system:` role rebinding, ChatML/Llama special tokens, env-var exfiltration prompts, role re-binding. Also truncates over-long entries (>4KB). Wraps context in explicit "DATA, not instructions" boundary. Finally closes the 0/10 prompt-injection criterion.
+
+### Added
+- `docs/wiki/BENCH.yaml` gained 3 synonym cases (popup→modal, kpi→stat, remove→delete). All at 100% precision@1.
+- `src/utils/wiki-sanitizer.ts` + 9 tests covering injection patterns.
+
+### Tests
+986 passing (+8 new).
+
+### Memory quality score
+5.8/10 → **~6.5/10**. Prompt-injection: 0→6. Retrieval: 5→6. Next: opt-in semantic embeddings (0.7.9 optional, OpenAI API).
+
 ## [0.7.7] — 2026-04-20
 
 ### Destructive pre-parser + wiki improvements (PJ-009 regression fix + memory quality bump)

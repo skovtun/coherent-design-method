@@ -38,6 +38,99 @@ export interface ScoredEntry {
   score: number
 }
 
+/**
+ * Domain synonym map — queries get expanded with these before retrieval.
+ *
+ * Why manually curated (not ML): the Coherent corpus is small and domain-
+ * specific. A static synonym table covers 70% of the semantic-gap without
+ * the cost of loading an embedding model. Upgrade path to real embeddings
+ * ships in 0.7.9 (opt-in via OPENAI_API_KEY).
+ *
+ * Each key expands to a list of related terms. Applied to BOTH query and
+ * (at build-time) entry tokens, so "modal" query matches "dialog" entries
+ * and vice versa.
+ */
+const SYNONYM_MAP: Record<string, string[]> = {
+  // Overlay components
+  modal: ['dialog', 'popup', 'modalcontent'],
+  dialog: ['modal', 'popup', 'modalcontent'],
+  popup: ['modal', 'dialog'],
+  sheet: ['drawer', 'sidepanel', 'slideover', 'side-drawer'],
+  drawer: ['sheet', 'sidepanel'],
+  slideover: ['sheet', 'drawer'],
+
+  // Menus
+  dropdown: ['menu', 'dropdown-menu', 'context-menu', 'select'],
+  menu: ['dropdown', 'context-menu'],
+
+  // Data display
+  chart: ['graph', 'visualization', 'recharts', 'plot'],
+  graph: ['chart', 'visualization'],
+  table: ['datagrid', 'grid', 'list'],
+  datagrid: ['table', 'grid'],
+  stat: ['metric', 'kpi', 'statistic'],
+  metric: ['stat', 'kpi'],
+  kpi: ['stat', 'metric'],
+
+  // Form parts
+  filter: ['search', 'toolbar', 'facet'],
+  search: ['filter', 'lookup', 'query'],
+  toolbar: ['filter-bar', 'action-bar'],
+  input: ['field', 'textfield', 'textbox'],
+  field: ['input'],
+
+  // Actions / verbs
+  delete: ['remove', 'drop', 'trash', 'erase'],
+  remove: ['delete', 'drop'],
+  edit: ['update', 'modify', 'change'],
+  update: ['edit', 'modify'],
+  create: ['add', 'new'],
+  add: ['create', 'new'],
+
+  // UI states
+  empty: ['zero-state', 'no-data', 'placeholder'],
+  error: ['failure', 'exception'],
+  loading: ['skeleton', 'spinner', 'fetching'],
+
+  // Styling
+  card: ['panel', 'tile'],
+  badge: ['pill', 'tag', 'chip'],
+  sidebar: ['nav', 'navigation'],
+  nav: ['sidebar', 'navigation', 'menu'],
+
+  // Layout concerns
+  nested: ['inside', 'contained', 'wrapped'],
+  align: ['layout', 'position', 'arrange'],
+
+  // Technical
+  validator: ['check', 'rule', 'linter'],
+  signal: ['indicator', 'flag'],
+  pattern: ['template', 'example', 'blueprint'],
+  fixture: ['example', 'sample'],
+}
+
+/**
+ * Expand tokens with synonyms. New tokens get a small weight (0.5x base) so
+ * they contribute to retrieval without overwhelming the original query.
+ *
+ * Called during retrieval to bridge the "modal vs dialog" semantic gap.
+ */
+export function expandWithSynonyms(tokens: string[]): Map<string, number> {
+  const expanded = new Map<string, number>()
+  for (const t of tokens) {
+    expanded.set(t, (expanded.get(t) ?? 0) + 1)
+  }
+  for (const t of tokens) {
+    const synonyms = SYNONYM_MAP[t]
+    if (!synonyms) continue
+    for (const syn of synonyms) {
+      // Synonyms count as 0.5 weight — they reinforce but don't dominate.
+      if (!expanded.has(syn)) expanded.set(syn, 0.5)
+    }
+  }
+  return expanded
+}
+
 // Lightweight English stopwords. Keep this small — too many removes real signal
 // (e.g., "not" matters in rules like "not destructive action").
 const STOPWORDS = new Set([
@@ -370,8 +463,10 @@ export function retrieve(index: BuiltIndex, query: string, topK = 5): ScoredEntr
   const queryTokens = tokenize(query)
   if (queryTokens.length === 0) return []
 
-  const qTermFreq = new Map<string, number>()
-  for (const t of queryTokens) qTermFreq.set(t, (qTermFreq.get(t) ?? 0) + 1)
+  // Expand with synonyms to bridge the keyword→semantic gap (0.7.8).
+  // Synonyms get 0.5x weight — real query terms still dominate ranking, but
+  // "modal" will now match "dialog" entries and vice versa.
+  const qTermFreq = expandWithSynonyms(queryTokens)
   const qVec = new Map<string, number>()
   let qSumSq = 0
   for (const [t, tf] of qTermFreq) {

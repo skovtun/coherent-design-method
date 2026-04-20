@@ -50,3 +50,17 @@ cases:
   - query: "nested card in card border shadow"
     expected_top: "PJ-001"
     description: "Budget Progress triple-border bug."
+
+  # 0.7.8 synonym-expansion cases — query uses one term, entry uses a synonym.
+
+  - query: "popup dialog too wide"
+    expected_top: "PJ-008"
+    description: "Modal/popup full-width — synonym expansion matches PJ-008 (describes 'modal')."
+
+  - query: "kpi metric card divergence"
+    expected_top: "PJ-007"
+    description: "Stat/metric/KPI synonym expansion — PJ-007 is the stat-card consistency entry."
+
+  - query: "remove page feature confusion"
+    expected_top: "PJ-009"
+    description: "Delete/remove synonym should still match PJ-009 about delete-page misinterpretation."
