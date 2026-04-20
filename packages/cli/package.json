@@ -3,7 +3,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "CLI interface for Coherent Design Method",
   "type": "module",
   "main": "./dist/index.js",
@@ -37,8 +37,9 @@
   "scripts": {
     "dev": "tsup --watch",
     "build": "tsup",
-    "postbuild": "node scripts/check-constraint-budget.mjs",
+    "postbuild": "node scripts/check-constraint-budget.mjs && node scripts/generate-rules-map.mjs",
     "check-budget": "node scripts/check-constraint-budget.mjs",
+    "generate-rules-map": "node scripts/generate-rules-map.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "prepublishOnly": "node -e \"if (!(process.env.npm_config_user_agent || '').includes('pnpm')) { console.error('\\n❌ Use pnpm publish, not npm publish.\\nReason: npm does not resolve workspace:* protocol, publishing will break global install.\\nRun: pnpm publish --no-git-checks\\n'); process.exit(1); }\""

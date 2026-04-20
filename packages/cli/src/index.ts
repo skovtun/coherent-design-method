@@ -18,6 +18,7 @@ import { statusCommand } from './commands/status.js'
 import { regenerateDocsCommand } from './commands/regenerate-docs.js'
 import { reportIssueCommand } from './commands/report-issue.js'
 import { baselineCommand } from './commands/baseline.js'
+import { wikiReflectCommand, wikiAuditCommand } from './commands/wiki.js'
 import { fixCommand } from './commands/fix.js'
 import { checkCommand } from './commands/check.js'
 import { repairCommand } from './commands/repair.js'
@@ -180,6 +181,20 @@ program
   .option('--save', 'Save a new baseline snapshot without comparing')
   .option('--compare', 'Compare against the latest baseline without saving a new one')
   .action(baselineCommand)
+
+// ─── Wiki maintenance (runs in Coherent source repo only) ───────────
+const wikiCmd = new Command('wiki').description(
+  'Platform-level LLM wiki maintenance (for Coherent source repo contributors — NOT for generated projects)',
+)
+wikiCmd
+  .command('reflect')
+  .description('Open a reflection template in $EDITOR and append filled sections to the wiki')
+  .action(wikiReflectCommand)
+wikiCmd
+  .command('audit')
+  .description('Sanity-check wiki structure (missing headers, evidence, markers, cross-refs)')
+  .action(wikiAuditCommand)
+program.addCommand(wikiCmd)
 
 // ─── Deprecated aliases (hidden from help, still work) ──────────────
 

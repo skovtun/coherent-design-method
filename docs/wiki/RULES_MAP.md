@@ -2,7 +2,92 @@
 
 Living index of every rule in `design-constraints.ts` with its origin bug, current validator, golden pattern, and version history.
 
-When you add a rule, add a row. When a rule is proven ineffective, mark it deprecated with a date.
+- **Hand-maintained** tables below (origin bugs, versions, status) — these require human judgment.
+- **Auto-generated** section (between the markers) — refreshed by `node packages/cli/scripts/generate-rules-map.mjs`, which parses the actual code. Single source of truth for what exists; hand-maintained section explains WHY.
+
+When you add a rule, add a row in the hand-maintained section. Run the generator to refresh the code-extracted table. When a rule is proven ineffective, mark it deprecated with a date.
+
+---
+
+<!-- AUTO-GENERATED:START -->
+## Constraint blocks (auto-generated)
+
+These are the exported rule blocks Claude sees in `design-constraints.ts`. CORE and TIER-1 blocks always ship with the prompt; RULES_* blocks are keyword-matched.
+
+| Block | First line |
+|-------|------------|
+| `DESIGN_THINKING` (TIER-1) | ## DESIGN THINKING (answer internally BEFORE writing code) |
+| `CORE_CONSTRAINTS` (CORE) | SHADCN/UI DESIGN CONSTRAINTS (MANDATORY — these rules produce professional UI): |
+| `DESIGN_QUALITY_COMMON` (TIER-1) | ## DESIGN QUALITY — COMMON |
+| `VISUAL_DEPTH` (TIER-1) | ## VISUAL DEPTH TECHNIQUES (pick 1-3 per page based on context) |
+| `RULES_FORMS` (TIER-2) | FORM RULES: |
+| `RULES_DATA_DISPLAY` (TIER-2) | DATA DISPLAY RULES: |
+| `RULES_NAVIGATION` (TIER-2) | NAVIGATION RULES: |
+| `RULES_OVERLAYS` (TIER-2) | OVERLAY / MODAL RULES: |
+| `RULES_FEEDBACK` (TIER-2) | FEEDBACK & STATUS RULES: |
+| `RULES_CONTENT` (TIER-2) | CONTENT PAGE RULES: |
+| `RULES_CARDS_LAYOUT` (TIER-2) | CARD & LAYOUT RULES: |
+| `RULES_SHADCN_APIS` (TIER-2) | SHADCN COMPONENT API REFERENCE (use these exact patterns): |
+| `RULES_COMPONENTS_MISC` (TIER-2) | MISCELLANEOUS COMPONENT RULES: |
+| `RULES_TAILWIND_V4` (TIER-2) | TAILWIND CSS v4 RULES (this project uses Tailwind v4): |
+| `RULES_NEXTJS` (TIER-2) | NEXT.JS APP ROUTER RULES: |
+| `INTERACTION_PATTERNS` (TIER-1) | ## INTERACTION PATTERNS (mandatory) |
+
+## Validator issue types (auto-generated)
+
+Every validator fires a typed issue. Grep for the type in `quality-validator.ts` to see the detection logic.
+
+| Issue type | Default message |
+|------------|-----------------|
+| `TABLE_COLUMN_MISMATCH` | Table has ${headCount} <TableHead> but first body <TableRow> has ${cellCount} <TableCell> — empty columns will render. Match counts. |
+| `FILTER_DUPLICATE` | Filter dimension  |
+| `FILTER_HEIGHT_MISMATCH` | Filter controls use different heights (${[...heights].join( |
+| `SEARCH_ICON_MISPLACED` | Search icon appears as a sibling of <Input>, not inside. Wrap in <div className= |
+| `DIALOG_FULL_WIDTH` | <${kind}Content> without a max-w-* class renders full-width on wide screens. Add max-w-lg (default) or sm:max-w-md for Sheet. |
+| `DIALOG_CUSTOM_OVERLAY` | Custom fixed inset-0 overlay detected. Use shadcn <Dialog>/<AlertDialog>/<Sheet> — they handle overlay, focus trap, and Escape automatically |
+| `ALERT_DIALOG_NON_DESTRUCTIVE` | AlertDialog  |
+| `INLINE_MOCK_DATA` | Inline array with 5+ items — extract to src/data/<name>.ts and import |
+| `PLACEHOLDER` | Placeholder content detected — use real contextual content |
+| `NO_RESPONSIVE` | Grid layout without responsive breakpoints (md: or lg:) |
+| `NO_H1` | Page has no <h1> — every page should have exactly one h1 heading |
+| `MULTIPLE_H1` | Page has ${h1Matches.length} <h1> elements — use exactly one per page |
+| `SKIPPED_HEADING` | Heading level skipped: h${headingLevels[i - 1]} → h${headingLevels[i]} — don |
+| `MISSING_LABEL` | Inputs found but no Label with htmlFor — every input must have a visible label |
+| `PLACEHOLDER_ONLY_LABEL` | Inputs use placeholder only — add visible Label with htmlFor (placeholder is not a substitute) |
+| `MISSING_FOCUS_VISIBLE` | Interactive elements without focus-visible styles — add focus-visible:ring-2 focus-visible:ring-ring |
+| `CLICKABLE_DIV` | <${m[1]} onClick> without role and tabIndex — keyboard-inaccessible. Use <button>/<a> or add role= |
+| `RAW_IMG_TAG` | <img> tag found — prefer <Image> from next/image for lazy-loading, format negotiation, and CLS-safe dimensions. |
+| `IMAGE_MISSING_DIMENSIONS` | <Image> without width/height (and no fill prop) — causes CLS. Add width={...} height={...} or use fill inside a sized parent. |
+| `MISSING_METADATA` | Marketing page without metadata export — add  |
+| `NO_EMPTY_STATE` | List/table/grid without empty state handling — add friendly message + primary action |
+| `NO_LOADING_STATE` | Page with data fetching but no loading/skeleton pattern — add skeleton or spinner |
+| `EMPTY_ERROR_MESSAGE` | Generic error message detected — use what happened + why + what to do next |
+| `DESTRUCTIVE_NO_CONFIRM` | Destructive action without confirmation dialog — add confirm before execution |
+| `FORM_NO_FEEDBACK` | Form with submit but no success/error feedback pattern — add  |
+| `NAV_NO_ACTIVE_STATE` | Navigation without active/current page indicator — add active state for current route |
+| `BROKEN_INTERNAL_LINK` | Link to  |
+| `NESTED_INTERACTIVE` | Button inside Link without asChild — causes DOM nesting error. Use <Button asChild><Link>...</Link></Button> instead |
+| `LINK_MISSING_HREF` | <Link> or <a> without href prop — causes Next.js runtime error. Add href attribute. |
+| `COMPONENT_TOO_LONG` | Page is ${lineCount} lines — consider extracting sections (data table, form, chart) into subcomponents. |
+| `MISSING_ARIA_LABEL` | Icon-only button without aria-label — add aria-label= |
+| `SMALL_TOUCH_TARGET` | Icon button may be < 44px touch target — add min-h-[44px] or increase padding |
+| `EMOJI_IN_UI` | Emoji character in UI — use Lucide icon instead (vector, scalable, theme-aware) |
+
+## Golden patterns (auto-generated)
+
+Canonical implementations under `packages/cli/templates/patterns/`. AI is shown the inline string from `golden-patterns.ts` when keyword matches.
+
+- [`alert-dialog.tsx`](../../packages/cli/templates/patterns/alert-dialog.tsx)
+- [`chart-card.tsx`](../../packages/cli/templates/patterns/chart-card.tsx)
+- [`dialog.tsx`](../../packages/cli/templates/patterns/dialog.tsx)
+- [`dropdown-menu.tsx`](../../packages/cli/templates/patterns/dropdown-menu.tsx)
+- [`empty-state.tsx`](../../packages/cli/templates/patterns/empty-state.tsx)
+- [`filter-bar.tsx`](../../packages/cli/templates/patterns/filter-bar.tsx)
+- [`pagination.tsx`](../../packages/cli/templates/patterns/pagination.tsx)
+- [`sheet.tsx`](../../packages/cli/templates/patterns/sheet.tsx)
+- [`stat-card.tsx`](../../packages/cli/templates/patterns/stat-card.tsx)
+
+<!-- AUTO-GENERATED:END -->
 
 ---
 
