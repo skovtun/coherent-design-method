@@ -2,6 +2,31 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.14] — 2026-04-20
+
+### BROKEN_INTERNAL_LINK — dynamic-route awareness + autofix
+
+Previous versions of the `BROKEN_INTERNAL_LINK` validator did a flat `Set.has(href)` check against `config.pages[*].route`. That false-fired on every concrete link to a dynamic route: `<Link href="/transactions/tx-002">` was flagged even though `/transactions/[id]` exists and Next.js would happily render tx-002 at runtime.
+
+### Fixed
+
+- **Dynamic route matching.** `validatePageQuality(code, validRoutes)` now pre-compiles every route containing `[param]` into a regex and checks the href against those patterns before flagging. `/transactions/tx-002` ↔ `/transactions/[id]` no longer trips the validator.
+
+### Added
+
+- **`BROKEN_INTERNAL_LINK` autofix.** For hrefs that truly have no covering route (dynamic or otherwise), `autoFixCode` now rewrites:
+  ```tsx
+  <Link href="/accounts">View All</Link>
+  ```
+  to
+  ```tsx
+  <Link href="#" data-stale-href="/accounts">View All</Link>
+  ```
+  No more 404 on click; reviewers can grep `data-stale-href` to find dead links. The autofix needs `knownRoutes` in the `AutoFixContext` — fix.ts now passes it from `config.pages[*].route`.
+
+### Tests
+1015 passing (+5 cases: dynamic-route validator × 2, autofix × 3).
+
 ## [0.7.13] — 2026-04-20
 
 ### CLI help cleanup + RAW_IMG_TAG autofix + SM_BREAKPOINT noise roll-up

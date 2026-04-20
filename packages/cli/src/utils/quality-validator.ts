@@ -984,6 +984,13 @@ export function validatePageQuality(
   if (validRoutes && validRoutes.length > 0) {
     const routeSet = new Set(validRoutes)
     routeSet.add('#')
+    // A dynamic route `/transactions/[id]` should match any concrete instance
+    // `/transactions/tx-001`, etc. — otherwise detail-page links false-fire.
+    // Pre-compute a list of dynamic-route regexes once per file.
+    const dynamicRouteRes = validRoutes
+      .filter(r => /\[[^\]]+\]/.test(r))
+      .map(r => new RegExp('^' + r.replace(/\[[^\]]+\]/g, '[^/]+') + '$'))
+    const matchesDynamic = (target: string) => dynamicRouteRes.some(re => re.test(target))
     const lines = code.split('\n')
     const linkHrefRe = /href\s*=\s*["'](\/[a-z0-9/-]*)["']/gi
     for (let i = 0; i < lines.length; i++) {
@@ -997,14 +1004,14 @@ export function validatePageQuality(
           target.startsWith('/#')
         )
           continue
-        if (!routeSet.has(target)) {
-          issues.push({
-            line: i + 1,
-            type: 'BROKEN_INTERNAL_LINK',
-            message: `Link to "${target}" — route does not exist in project`,
-            severity: 'warning',
-          })
-        }
+        if (routeSet.has(target)) continue
+        if (matchesDynamic(target)) continue
+        issues.push({
+          line: i + 1,
+          type: 'BROKEN_INTERNAL_LINK',
+          message: `Link to "${target}" — route does not exist in project`,
+          severity: 'warning',
+        })
       }
     }
   }
@@ -2310,6 +2317,35 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
       }
     }
     fixes.push('<img> → <Image> (with import)')
+  }
+
+  // 12. BROKEN_INTERNAL_LINK — `href="/missing"` where /missing isn't in
+  //     config.pages. Replace with `href="#"` + preserve the original in a
+  //     `data-stale-href` attribute so reviewers can see which link died.
+  //     Guard: only runs when caller passes knownRoutes (fix + check paths),
+  //     so we never rewrite a valid href just because we lack context.
+  const staleHrefs: string[] = []
+  if (context?.knownRoutes && context.knownRoutes.length > 0) {
+    const routeSet = new Set(context.knownRoutes)
+    routeSet.add('/')
+    // Dynamic routes cover any concrete sibling: /transactions/[id] matches
+    // /transactions/tx-002. Build one regex per dynamic route, used below.
+    const dynamicRouteRes = context.knownRoutes
+      .filter(r => /\[[^\]]+\]/.test(r))
+      .map(r => new RegExp('^' + r.replace(/\[[^\]]+\]/g, '[^/]+') + '$'))
+    fixed = fixed.replace(/\bhref\s*=\s*(["'])(\/[^"'#?]+)\1/g, (full: string, quote: string, href: string) => {
+      if (href.startsWith('/design-system') || href.startsWith('/api')) return full
+      if (routeSet.has(href)) return full
+      if (dynamicRouteRes.some(re => re.test(href))) return full
+      staleHrefs.push(href)
+      return `href=${quote}#${quote} data-stale-href=${quote}${href}${quote}`
+    })
+  }
+  if (staleHrefs.length > 0) {
+    const uniqueHrefs = [...new Set(staleHrefs)]
+    fixes.push(
+      `broken link(s) → href="#" with data-stale-href: ${uniqueHrefs.slice(0, 3).join(', ')}${uniqueHrefs.length > 3 ? ` +${uniqueHrefs.length - 3} more` : ''}`,
+    )
   }
 
   return { code: fixed, fixes }

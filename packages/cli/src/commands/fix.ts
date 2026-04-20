@@ -753,10 +753,15 @@ export async function fixCommand(opts: FixOptions = {}) {
   if (!skipQuality) {
     let qualityFixCount = 0
     const qualityFixDetails: string[] = []
+    const knownRoutesForAutofix = dsm
+      ? ((dsm.getConfig().pages || []) as any[]).map(p => p.route).filter((r): r is string => !!r)
+      : undefined
     for (const file of allValidationFiles) {
       try {
         const content = readFileSync(file, 'utf-8')
-        const { code: autoFixed, fixes: fileFixes } = await autoFixCode(content)
+        const { code: autoFixed, fixes: fileFixes } = await autoFixCode(content, {
+          knownRoutes: knownRoutesForAutofix,
+        })
         if (autoFixed !== content) {
           if (!dryRun) {
             const qResult = safeWrite(file, autoFixed, projectRoot, backups)
