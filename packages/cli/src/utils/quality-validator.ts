@@ -571,7 +571,17 @@ export function validatePageQuality(
       /(?:amount|value|total|balance|change|delta|diff|sum|price|cost|profit|loss|pnl|qty|quantity)\s*[<>!=]=?\s*0\s*\?/i.test(
         line,
       )
-    return isNumericCompare ? issue : { ...issue, severity: 'warning' as const }
+    if (!isNumericCompare) return { ...issue, severity: 'warning' as const }
+    // If Math.abs() or signDisplay appears in the surrounding 5 lines, the
+    // formatter is receiving an unsigned value — the ternary drives sign
+    // separately, not doubling it. Demote to info so it stops blocking.
+    const windowStart = Math.max(0, issue.line - 3)
+    const windowEnd = Math.min(codeLinesForDs.length, issue.line + 2)
+    const window = codeLinesForDs.slice(windowStart, windowEnd).join('\n')
+    if (/Math\.abs\s*\(|\.abs\s*\(|signDisplay/.test(window)) {
+      return { ...issue, severity: 'info' as const }
+    }
+    return issue
   })
   issues.push(...demotedDoubleSign)
   // TableHead / TableCell column mismatch — AI adds column headers but forgets

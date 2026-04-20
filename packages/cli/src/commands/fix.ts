@@ -629,7 +629,12 @@ export async function fixCommand(opts: FixOptions = {}) {
       }
       try {
         const { PageGenerator } = await import('@getcoherent/core')
-        const gen = new PageGenerator(config)
+        // Must re-read config — the pruning step above replaced it via
+        // dsm.updateConfig(), which leaves our local `config` const pointing
+        // at the old (stale) object. Generating from `config` would bring
+        // the pruned nav items back.
+        const freshConfig = dsm.getConfig()
+        const gen = new PageGenerator(freshConfig)
         const newCode = kind === 'header' ? gen.generateSharedHeaderCode() : gen.generateSharedSidebarCode()
         const navResult = safeWrite(path, newCode, projectRoot, backups)
         if (navResult.ok) {
