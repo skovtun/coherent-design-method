@@ -18,7 +18,7 @@ import { statusCommand } from './commands/status.js'
 import { regenerateDocsCommand } from './commands/regenerate-docs.js'
 import { reportIssueCommand } from './commands/report-issue.js'
 import { baselineCommand } from './commands/baseline.js'
-import { wikiReflectCommand, wikiAuditCommand } from './commands/wiki.js'
+import { wikiReflectCommand, wikiAuditCommand, wikiIndexCommand, wikiSearchCommand } from './commands/wiki.js'
 import { fixCommand } from './commands/fix.js'
 import { checkCommand } from './commands/check.js'
 import { repairCommand } from './commands/repair.js'
@@ -194,6 +194,15 @@ wikiCmd
   .command('audit')
   .description('Sanity-check wiki structure (missing headers, evidence, markers, cross-refs)')
   .action(wikiAuditCommand)
+wikiCmd
+  .command('index')
+  .description('Rebuild the TF-IDF retrieval index over docs/wiki/ and docs/PATTERNS_JOURNAL.md')
+  .action(wikiIndexCommand)
+wikiCmd
+  .command('search <query...>')
+  .description('Semantic-ish search over the wiki (TF-IDF). Returns top matches with score.')
+  .option('--limit <n>', 'Max results to show', '5')
+  .action((queryParts: string[], opts: { limit?: string }) => wikiSearchCommand(queryParts.join(' '), opts))
 program.addCommand(wikiCmd)
 
 // ─── Deprecated aliases (hidden from help, still work) ──────────────

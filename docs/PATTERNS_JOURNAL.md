@@ -192,6 +192,32 @@ fixed_in: [0.7.1]
 evidence: [sha:TODO-after-0.7.1-merge, screenshot://image-cache/c8ef5aa8-.../10.png]
 ---
 
+---
+id: PJ-009
+type: bug
+confidence: verified
+status: active
+evidence: [transcript://2026-04-20 session — "coherent chat 'delete account page'" created a Delete Account feature page instead of deleting the Account page]
+---
+
+### PJ-009 — `delete` interpreted as feature creation instead of removal
+
+**Observed:** `coherent chat "delete account page"` created a new `/settings/delete-account` page (with Dialog + Danger Zone UI) instead of deleting the existing Account page.
+
+**Root cause (compound):**
+1. There is no `delete-page` ModificationRequest type in the core schema — the pipeline only supports `add-page`, `update-page`, `add-component`, `modify-component`, `update-token`. Deletion simply isn't wired.
+2. AI reads "delete account page" as ambiguous: "a page for deleting accounts" (feature) vs "delete the page called Account" (operation). Without a schema affordance, it falls back to feature interpretation.
+3. No validator catches this — the resulting page is structurally valid, just wrong intent.
+
+**Fix (planned for 0.7.5):**
+- Add `delete-page` / `delete-component` ModificationRequest types in core.
+- `applyModification` handler: rm app/<route>/page.tsx, update design-system.config.pages[], update nav snapshot.
+- Prompt training: explicit example in CORE_CONSTRAINTS teaching "delete/remove/get rid of X page" → `type: "delete-page", target: X`.
+- Safety: dry-run by default OR require `--force` for destructive ops without `--dry-run`.
+- Undo: already works via `.coherent/backups/` — `coherent undo` restores.
+
+**Related:** cross-cutting with IDEAS_BACKLOG → destructive operations handling.
+
 ### PJ-008 — Full-width Create Budget modal
 
 **Observed:** Create New Budget dialog rendered edge-to-edge across a ~2400px screen. Content cramped on left 20%, title centered on full width, huge empty area right.

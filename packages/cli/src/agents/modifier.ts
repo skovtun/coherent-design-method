@@ -24,6 +24,9 @@ import {
   inferPageTypeFromRoute,
 } from './design-constraints.js'
 import { pickGoldenPatterns } from './golden-patterns.js'
+import { loadIndex, retrieve } from '../utils/wiki-index.js'
+import { resolve as pathResolve } from 'path'
+import { fileURLToPath } from 'url'
 
 export interface ModificationContext {
   config: DesignSystemConfig
@@ -294,6 +297,7 @@ For editing an existing shared component use type "modify-layout-block" with tar
   const contextualRules = selectContextualRules(message, options?.pageSections)
   const interactionPatterns = INTERACTION_PATTERNS
   const goldenPatterns = pickGoldenPatterns(message, options?.pageSections)
+  const wikiContext = retrieveWikiContext(message, options?.pageSections)
   const light = config.tokens.colors.light
   const dark = config.tokens.colors.dark
 
@@ -308,6 +312,7 @@ ${visualDepth}
 ${contextualRules}
 ${interactionPatterns}
 ${goldenPatterns}
+${wikiContext}
 ${expandedHint}${buildProjectContext(options?.projectRoot)}
 Current Design System:
 - Name: ${config.name}
@@ -670,4 +675,50 @@ function extractComponentSpec(changes: Record<string, any>): ComponentSpec {
     requiredVariants: changes.variants?.map((v: any) => v.name),
     requiredSizes: changes.sizes?.map((s: any) => s.name),
   }
+}
+
+/**
+ * Retrieve the top-N most relevant wiki entries for the user's request and
+ * render them as a prompt section. Gracefully no-ops when no packaged index
+ * is found (e.g., dev environment without a built dist/).
+ *
+ * Scoped tightly: top 3 entries at most, to keep the prompt budget in check.
+ * TF-IDF ranking; swappable to embeddings later without touching callers.
+ */
+let cachedIndex: ReturnType<typeof loadIndex> | null = null
+let cachedIndexPath: string | null = null
+
+function retrieveWikiContext(message: string, sections?: string[]): string {
+  const here = pathResolve(fileURLToPath(import.meta.url), '..')
+  // After tsup bundle, modifier ends up somewhere in dist/. The packaged
+  // wiki-index.json sits alongside the dist entry.
+  const candidates = [
+    pathResolve(here, 'wiki-index.json'),
+    pathResolve(here, '..', 'wiki-index.json'),
+    pathResolve(here, '..', 'dist', 'wiki-index.json'),
+  ]
+  const indexPath = candidates.find(p => existsSync(p))
+  if (!indexPath) return ''
+
+  if (cachedIndexPath !== indexPath) {
+    cachedIndex = loadIndex(indexPath)
+    cachedIndexPath = indexPath
+  }
+  if (!cachedIndex) return ''
+
+  const query = [message, ...(sections ?? [])].join(' ')
+  const results = retrieve(cachedIndex, query, 3)
+  if (results.length === 0) return ''
+
+  const lines: string[] = []
+  lines.push('')
+  lines.push(
+    'WIKI CONTEXT (relevant platform knowledge from PATTERNS_JOURNAL / MODEL_PROFILE / ADR — use as background, not as rules):',
+  )
+  for (const { entry, score } of results) {
+    lines.push(`\n--- [${entry.type}] ${entry.id}: ${entry.title} (relevance ${score.toFixed(2)}) ---`)
+    const preview = entry.content.slice(0, 800).replace(/\n{3,}/g, '\n\n')
+    lines.push(preview)
+  }
+  return lines.join('\n')
 }
