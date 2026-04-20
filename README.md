@@ -16,6 +16,12 @@
 
 ---
 
+## Demo
+
+[![Coherent Design Method — AI-powered design system generator](https://img.youtube.com/vi/A-rCpn6O3SI/maxresdefault.jpg)](https://youtu.be/A-rCpn6O3SI)
+
+> [▶ Watch on YouTube](https://youtu.be/A-rCpn6O3SI) · [Download MP4](https://github.com/skovtun/coherent-design-method/releases/download/v0.7.15/Coherent.Design.Method.DEMO.mp4)
+
 ## What is Coherent?
 
 Most AI tools generate pages. Coherent generates **systems**.
@@ -23,12 +29,6 @@ Most AI tools generate pages. Coherent generates **systems**.
 When you ask for five pages, every page shares the same header, footer, color palette, spacing, and component library. Change the primary color once — all pages update. Add a component once — reuse it everywhere by ID. The design system documentation writes itself.
 
 Coherent is a CLI that creates production-ready Next.js projects with a built-in design system. You describe what you want in plain English, and Coherent generates real code — not wireframes, not mockups, but working pages with real components, real data patterns, and a live Design System viewer at `/design-system`.
-
-## Demo
-
-[![Coherent Design Method — AI-powered design system generator](https://img.youtube.com/vi/A-rCpn6O3SI/maxresdefault.jpg)](https://youtu.be/A-rCpn6O3SI)
-
-> [▶ Watch on YouTube](https://youtu.be/A-rCpn6O3SI) · [Download MP4](https://github.com/skovtun/coherent-design-method/releases/download/v0.7.15/Coherent.Design.Method.DEMO.mp4)
 
 ## Quick Start
 
