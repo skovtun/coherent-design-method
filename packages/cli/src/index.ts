@@ -16,6 +16,8 @@ import { previewCommand } from './commands/preview.js'
 import { exportCommand } from './commands/export.js'
 import { statusCommand } from './commands/status.js'
 import { regenerateDocsCommand } from './commands/regenerate-docs.js'
+import { reportIssueCommand } from './commands/report-issue.js'
+import { baselineCommand } from './commands/baseline.js'
 import { fixCommand } from './commands/fix.js'
 import { checkCommand } from './commands/check.js'
 import { repairCommand } from './commands/repair.js'
@@ -157,6 +159,25 @@ program.addCommand(dsCmd)
 program.command('status').description('Show current project status').action(statusCommand)
 
 program.command('regenerate-docs').description('Regenerate documentation pages').action(regenerateDocsCommand)
+
+program
+  .command('report-issue')
+  .description('Open a pre-filled GitHub issue with project context (CLI/project versions, page path, pages list)')
+  .option('--page <path>', 'Page route where the issue occurs (e.g. /dashboard)')
+  .option('--screenshot <path>', 'Screenshot file to reference (user uploads manually after browser opens)')
+  .option('--title <text>', 'Issue title (overrides auto-generated title)')
+  .option('--body <text>', 'Additional body text prepended to the pre-filled template')
+  .option('--no-open', 'Print URL only, do not open the browser')
+  .action(reportIssueCommand)
+
+program
+  .command('baseline')
+  .description(
+    'Structural regression check — fingerprints pages (imports, LOC, validator issues), compares against saved baseline',
+  )
+  .option('--save', 'Save a new baseline snapshot without comparing')
+  .option('--compare', 'Compare against the latest baseline without saving a new one')
+  .action(baselineCommand)
 
 // ─── Deprecated aliases (hidden from help, still work) ──────────────
 

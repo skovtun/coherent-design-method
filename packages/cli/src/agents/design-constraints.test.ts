@@ -5,6 +5,7 @@ import {
   DESIGN_QUALITY_COMMON,
   CORE_CONSTRAINTS,
   RULES_DATA_DISPLAY,
+  RULES_CARDS_LAYOUT,
 } from './design-constraints.js'
 
 describe('getDesignQualityForType', () => {
@@ -144,6 +145,71 @@ describe('DESIGN_QUALITY_COMMON', () => {
   })
   it('does not contain app compact spacing', () => {
     expect(DESIGN_QUALITY_COMMON).not.toContain('gap-4 md:gap-6 between sections')
+  })
+})
+
+describe('design-constraints nested-containers rule', () => {
+  it('CORE_CONSTRAINTS forbids nested bordered containers (always-on)', () => {
+    expect(CORE_CONSTRAINTS).toContain('Nested bordered containers')
+    expect(CORE_CONSTRAINTS).toContain('card-in-card')
+  })
+
+  it('RULES_CARDS_LAYOUT includes BAD/GOOD examples for nested cards', () => {
+    expect(RULES_CARDS_LAYOUT).toContain('NO nested visual containers')
+    expect(RULES_CARDS_LAYOUT).toContain('BAD:')
+    expect(RULES_CARDS_LAYOUT).toContain('GOOD (flat stack)')
+    expect(RULES_CARDS_LAYOUT).toContain('GOOD (single card, rows)')
+  })
+})
+
+describe('design-constraints chart rule', () => {
+  it('CORE_CONSTRAINTS bans chart placeholder text (always-on)', () => {
+    expect(CORE_CONSTRAINTS).toContain('CHARTS')
+    expect(CORE_CONSTRAINTS).toContain('Chart visualization would go here')
+  })
+
+  it('CORE_CONSTRAINTS points to RULES_DATA_DISPLAY for chart detail', () => {
+    expect(CORE_CONSTRAINTS).toContain('shadcn Chart + recharts')
+    expect(CORE_CONSTRAINTS).toContain('RULES_DATA_DISPLAY')
+  })
+
+  it('RULES_DATA_DISPLAY includes full chart pattern', () => {
+    expect(RULES_DATA_DISPLAY).toContain('pnpm dlx shadcn@latest add chart')
+    expect(RULES_DATA_DISPLAY).toContain('ChartContainer')
+    expect(RULES_DATA_DISPLAY).toContain('ChartTooltipContent')
+    expect(RULES_DATA_DISPLAY).toContain('var(--chart-1)')
+    expect(RULES_DATA_DISPLAY).toContain('h-[200px]')
+    expect(RULES_DATA_DISPLAY).toContain('h-[300px]')
+    expect(RULES_DATA_DISPLAY).toContain('h-[400px]')
+  })
+
+  it('RULES_DATA_DISPLAY picks right chart type per data shape', () => {
+    expect(RULES_DATA_DISPLAY).toContain('AreaChart — trends over time')
+    expect(RULES_DATA_DISPLAY).toContain('BarChart — category comparisons')
+    expect(RULES_DATA_DISPLAY).toContain('PieChart — portions of a whole')
+  })
+
+  it('RULES_DATA_DISPLAY includes empty state pattern', () => {
+    expect(RULES_DATA_DISPLAY).toContain('No data yet')
+  })
+})
+
+describe('design-constraints number formatting rule', () => {
+  it('CORE_CONSTRAINTS requires Intl.NumberFormat for money', () => {
+    expect(CORE_CONSTRAINTS).toContain('NUMBER FORMATTING')
+    expect(CORE_CONSTRAINTS).toContain('Intl.NumberFormat')
+    expect(CORE_CONSTRAINTS).toContain('"currency"')
+  })
+
+  it('CORE_CONSTRAINTS bans toFixed for money', () => {
+    expect(CORE_CONSTRAINTS).toContain('value.toFixed')
+  })
+})
+
+describe('design-constraints mock data location rule', () => {
+  it('CORE_CONSTRAINTS requires extract to src/data for 5+ element arrays', () => {
+    expect(CORE_CONSTRAINTS).toContain('src/data/')
+    expect(CORE_CONSTRAINTS).toContain('5+ elements')
   })
 })
 

@@ -130,6 +130,69 @@ export const AtmosphereSchema = z.object({
 
 export type Atmosphere = z.infer<typeof AtmosphereSchema>
 
+/**
+ * Route/section patterns that suggest a page needs a chart.
+ *
+ * Chosen conservatively. False positives create a superfluous shared component;
+ * false negatives fall back to per-page chart generation (still correct, just
+ * no reuse). Better to err on the side of missing a chart than inventing one.
+ */
+const CHART_ROUTE_PATTERN = /\b(?:dashboard|analytics|reports?|stats?|overview|metrics|insights?|performance)\b/i
+const CHART_SECTION_PATTERN = /\b(?:chart|graph|trend|distribution|breakdown|portfolio|activity\s+over)\b/i
+
+/**
+ * Inject a reusable `StatsChart` into plan.sharedComponents when the plan has
+ * at least one chart-heavy page and doesn't already define a chart component.
+ *
+ * Why: without this, each dashboard/analytics page generates its own chart
+ * JSX + mock data. StatsChart as a shared component lets pages just declare
+ * `<StatsChart data={...} chartType="area" title="Revenue" />` and stay
+ * readable. Also gives the AI a stable contract to target.
+ *
+ * Skip conditions:
+ *   - No chart-heavy pages (no-op).
+ *   - Plan already has a component with "chart" / "graph" in its name (author
+ *     intent; don't override).
+ *   - sharedComponents already at the 12-item cap (can't add more).
+ */
+export function ensureChartComponentInPlan(plan: ArchitecturePlan): ArchitecturePlan {
+  const chartRoutes: string[] = []
+  for (const group of plan.groups) {
+    for (const route of group.pages) {
+      if (CHART_ROUTE_PATTERN.test(route)) {
+        chartRoutes.push(route)
+        continue
+      }
+      const noteKey = route.replace(/^\//, '') || 'home'
+      const note = plan.pageNotes[noteKey]
+      if (note?.sections?.some(s => CHART_SECTION_PATTERN.test(s))) {
+        chartRoutes.push(route)
+      }
+    }
+  }
+  if (chartRoutes.length === 0) return plan
+
+  const alreadyHasChart = plan.sharedComponents.some(c => /chart|graph/i.test(c.name))
+  if (alreadyHasChart) return plan
+
+  if (plan.sharedComponents.length >= 12) return plan
+
+  const chartComponent: PlannedComponent = {
+    name: 'StatsChart',
+    description:
+      'Reusable chart wrapper — shadcn ChartContainer + recharts. Supports area/bar/line/pie variants. Used on dashboard/analytics/reports pages.',
+    props:
+      '{ data: Array<{ label: string; value: number } | Record<string, number | string>>; chartType?: "area" | "bar" | "line" | "pie"; title?: string; description?: string; className?: string }',
+    usedBy: chartRoutes,
+    type: 'data-display',
+    shadcnDeps: ['chart', 'card'],
+  }
+  return {
+    ...plan,
+    sharedComponents: [...plan.sharedComponents, chartComponent],
+  }
+}
+
 export const ArchitecturePlanSchema = z.object({
   appName: z.string().optional(),
   atmosphere: AtmosphereSchema.optional(),
@@ -452,7 +515,7 @@ Navigation type requested: ${layoutHint || 'auto-detect'}`
     try {
       const raw = await aiProvider.generateJSON(PLAN_SYSTEM_PROMPT, userPrompt)
       const parsed = ArchitecturePlanSchema.safeParse(raw)
-      if (parsed.success) return { plan: parsed.data, warnings }
+      if (parsed.success) return { plan: ensureChartComponentInPlan(parsed.data), warnings }
       warnings.push(
         `Validation (attempt ${attempt + 1}): ${parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')}`,
       )
@@ -482,7 +545,7 @@ Update the existing plan to include these new pages. Keep all existing groups, c
   try {
     const raw = await aiProvider.generateJSON(PLAN_SYSTEM_PROMPT, userPrompt)
     const parsed = ArchitecturePlanSchema.safeParse(raw)
-    if (parsed.success) return parsed.data
+    if (parsed.success) return ensureChartComponentInPlan(parsed.data)
     const issues = parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')
     console.warn(chalk.dim(`  Plan update validation failed: ${issues}`))
   } catch (err) {
@@ -507,7 +570,7 @@ Update the existing plan to include these new pages. Keep all existing groups, c
     }
   }
 
-  return merged
+  return ensureChartComponentInPlan(merged)
 }
 
 let cachedPlan: { path: string; plan: ArchitecturePlan } | null = null

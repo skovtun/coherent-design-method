@@ -16,6 +16,7 @@ import {
   extractAtmosphereFromMessage,
   renderAtmosphereDirective,
   renderAtmosphereStyleHint,
+  ensureChartComponentInPlan,
 } from './plan-generator.js'
 
 describe('routeToKey', () => {
@@ -708,5 +709,88 @@ describe('extractAtmosphereFromMessage — industry presets', () => {
     const a = extractAtmosphereFromMessage('Create an online store with product listings')
     expect(a.background).toBe('minimal-paper')
     expect(a.primaryHint).toBe('amber')
+  })
+})
+
+describe('ensureChartComponentInPlan', () => {
+  const basePlan = (extra: Partial<Parameters<typeof ArchitecturePlanSchema.parse>[0]> = {}) =>
+    ArchitecturePlanSchema.parse({
+      groups: [
+        { id: 'public', layout: 'header', pages: ['/features'] },
+        { id: 'app', layout: 'sidebar', pages: ['/dashboard', '/settings'] },
+      ],
+      sharedComponents: [],
+      pageNotes: {},
+      ...extra,
+    })
+
+  it('injects StatsChart when plan has a dashboard route', () => {
+    const plan = basePlan()
+    const out = ensureChartComponentInPlan(plan)
+    expect(out.sharedComponents).toHaveLength(1)
+    expect(out.sharedComponents[0].name).toBe('StatsChart')
+    expect(out.sharedComponents[0].usedBy).toContain('/dashboard')
+  })
+
+  it('does NOT inject when no chart-heavy routes exist', () => {
+    const plan = basePlan({
+      groups: [{ id: 'public', layout: 'header', pages: ['/features', '/about'] }],
+    })
+    const out = ensureChartComponentInPlan(plan)
+    expect(out.sharedComponents).toHaveLength(0)
+  })
+
+  it('injects for analytics/reports/metrics routes', () => {
+    const plan = basePlan({
+      groups: [{ id: 'app', layout: 'sidebar', pages: ['/analytics', '/reports', '/metrics'] }],
+    })
+    const out = ensureChartComponentInPlan(plan)
+    expect(out.sharedComponents).toHaveLength(1)
+    expect(out.sharedComponents[0].usedBy).toEqual(['/analytics', '/reports', '/metrics'])
+  })
+
+  it('detects chart-section keyword in pageNotes', () => {
+    const plan = basePlan({
+      groups: [{ id: 'app', layout: 'sidebar', pages: ['/home', '/settings'] }],
+      pageNotes: {
+        home: { type: 'app', sections: ['hero with revenue chart', 'quick stats'] },
+      },
+    })
+    const out = ensureChartComponentInPlan(plan)
+    expect(out.sharedComponents).toHaveLength(1)
+    expect(out.sharedComponents[0].usedBy).toContain('/home')
+  })
+
+  it('does NOT inject when plan already has a Chart component', () => {
+    const plan = basePlan({
+      sharedComponents: [
+        {
+          name: 'RevenueChart',
+          description: 'custom',
+          props: '{}',
+          usedBy: ['/dashboard'],
+          type: 'data-display',
+          shadcnDeps: [],
+        },
+      ],
+    })
+    const out = ensureChartComponentInPlan(plan)
+    expect(out.sharedComponents).toHaveLength(1)
+    expect(out.sharedComponents[0].name).toBe('RevenueChart')
+  })
+
+  it('respects 12-item plan cap', () => {
+    const fills = Array.from({ length: 12 }, (_, i) => ({
+      name: `Comp${i}`,
+      description: '',
+      props: '{}',
+      usedBy: [],
+      type: 'section' as const,
+      shadcnDeps: [],
+    }))
+    const plan = basePlan({ sharedComponents: fills })
+    const out = ensureChartComponentInPlan(plan)
+    expect(out.sharedComponents).toHaveLength(12)
+    expect(out.sharedComponents.some(c => c.name === 'StatsChart')).toBe(false)
   })
 })

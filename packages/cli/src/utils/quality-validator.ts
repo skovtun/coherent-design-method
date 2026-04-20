@@ -46,6 +46,31 @@ const IMG_WITHOUT_ALT_RE = /<img\b(?![^>]*\balt\s*=)[^>]*>/g
 const INPUT_TAG_RE = /<(?:Input|input)\b[^>]*>/g
 const LABEL_FOR_RE = /<Label\b[^>]*htmlFor\s*=/
 
+// Chart placeholders — AI cop-out when it doesn't want to build a real chart.
+// Catches the "Chart visualization would go here" family of stub text.
+const CHART_PLACEHOLDER_RE =
+  /chart\s+(?:visualization|would\s+go\s+here|coming\s+soon|breakdown\s+chart\s+would\s+go|placeholder)|graph\s+(?:coming\s+soon|placeholder)/i
+
+// Empty colored box used as a chart stand-in — <div className="h-[300px] bg-muted"/> with no real content.
+// Self-closing or immediately-closing div with h-[N] + bg-{muted,accent,card,secondary} + no children.
+const CHART_EMPTY_BOX_RE =
+  /<div\s+className="[^"]*\bh-\[(?:\d+px|\d+(?:\.\d+)?rem|\d+vh)\][^"]*\bbg-(?:muted|accent|card|secondary)[^"]*"[^>]*(?:\/>|>\s*<\/div>)/
+
+// toFixed used with currency symbol nearby — AI bypassing Intl.NumberFormat.
+// Examples: ${value.toFixed(2)}, $\{amount.toFixed(2)\}, \`$\${x.toFixed(2)}\`
+const TO_FIXED_CURRENCY_RE = /\$[^a-zA-Z0-9]{0,5}\{[^}]*\.toFixed\s*\(\s*\d+\s*\)\s*\}/
+
+// Inline object-array literal with 5+ elements inside app/ page/component files.
+// Match `const X = [ {...}, {...}, {...}, {...}, {...} ...]` with at least 5 objects.
+const INLINE_MOCK_ARRAY_RE = /=\s*\[\s*\{[^\[\]]*?\}(?:\s*,\s*\{[^\[\]]*?\}){4,}\s*,?\s*\]/
+
+// Double-sign rendering — AI manually prefixes + or - to a value that is already
+// signed (or could be), producing `--$59.99` / `++$4,850.00` in the UI. Match:
+//   ${amount < 0 ? '-' : '+'}$\{value.toFixed(2)}       (JSX expression)
+//   `$${amount < 0 ? '-' : '+'}${value.toFixed(2)}`     (template literal)
+// Heuristic: ternary producing '-'/'+' next to a currency-formatted value.
+const DOUBLE_SIGN_RE = /\?\s*['"][+\-]['"]\s*:\s*['"][+\-]['"]/
+
 function isInsideCommentOrString(line: string, matchIndex: number): boolean {
   const commentIdx = line.indexOf('//')
   if (commentIdx !== -1 && commentIdx < matchIndex) return true
@@ -105,6 +130,42 @@ function checkLines(
         issues.push({ line: i + 1, type, message, severity })
       }
     }
+  }
+  return issues
+}
+
+/**
+ * Count TableHead occurrences in the first TableHeader block and compare against
+ * TableCell count in the first body TableRow. Catches the "empty columns"
+ * pattern where AI defines Account/Category/Date headers but forgets to render
+ * matching <TableCell> elements in rows.
+ *
+ * Limitations: regex-based, so nested tables or exotic JSX expression children
+ * can confuse the heuristic. That's why this emits a warning (not error) —
+ * false positives are preferable to missed empty-column bugs.
+ */
+function detectTableColumnMismatch(code: string): QualityIssue[] {
+  const issues: QualityIssue[] = []
+  const headerBlock = code.match(/<TableHeader[^>]*>([\s\S]*?)<\/TableHeader>/)
+  if (!headerBlock) return issues
+  const headCount = (headerBlock[1].match(/<TableHead[\s>]/g) || []).length
+  if (headCount === 0) return issues
+
+  const bodyBlock = code.match(/<TableBody[^>]*>([\s\S]*?)<\/TableBody>/)
+  if (!bodyBlock) return issues
+  const firstRow = bodyBlock[1].match(/<TableRow[^>]*>([\s\S]*?)<\/TableRow>/)
+  if (!firstRow) return issues
+  const cellCount = (firstRow[1].match(/<TableCell[\s>]/g) || []).length
+  if (cellCount === 0) return issues // empty state row, skip
+
+  if (headCount !== cellCount) {
+    const lineNum = code.slice(0, headerBlock.index ?? 0).split('\n').length
+    issues.push({
+      line: lineNum,
+      type: 'TABLE_COLUMN_MISMATCH',
+      message: `Table has ${headCount} <TableHead> but first body <TableRow> has ${cellCount} <TableCell> — empty columns will render. Match counts.`,
+      severity: 'warning',
+    })
   }
   return issues
 }
@@ -231,6 +292,58 @@ export function validatePageQuality(
       'warning',
     ),
   )
+  issues.push(
+    ...checkLines(
+      code,
+      CHART_PLACEHOLDER_RE,
+      'CHART_PLACEHOLDER',
+      'Chart placeholder text detected — render a real chart via shadcn Chart (pnpm dlx shadcn@latest add chart) + recharts',
+      'error',
+    ),
+  )
+  issues.push(
+    ...checkLines(
+      code,
+      CHART_EMPTY_BOX_RE,
+      'CHART_EMPTY_BOX',
+      'Empty bg-muted box used as chart stand-in — render a real chart instead',
+      'error',
+    ),
+  )
+  issues.push(
+    ...checkLines(
+      code,
+      TO_FIXED_CURRENCY_RE,
+      'RAW_NUMBER_FORMAT',
+      'toFixed used with currency — use Intl.NumberFormat({ style: "currency", currency: "USD" })',
+      'warning',
+    ),
+  )
+  if (INLINE_MOCK_ARRAY_RE.test(code)) {
+    const match = code.match(INLINE_MOCK_ARRAY_RE)
+    if (match && match.index !== undefined) {
+      const lineNum = code.slice(0, match.index).split('\n').length
+      issues.push({
+        line: lineNum,
+        type: 'INLINE_MOCK_DATA',
+        message: 'Inline array with 5+ items — extract to src/data/<name>.ts and import',
+        severity: 'info',
+      })
+    }
+  }
+  issues.push(
+    ...checkLines(
+      code,
+      DOUBLE_SIGN_RE,
+      'DOUBLE_SIGN',
+      'Manual +/- prefix on value that is already signed — renders as ++/-- in UI. Use Intl.NumberFormat with signDisplay: "always" or format once.',
+      'error',
+    ),
+  )
+  // TableHead / TableCell column mismatch — AI adds column headers but forgets
+  // to render matching body cells, leaving empty columns in the UI.
+  const tableMismatchIssues = detectTableColumnMismatch(code)
+  issues.push(...tableMismatchIssues)
   issues.push(
     ...checkLines(
       code,
