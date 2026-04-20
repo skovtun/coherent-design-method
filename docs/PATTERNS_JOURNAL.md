@@ -7,30 +7,33 @@ Purpose:
 - Make recurring AI-output failure modes visible so we don't re-derive solutions.
 - Show future contributors (and future-me) why a rule exists.
 
-Format: most recent entries first. Each entry links the screenshot / transcript if available.
+Format: entries in **ID-ascending order** (PJ-001 first). Each entry links the screenshot / transcript if available. Newer entries append at the bottom.
 
-## Entry schema (new in v0.7.3)
+## Entry schema (v0.7.3, revised v0.7.20)
 
 Each entry should have YAML frontmatter directly above its heading:
 
-\`\`\`yaml
+```yaml
 ---
 id: PJ-NNN
 type: bug
 confidence: hypothesis | observed | verified | established
 status: active | resolved | superseded_by: PJ-MMM
+date: YYYY-MM-DD
 fixed_in: [versions]
 evidence: [sha:abc123, screenshot://...]
 ---
-\`\`\`
+```
 
-Use \`coherent wiki reflect\` to add new entries with frontmatter automatically. Pre-0.7.3 entries below are retrofitted with best-effort confidence tags.
+Use `coherent wiki reflect` to add new entries with frontmatter automatically. Pre-0.7.3 entries have been retrofitted with best-effort confidence tags. `date:` field added in v0.7.20 — required going forward so retrieval freshness weighting works (wiki-index.ts `freshnessWeight`).
 
 Confidence levels:
 - **hypothesis** — best guess, not verified
 - **observed** — seen once in a real session
 - **verified** — reproduced or confirmed in code/tests
 - **established** — documented fact, cross-referenced
+
+ID scheme: sequential `PJ-NNN` (three-digit zero-padded). Assigned in observation order. Do not renumber when resolving / superseding — mark `status:` instead.
 
 ---
 
@@ -41,6 +44,7 @@ id: PJ-001
 type: bug
 confidence: observed
 status: resolved
+date: 2026-04-19
 fixed_in: [0.6.99]
 evidence: [screenshot://image-cache/c8ef5aa8-.../3.png]
 ---
@@ -60,6 +64,7 @@ id: PJ-002
 type: bug
 confidence: observed
 status: resolved
+date: 2026-04-19
 fixed_in: [0.6.99]
 ---
 
@@ -76,11 +81,14 @@ fixed_in: [0.6.99]
 
 **Validators:** `CHART_PLACEHOLDER` (regex on stub text), `CHART_EMPTY_BOX` (empty `<div className="h-[X] bg-muted"/>`).
 
+**v0.7.17 addendum:** `CHART_PLACEHOLDER` autofix ships — replaces placeholder div with animated bar skeleton (7 bars, `bg-primary/30`, `transition-colors`, `aria-hidden`). Cosmetic fallback when prevention layer fails. Root prevention still pending **F9** (deterministic StatsChart template before LLM fallback).
+
 ---
 id: PJ-003
 type: bug
 confidence: verified
 status: resolved
+date: 2026-04-19
 fixed_in: [0.6.99]
 evidence: [sha:b4994cf]
 ---
@@ -95,11 +103,14 @@ evidence: [sha:b4994cf]
 
 **Validator:** `DOUBLE_SIGN` — regex for `\?\s*['"][+\-]['"]\s*:\s*['"][+\-]['"]` (ternary producing +/- prefix). Flag: use `Intl.NumberFormat({ signDisplay: 'always' })` instead.
 
+**v0.7.10-11 addendum:** DOUBLE_SIGN tiered (warning → error when Math.abs detected nearby) + autofix for simple cases. Covers ~60% of occurrences; taste cases remain for human review.
+
 ---
 id: PJ-004
 type: bug
 confidence: verified
 status: resolved
+date: 2026-04-19
 fixed_in: [0.6.99, 0.7.0]
 evidence: [sha:b4994cf, sha:163bf30]
 ---
@@ -121,6 +132,7 @@ id: PJ-005
 type: bug
 confidence: verified
 status: resolved
+date: 2026-04-19
 fixed_in: [0.6.99, 0.7.0]
 evidence: [sha:b4994cf, sha:163bf30]
 ---
@@ -142,6 +154,7 @@ id: PJ-006
 type: bug-cluster
 confidence: verified
 status: resolved
+date: 2026-04-19
 fixed_in: [0.6.100, 0.7.0]
 evidence: [sha:3408790, sha:163bf30]
 ---
@@ -163,11 +176,14 @@ evidence: [sha:3408790, sha:163bf30]
 - **v0.6.100** 3 validators: `FILTER_DUPLICATE`, `FILTER_HEIGHT_MISMATCH`, `SEARCH_ICON_MISPLACED`.
 - **v0.7.0** Golden pattern `templates/patterns/filter-bar.tsx` — injected into the chat prompt when filter keyword matches. Complete code the AI can copy verbatim.
 
+**ADR reference:** ADR-0001 (golden patterns over word-based rules) was driven by this cluster.
+
 ---
 id: PJ-007
 type: bug
 confidence: hypothesis
 status: active
+date: 2026-04-19
 evidence: [screenshot://image-cache/c8ef5aa8-.../8.png, screenshot://image-cache/c8ef5aa8-.../9.png]
 ---
 
@@ -179,7 +195,7 @@ evidence: [screenshot://image-cache/c8ef5aa8-.../8.png, screenshot://image-cache
 
 **Deeper issue:** no cross-page consistency check. `coherent check` validates individual pages; does not flag that Page A's stat card differs structurally from Page B's stat card.
 
-**Fix (v0.7.1, planned):**
+**Fix (planned, v0.7.20-21):**
 - `INCONSISTENT_CARD` cross-page validator — scans all pages, clusters stat-card-like structures, warns when clusters diverge.
 - Plan retrofit: at end of Phase 2, cross-reference `pageNotes[].sections` and auto-extend `usedBy` of shared components with matching page types.
 
@@ -188,35 +204,10 @@ id: PJ-008
 type: bug
 confidence: verified
 status: resolved
+date: 2026-04-19
 fixed_in: [0.7.1]
-evidence: [sha:TODO-after-0.7.1-merge, screenshot://image-cache/c8ef5aa8-.../10.png]
+evidence: [sha:a0c108b, screenshot://image-cache/c8ef5aa8-.../10.png]
 ---
-
----
-id: PJ-009
-type: bug
-confidence: verified
-status: active
-evidence: [transcript://2026-04-20 session — "coherent chat 'delete account page'" created a Delete Account feature page instead of deleting the Account page]
----
-
-### PJ-009 — `delete` interpreted as feature creation instead of removal
-
-**Observed:** `coherent chat "delete account page"` created a new `/settings/delete-account` page (with Dialog + Danger Zone UI) instead of deleting the existing Account page.
-
-**Root cause (compound):**
-1. There is no `delete-page` ModificationRequest type in the core schema — the pipeline only supports `add-page`, `update-page`, `add-component`, `modify-component`, `update-token`. Deletion simply isn't wired.
-2. AI reads "delete account page" as ambiguous: "a page for deleting accounts" (feature) vs "delete the page called Account" (operation). Without a schema affordance, it falls back to feature interpretation.
-3. No validator catches this — the resulting page is structurally valid, just wrong intent.
-
-**Fix (planned for 0.7.5):**
-- Add `delete-page` / `delete-component` ModificationRequest types in core.
-- `applyModification` handler: rm app/<route>/page.tsx, update design-system.config.pages[], update nav snapshot.
-- Prompt training: explicit example in CORE_CONSTRAINTS teaching "delete/remove/get rid of X page" → `type: "delete-page", target: X`.
-- Safety: dry-run by default OR require `--force` for destructive ops without `--dry-run`.
-- Undo: already works via `.coherent/backups/` — `coherent undo` restores.
-
-**Related:** cross-cutting with IDEAS_BACKLOG → destructive operations handling.
 
 ### PJ-008 — Full-width Create Budget modal
 
@@ -231,6 +222,33 @@ evidence: [transcript://2026-04-20 session — "coherent chat 'delete account pa
 - Validator `DIALOG_CUSTOM_OVERLAY` — custom fixed+inset-0+bg-black overlay near dialog keywords → warn.
 
 ---
+id: PJ-009
+type: bug
+confidence: verified
+status: resolved
+date: 2026-04-20
+fixed_in: [0.7.5, 0.7.7, 0.7.8]
+evidence: [transcript://2026-04-20 session — "coherent chat 'delete account page'" created a Delete Account feature page instead of deleting the Account page, sha:4e692c2]
+---
+
+### PJ-009 — `delete` interpreted as feature creation instead of removal
+
+**Observed:** `coherent chat "delete account page"` created a new `/settings/delete-account` page (with Dialog + Danger Zone UI) instead of deleting the existing Account page.
+
+**Root cause (compound):**
+1. There is no `delete-page` ModificationRequest type in the core schema — the pipeline only supports `add-page`, `update-page`, `add-component`, `modify-component`, `update-token`. Deletion simply isn't wired.
+2. AI reads "delete account page" as ambiguous: "a page for deleting accounts" (feature) vs "delete the page called Account" (operation). Without a schema affordance, it falls back to feature interpretation.
+3. No validator catches this — the resulting page is structurally valid, just wrong intent.
+
+**Fix shipped:**
+- **v0.7.5** — Added `delete-page` / `delete-component` ModificationRequest types in core. `applyModification` handler: rm app/<route>/page.tsx, update design-system.config.pages[], update nav snapshot. Safety: dry-run by default OR require `--force`. Undo: via `.coherent/backups/` — `coherent undo` restores.
+- **v0.7.7** — Destructive pre-parser — explicit example in CORE_CONSTRAINTS teaching "delete/remove/get rid of X page" → `type: "delete-page", target: X`. Prompt-injection guard.
+- **v0.7.8** — Compound delete + synonym expansion (drop / trash / erase). Prompt-injection guard hardening.
+- **v0.7.9-0.7.10** — Nav cleanup on delete-page + broader auto-fix on remaining nav entries.
+
+**ADR reference:** ADR-0003 (destructive operations architecture) — to be written.
+
+---
 
 ## How to add a new entry
 
@@ -242,5 +260,8 @@ evidence: [transcript://2026-04-20 session — "coherent chat 'delete account pa
    - **Validator** (detection): regex/structural check in `quality-validator.ts`.
    - **Pipeline guard** (correctness): in `chat.ts` / `split-generator.ts`.
 4. Ship as a patch release, append journal entry here with screenshot/context.
+5. Use `coherent wiki reflect` to scaffold the entry with correct frontmatter shape.
 
 A good rule of thumb: if the same class of bug shows up twice, don't patch — add a validator. If it shows up three times, add a golden pattern.
+
+**Curator tip (v0.7.19+):** run `coherent journal aggregate` first to see which validators are recurring. The top-3 list is where the next PJ entries should focus — raw data beats blank-page guesses.

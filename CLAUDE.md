@@ -64,12 +64,14 @@ npx prettier --check 'packages/*/src/**/*.{ts,tsx}'  # Format check
 
 ### Before Every Push
 
-1. All tests pass
-2. TypeScript clean
-3. Prettier clean
-4. Build succeeds
+1. All tests pass (`npx vitest run`)
+2. TypeScript clean (`npx tsc --noEmit -p packages/cli/tsconfig.json`)
+3. Prettier clean (`npx prettier --check 'packages/*/src/**/*.{ts,tsx}'`)
+4. Build succeeds (`npm run build`)
 5. `docs/CHANGELOG.md` updated if version bump
 6. `QUICK_REFERENCE.md` updated if new commands/flags added
+7. **Wiki hygiene** — `coherent wiki audit` clean (no errors). Run `coherent wiki index` to refresh retrieval cache if wiki files changed. If retrieval-sensitive changes: `coherent wiki bench` (precision@1 ≥ 0.8).
+8. **ADR check** — if the change is architecturally significant, new subsystem, or breaking: write an ADR in `docs/wiki/ADR/NNNN-slug.md` with YAML frontmatter. Backfill is expensive; add it as you go.
 
 ### Publishing
 
