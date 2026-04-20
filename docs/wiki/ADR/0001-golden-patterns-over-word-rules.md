@@ -1,3 +1,12 @@
+---
+id: ADR-0001
+type: adr
+status: accepted
+date: 2026-04-19
+confidence: established
+shipped_in: [0.7.0]
+---
+
 # ADR 0001 — Golden patterns over word-based rules
 
 **Status:** Accepted

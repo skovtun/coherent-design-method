@@ -140,7 +140,7 @@ export async function wikiReflectCommand() {
   if (bugSection.trim()) {
     const { confidence, body } = extractConfidence(bugSection)
     const title = extractFirstLine(body)
-    const id = `PJ-${now.replace(/-/g, '')}`
+    const id = nextPjId(ctx.journalPath)
     const frontmatter = renderFrontmatter({
       id,
       type: 'bug',
@@ -148,7 +148,7 @@ export async function wikiReflectCommand() {
       status: 'active',
       date: now,
     })
-    appendToFile(ctx.journalPath, `\n${frontmatter}\n### ${id} · ${title}\n\n${body.trim()}\n`)
+    appendToFile(ctx.journalPath, `\n${frontmatter}\n### ${id} — ${title}\n\n${body.trim()}\n`)
     wrote++
     console.log(chalk.green(`✓ Appended bug entry (${confidence}) to ${relative(ctx.repoRoot, ctx.journalPath)}`))
   }
@@ -239,6 +239,24 @@ function extractFirstLine(text: string): string {
 function appendToFile(path: string, content: string) {
   const existing = existsSync(path) ? readFileSync(path, 'utf-8') : ''
   writeFileSync(path, existing.trimEnd() + '\n' + content, 'utf-8')
+}
+
+/**
+ * Pick the next sequential PJ-NNN id by scanning the journal for existing IDs.
+ *
+ * Format: three-digit zero-padded. Canonical as of v0.7.20 (ADR-reviewed). Old
+ * date-based IDs (`PJ-20260420`) are tolerated during migration but the
+ * generator always emits `PJ-NNN`.
+ */
+function nextPjId(journalPath: string): string {
+  if (!existsSync(journalPath)) return 'PJ-001'
+  const content = readFileSync(journalPath, 'utf-8')
+  let max = 0
+  for (const m of content.matchAll(/\bPJ-(\d{1,4})\b/g)) {
+    const n = parseInt(m[1], 10)
+    if (!Number.isNaN(n) && n > max) max = n
+  }
+  return `PJ-${String(max + 1).padStart(3, '0')}`
 }
 
 interface AuditIssue {
