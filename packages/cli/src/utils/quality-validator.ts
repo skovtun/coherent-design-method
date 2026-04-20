@@ -170,6 +170,137 @@ function detectTableColumnMismatch(code: string): QualityIssue[] {
   return issues
 }
 
+/**
+ * Filter-bar heuristics — detects two common AI failure modes:
+ *
+ *   1. FILTER_DUPLICATE — same filter dimension rendered twice (a Category
+ *      dropdown AND a Category button, both on the same toolbar). Happens when
+ *      AI forgets it already placed one and adds another in a second row.
+ *
+ *   2. FILTER_HEIGHT_MISMATCH — form controls (Input/Select/Button) in the
+ *      same filter block use different h-N classes, making the bar look
+ *      uneven. Our rule says h-10 for all. If we see 2+ heights across
+ *      these elements in the same block, we warn.
+ *
+ * Scope: look only inside a "filter block" — a parent element where the word
+ * "filter" appears on a nearby line, OR a flex container holding 2+ form
+ * controls. This keeps us from matching unrelated controls scattered across a
+ * page.
+ */
+function detectFilterBarIssues(code: string): QualityIssue[] {
+  const issues: QualityIssue[] = []
+
+  // Find filter blocks — sections where "filter" or "Filter" appears in a
+  // heading/label/className within ~400 chars of form controls.
+  const filterBlockRegex = /<div\b[^>]*>[\s\S]{0,1200}?<\/div>/g
+  const blocks = code.match(filterBlockRegex) || []
+  for (const block of blocks) {
+    const looksLikeFilter = /\bfilter\b/i.test(block) || /placeholder=["'](?:Search|All\s)/i.test(block)
+    if (!looksLikeFilter) continue
+
+    // Extract SelectValue placeholders (e.g. "All Categories", "Category").
+    const selectPlaceholders = [...block.matchAll(/<SelectValue[^>]+placeholder=["']([^"']+)["']/g)].map(m =>
+      normalizeFilterLabel(m[1]),
+    )
+
+    // Extract Button labels (text content).
+    const buttonLabels = [...block.matchAll(/<Button[^>]*>([^<]{2,40})<\/Button>/g)].map(m =>
+      normalizeFilterLabel(m[1].trim()),
+    )
+
+    // Look for duplicates between Select placeholders and Button labels.
+    const selectSet = new Set(selectPlaceholders)
+    for (const label of buttonLabels) {
+      if (selectSet.has(label)) {
+        const lineNum = code.indexOf(block) >= 0 ? code.slice(0, code.indexOf(block)).split('\n').length : 1
+        issues.push({
+          line: lineNum,
+          type: 'FILTER_DUPLICATE',
+          message: `Filter dimension "${label}" rendered twice (Select + Button). Pick one.`,
+          severity: 'warning',
+        })
+        break // one warn per block is enough
+      }
+    }
+
+    // Height mismatch: collect h-N classes from Input/SelectTrigger/Button/DatePicker.
+    const heights = new Set<string>()
+    const heightRegex =
+      /<(?:Input|SelectTrigger|Button|DatePicker)\b[^>]*\bclassName="[^"]*\b(h-\d+|h-\[\d+[a-z]+\])\b[^"]*"/g
+    for (const m of block.matchAll(heightRegex)) {
+      heights.add(m[1])
+    }
+    // Also detect completely missing h- on controls adjacent to others that have it.
+    // Multiple distinct heights → mismatch.
+    if (heights.size >= 2) {
+      const lineNum = code.indexOf(block) >= 0 ? code.slice(0, code.indexOf(block)).split('\n').length : 1
+      issues.push({
+        line: lineNum,
+        type: 'FILTER_HEIGHT_MISMATCH',
+        message: `Filter controls use different heights (${[...heights].join(', ')}). All should match (h-10 default).`,
+        severity: 'warning',
+      })
+    }
+  }
+
+  return issues
+}
+
+/**
+ * Normalise filter labels so "Categories" and "All Categories" match.
+ * Strips common prefixes and trailing plural 's'. Lowercase for comparison.
+ */
+function normalizeFilterLabel(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/^(?:all|select|filter|by)\s+/i, '')
+    .replace(/\s+(?:filter|selector|picker)$/i, '')
+    .replace(/s$/, '')
+    .trim()
+}
+
+/**
+ * Detect misplaced search icon — AI frequently renders <Search /> as a sibling
+ * of <Input /> (icon appears above or below the field) instead of wrapping them
+ * in a relative container with the icon absolute-positioned. Criteria:
+ *
+ *   - an <Input> whose placeholder mentions Search
+ *   - no pl-9/pl-10 padding class (required when icon sits inside)
+ *   - AND a <Search|<MagnifyingGlass sibling nearby without `absolute` class
+ */
+function detectSearchIconMisplaced(code: string): QualityIssue[] {
+  const issues: QualityIssue[] = []
+  const lines = code.split('\n')
+  const searchInputRe = /<Input\b[^>]*placeholder=["'][^"']*[Ss]earch[^"']*["'][^>]*>/
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (!searchInputRe.test(line)) continue
+
+    // Input already has left padding for the icon — icon likely placed correctly.
+    if (/\bpl-(?:9|10|8)\b/.test(line)) continue
+
+    // Look within 3 lines above and below for a Search/MagnifyingGlass icon.
+    const windowStart = Math.max(0, i - 3)
+    const windowEnd = Math.min(lines.length, i + 4)
+    const windowText = lines.slice(windowStart, windowEnd).join('\n')
+    const hasIcon = /<(?:Search|MagnifyingGlass)\b/.test(windowText)
+    if (!hasIcon) continue
+
+    // Icon already absolute-positioned → correct pattern, skip.
+    const iconIsAbsolute = /<(?:Search|MagnifyingGlass)\b[^>]*\babsolute\b/.test(windowText)
+    if (iconIsAbsolute) continue
+
+    issues.push({
+      line: i + 1,
+      type: 'SEARCH_ICON_MISPLACED',
+      message:
+        'Search icon appears as a sibling of <Input>, not inside. Wrap in <div className="relative"> with icon absolute-positioned and pl-9 on the Input.',
+      severity: 'warning',
+    })
+  }
+  return issues
+}
+
 export function validatePageQuality(
   code: string,
   validRoutes?: string[],
@@ -344,6 +475,16 @@ export function validatePageQuality(
   // to render matching body cells, leaving empty columns in the UI.
   const tableMismatchIssues = detectTableColumnMismatch(code)
   issues.push(...tableMismatchIssues)
+
+  // Filter bar issues — duplicate filter for same dimension, control heights
+  // that don't match.
+  const filterBarIssues = detectFilterBarIssues(code)
+  issues.push(...filterBarIssues)
+
+  // Search icon misplaced — AI puts <Search /> as a sibling of <Input> instead
+  // of absolute-positioning inside a relative wrapper, so the icon renders
+  // above/below the field rather than inside it.
+  issues.push(...detectSearchIconMisplaced(code))
   issues.push(
     ...checkLines(
       code,

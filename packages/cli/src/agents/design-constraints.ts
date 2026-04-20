@@ -236,6 +236,16 @@ CHARTS (zero placeholders, real recharts):
 - NEVER: "Chart visualization would go here", "Graph coming soon", empty <div className="h-[...] bg-muted"/> as chart stand-in, fake pie icon instead of a chart.
 - ALWAYS: shadcn Chart + recharts. Specific imports, chart-type picking, colors (chart-1..5 CSS vars), heights (h-[200/300/400]), data shape, ChartTooltip/ChartLegend: see RULES_DATA_DISPLAY when building dashboard/analytics/reports pages.
 
+FILTER BAR / TOOLBAR (search + selects + date range above tables/lists):
+- ONE row on desktop: \`<div className="flex flex-wrap items-center gap-3 mb-4">...</div>\`. Multi-row only with 5+ filters.
+- Ordering: Search (flex-1, widest) → primary selects → date range → secondary actions (rightmost).
+- Heights: ALL controls same height (h-10 default). Input, SelectTrigger, Button, DatePicker — match.
+- Widths: Search flex-1 min-w-[240px]. Selects w-[120-200px]. Date range fixed.
+- NO duplicate filter for same dimension — e.g. never both "All Categories" \`<Select>\` AND a "Categories" \`<Button>\`. Pick one.
+- NO \`<Card>\` wrapper around filter bar — it's a toolbar, sits ABOVE the data Card, not inside.
+- Search input icon MUST be inside the input, not a sibling. Pattern: \`<div className="relative flex-1 min-w-[240px]"><Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" /><Input className="h-10 pl-9" placeholder="Search..." /></div>\`. NEVER render \`<Search />\` as a sibling of \`<Input />\` — it ends up above or below the field.
+- Full example in RULES_FORMS when user requests pages with filters/search.
+
 NUMBER FORMATTING (Intl.NumberFormat always):
 - Money: \`new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value)\`. NEVER \`\${value.toFixed(2)}\` concatenation.
 - Percent: Intl.NumberFormat with style: "percent", value in 0..1 range.
@@ -718,6 +728,33 @@ MULTI-SELECT / TAG INPUT:
 - Each tag: <Badge variant="secondary" className="gap-1">{name}<X className="size-3 cursor-pointer" /></Badge>
 - Input at the end: <Input className="flex-1 border-0 p-0 focus-visible:ring-0" placeholder="Add..." />
 - Max display: show 5 tags, then "+N more" badge.
+
+FILTER BAR / TOOLBAR (search + selects + date range above a table/list):
+- Container: \`<div className="flex flex-wrap items-center gap-3 mb-4">...</div>\`. NO <Card> wrapper — it's a toolbar, sits above the data Card, not inside.
+- Ordering: Search (leftmost, flex-1) → primary filter selects → date range → secondary actions (right).
+- ALL controls same height: h-10 by default. Match Input, SelectTrigger, Button, DatePicker.
+- Widths: Search \`flex-1 min-w-[240px]\`. Filter Select \`w-[140px]\` to \`w-[200px]\`. Status Select \`w-[120px]\`. Date range fixed \`w-[240px]\` or auto.
+- One control per filter dimension — NEVER both "All Categories" \`<Select>\` AND a "Categories" \`<Button>\`. Pick one.
+- NEVER split filters across two rows on desktop. Use flex-wrap — on mobile it wraps naturally; on desktop stays single-line.
+- Canonical pattern:
+    <div className="flex flex-wrap items-center gap-3 mb-4">
+      <div className="relative flex-1 min-w-[240px]">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+        <Input placeholder="Search transactions..." className="h-10 pl-9" />
+      </div>
+      <Select>
+        <SelectTrigger className="h-10 w-[140px]"><SelectValue placeholder="All Categories" /></SelectTrigger>
+        <SelectContent>{categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+      </Select>
+      <Select>
+        <SelectTrigger className="h-10 w-[120px]"><SelectValue placeholder="All Status" /></SelectTrigger>
+        <SelectContent>{statuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+      </Select>
+      <Button variant="outline" className="h-10">
+        <CalendarIcon className="size-4 mr-2" />
+        Date range
+      </Button>
+    </div>
 `
 
 export const RULES_DATA_DISPLAY = `

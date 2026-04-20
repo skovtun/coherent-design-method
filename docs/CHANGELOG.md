@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.6.100] — 2026-04-19
+
+### Filter-bar discipline: rule + 3 validators
+
+Third filter-bar failure from the same user in two days. Root cause: CORE had no explicit layout recipe for toolbars (search + selects + date range), so AI freelanced — produced duplicate filters, uneven heights, and sibling-placed search icons.
+
+### Added — constraint
+- **FILTER BAR / TOOLBAR rule in CORE_CONSTRAINTS.** Specifies one row on desktop, flex-wrap layout, ordering (search first, flex-1 widest), uniform h-10 heights, no-Card wrapper, no duplicates, and the canonical search-icon-inside-relative-wrapper pattern. Full example in RULES_FORMS.
+
+### Added — validators (3 new)
+- **FILTER_DUPLICATE** — flags when the same filter dimension is rendered as both a `<Select>` and a `<Button>` in a toolbar (e.g., "All Categories" dropdown + "Categories" button).
+- **FILTER_HEIGHT_MISMATCH** — flags when filter controls in the same block use different `h-N` classes (mix of h-8/h-9/h-10).
+- **SEARCH_ICON_MISPLACED** — flags when `<Search />` / `<MagnifyingGlass />` is rendered as a sibling of `<Input>` (icon ends up above/below the field) instead of absolute-positioned inside a relative wrapper with `pl-9` on the Input.
+
+### Tests
+926 passing (+9 new). 62 test files.
+
 ## [0.6.99] — 2026-04-19
 
 ### Charts, nested-containers ban, number-format discipline, plan-level chart injection, baseline regression detection, report-issue CLI
