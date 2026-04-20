@@ -1817,3 +1817,40 @@ describe('autoFixCode v0.7.13 — RAW_IMG_TAG → <Image>', () => {
     expect(importCount).toBe(1)
   })
 })
+
+describe('validatePageQuality + autoFixCode v0.7.14 — BROKEN_INTERNAL_LINK', () => {
+  it('does NOT fire BROKEN_INTERNAL_LINK when a dynamic sibling route matches', () => {
+    const code = '<Link href="/transactions/tx-002">tx 002</Link>'
+    const issues = validatePageQuality(code, ['/transactions', '/transactions/[id]'])
+    expect(issues.some(i => i.type === 'BROKEN_INTERNAL_LINK')).toBe(false)
+  })
+
+  it('does fire BROKEN_INTERNAL_LINK when no sibling route covers the target', () => {
+    const code = '<Link href="/accounts">view all</Link>'
+    const issues = validatePageQuality(code, ['/dashboard', '/transactions'])
+    expect(issues.some(i => i.type === 'BROKEN_INTERNAL_LINK')).toBe(true)
+  })
+
+  it('autofix replaces dead href with "#" and preserves original in data-stale-href', async () => {
+    const code = '<Link href="/accounts">view all</Link>'
+    const { code: fixed, fixes } = await autoFixCode(code, { knownRoutes: ['/dashboard'] })
+    expect(fixed).toContain('href="#"')
+    expect(fixed).toContain('data-stale-href="/accounts"')
+    expect(fixes.some(f => f.startsWith('broken link(s)'))).toBe(true)
+  })
+
+  it('autofix leaves concrete sibling of dynamic route alone', async () => {
+    const code = '<Link href="/transactions/tx-002">tx 002</Link>'
+    const { code: fixed } = await autoFixCode(code, {
+      knownRoutes: ['/transactions', '/transactions/[id]'],
+    })
+    expect(fixed).toContain('href="/transactions/tx-002"')
+    expect(fixed).not.toContain('data-stale-href')
+  })
+
+  it('autofix skips when no knownRoutes passed (no context = no guess)', async () => {
+    const code = '<Link href="/accounts">view all</Link>'
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('href="/accounts"')
+  })
+})
