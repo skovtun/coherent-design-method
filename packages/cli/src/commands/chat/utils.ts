@@ -125,6 +125,23 @@ export function extractComponentIdsFromCode(code: string): Set<string> {
   return ids
 }
 
+/**
+ * Extract imported symbol names from a TS/TSX source file. Used to compute
+ * import deltas for the post-chat change summary — gives the user concrete
+ * signal that the AI added/removed components they expect.
+ *
+ * Returns a flat set across all `import { a, b } from "..."` statements.
+ */
+export function extractImportedNames(code: string): Set<string> {
+  const names = new Set<string>()
+  const re = /import\s*\{\s*([^}]+)\s*\}\s*from\s*["'][^"']+["']/g
+  for (const m of code.matchAll(re)) {
+    const list = m[1].split(',').map(n => n.trim().replace(/\s+as\s+\w+/, ''))
+    for (const n of list) if (n) names.add(n)
+  }
+  return names
+}
+
 export async function warnInlineDuplicates(
   projectRoot: string,
   pageName: string,

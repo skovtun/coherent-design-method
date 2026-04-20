@@ -236,6 +236,13 @@ CHARTS (zero placeholders, real recharts):
 - NEVER: "Chart visualization would go here", "Graph coming soon", empty <div className="h-[...] bg-muted"/> as chart stand-in, fake pie icon instead of a chart.
 - ALWAYS: shadcn Chart + recharts. Specific imports, chart-type picking, colors (chart-1..5 CSS vars), heights (h-[200/300/400]), data shape, ChartTooltip/ChartLegend: see RULES_DATA_DISPLAY when building dashboard/analytics/reports pages.
 
+GOLDEN PATTERNS (copy verbatim when relevant — these are the ground truth):
+- Filter bar: see templates/patterns/filter-bar.tsx
+- Stat card: see templates/patterns/stat-card.tsx
+- Empty state: see templates/patterns/empty-state.tsx
+- Chart card: see templates/patterns/chart-card.tsx
+When the user asks for any of these patterns, the generated code MUST match the golden pattern's structure (JSX shape, className order, prop types). Deviations are flagged by the validator.
+
 FILTER BAR / TOOLBAR (search + selects + date range above tables/lists):
 - ONE row on desktop: \`<div className="flex flex-wrap items-center gap-3 mb-4">...</div>\`. Multi-row only with 5+ filters.
 - Ordering: Search (flex-1, widest) → primary selects → date range → secondary actions (rightmost).
@@ -773,7 +780,14 @@ TABLE ROW PATTERNS:
 - Sortable columns: <TableHead className="cursor-pointer select-none"> with ChevronDown/ChevronUp icon, size-4 ml-1.
 - Selected row: bg-muted (single) or checkbox column for multi-select.
 - Responsive: ALWAYS wrap Table in <div className="overflow-x-auto">.
-- Empty table: <TableRow><TableCell colSpan={columns} className="h-24 text-center text-sm text-muted-foreground">No results.</TableCell></TableRow>
+- Empty table: <TableRow><TableCell colSpan={columns.length} className="h-24 text-center text-sm text-muted-foreground">No results.</TableCell></TableRow>
+
+TABLE COLUMN SCHEMA (single source of truth):
+- Define columns ONCE as a typed array, map over it for both header and body. Prevents the "5 <TableHead> but 2 <TableCell>" empty-column bug structurally.
+- Schema shape: \`const columns: { key: string; label: string; width?: string; align?: 'left'|'right'|'center'; render?: (row) => ReactNode }[] = [...]\`
+- Header: \`{columns.map(c => <TableHead key={c.key} className={c.width}>{c.label}</TableHead>)}\`
+- Body row: \`{columns.map(c => <TableCell key={c.key} className={c.align === 'right' ? 'text-right' : ''}>{c.render ? c.render(row) : row[c.key]}</TableCell>)}\`
+- NEVER hard-code headers and cells with different counts. If columns is a stable shape, extract to \`src/data/<name>-columns.ts\` and import.
 
 PAGINATION:
 - Use shadcn Pagination component. Never build custom.

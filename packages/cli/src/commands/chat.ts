@@ -51,6 +51,7 @@ import {
   withAbortableTimeout,
   startPhaseTimer,
   RequestTimeoutError,
+  extractImportedNames,
 } from './chat/utils.js'
 import { extractInternalLinks, normalizeRequest, applyDefaults, AUTH_FLOW_PATTERNS } from './chat/request-parser.js'
 import { splitGeneratePages, buildSharedComponentsSummary } from './chat/split-generator.js'
@@ -472,6 +473,24 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
           firstError?.message?.includes('Unterminated string') ||
           firstError?.message?.includes('Unexpected end of JSON') ||
           firstError?.message?.includes('Unexpected token')
+        // Bug 2 fix: when --page/--component was specified, don't fall through
+        // to splitGeneratePages on RESPONSE_TRUNCATED. Full architecture
+        // planning for a single-page edit produces 10-15 unrelated pages and
+        // takes 2-5 minutes. Instead, surface a clear error pointing at the
+        // real problem (response too big) and suggest the right fix.
+        if ((isTruncated || isJsonError) && explicitPageTarget) {
+          spinner.fail('Response too large for a single-page edit')
+          console.log(
+            chalk.yellow(
+              '\n💡 The AI response exceeded the max-token limit. For --page X edits, keep the instruction focused:',
+            ),
+          )
+          console.log(chalk.dim('  • Be specific about ONE change ("make the header sticky").'))
+          console.log(chalk.dim('  • Avoid full-page rewrites ("redesign everything").'))
+          console.log(chalk.dim('  • Skip --page and let the planner handle big rewrites.\n'))
+          if (options._throwOnError) throw firstError
+          process.exit(1)
+        }
         if (isTruncated || isJsonError) {
           spinner.warn('Response too large — splitting into smaller requests...')
           try {
@@ -758,6 +777,28 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
       console.log(`\n  Total: ${normalizedRequests.length} modification(s)`)
       console.log(chalk.dim('  Run without --dry-run to apply.\n'))
       return
+    }
+
+    // F5 precondition: capture page content snapshots so we can later verify
+    // that the targeted file actually changed. Prevents the "--page X with
+    // ambiguous instruction led AI to no-op" scenario.
+    const targetSnapshots = new Map<string, string>()
+    if (options.page && projectRoot) {
+      for (const request of normalizedRequests) {
+        if (request.type !== 'update-page' && request.type !== 'add-page') continue
+        const changes = request.changes as Record<string, unknown>
+        const route = (changes?.route as string) || ''
+        if (!route) continue
+        const relPath = route === '/' ? 'app/page.tsx' : `app${route}/page.tsx`
+        const abs = resolve(projectRoot, relPath)
+        if (existsSync(abs)) {
+          try {
+            targetSnapshots.set(route, readFileSync(abs, 'utf-8'))
+          } catch {
+            /* ignore read errors */
+          }
+        }
+      }
     }
 
     // Apply modifications
@@ -1155,12 +1196,81 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
     const backupPath = createBackup(projectRoot)
     logBackupCreated(backupPath)
 
+    // F4/F5 post-apply summary: for each modified page, diff the before/after
+    // snapshot captured above. If --page was used and no observable change
+    // happened on the targeted page, that's a red flag — print a warning so
+    // the user doesn't assume success from the generic "✅ Page updated" line.
+    const changeSummaries: Array<{
+      route: string
+      linesDelta: number
+      importsAdded: string[]
+      importsRemoved: string[]
+    }> = []
+    if (targetSnapshots.size > 0 && projectRoot) {
+      for (const [route, before] of targetSnapshots.entries()) {
+        const relPath = route === '/' ? 'app/page.tsx' : `app${route}/page.tsx`
+        const abs = resolve(projectRoot, relPath)
+        let after = ''
+        try {
+          after = readFileSync(abs, 'utf-8')
+        } catch {
+          continue
+        }
+        const linesDelta = after.split('\n').length - before.split('\n').length
+        const beforeImports = extractImportedNames(before)
+        const afterImports = extractImportedNames(after)
+        const importsAdded = [...afterImports].filter(n => !beforeImports.has(n))
+        const importsRemoved = [...beforeImports].filter(n => !afterImports.has(n))
+        changeSummaries.push({ route, linesDelta, importsAdded, importsRemoved })
+
+        const identical = before === after
+        if (identical && options.page) {
+          console.log(
+            chalk.yellow(
+              `\n⚠ --page ${options.page} → ${route}: file content unchanged after chat. The AI may not have understood the request.`,
+            ),
+          )
+          console.log(
+            chalk.dim(
+              `  Tip: rephrase with concrete details ("change the Filter Transactions header color to primary") or check that the page name matches an existing page.\n`,
+            ),
+          )
+        }
+      }
+    }
+
     // Show preview
     spinner.stop()
     const preflightNames = preflightInstalledIds
       .map(id => updatedConfig.components.find(c => c.id === id)?.name)
       .filter(Boolean) as string[]
     showPreview(normalizedRequests, results, updatedConfig, preflightNames)
+
+    // F4: surface what actually changed per page — line-count delta + added/removed imports.
+    // Gives users a concrete sanity check beyond "✅ Success!".
+    if (
+      changeSummaries.length > 0 &&
+      changeSummaries.some(s => s.linesDelta !== 0 || s.importsAdded.length || s.importsRemoved.length)
+    ) {
+      console.log(chalk.cyan('\n📊 Change summary:'))
+      for (const s of changeSummaries) {
+        if (s.linesDelta === 0 && s.importsAdded.length === 0 && s.importsRemoved.length === 0) continue
+        const delta =
+          s.linesDelta > 0
+            ? chalk.green(`+${s.linesDelta}`)
+            : s.linesDelta < 0
+              ? chalk.red(`${s.linesDelta}`)
+              : chalk.dim('±0')
+        console.log(chalk.dim('  ') + chalk.bold(s.route) + chalk.dim(`  (${delta} lines)`))
+        if (s.importsAdded.length > 0) {
+          console.log(chalk.dim('    + ') + s.importsAdded.join(', '))
+        }
+        if (s.importsRemoved.length > 0) {
+          console.log(chalk.dim('    − ') + s.importsRemoved.join(', '))
+        }
+      }
+      console.log()
+    }
 
     if (scaffoldedPages.length > 0) {
       const uniqueScaffolded = [...new Map(scaffoldedPages.map(s => [s.route, s])).values()]

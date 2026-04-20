@@ -23,6 +23,7 @@ import {
   getDesignQualityForType,
   inferPageTypeFromRoute,
 } from './design-constraints.js'
+import { pickGoldenPatterns } from './golden-patterns.js'
 
 export interface ModificationContext {
   config: DesignSystemConfig
@@ -292,6 +293,7 @@ For editing an existing shared component use type "modify-layout-block" with tar
   const visualDepth = VISUAL_DEPTH
   const contextualRules = selectContextualRules(message, options?.pageSections)
   const interactionPatterns = INTERACTION_PATTERNS
+  const goldenPatterns = pickGoldenPatterns(message, options?.pageSections)
   const light = config.tokens.colors.light
   const dark = config.tokens.colors.dark
 
@@ -305,6 +307,7 @@ ${designQuality}
 ${visualDepth}
 ${contextualRules}
 ${interactionPatterns}
+${goldenPatterns}
 ${expandedHint}${buildProjectContext(options?.projectRoot)}
 Current Design System:
 - Name: ${config.name}
