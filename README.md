@@ -16,6 +16,14 @@
 
 ---
 
+## Demo
+
+<video src="https://github.com/skovtun/coherent-design-method/releases/download/v0.7.15/Coherent.Design.Method.DEMO.mp4" controls width="100%"></video>
+
+> [▶ Download / watch the demo](https://github.com/skovtun/coherent-design-method/releases/download/v0.7.15/Coherent.Design.Method.DEMO.mp4) — direct link if the embedded player doesn't render in your markdown viewer.
+
+---
+
 ## What is Coherent?
 
 Most AI tools generate pages. Coherent generates **systems**.
