@@ -879,7 +879,7 @@ export function Header() {
       </nav>
       <Link
         href="/design-system"
-        className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full border border-white/20 bg-black/60 backdrop-blur-md text-white px-4 py-2 text-xs shadow-sm hover:bg-black/80 transition-all"
+        className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full border border-foreground/20 bg-foreground/80 backdrop-blur-md text-background px-4 py-2 text-xs shadow-sm hover:bg-foreground/90 transition-all"
         title="Design System"
       >
         Design System
