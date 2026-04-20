@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.3] — 2026-04-20
+
+### Wiki W6/W7 + targeted auto-heal guidance
+
+Strengthens the wiki with structured confidence and supersession, and makes auto-heal meaningfully targeted per validator type (not just a generic "fix these" prompt).
+
+### Added — wiki structure
+- **YAML frontmatter on journal entries.** `coherent wiki reflect` now emits `--- id/type/confidence/status/date ---` frontmatter above each appended entry.
+- **Confidence levels.** `hypothesis | observed | verified | established`. Template asks for it explicitly; audit flags entries missing it.
+- **Supersession check in audit.** RULES_MAP rows with `superseded_by: RXXX` must reference real IDs; audit flags orphans.
+- Retrofitted all existing PJ-001 … PJ-008 entries with frontmatter + confidence tags.
+
+### Added — auto-heal guidance map
+- **`src/utils/auto-heal-guidance.ts`** — per-validator fix guidance for 30+ issue types. When the auto-fix loop calls `ai.editPageCode()`, it now sends targeted remediation pattern for EACH issue type instead of a generic "fix these" prompt.
+- Covers all new 0.7.x validators (DIALOG_FULL_WIDTH, SEARCH_ICON_MISPLACED, FILTER_DUPLICATE, CHART_PLACEHOLDER, TABLE_COLUMN_MISMATCH, DOUBLE_SIGN, etc.) plus long-standing ones (RAW_COLOR, TEXT_BASE, NESTED_INTERACTIVE).
+- `buildFixInstruction()` groups issues by type, renders per-type sections, appends scope-limit ("fix ONLY the listed issues; do not refactor unrelated code").
+
+### Tests
+952 passing (+5 new). 64 test files.
+
 ## [0.7.2] — 2026-04-20
 
 ### Wiki infrastructure — auto-generated rules map, reflection CLI, audit command

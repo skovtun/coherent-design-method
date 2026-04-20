@@ -9,9 +9,41 @@ Purpose:
 
 Format: most recent entries first. Each entry links the screenshot / transcript if available.
 
+## Entry schema (new in v0.7.3)
+
+Each entry should have YAML frontmatter directly above its heading:
+
+\`\`\`yaml
+---
+id: PJ-NNN
+type: bug
+confidence: hypothesis | observed | verified | established
+status: active | resolved | superseded_by: PJ-MMM
+fixed_in: [versions]
+evidence: [sha:abc123, screenshot://...]
+---
+\`\`\`
+
+Use \`coherent wiki reflect\` to add new entries with frontmatter automatically. Pre-0.7.3 entries below are retrofitted with best-effort confidence tags.
+
+Confidence levels:
+- **hypothesis** — best guess, not verified
+- **observed** — seen once in a real session
+- **verified** — reproduced or confirmed in code/tests
+- **established** — documented fact, cross-referenced
+
 ---
 
 ## 2026-04-19 → 2026-04-20 · session notes
+
+---
+id: PJ-001
+type: bug
+confidence: observed
+status: resolved
+fixed_in: [0.6.99]
+evidence: [screenshot://image-cache/c8ef5aa8-.../3.png]
+---
 
 ### PJ-001 — Nested bordered containers ("card-in-card")
 
@@ -22,6 +54,14 @@ Format: most recent entries first. Each entry links the screenshot / transcript 
 **Fix (v0.6.99):** New anti-pattern in CORE with BAD/GOOD example. Targets any element with `border + rounded + shadow-sm`, not only `<Card>`.
 
 **Validator:** none direct (could add `NESTED_CONTAINERS` — deferred, low-severity).
+
+---
+id: PJ-002
+type: bug
+confidence: observed
+status: resolved
+fixed_in: [0.6.99]
+---
 
 ### PJ-002 — Chart placeholders ("Chart visualization would go here")
 
@@ -36,6 +76,15 @@ Format: most recent entries first. Each entry links the screenshot / transcript 
 
 **Validators:** `CHART_PLACEHOLDER` (regex on stub text), `CHART_EMPTY_BOX` (empty `<div className="h-[X] bg-muted"/>`).
 
+---
+id: PJ-003
+type: bug
+confidence: verified
+status: resolved
+fixed_in: [0.6.99]
+evidence: [sha:b4994cf]
+---
+
 ### PJ-003 — Double sign on currency (`--$59.99`, `++$4,850.00`)
 
 **Observed:** Recent Transactions table showed `--$59.99` and `++$4,850.00` for expense/income amounts.
@@ -45,6 +94,15 @@ Format: most recent entries first. Each entry links the screenshot / transcript 
 **Fix (v0.6.99):** No constraint change (already had Intl.NumberFormat rule), only validator.
 
 **Validator:** `DOUBLE_SIGN` — regex for `\?\s*['"][+\-]['"]\s*:\s*['"][+\-]['"]` (ternary producing +/- prefix). Flag: use `Intl.NumberFormat({ signDisplay: 'always' })` instead.
+
+---
+id: PJ-004
+type: bug
+confidence: verified
+status: resolved
+fixed_in: [0.6.99, 0.7.0]
+evidence: [sha:b4994cf, sha:163bf30]
+---
 
 ### PJ-004 — Empty table columns (headers defined, cells forgotten)
 
@@ -58,6 +116,15 @@ Format: most recent entries first. Each entry links the screenshot / transcript 
 
 **Structural rule (v0.7.0):** Define `columns: ColumnDef[]` once, map over it for header AND body. Makes the mismatch impossible by construction.
 
+---
+id: PJ-005
+type: bug
+confidence: verified
+status: resolved
+fixed_in: [0.6.99, 0.7.0]
+evidence: [sha:b4994cf, sha:163bf30]
+---
+
 ### PJ-005 — `--page accounts` regenerates the whole project
 
 **Observed:** `coherent chat --page accounts "fix the table"` triggered full 6-phase pipeline, generated 16 new pages including unrelated /reports, /investments. Took 5+ minutes. The actual accounts page was not updated.
@@ -69,6 +136,15 @@ Format: most recent entries first. Each entry links the screenshot / transcript 
 **Fix:**
 - **v0.6.99** `resolvePageByFuzzyMatch` — handles plural↔singular, prefix, route-segment fallback.
 - **v0.7.0** `--page X` skip-archplan guard — when explicit page target + RESPONSE_TRUNCATED, print clear error instead of cascading to full-project regen.
+
+---
+id: PJ-006
+type: bug-cluster
+confidence: verified
+status: resolved
+fixed_in: [0.6.100, 0.7.0]
+evidence: [sha:3408790, sha:163bf30]
+---
 
 ### PJ-006 — Filter bar: three different failure modes in 48h
 
@@ -87,6 +163,14 @@ Format: most recent entries first. Each entry links the screenshot / transcript 
 - **v0.6.100** 3 validators: `FILTER_DUPLICATE`, `FILTER_HEIGHT_MISMATCH`, `SEARCH_ICON_MISPLACED`.
 - **v0.7.0** Golden pattern `templates/patterns/filter-bar.tsx` — injected into the chat prompt when filter keyword matches. Complete code the AI can copy verbatim.
 
+---
+id: PJ-007
+type: bug
+confidence: hypothesis
+status: active
+evidence: [screenshot://image-cache/c8ef5aa8-.../8.png, screenshot://image-cache/c8ef5aa8-.../9.png]
+---
+
 ### PJ-007 — Inconsistent stat cards across pages
 
 **Observed:** `/reports` stat cards (plain icon, inline trend text) vs `/investments` stat cards (blue-tinted square icon, Badge pill for trend). Same page type, different structure.
@@ -98,6 +182,15 @@ Format: most recent entries first. Each entry links the screenshot / transcript 
 **Fix (v0.7.1, planned):**
 - `INCONSISTENT_CARD` cross-page validator — scans all pages, clusters stat-card-like structures, warns when clusters diverge.
 - Plan retrofit: at end of Phase 2, cross-reference `pageNotes[].sections` and auto-extend `usedBy` of shared components with matching page types.
+
+---
+id: PJ-008
+type: bug
+confidence: verified
+status: resolved
+fixed_in: [0.7.1]
+evidence: [sha:TODO-after-0.7.1-merge, screenshot://image-cache/c8ef5aa8-.../10.png]
+---
 
 ### PJ-008 — Full-width Create Budget modal
 

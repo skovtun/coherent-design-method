@@ -20,6 +20,7 @@ import {
 import { isAuthRoute } from '../../agents/page-templates.js'
 import { ensureAuthRouteGroup } from '../../utils/auth-route-group.js'
 import { createAIProvider } from '../../utils/ai-provider.js'
+import { buildFixInstruction } from '../../utils/auto-heal-guidance.js'
 import { readFile, writeFile } from '../../utils/files.js'
 import {
   CORE_CONSTRAINTS,
@@ -766,8 +767,7 @@ export async function applyModification(
             try {
               const ai = await createAIProvider(aiProvider)
               if (!ai.editPageCode) break
-              const errorList = currentErrors.map(e => `Line ${e.line}: [${e.type}] ${e.message}`).join('\n')
-              const instruction = `Fix these quality issues:\n${errorList}\n\nRules:\n- Replace raw Tailwind colors (bg-emerald-500, text-zinc-400, etc.) with semantic tokens (bg-primary, text-muted-foreground, bg-muted, etc.)\n- Replace placeholder content ("Lorem ipsum", "John Doe", "user@example.com") with realistic contextual content\n- Ensure heading hierarchy (h1 → h2 → h3, no skipping)\n- Add Label components for form inputs\n- Keep all existing functionality and layout intact`
+              const instruction = buildFixInstruction(currentErrors)
               const fixedCode = await ai.editPageCode(codeToWrite, instruction, page.name || page.id || 'Page')
               if (fixedCode && fixedCode.length > 100 && /export\s+default/.test(fixedCode)) {
                 const recheck = validatePageQuality(fixedCode, undefined, qualityPageType)
@@ -1009,8 +1009,7 @@ export async function applyModification(
               try {
                 const ai = await createAIProvider(aiProvider)
                 if (!ai.editPageCode) break
-                const errorList = qualityErrors.map(e => `Line ${e.line}: [${e.type}] ${e.message}`).join('\n')
-                const fixInstruction = `Fix these quality issues:\n${errorList}\n\nRules:\n- Replace raw Tailwind colors with semantic tokens (bg-primary, text-muted-foreground, etc.)\n- Replace placeholder content with realistic contextual content\n- Ensure heading hierarchy\n- Keep all existing functionality and layout intact`
+                const fixInstruction = buildFixInstruction(qualityErrors)
                 const qFixedCode = await ai.editPageCode(
                   codeToWrite,
                   fixInstruction,

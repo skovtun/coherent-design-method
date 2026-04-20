@@ -26,15 +26,22 @@ import { spawnSync } from 'child_process'
 const REFLECT_TEMPLATE = `<!--
   Reflect on this work session. Fill in the sections you have content for;
   delete the rest before saving. What you write here will be appended to the
-  wiki as a new journal/profile/idea entry.
+  wiki as a new journal/profile/idea entry with YAML frontmatter.
 
   - Bug entries → docs/PATTERNS_JOURNAL.md (PJ-NNN)
   - Model behavior → docs/wiki/MODEL_PROFILE.md
   - Ideas → docs/wiki/IDEAS_BACKLOG.md
+
+  Confidence levels (pick one per section):
+    hypothesis   — your best guess, not verified
+    observed     — seen once, not reproduced
+    verified     — reproduced or confirmed in code/tests
+    established  — documented fact, cross-referenced
 -->
 
 ## Bug observed (PATTERNS_JOURNAL entry)
-<!-- Screenshot or transcript ref + root cause + fix applied -->
+<!-- Confidence: hypothesis | observed | verified | established -->
+Confidence: observed
 
 ### What happened
 
@@ -46,19 +53,22 @@ const REFLECT_TEMPLATE = `<!--
 
 
 ### Evidence
-<!-- commit SHA, screenshot path, test file -->
+<!-- commit SHA (sha:abc123), screenshot path, test file — required for "verified" -->
 
 
 ---
 
 ## Model behavior note (MODEL_PROFILE entry)
 <!-- Systematic pattern observed across 2+ chat runs -->
+Confidence: observed
+
 
 
 ---
 
 ## Idea (IDEAS_BACKLOG entry)
 <!-- Short title · rationale · rough effort · target version if any -->
+
 
 `
 
@@ -127,20 +137,33 @@ export async function wikiReflectCommand() {
   const now = new Date().toISOString().slice(0, 10)
   let wrote = 0
   if (bugSection.trim()) {
-    appendToFile(
-      ctx.journalPath,
-      `\n### PJ-${now.replace(/-/g, '')} · ${extractFirstLine(bugSection)}\n\n${bugSection.trim()}\n`,
-    )
+    const { confidence, body } = extractConfidence(bugSection)
+    const title = extractFirstLine(body)
+    const id = `PJ-${now.replace(/-/g, '')}`
+    const frontmatter = renderFrontmatter({
+      id,
+      type: 'bug',
+      confidence,
+      status: 'active',
+      date: now,
+    })
+    appendToFile(ctx.journalPath, `\n${frontmatter}\n### ${id} · ${title}\n\n${body.trim()}\n`)
     wrote++
-    console.log(chalk.green(`✓ Appended bug entry to ${relative(ctx.repoRoot, ctx.journalPath)}`))
+    console.log(chalk.green(`✓ Appended bug entry (${confidence}) to ${relative(ctx.repoRoot, ctx.journalPath)}`))
   }
   if (modelSection.trim()) {
-    appendToFile(ctx.profilePath, `\n### ${now} observation\n\n${modelSection.trim()}\n`)
+    const { confidence, body } = extractConfidence(modelSection)
+    const frontmatter = renderFrontmatter({ type: 'model-note', confidence, date: now })
+    appendToFile(ctx.profilePath, `\n${frontmatter}\n### ${now} observation\n\n${body.trim()}\n`)
     wrote++
-    console.log(chalk.green(`✓ Appended model note to ${relative(ctx.repoRoot, ctx.profilePath)}`))
+    console.log(chalk.green(`✓ Appended model note (${confidence}) to ${relative(ctx.repoRoot, ctx.profilePath)}`))
   }
   if (ideaSection.trim()) {
-    appendToFile(ctx.backlogPath, `\n### ${now} · ${extractFirstLine(ideaSection)}\n\n${ideaSection.trim()}\n`)
+    const frontmatter = renderFrontmatter({ type: 'idea', status: 'open', date: now })
+    appendToFile(
+      ctx.backlogPath,
+      `\n${frontmatter}\n### ${now} · ${extractFirstLine(ideaSection)}\n\n${ideaSection.trim()}\n`,
+    )
     wrote++
     console.log(chalk.green(`✓ Appended idea to ${relative(ctx.repoRoot, ctx.backlogPath)}`))
   }
@@ -166,6 +189,40 @@ function parseReflection(text: string): { bugSection: string; modelSection: stri
     modelSection: strip(modelMatch?.[0]),
     ideaSection: strip(ideaMatch?.[0]),
   }
+}
+
+/**
+ * Pulls a `Confidence: X` line out of a section body and returns the level +
+ * cleaned body. Defaults to `observed` (conservative — avoids overclaiming).
+ */
+const VALID_CONFIDENCES = ['hypothesis', 'observed', 'verified', 'established'] as const
+type Confidence = (typeof VALID_CONFIDENCES)[number]
+
+function extractConfidence(section: string): { confidence: Confidence; body: string } {
+  const match = section.match(/^Confidence:\s*(\w+)\s*$/im)
+  let confidence: Confidence = 'observed'
+  if (match) {
+    const claimed = match[1].toLowerCase()
+    if ((VALID_CONFIDENCES as readonly string[]).includes(claimed)) {
+      confidence = claimed as Confidence
+    }
+  }
+  const body = section.replace(/^Confidence:\s*\w+\s*$/im, '').trim()
+  return { confidence, body }
+}
+
+/**
+ * YAML frontmatter for structured facts in markdown. Small by design —
+ * just enough to enable `grep`-and-`awk` queries (and embedding index later).
+ */
+function renderFrontmatter(fields: Record<string, string | undefined>): string {
+  const lines = ['---']
+  for (const [k, v] of Object.entries(fields)) {
+    if (v === undefined || v === '') continue
+    lines.push(`${k}: ${v}`)
+  }
+  lines.push('---')
+  return lines.join('\n')
 }
 
 function extractFirstLine(text: string): string {
@@ -230,6 +287,50 @@ export async function wikiAuditCommand() {
           severity: 'info',
           where: `PATTERNS_JOURNAL.md PJ-${id}`,
           message: 'No evidence (commit SHA / screenshot) — harder to verify later',
+        })
+      }
+
+      // W6 confidence check — frontmatter must declare confidence level so
+      // future readers know how much to trust the entry.
+      const frontmatter = extractFrontmatterAbove(journal, entry.index ?? 0)
+      if (!frontmatter || !frontmatter.confidence) {
+        issues.push({
+          severity: 'info',
+          where: `PATTERNS_JOURNAL.md PJ-${id}`,
+          message: 'No confidence tag in frontmatter — use `coherent wiki reflect` to add entries structurally',
+        })
+      } else if (!VALID_CONFIDENCES.includes(frontmatter.confidence as Confidence)) {
+        issues.push({
+          severity: 'warning',
+          where: `PATTERNS_JOURNAL.md PJ-${id}`,
+          message: `Invalid confidence "${frontmatter.confidence}" — must be one of: ${VALID_CONFIDENCES.join(', ')}`,
+        })
+      }
+    }
+  }
+
+  // W7 supersession check — RULES_MAP rows with `superseded_by` must reference
+  // real rule IDs; rules marked active must not contradict superseded ones.
+  if (existsSync(ctx.rulesMapPath)) {
+    const rulesMap = readFileSync(ctx.rulesMapPath, 'utf-8')
+    // Row pattern: | R001 | ... | ... | ... | ... | Status: active|superseded_by: RXXX | ... |
+    const activeIds = new Set<string>()
+    const supersededIds = new Map<string, string>() // id → target
+    const rowRe = /^\|\s*(R\d{3,})\s*\|/gm
+    for (const m of rulesMap.matchAll(rowRe)) {
+      const id = m[1]
+      activeIds.add(id)
+    }
+    const supersedeRe = /^\|\s*(R\d{3,})\b[^|]*\|[^\n]*superseded_by:\s*(R\d{3,})/gim
+    for (const m of rulesMap.matchAll(supersedeRe)) {
+      supersededIds.set(m[1], m[2])
+    }
+    for (const [from, to] of supersededIds) {
+      if (!activeIds.has(to)) {
+        issues.push({
+          severity: 'warning',
+          where: `RULES_MAP.md ${from}`,
+          message: `superseded_by: ${to} — but ${to} not found in the map`,
         })
       }
     }
@@ -318,4 +419,32 @@ function sliceSectionAt(text: string, start: number): string {
   const nextSection = text.slice(start + 1).search(/\n### /)
   if (nextSection === -1) return text.slice(start)
   return text.slice(start, start + 1 + nextSection)
+}
+
+/**
+ * Parse the YAML frontmatter block immediately before a heading at `pos`.
+ *
+ * Walks backwards from `pos` until we find either a closing `---\n` line or
+ * we exit the valid window. Returns null if no frontmatter directly precedes
+ * the heading (avoids picking up frontmatter of a prior entry).
+ */
+function extractFrontmatterAbove(text: string, pos: number): Record<string, string> | null {
+  // Search backwards for `---\n` within 400 chars — frontmatter is short.
+  const window = text.slice(Math.max(0, pos - 800), pos)
+  const lastMarkerIdx = window.lastIndexOf('---\n')
+  if (lastMarkerIdx === -1) return null
+  const before = window.slice(0, lastMarkerIdx)
+  const openMarkerIdx = before.lastIndexOf('---\n')
+  if (openMarkerIdx === -1) return null
+  const yaml = before.slice(openMarkerIdx + 4, lastMarkerIdx).trim()
+  // Must be followed closely (within ~3 lines) by the heading.
+  const between = window.slice(lastMarkerIdx + 4)
+  if (between.split('\n').filter(Boolean).length > 3) return null
+
+  const parsed: Record<string, string> = {}
+  for (const line of yaml.split('\n')) {
+    const m = line.match(/^(\w+)\s*:\s*(.*?)\s*$/)
+    if (m) parsed[m[1]] = m[2]
+  }
+  return parsed
 }
