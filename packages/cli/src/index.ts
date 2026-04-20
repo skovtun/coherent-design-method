@@ -76,6 +76,7 @@ program
   .option('--json', 'Output as JSON')
   .option('--pages', 'Only check pages')
   .option('--shared', 'Only check shared components')
+  .option('--page <name>', 'Check only one specific page (id, name, or route — fuzzy matched)')
   .action(opts => checkCommand(opts))
 
 program

@@ -18,6 +18,7 @@ import { readdirSync, readFileSync, statSync, existsSync } from 'fs'
 import { validatePageQuality, formatIssues } from '../utils/quality-validator.js'
 import { findConfig, exitNotCoherent } from '../utils/find-config.js'
 import { loadManifest } from '@getcoherent/core'
+import { resolvePageByFuzzyMatch } from './chat/utils.js'
 import {
   findPagesImporting,
   isUsedInLayout,
@@ -30,6 +31,11 @@ export interface CheckOptions {
   json?: boolean
   pages?: boolean
   shared?: boolean
+  /**
+   * Check one specific page by id/name/route. Uses the same fuzzy match as
+   * `coherent chat --page X` so users get consistent behavior across commands.
+   */
+  page?: string
 }
 
 interface CheckResult {
@@ -121,7 +127,33 @@ export async function checkCommand(opts: CheckOptions = {}) {
   // ─── Section 1: Page Quality ────────────────────────────────────────
   if (!skipPages) {
     const appDir = resolve(projectRoot, 'app')
-    const files = findTsxFiles(appDir)
+    let files = findTsxFiles(appDir)
+
+    // --page X → filter to a single page via fuzzy match against config.pages.
+    // Uses the same resolver as `coherent chat --page X` for consistent behavior.
+    if (opts.page) {
+      const cfgPages = validRoutes.map(r => ({ id: r.replace(/^\//, '') || 'home', name: r, route: r }))
+      const matched = resolvePageByFuzzyMatch(cfgPages, opts.page)
+      if (!matched) {
+        console.error(chalk.yellow(`\n⚠ Page "${opts.page}" not found in project.`))
+        console.log(chalk.dim('   Available: ' + cfgPages.map(p => p.route).join(', ') + '\n'))
+        return
+      }
+      const targetRoute = matched.route
+      const routeSlug = targetRoute.replace(/^\//, '') || ''
+      files = files.filter(f => {
+        const rel = f.replace(projectRoot + '/', '')
+        // app/(app)/dashboard/page.tsx OR app/page.tsx (for /)
+        if (routeSlug === '') return rel === 'app/page.tsx'
+        return rel.endsWith(`/${routeSlug}/page.tsx`) || rel === `app/${routeSlug}/page.tsx`
+      })
+      if (files.length === 0) {
+        console.error(chalk.yellow(`\n⚠ No page.tsx file found for "${targetRoute}".\n`))
+        return
+      }
+      if (!opts.json) console.log(chalk.dim(`Filtered to --page ${opts.page} → ${targetRoute}`))
+    }
+
     result.pages.total = files.length
 
     if (!opts.json) console.log(chalk.cyan('\n  📄 Pages') + chalk.dim(` (${files.length} scanned)\n`))
