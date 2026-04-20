@@ -119,6 +119,8 @@ Phase 2 extracts **atmosphere** from your prompt — mood phrases like "premium 
 | `coherent preview` | Start the dev server with auto-fix and file watching |
 | `coherent check` | Show all problems: page quality, component integrity, broken links |
 | `coherent fix` | Auto-fix everything: cache, dependencies, components, syntax, quality |
+| `coherent fix --journal` | Capture fix session to `.coherent/fix-sessions/` for later review |
+| `coherent journal list` / `aggregate` / `prune` | Review captured fix sessions, rank recurring issues, prune old entries |
 | `coherent sync` | Sync Design System with code after manual edits in your editor |
 | `coherent export` | Export a clean, deployable Next.js project (strips DS overlay) |
 | `coherent undo` | Restore project to state before the last `coherent chat` |
@@ -140,7 +142,7 @@ coherent chat "change primary color to #6366f1 and use Inter font"
 # Target a specific component
 coherent chat --component "Header" "add a search button"
 
-# Target a specific page
+# Target a specific page — surgical edit (single LLM call, minimal diff)
 coherent chat --page "pricing" "add a fourth enterprise tier"
 
 # Target a design token
