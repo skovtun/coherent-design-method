@@ -221,6 +221,8 @@ export function normalizeRequest(
     'modify-layout-block',
     'add-page',
     'update-page',
+    'delete-page',
+    'delete-component',
     'update-navigation',
     'link-shared',
     'promote-and-link',

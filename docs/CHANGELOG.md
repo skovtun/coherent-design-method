@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.6] — 2026-04-20
+
+### Hotfix for 0.7.5 — request-parser VALID_TYPES missed delete-page/delete-component
+
+0.7.5 added `delete-page` / `delete-component` to the `ModificationRequest` union type, handler, and prompt training. But **request-parser.ts had its own runtime VALID_TYPES allowlist** that wasn't updated — so the AI's `delete-page` output was rejected with `Unknown action "delete-page"` before reaching the handler.
+
+Runtime behavior now matches compile-time types. `coherent chat "delete account page"` emits `delete-page`, passes validation, hits handler, removes file. Caught by live smoke test immediately after publishing 0.7.5.
+
+### Meta
+- **MODEL_PROFILE note:** when introducing a new ModificationRequest type, four places need updating in lock-step:
+  1. `packages/core/src/types/design-system.ts` — union member
+  2. `packages/cli/src/commands/chat/modification-handler.ts` — switch case
+  3. `packages/cli/src/commands/chat/request-parser.ts` — VALID_TYPES allowlist
+  4. `packages/cli/src/agents/modifier.ts` — prompt training (if AI-detectable)
+- Audit: these four locations could be derived from one source-of-truth enum. Logged as an idea.
+
 ## [0.7.5] — 2026-04-20
 
 ### Delete-page / delete-component (PJ-009)
