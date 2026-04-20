@@ -1759,3 +1759,61 @@ describe('validatePageQuality v0.7.10 — DOUBLE_SIGN tiering', () => {
     expect(ds!.severity).toBe('error')
   })
 })
+
+describe('validatePageQuality v0.7.13 — SM_BREAKPOINT roll-up', () => {
+  it('rolls multiple SM_BREAKPOINT occurrences into a single summary info', () => {
+    const code = [
+      '<div className="sm:flex">one</div>',
+      '<div className="sm:grid">two</div>',
+      '<div className="sm:block">three</div>',
+    ].join('\n')
+    const issues = validatePageQuality(code)
+    const sm = issues.filter(i => i.type === 'SM_BREAKPOINT')
+    expect(sm.length).toBe(1)
+    expect(sm[0].message).toContain('3 occurrences')
+  })
+
+  it('reports SM_BREAKPOINT without count suffix when only one match', () => {
+    const code = '<div className="sm:flex">only one</div>'
+    const issues = validatePageQuality(code)
+    const sm = issues.filter(i => i.type === 'SM_BREAKPOINT')
+    expect(sm.length).toBe(1)
+    expect(sm[0].message).not.toContain('occurrences')
+  })
+})
+
+describe('autoFixCode v0.7.13 — RAW_IMG_TAG → <Image>', () => {
+  it('rewrites <img> with width+height to <Image> and adds next/image import', async () => {
+    const code = [
+      "import Link from 'next/link'",
+      '',
+      'export default function Page() {',
+      '  return <img src="/hero.png" width="400" height="300" alt="Hero" />',
+      '}',
+    ].join('\n')
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('<Image')
+    expect(fixed).toContain("import Image from 'next/image'")
+    expect(fixes).toContain('<img> → <Image> (with import)')
+  })
+
+  it('leaves <img> alone when width/height missing (Next would error)', async () => {
+    const code = '<img src="/hero.png" alt="Hero" />'
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('<img')
+    expect(fixed).not.toContain('<Image')
+    expect(fixes).not.toContain('<img> → <Image> (with import)')
+  })
+
+  it('does not duplicate next/image import when one already exists', async () => {
+    const code = [
+      "import Image from 'next/image'",
+      'export default function Page() {',
+      '  return <img src="/hero.png" width="400" height="300" />',
+      '}',
+    ].join('\n')
+    const { code: fixed } = await autoFixCode(code)
+    const importCount = (fixed.match(/from\s+['"]next\/image['"]/g) || []).length
+    expect(importCount).toBe(1)
+  })
+})

@@ -47,6 +47,7 @@ Every validator fires a typed issue. Grep for the type in `quality-validator.ts`
 | `DIALOG_CUSTOM_OVERLAY` | Custom fixed inset-0 overlay detected. Use shadcn <Dialog>/<AlertDialog>/<Sheet> — they handle overlay, focus trap, and Escape automatically |
 | `ALERT_DIALOG_NON_DESTRUCTIVE` | AlertDialog  |
 | `INLINE_MOCK_DATA` | Inline array with 5+ items — extract to src/data/<name>.ts and import |
+| `SM_BREAKPOINT` | sm: breakpoint — consider if md:/lg: is sufficient${countSuffix} |
 | `PLACEHOLDER` | Placeholder content detected — use real contextual content |
 | `NO_RESPONSIVE` | Grid layout without responsive breakpoints (md: or lg:) |
 | `NO_H1` | Page has no <h1> — every page should have exactly one h1 heading |
