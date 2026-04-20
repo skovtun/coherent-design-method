@@ -100,7 +100,8 @@ Each `###` block below is an indexable entry (wiki-index.ts scans `###` headings
 ---
 id: M7
 type: idea
-status: open
+status: resolved
+shipped_in: [0.7.20]
 target: v0.7.20
 effort: 3-4h
 date: 2026-04-19
@@ -156,7 +157,8 @@ After Phase 6 (per-page generation), if validator flags critical issues (`CHART_
 ---
 id: PJ-007-FIX
 type: idea
-status: open
+status: resolved
+shipped_in: [0.7.21]
 target: v0.7.20
 effort: 2h
 date: 2026-04-19
@@ -174,7 +176,8 @@ Scan all pages, cluster stat-card-like structures, warn when clusters diverge. R
 ---
 id: J2
 type: idea
-status: open
+status: resolved
+shipped_in: [0.7.20]
 target: v0.7.20
 effort: 30min
 date: 2026-04-20

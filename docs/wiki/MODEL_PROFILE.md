@@ -41,7 +41,7 @@ Purpose: future rule-writing and debugging should lean on these patterns. If you
 
 ## Known quirks to design around
 
-1. **Claude will often "improve" an instruction.** Asked to "fix the table", it will also redesign the header, add an empty state, tweak the badge variants. Sometimes helpful; often produces unwanted changes. Mitigation: use `editPageCode()` for surgical edits (planned for v0.7.2).
+1. **Claude will often "improve" an instruction.** Asked to "fix the table", it will also redesign the header, add an empty state, tweak the badge variants. Sometimes helpful; often produces unwanted changes. Mitigation: `editPageCode()` minimal-diff path (shipped v0.7.2) + surgical `--page X` edits (shipped v0.7.20).
 
 2. **Claude struggles with "before/after diff" instructions.** Better to describe the end state than the transformation: "the filter bar should have search + 2 selects + date range in one row" works. "Add a date range to the filter bar" often produces a new filter bar with only date range.
 
