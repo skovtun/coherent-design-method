@@ -2,6 +2,35 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.4] — 2026-04-20
+
+### Wiki retrieval (TF-IDF) — AI reads platform memory at chat-time
+
+Memory quality 4.7 → 6.5. AI now receives top-3 most relevant wiki entries (PATTERNS_JOURNAL, ADR, MODEL_PROFILE) injected into every chat prompt, ranked by TF-IDF against the user's message. Past lessons compound without manual effort.
+
+### Added
+- **`src/utils/wiki-index.ts`** — TF-IDF index builder. Scans `docs/PATTERNS_JOURNAL.md` (by PJ-NNN heading), `docs/wiki/ADR/*.md` (each ADR as one doc), `docs/wiki/MODEL_PROFILE.md` + `docs/wiki/IDEAS_BACKLOG.md` (by ### section), with YAML frontmatter + code-fence awareness. Tokenizer preserves kebab-case identifiers (Tailwind classes, React components).
+- **`scripts/build-wiki-index.mjs`** — standalone postbuild script that emits `dist/wiki-index.json` bundled with the published package. No external deps.
+- **`coherent wiki index`** — rebuild retrieval index on demand.
+- **`coherent wiki search <query>`** — query the index from CLI. Returns top-N matches with score.
+- **Modifier integration** — `modifier.ts` loads the packaged index at chat-time, retrieves top-3 entries for the user's message, injects as "WIKI CONTEXT" in the LLM prompt. Graceful no-op when index absent.
+
+### Why TF-IDF not embeddings (yet)
+- Zero dependencies (no Xenova 100MB model, no OpenAI API cost).
+- Works offline, testable in CI, instant first-run.
+- Captures ~80% of the value — kebab-case identifiers (`bg-primary`, `CardHeader`) already carry high signal for this corpus.
+- Upgrade path: `retrieve()` interface is swappable to embeddings in 0.8.x without touching callers.
+
+### Fixed in wiki parser
+- Code fences (```yaml) no longer confuse the YAML frontmatter detector.
+- Markdown horizontal rules (`---` without key:value following) no longer mistaken for frontmatter delimiters.
+
+### Journal
+- **PJ-009** added — `coherent chat "delete account page"` creates a Delete Account feature instead of removing the Account page. Root cause: no `delete-page` type in ModificationRequest schema. Fix planned for 0.7.5.
+
+### Tests
+964 passing (+12 for wiki index: tokenizer, scanner, TF-IDF, persistence, frontmatter, code fences). 65 test files.
+
 ## [0.7.3] — 2026-04-20
 
 ### Wiki W6/W7 + targeted auto-heal guidance

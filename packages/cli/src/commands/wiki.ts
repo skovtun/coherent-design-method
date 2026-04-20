@@ -22,6 +22,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync, mkdtempSync } fro
 import { tmpdir } from 'os'
 import { dirname, join, relative, resolve } from 'path'
 import { spawnSync } from 'child_process'
+import { scanWiki, buildIndex, retrieve, saveIndex, loadIndex, type WikiEntry } from '../utils/wiki-index.js'
 
 const REFLECT_TEMPLATE = `<!--
   Reflect on this work session. Fill in the sections you have content for;
@@ -413,6 +414,70 @@ function collectWikiFiles(ctx: WikiContext): string[] {
   walk(wikiDir)
   if (existsSync(ctx.journalPath)) result.push(ctx.journalPath)
   return result
+}
+
+/**
+ * Rebuild the wiki index cache. Runs the scanner, builds the TF-IDF matrix,
+ * writes to `.coherent/wiki-index.json`. Used by `coherent wiki search` and
+ * (eventually) at chat-time for prompt retrieval.
+ */
+export async function wikiIndexCommand() {
+  const ctx = requireRepoContext()
+  console.log(chalk.cyan('\n📇 Rebuilding wiki index...\n'))
+
+  const wikiDir = join(ctx.repoRoot, 'docs', 'wiki')
+  const entries = scanWiki({ wikiDir, journalFile: ctx.journalPath })
+  if (entries.length === 0) {
+    console.log(chalk.yellow('⚠ No entries found. Make sure docs/wiki/ and docs/PATTERNS_JOURNAL.md exist.\n'))
+    return
+  }
+  const index = buildIndex(entries)
+  const cachePath = join(ctx.repoRoot, '.coherent', 'wiki-index.json')
+  saveIndex(cachePath, index)
+
+  const byType = new Map<string, number>()
+  for (const e of entries) byType.set(e.type, (byType.get(e.type) ?? 0) + 1)
+
+  console.log(chalk.green(`✓ Indexed ${entries.length} entries:`))
+  for (const [t, n] of byType) console.log(chalk.dim(`  ${t.padEnd(12)} ${n}`))
+  console.log(chalk.dim(`\n→ ${relative(ctx.repoRoot, cachePath)}\n`))
+}
+
+/**
+ * Query the wiki index. Prints top-5 matching entries with score + first
+ * 200 chars of content. Useful for "did we already discuss this?" checks.
+ */
+export async function wikiSearchCommand(query: string, opts: { limit?: string } = {}) {
+  const ctx = requireRepoContext()
+  const cachePath = join(ctx.repoRoot, '.coherent', 'wiki-index.json')
+  let index = loadIndex(cachePath)
+  if (!index) {
+    console.log(chalk.dim('Index cache missing — building now...\n'))
+    const wikiDir = join(ctx.repoRoot, 'docs', 'wiki')
+    const entries = scanWiki({ wikiDir, journalFile: ctx.journalPath })
+    index = buildIndex(entries)
+    saveIndex(cachePath, index)
+  }
+  const limit = Math.max(1, Math.min(20, parseInt(opts.limit ?? '5', 10) || 5))
+  const results = retrieve(index, query, limit)
+  if (results.length === 0) {
+    console.log(chalk.yellow(`\nNo matches for "${query}".\n`))
+    return
+  }
+  console.log(chalk.cyan(`\n🔍 Top ${results.length} matches for "${query}":\n`))
+  for (const { entry, score } of results) {
+    const label = entryLabel(entry)
+    console.log(`  ${chalk.bold(label)}  ${chalk.dim(`(score ${score.toFixed(3)})`)}`)
+    const preview = entry.content.replace(/\s+/g, ' ').trim().slice(0, 200)
+    console.log(chalk.dim(`    ${preview}${entry.content.length > 200 ? '…' : ''}`))
+    console.log()
+  }
+}
+
+function entryLabel(e: WikiEntry): string {
+  const tag = `[${e.type}]`
+  const title = e.title || e.id
+  return `${tag} ${e.id} · ${title}`
 }
 
 function sliceSectionAt(text: string, start: number): string {
