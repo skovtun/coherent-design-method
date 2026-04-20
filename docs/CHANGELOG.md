@@ -2,6 +2,33 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.19] — 2026-04-20
+
+### `coherent journal` — read side of the memory feedback loop
+
+0.7.18 captured fix sessions to `.coherent/fix-sessions/*.yaml`. 0.7.19 makes that data actionable.
+
+### Added
+
+- **`coherent journal list`** — lists all captured sessions chronologically with a one-line summary per session (error/warning/info totals + filename).
+- **`coherent journal aggregate`** — reads every session, ranks validators by total recurrence, shows top-10 per severity with:
+  - total occurrence count across all sessions
+  - number of sessions the validator appeared in
+  - deduplicated sample file paths
+- Flags validators that recurred in 3+ sessions as PATTERNS_JOURNAL.md candidates — the curator has prioritized raw material instead of a blank page.
+
+### Parser
+The YAML shape is emitted by `fix --journal` in a narrow, stable format owned by this repo. A handwritten state-machine parser (no YAML library dep) covers it — if the format ever evolves beyond what the parser handles, we change both sides in the same commit.
+
+### Full feedback loop now
+```
+coherent fix --journal           →  .coherent/fix-sessions/TIMESTAMP.yaml
+coherent journal aggregate       →  ranked validators across all sessions
+[human curator drafts PJ-NNN]    →  docs/PATTERNS_JOURNAL.md
+coherent wiki index              →  updated retrieval index (future)
+coherent chat "build X"          →  benefits from indexed lessons
+```
+
 ## [0.7.18] — 2026-04-20
 
 ### `coherent fix --journal` — feedback loop between fix runs and memory
