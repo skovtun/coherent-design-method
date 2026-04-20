@@ -1,6 +1,6 @@
-import { resolve } from 'path'
-import { mkdir } from 'fs/promises'
-import { dirname } from 'path'
+import { resolve, dirname } from 'path'
+import { mkdir, rm } from 'fs/promises'
+import { existsSync } from 'fs'
 import chalk from 'chalk'
 import {
   DesignSystemManager,
@@ -1114,6 +1114,107 @@ export async function applyModification(
         success: true,
         message: 'Navigation updated',
         modified: ['navigation'],
+      }
+    }
+
+    case 'delete-page': {
+      // PJ-009: remove a page — delete its file, drop from config.pages, keep
+      // nav update as a follow-up (user can run `coherent chat 'remove X from nav'`).
+      // Backups are created at the chat command level (see chat.ts createBackup),
+      // so `coherent undo` restores.
+      const target = request.target
+      if (!target) {
+        return { success: false, message: 'delete-page requires target (page id/name/route)', modified: [] }
+      }
+      const config = dsm.getConfig()
+      const pages = config.pages || []
+      const page = pages.find(
+        (p: any) =>
+          p.id === target ||
+          p.name?.toLowerCase() === target.toLowerCase() ||
+          p.route === target ||
+          p.route === '/' + target.replace(/^\//, ''),
+      )
+      if (!page) {
+        return {
+          success: false,
+          message: `delete-page: no page matches "${target}". Available: ${pages.map((p: any) => p.id).join(', ')}`,
+          modified: [],
+        }
+      }
+      // Root page (/) is guarded — users almost never want this gone, and
+      // having no root page breaks routing.
+      if (page.route === '/') {
+        return {
+          success: false,
+          message: `Refusing to delete the root page (/). If you really want this, edit design-system.config.ts manually.`,
+          modified: [],
+        }
+      }
+      const relRoute = page.route.replace(/^\//, '')
+      const candidates = [
+        resolve(projectRoot, 'app', relRoute, 'page.tsx'),
+        resolve(projectRoot, 'app', '(app)', relRoute, 'page.tsx'),
+        resolve(projectRoot, 'app', '(auth)', relRoute, 'page.tsx'),
+      ]
+      const filePath = candidates.find(existsSync)
+      const modified: string[] = []
+      if (filePath) {
+        await rm(filePath, { force: true })
+        // Remove the now-empty route directory so `app/` stays clean.
+        try {
+          await rm(dirname(filePath), { recursive: true, force: true })
+        } catch {
+          /* directory may still contain layout.tsx, etc. — leave alone */
+        }
+        modified.push(filePath)
+      }
+      // Drop from config.pages
+      const updated = {
+        ...config,
+        pages: pages.filter((p: any) => p.id !== page.id),
+      }
+      dsm.updateConfig(updated as any)
+      cm.updateConfig(updated as any)
+      pm.updateConfig(updated as any)
+      return {
+        success: true,
+        message: `Deleted page "${page.name}" (${page.route}). Run \`coherent undo\` to restore.`,
+        modified,
+      }
+    }
+
+    case 'delete-component': {
+      // Remove a shared component file + manifest entry. Pages that import
+      // the now-deleted component will break — we surface the list as a warning.
+      const target = request.target
+      if (!target) {
+        return { success: false, message: 'delete-component requires target (component id or name)', modified: [] }
+      }
+      const manifest = await loadManifest(projectRoot)
+      const entry = manifest.shared.find(e => e.id === target || e.name.toLowerCase() === target.toLowerCase())
+      if (!entry) {
+        return {
+          success: false,
+          message: `delete-component: no shared component matches "${target}". Available: ${manifest.shared.map(e => `${e.id} (${e.name})`).join(', ')}`,
+          modified: [],
+        }
+      }
+      const filePath = resolve(projectRoot, entry.file)
+      const modified: string[] = []
+      if (existsSync(filePath)) {
+        await rm(filePath, { force: true })
+        modified.push(filePath)
+      }
+      const updatedManifest = {
+        ...manifest,
+        shared: manifest.shared.filter(e => e.id !== entry.id),
+      }
+      await saveManifest(projectRoot, updatedManifest)
+      return {
+        success: true,
+        message: `Deleted shared component "${entry.name}" (${entry.id}). Pages importing it will break — regenerate them with \`coherent chat --page X "remove ${entry.name} usage"\`.`,
+        modified,
       }
     }
 

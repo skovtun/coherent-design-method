@@ -523,6 +523,15 @@ CORRECT:
 RULE 1 - To ADD a new component that doesn't exist: use type "add-component". Set source "shadcn" for auto-install. NEVER use modify-component for new components.
 RULE 2 - To UPDATE an existing component: use type "modify-component" ONLY if the component already exists in the registry. Use the correct component ID from the registry. Only change properties like variants, sizes, baseClassName - NEVER change id, name, shadcnComponent.
 RULE 3 - Component ID must match the shadcn component name exactly: "input", "textarea", "button", "checkbox", etc. NEVER create a Textarea with id "input". id and shadcnComponent must match.
+RULE 4 - DELETE/REMOVE intent (CRITICAL — PJ-009):
+  If the user says any of:
+    "delete X page" | "remove X page" | "get rid of X page" | "drop X page" | "trash X page"
+  → emit \`{ "type": "delete-page", "target": "X" }\`. NEVER create a new page named "Delete X" or "X - Delete".
+  Same for components: "delete X component" → \`{ "type": "delete-component", "target": "X" }\`.
+  Disambiguate by context:
+    - "add a delete account page" / "a page to delete accounts" → add-page (feature page with a destructive action UI).
+    - "delete the account page" / "remove the accounts page" → delete-page (remove existing page).
+  When in doubt, prefer delete-page when the user uses "the" or references a specific existing page, and add-page when user uses "a" / "feature to".
 
 WRONG (DO NOT DO THIS):
 { "type": "modify-component", "target": "input", "changes": { "name": "Textarea" } }  // Wrong - creating new component via modify

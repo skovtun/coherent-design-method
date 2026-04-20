@@ -512,6 +512,8 @@ export interface ModificationRequest {
     | 'modify-layout-block'
     | 'add-page'
     | 'update-page'
+    | 'delete-page' // PJ-009: remove a page — delete file, remove from config.pages, update nav. target = page id/name/route.
+    | 'delete-component' // PJ-009: remove a shared component — delete file, remove from manifest, warn on pages using it.
     | 'update-navigation'
     | 'link-shared' // Story 2.11: replace inline block on target page with shared component (target=page, changes.sharedIdOrName, changes.blockHint?)
     | 'promote-and-link' // Story 2.11 B2: extract block from source page as shared, then link to source + targetPages (target=sourcePage, changes.blockHint, changes.componentName?, changes.targetPages[])

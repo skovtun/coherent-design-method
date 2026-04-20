@@ -2,6 +2,31 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.5] — 2026-04-20
+
+### Delete-page / delete-component (PJ-009)
+
+User reported: `coherent chat "delete account page"` created a new Delete Account feature instead of removing the Account page. Root cause: no deletion type existed in the `ModificationRequest` schema — AI had nowhere to route the request, fell back to feature interpretation.
+
+### Added
+- **`delete-page`** — new `ModificationRequest` type in `@getcoherent/core`. Handler in `modification-handler.ts`:
+  - Resolves target by id/name/route (same fuzzy match as `--page`)
+  - Refuses to delete the root page (`/`) — too destructive, too easy to trigger by accident
+  - Deletes the matching `app/<route>/page.tsx` (checks all route groups)
+  - Cleans up the empty route directory
+  - Removes the page from `design-system.config.pages[]`
+  - Backup created automatically (via existing chat-command backup), `coherent undo` restores
+- **`delete-component`** — same for shared components. Removes file + manifest entry. Warns about dangling imports on pages.
+
+### Added — parser training
+- **RULE 4 in modifier prompt** — explicit DELETE/REMOVE intent block teaching the AI:
+  - "delete X page" / "remove X page" / "get rid of X page" → `delete-page`
+  - Disambiguation: "add a delete-account page" = feature, "delete the account page" = removal
+  - "the" / specific reference → deletion; "a" / "feature to" → feature page
+
+### Tests
+964 passing. Type-level coverage of delete-page / delete-component via new `ModificationRequest` union members.
+
 ## [0.7.4] — 2026-04-20
 
 ### Wiki retrieval (TF-IDF) — AI reads platform memory at chat-time
