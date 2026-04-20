@@ -468,8 +468,22 @@ export function validatePageQuality(
   issues.push(
     ...checkLines(code, TEXT_BASE_RE, 'TEXT_BASE', 'text-base detected — use text-sm as base font size', 'warning'),
   )
+  // HEAVY_SHADOW fires unless the shadow is on a `fixed|absolute|sticky`
+  // element — floating chrome (FABs, pinned toolbars, popovers) legitimately
+  // want a strong drop shadow, it's the visual affordance.
+  const heavyShadowLines = checkLines(
+    code,
+    HEAVY_SHADOW_RE,
+    'HEAVY_SHADOW',
+    'Heavy shadow detected — use shadow-sm or none',
+    'warning',
+  )
+  const codeLinesForHs = code.split('\n')
   issues.push(
-    ...checkLines(code, HEAVY_SHADOW_RE, 'HEAVY_SHADOW', 'Heavy shadow detected — use shadow-sm or none', 'warning'),
+    ...heavyShadowLines.filter(issue => {
+      const line = codeLinesForHs[issue.line - 1] || ''
+      return !/\b(?:fixed|absolute|sticky)\b/.test(line)
+    }),
   )
   issues.push(
     ...checkLines(
@@ -992,7 +1006,10 @@ export function validatePageQuality(
       .map(r => new RegExp('^' + r.replace(/\[[^\]]+\]/g, '[^/]+') + '$'))
     const matchesDynamic = (target: string) => dynamicRouteRes.some(re => re.test(target))
     const lines = code.split('\n')
-    const linkHrefRe = /href\s*=\s*["'](\/[a-z0-9/-]*)["']/gi
+    // Match `href="..."` but not `data-stale-href="..."` (our own autofix
+    // output attribute) or any other `data-X-href`. Negative lookbehind
+    // blocks a word or dash right before `href`.
+    const linkHrefRe = /(?<![\w-])href\s*=\s*["'](\/[a-z0-9/-]*)["']/gi
     for (let i = 0; i < lines.length; i++) {
       let match
       while ((match = linkHrefRe.exec(lines[i])) !== null) {
@@ -1343,11 +1360,21 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
     fixes.push('large text in CardTitle → removed')
   }
 
-  // shadow-md/lg/xl/2xl → shadow-sm
-  if (/className="[^"]*\bshadow-(md|lg|xl|2xl)\b[^"]*"/.test(fixed)) {
-    fixed = fixed.replace(/className="([^"]*)\bshadow-(md|lg|xl|2xl)\b([^"]*)"/g, 'className="$1shadow-sm$3"')
-    fixes.push('heavy shadow → shadow-sm')
-  }
+  // shadow-md/lg/xl/2xl → shadow-sm. Skip floating/overlay elements
+  // (fixed/absolute/sticky) where a strong shadow is the affordance, not
+  // a mistake. Previous implementation used greedy `[^"]*` and only
+  // caught the LAST shadow-* per className — now scan each className
+  // independently and rewrite every matching token.
+  let hadShadowFix = false
+  fixed = fixed.replace(/className=("|')([^"']*)(\1)/g, (full, q, cls: string) => {
+    if (!/\bshadow-(?:md|lg|xl|2xl)\b/.test(cls)) return full
+    if (/\b(?:fixed|absolute|sticky)\b/.test(cls)) return full
+    const next = cls.replace(/\bshadow-(?:md|lg|xl|2xl)\b/g, 'shadow-sm')
+    if (next === cls) return full
+    hadShadowFix = true
+    return `className=${q}${next}${q}`
+  })
+  if (hadShadowFix) fixes.push('heavy shadow → shadow-sm')
 
   // Ensure 'use client' when React hooks or event handlers are used
   const hasHooks = /\b(useState|useEffect|useRef|useCallback|useMemo|useReducer|useContext)\b/.test(fixed)
@@ -2333,7 +2360,7 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
     const dynamicRouteRes = context.knownRoutes
       .filter(r => /\[[^\]]+\]/.test(r))
       .map(r => new RegExp('^' + r.replace(/\[[^\]]+\]/g, '[^/]+') + '$'))
-    fixed = fixed.replace(/\bhref\s*=\s*(["'])(\/[^"'#?]+)\1/g, (full: string, quote: string, href: string) => {
+    fixed = fixed.replace(/(?<![\w-])href\s*=\s*(["'])(\/[^"'#?]+)\1/g, (full: string, quote: string, href: string) => {
       if (href.startsWith('/design-system') || href.startsWith('/api')) return full
       if (routeSet.has(href)) return full
       if (dynamicRouteRes.some(re => re.test(href))) return full

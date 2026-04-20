@@ -1853,4 +1853,42 @@ describe('validatePageQuality + autoFixCode v0.7.14 — BROKEN_INTERNAL_LINK', (
     const { code: fixed } = await autoFixCode(code)
     expect(fixed).toContain('href="/accounts"')
   })
+
+  it('validator does NOT re-flag data-stale-href as a broken link', () => {
+    const code = '<Link href="#" data-stale-href="/accounts">view all</Link>'
+    const issues = validatePageQuality(code, ['/dashboard'])
+    expect(issues.some(i => i.type === 'BROKEN_INTERNAL_LINK')).toBe(false)
+  })
+
+  it('autofix does not double-rewrite an already-migrated link', async () => {
+    const code = '<Link href="#" data-stale-href="/accounts">view all</Link>'
+    const { code: fixed } = await autoFixCode(code, { knownRoutes: ['/dashboard'] })
+    expect(fixed).toBe(code)
+  })
+})
+
+describe('v0.7.15 — HEAVY_SHADOW + shadow autofix', () => {
+  it('HEAVY_SHADOW does NOT fire on fixed-positioned elements (FAB shadow is intentional)', () => {
+    const code = '<div className="fixed bottom-4 right-4 shadow-lg">FAB</div>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'HEAVY_SHADOW')).toBe(false)
+  })
+
+  it('HEAVY_SHADOW still fires on non-positioned elements', () => {
+    const code = '<div className="shadow-lg rounded p-4">card</div>'
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'HEAVY_SHADOW')).toBe(true)
+  })
+
+  it('shadow autofix converts both shadow-lg and hover:shadow-xl (not just the last one)', async () => {
+    const code = '<div className="shadow-lg rounded hover:shadow-xl">card</div>'
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('shadow-sm rounded hover:shadow-sm')
+  })
+
+  it('shadow autofix skips fixed-positioned elements (keeps the affordance)', async () => {
+    const code = '<div className="fixed bottom-4 shadow-lg">FAB</div>'
+    const { code: fixed } = await autoFixCode(code)
+    expect(fixed).toContain('shadow-lg')
+  })
 })

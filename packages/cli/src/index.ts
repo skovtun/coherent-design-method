@@ -101,6 +101,7 @@ program
   .option('--dry-run', 'Show what would be fixed without writing')
   .option('--no-cache', 'Skip cache clearing')
   .option('--no-quality', 'Skip quality auto-fixes')
+  .option('--verbose', 'Show per-file breakdown (legacy report)')
   .action(opts => fixCommand(opts))
 
 program
