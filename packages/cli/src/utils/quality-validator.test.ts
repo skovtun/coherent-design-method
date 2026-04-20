@@ -1731,4 +1731,31 @@ describe('validatePageQuality v0.7.10 — DOUBLE_SIGN tiering', () => {
     expect(ds).toBeDefined()
     expect(ds!.severity).toBe('warning')
   })
+
+  it('demotes DOUBLE_SIGN to info when Math.abs guards the formatter', () => {
+    const code = [
+      'const formatAmount = (amount: number) => {',
+      '  const abs = Math.abs(amount)',
+      "  const sign = amount < 0 ? '-' : '+'",
+      '  return `${sign}$${abs.toFixed(2)}`',
+      '}',
+    ].join('\n')
+    const issues = validatePageQuality(code)
+    const ds = issues.find(i => i.type === 'DOUBLE_SIGN')
+    expect(ds).toBeDefined()
+    expect(ds!.severity).toBe('info')
+  })
+
+  it('keeps DOUBLE_SIGN as error when formatter gets raw signed value (no Math.abs nearby)', () => {
+    const code = [
+      'export default function Page() {',
+      '  const amount = -100',
+      "  return <span>{amount < 0 ? '-' : '+'}{formatCurrency(amount)}</span>",
+      '}',
+    ].join('\n')
+    const issues = validatePageQuality(code)
+    const ds = issues.find(i => i.type === 'DOUBLE_SIGN')
+    expect(ds).toBeDefined()
+    expect(ds!.severity).toBe('error')
+  })
 })

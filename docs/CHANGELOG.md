@@ -2,6 +2,29 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.11] — 2026-04-20
+
+### Hotfix: stale config reference in Step 4d + DOUBLE_SIGN Math.abs context
+
+Smoke-testing 0.7.10 caught one critical bug and one remaining false-positive class:
+
+### Fixed
+
+- **Header regen used stale config after prune.** Step 4d captured `config = dsm.getConfig()` once, then pruned stale `navigation.items` via `dsm.updateConfig({...config, navigation: {...}})`. That creates a new config object, but the local `config` const still pointed at the old one. `new PageGenerator(config)` then emitted Header with the pruned items still present, putting the stale links right back. Fix: re-read `dsm.getConfig()` after the prune.
+
+  Observable before: `✔ Pruned stale nav items from config: /account` then `⚠ Link to "/account" — route does not exist`. Nonsensical. After: stale href actually gone from generated Header.
+
+- **`DOUBLE_SIGN` still fired on Math.abs-guarded formatters.** Pattern like:
+  ```ts
+  const abs = Math.abs(amount)
+  const sign = amount < 0 ? '-' : '+'
+  return `${sign}$${abs.toFixed(2)}`
+  ```
+  was flagged as error even though the sign is driven separately from an unsigned formatter — correct by construction. Fix: if `Math.abs(...)`, `.abs(...)`, or `signDisplay` appears within 5 lines of the ternary, demote from error to info.
+
+### Tests
+1004 passing (+2).
+
 ## [0.7.10] — 2026-04-19
 
 ### Nav cleanup hardening + DOUBLE_SIGN tiering + currency autofix
