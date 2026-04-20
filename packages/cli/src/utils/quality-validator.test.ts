@@ -1704,4 +1704,31 @@ describe('autoFixCode v0.7.9 — overlay, touch target, aria-label, double sign'
     expect(fixed).toContain("amountA > 0 ? '+' : ''")
     expect(fixes).not.toContain('DOUBLE_SIGN → signDisplay or guarded sign')
   })
+
+  it('rewrites $${amount.toFixed(2)} to Intl.NumberFormat USD', async () => {
+    const code = 'return <span>{`$${amount.toFixed(2)}`}</span>'
+    const { code: fixed, fixes } = await autoFixCode(code)
+    expect(fixed).toContain('Intl.NumberFormat')
+    expect(fixed).toContain('style: "currency"')
+    expect(fixed).toContain('currency: "USD"')
+    expect(fixes).toContain('toFixed currency → Intl.NumberFormat')
+  })
+})
+
+describe('validatePageQuality v0.7.10 — DOUBLE_SIGN tiering', () => {
+  it('keeps DOUBLE_SIGN as error when sign ternary checks a numeric value directly', () => {
+    const code = `<span>{amount > 0 ? '+' : '-'}{amount.toFixed(2)}</span>`
+    const issues = validatePageQuality(code)
+    const ds = issues.find(i => i.type === 'DOUBLE_SIGN')
+    expect(ds).toBeDefined()
+    expect(ds!.severity).toBe('error')
+  })
+
+  it('demotes DOUBLE_SIGN to warning for type-string comparison', () => {
+    const code = `<span>{transaction.type === 'credit' ? '+' : '-'}{formatCurrency(amount)}</span>`
+    const issues = validatePageQuality(code)
+    const ds = issues.find(i => i.type === 'DOUBLE_SIGN')
+    expect(ds).toBeDefined()
+    expect(ds!.severity).toBe('warning')
+  })
 })

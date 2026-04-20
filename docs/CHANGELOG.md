@@ -2,6 +2,27 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.10] — 2026-04-19
+
+### Nav cleanup hardening + DOUBLE_SIGN tiering + currency autofix
+
+Three gaps surfaced by smoke-testing 0.7.9 on a real project:
+
+### Fixed
+
+- **Stale `config.navigation.items` survive old delete-page calls.** 0.7.9 introduced nav cleanup on `delete-page`, but users who deleted pages on 0.7.8 or earlier ended up with `config.navigation.items` still holding the dead route. `coherent fix` Step 4d then regenerated Header from a stale config, so the "/account" link came back. Fixed: Step 4d now prunes any `navigation.items` whose route is neither in `config.pages` nor in the auth allowlist (login/signup/reset), persists via `dsm.save()`, **then** regenerates the shared Header. Self-heal, not just surface-patch.
+
+- **"Missing default export" false-positive on regenerated Header.** `verifyIncrementalEdit` was surfacing the default-export check on `components/shared/header.tsx` after our own regen wrote it with a named export (as it should — shared components aren't pages). `coherent fix` now skips that specific check for files under `components/shared/` and `components/ui/`.
+
+- **`DOUBLE_SIGN` was over-firing as error.** The validator regex matched `? '+' : '-'` unconditionally, but many AI-generated patterns look like `{transaction.type === 'credit' ? '+' : '-'}{formatCurrency(amount)}` — where `amount` is unsigned and the sign comes from the type field. That's a style preference (Intl.NumberFormat is still cleaner), not a runtime bug. Split into two tiers: numeric comparison on money-domain identifiers (`amount|value|total|balance|change|delta|…`) stays **error**; type-string comparison demotes to **warning**.
+
+### Added
+
+- **`RAW_NUMBER_FORMAT` autofix.** `$\`${amount.toFixed(2)}\`` and `$${amount.toFixed(2)}` in JSX now rewrite to `new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: N, maximumFractionDigits: N }).format(amount)`. One more error class `coherent fix` handles deterministically.
+
+### Tests
+1002 passing (+3 new: RAW_NUMBER_FORMAT autofix, DOUBLE_SIGN error tier, DOUBLE_SIGN warning tier).
+
 ## [0.7.9] — 2026-04-19
 
 ### Nav cleanup on delete-page + broader auto-fix coverage
