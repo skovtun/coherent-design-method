@@ -329,8 +329,42 @@ export function buildIndex(entries: WikiEntry[]): BuiltIndex {
 }
 
 /**
- * Cosine similarity between query and each entry. Returns top-K entries sorted
- * by descending score. Ties broken by entry id for determinism.
+ * Confidence-based score multiplier. `verified` + `established` entries get
+ * a boost (they're vetted); `hypothesis` entries get a small penalty (they're
+ * unverified guesses that shouldn't outrank real evidence).
+ */
+function confidenceWeight(frontmatter: Record<string, string> | undefined): number {
+  const level = frontmatter?.confidence
+  if (level === 'established') return 1.3
+  if (level === 'verified') return 1.2
+  if (level === 'observed') return 1.0
+  if (level === 'hypothesis') return 0.7
+  return 1.0
+}
+
+/**
+ * Freshness decay — recent entries get a small boost over ancient ones. Half-
+ * life of ~180 days: an entry from today weighs 1.0, from 6 months ago ~0.9,
+ * from 12 months ago ~0.8. Not so aggressive that old foundational entries
+ * (ADRs) get buried.
+ */
+function freshnessWeight(frontmatter: Record<string, string> | undefined): number {
+  const dateStr = frontmatter?.date
+  if (!dateStr) return 1.0
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return 1.0
+  const daysAgo = (Date.now() - date.getTime()) / (1000 * 60 * 60 * 24)
+  if (daysAgo < 0) return 1.0
+  // Gentle linear decay: 0..180 days → 1.0, 180..720 days → 1.0..0.7, floor 0.7.
+  if (daysAgo <= 180) return 1.0
+  const decay = Math.max(0.7, 1.0 - ((daysAgo - 180) / 540) * 0.3)
+  return decay
+}
+
+/**
+ * Cosine similarity between query and each entry, multiplied by confidence
+ * and freshness weights. Returns top-K entries sorted by descending score.
+ * Ties broken by entry id for determinism.
  */
 export function retrieve(index: BuiltIndex, query: string, topK = 5): ScoredEntry[] {
   const queryTokens = tokenize(query)
@@ -355,8 +389,12 @@ export function retrieve(index: BuiltIndex, query: string, topK = 5): ScoredEntr
       const ew = eVec.tokens.get(t)
       if (ew) dot += qw * ew
     }
-    const score = dot / (qMag * eVec.magnitude)
-    if (score > 0) scores.push({ entry: index.entries[i], score })
+    const baseScore = dot / (qMag * eVec.magnitude)
+    if (baseScore <= 0) continue
+    const entry = index.entries[i]
+    const weight = confidenceWeight(entry.frontmatter) * freshnessWeight(entry.frontmatter)
+    const score = baseScore * weight
+    scores.push({ entry, score })
   }
   scores.sort((a, b) => b.score - a.score || a.entry.id.localeCompare(b.entry.id))
   return scores.slice(0, topK)

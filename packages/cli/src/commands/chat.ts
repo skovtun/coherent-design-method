@@ -22,6 +22,7 @@ import {
   type PageDefinition,
 } from '@getcoherent/core'
 import { parseModification } from '../agents/modifier.js'
+import { messageHasDestructiveIntent } from '../agents/destructive-preparser.js'
 import { isAuthRoute } from '../agents/page-templates.js'
 import { ensureAuthRouteGroup } from '../utils/auth-route-group.js'
 import { setDefaultDarkTheme, ensureThemeToggle } from '../utils/dark-mode.js'
@@ -523,11 +524,45 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
 
     let normalizedRequests = requests.map(req => applyDefaults(req))
 
+    // PJ-009 regression guard: if the user's message is destructive but the
+    // AI/normalizer ended up with a non-destructive request, that's almost
+    // certainly a misinterpretation. Refuse rather than silently create a
+    // wrong-intent page.
+    const userIsDestructive = messageHasDestructiveIntent(message!)
+    if (userIsDestructive) {
+      const hasDestructiveRequest = requests.some(r => r.type === 'delete-page' || r.type === 'delete-component')
+      if (!hasDestructiveRequest) {
+        spinner.fail('Your request looks destructive but the parser did not emit a delete-page/delete-component.')
+        console.log(
+          chalk.yellow(
+            `\n💡 Rephrase with a clear pattern: "delete <page-name> page" or "remove <component> component".`,
+          ),
+        )
+        console.log(
+          chalk.dim(`   If you meant to CREATE a page with delete functionality, say "add a delete-account page".\n`),
+        )
+        if (options._throwOnError) throw new Error('Destructive intent not matched by parser')
+        process.exit(1)
+      }
+    }
+
     normalizedRequests = normalizedRequests
       .map(req => {
         const result = normalizeRequest(req, dsm.getConfig())
         if ('error' in result) {
           console.log(chalk.yellow(`  ⚠ Skipped: ${result.error}`))
+          return null
+        }
+        // Refuse silent coercion of add-page → update-page when user asked to
+        // DELETE. This was the trap in PJ-009 after 0.7.6 shipped — AI emitted
+        // add-page, normalizer turned it into update-page on an existing route,
+        // and the user's delete intent was lost.
+        if (userIsDestructive && req.type !== result.type) {
+          console.log(
+            chalk.yellow(
+              `\n⚠ Refusing to coerce ${req.type} → ${result.type} — user requested deletion but parser proposed ${result.type}. Please retry with clearer phrasing.\n`,
+            ),
+          )
           return null
         }
         if (result.type !== req.type) {

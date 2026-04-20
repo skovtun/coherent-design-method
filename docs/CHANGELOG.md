@@ -2,6 +2,32 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.7] — 2026-04-20
+
+### Destructive pre-parser + wiki improvements (PJ-009 regression fix + memory quality bump)
+
+**Root-causes two layers of failure seen in the user's retry after 0.7.6:**
+1. AI misinterpreted "delete account page" as `add-page` (despite RULE 4 in prompt). Even with rule text, Claude at t=0.3 sometimes missed it.
+2. The normalizer silently coerced `add-page` → `update-page` when target route existed, hiding the AI's misinterpretation.
+
+### Added — fix the delete-page regression
+- **`src/agents/destructive-preparser.ts`** — deterministic pattern match for `delete|remove|drop|trash|get rid of X page|component`. Runs BEFORE LLM, emits delete-page/delete-component directly. Bypasses AI ambiguity entirely.
+- **"create a delete-X page" disambiguation** — `add a delete account page` (feature) does NOT match the destructive pattern.
+- **Normalizer destructive-intent guard** — if user's message contains destructive verbs but no delete-* request was emitted, refuse instead of silently creating/updating.
+- **`chat.ts` fail-fast** — destructive user intent without delete-* request → clear error, no silent coercion.
+
+### Added — wiki retrieval quality
+- **Confidence-weighted ranking.** `verified` entries +20%, `established` +30%, `hypothesis` -30%. Old entries with no confidence default to 1.0x. Finally uses the YAML confidence tags shipped in 0.7.3.
+- **Freshness decay.** Entries with `date:` frontmatter get a gentle linear decay: 0-180 days = 1.0x, 180-720 days = 1.0x → 0.7x. Foundational ADRs not buried.
+- **`coherent wiki bench`** — deterministic retrieval benchmark against `docs/wiki/BENCH.yaml` (10 hand-curated query/expected pairs). Reports precision@1 and @3. Exits non-zero if p@1 < 0.8. Current: **100% @1 and @3**.
+- **`docs/wiki/BENCH.yaml`** — benchmark test cases covering all 9 PJ entries + the 0001 ADR.
+
+### Tests
+978 passing (+14 for destructive pre-parser). 66 test files.
+
+### Memory quality score
+5.0/10 → **~5.8/10**. Confidence tags now affect ranking, freshness shapes retrieval, bench catches regressions, destructive intent is deterministic. Next: prompt-injection safety (0), semantic embeddings (0.7.8).
+
 ## [0.7.6] — 2026-04-20
 
 ### Hotfix for 0.7.5 — request-parser VALID_TYPES missed delete-page/delete-component
