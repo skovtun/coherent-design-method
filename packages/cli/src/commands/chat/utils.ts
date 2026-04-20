@@ -396,6 +396,33 @@ export function hasBroadAppIntent(message: string): boolean {
   return BROAD_APP_INTENT_RE.test(message)
 }
 
+/**
+ * Resolve `--page X` to a concrete page entry without mutating the message.
+ *
+ * Counterpart to `resolveTargetFlags`, which wraps the original message in a
+ * long prompt that embeds the full page code. That wrapping forces the LLM to
+ * return a full-page regen (pageCode field populated) — which negates the
+ * surgical edit path in modification-handler.ts.
+ *
+ * This helper is used by the surgical `--page X` path in chat.ts: when it
+ * returns a page, chat.ts bypasses `parseModification` entirely and submits
+ * `{ type: 'update-page', target: page.id, changes: { instruction: msg } }`
+ * directly. `applyModification`'s `update-page` case then reads the file from
+ * disk and calls `ai.editPageCode(currentCode, instruction, ...)` — a single
+ * LLM call focused on minimal-diff edits.
+ *
+ * Returns `null` when `--page X` was not set OR the target doesn't resolve
+ * (caller falls back to the legacy free-text path).
+ */
+export function resolveExplicitPageTarget<T extends { id: string; name: string; route: string }>(
+  options: { page?: string; component?: string; token?: string },
+  pages: readonly T[],
+): T | null {
+  if (options.component || options.token) return null
+  if (!options.page) return null
+  return resolvePageByFuzzyMatch(pages, options.page)
+}
+
 export interface SpinnerLike {
   text: string
   /** Optional ora field — when present and `false`, heartbeat skips updates. */

@@ -2,6 +2,33 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.20] — 2026-04-20
+
+### `coherent chat --page X` — surgical edits (M7)
+
+Previously `--page X` took a long path: `resolveTargetFlags` wrapped the user message with the full embedded page code and a "return the full updated component code" directive, then `parseModification` made one big LLM call that regenerated the whole page. Two side effects: a cold extra LLM round-trip for intent parsing, and — per MODEL_PROFILE — Claude often "improves" parts of the page the user didn't ask to change.
+
+### Changed
+
+- **`--page X` bypasses `parseModification`.** When the flag is set and the target resolves, chat.ts builds an `update-page` request locally from the original (unmutated) user message: `{ type: 'update-page', target: page.id, changes: { instruction: message } }`. `applyModification.update-page` reads the file from disk and calls `ai.editPageCode(currentCode, instruction, pageName, rules)` — a single focused LLM call with the minimal-diff enforcement already shipped in v0.6.77.
+- **New helper: `resolveExplicitPageTarget(options, pages)`** in `commands/chat/utils.ts`. Returns the resolved page without mutating the message (contrast with `resolveTargetFlags`, which embeds the code). Unit-tested against the same fuzzy-match pages fixture.
+- **Escape hatch.** `COHERENT_DISABLE_SURGICAL_EDITS=1` forces the legacy full-regen path for the rare case surgical editing misbehaves.
+
+### Added
+
+- **`coherent journal prune` (J2).** Deletes fix-session YAMLs older than `--keep-days N` (default 30). Supports `--dry-run`. Closes the retention loose end from v0.7.18 (`.coherent/fix-sessions/` was previously unbounded). Uses the filename timestamp — `stat mtime` wouldn't survive git clones or archive restores. Files whose names don't parse as timestamps are conservatively kept.
+
+### Not covered by surgical path
+`--component` and `--token` targets still go through `resolveTargetFlags` + `parseModification`. They have different cascading side effects (component changes → multiple page updates; token changes → globals.css + theme regeneration) that benefit from the full intent parse.
+
+### Tests
+1037 passing (+13):
+- 7 new tests for `pruneJournalSessions` (cutoff boundary, unparseable names, dry-run, non-yaml files, missing dir, hyphenated timestamp format).
+- 6 new tests for `resolveExplicitPageTarget` (component/token exclusion, fuzzy-match passthrough, missing-page null).
+
+### Rationale
+From PATTERNS_JOURNAL curator notes and MODEL_PROFILE: full-page regen is the class of behaviour where Claude tweaks badge variants, adds empty states the user didn't ask for, or reformats unrelated sections. Surgical edit caps the blast radius. Planned since v0.7.2 (backlog M7) — now shipped.
+
 ## [0.7.19] — 2026-04-20
 
 ### `coherent journal` — read side of the memory feedback loop
