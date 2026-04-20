@@ -102,6 +102,7 @@ program
   .option('--no-cache', 'Skip cache clearing')
   .option('--no-quality', 'Skip quality auto-fixes')
   .option('--verbose', 'Show per-file breakdown (legacy report)')
+  .option('--journal', 'Write session summary to .coherent/fix-sessions/ for later review')
   .action(opts => fixCommand(opts))
 
 program
