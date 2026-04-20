@@ -2,6 +2,34 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.21] — 2026-04-20
+
+### `coherent check` — first cross-page validator (INCONSISTENT_CARD)
+
+`coherent check` used to evaluate every page in isolation. A page could pass every rule individually while the **set of pages** still looked inconsistent — Reports had plain stat cards, Investments had tinted-square + Badge stat cards, everything passed, and the inconsistency only surfaced at smoke-test time. PJ-007 captured this exact failure.
+
+v0.7.21 adds a cross-page consistency pass.
+
+### Added
+
+- **New validator: `INCONSISTENT_CARD`** (severity: warning). Scans all `app/**/page.tsx` files, extracts a structural signature for every stat card found (`<Card>` with icon + numeric-emphasized value), clusters by signature, and warns on any minority cluster. Signature dimensions:
+  - `icon_wrapper` — `plain` (icon direct in CardHeader) vs `tinted-square` (icon inside `rounded + bg-tint/N + padding` wrapper).
+  - `trend` — `none` / `inline-text` / `badge` / `arrow-icon`.
+  - `value_size` — `text-2xl` / `text-3xl` / `other`.
+- **New section in `coherent check` output: "Cross-Page Consistency".** Shows one issue per minority cluster with file names and both signatures. Only runs on multi-page scans (skipped when `--page X` is used).
+
+### Rationale
+
+- Minority-reports model: if 3 pages use signature A and 1 page uses signature B, B is the outlier. Tied clusters don't emit issues — the validator only picks a side when the majority is clear.
+- Regex-based, not AST-based. Keeps zero new deps, runs in ms. AST would catch more edge cases but is overkill for the 95% of AI-generated cards that follow predictable shadcn patterns.
+- Sample-size guard: needs ≥3 stat cards total across all pages before it flags anything. Two cards is noise.
+
+### New module
+`packages/cli/src/utils/cross-page-validator.ts` + 10 tests. Exports `validateCrossPage(pages)` and `extractStatCardSignature(cardBlock)` for reuse by future cross-page checks (INCONSISTENT_FILTER_BAR, INCONSISTENT_EMPTY_STATE — v0.8.x candidates).
+
+### Tests
+1047 passing (+10).
+
 ## [0.7.20] — 2026-04-20
 
 ### `coherent chat --page X` — surgical edits (M7)

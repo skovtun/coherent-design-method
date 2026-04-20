@@ -16,6 +16,7 @@ import chalk from 'chalk'
 import { resolve } from 'path'
 import { readdirSync, readFileSync, statSync, existsSync } from 'fs'
 import { validatePageQuality, formatIssues } from '../utils/quality-validator.js'
+import { validateCrossPage, type PageFile } from '../utils/cross-page-validator.js'
 import { findConfig, exitNotCoherent } from '../utils/find-config.js'
 import { loadManifest } from '@getcoherent/core'
 import { resolvePageByFuzzyMatch } from './chat/utils.js'
@@ -69,6 +70,9 @@ interface CheckResult {
     total: number
     broken: Array<{ file: string; line: number; href: string }>
   }
+  crossPage: {
+    issues: Array<{ type: string; severity: string; message: string }>
+  }
   autoFixable: number
 }
 
@@ -107,6 +111,7 @@ export async function checkCommand(opts: CheckOptions = {}) {
     pages: { total: 0, clean: 0, withErrors: 0, withWarnings: 0, files: [] },
     shared: { total: 0, consistent: 0, unused: 0, withInlineDuplicates: 0, entries: [] },
     links: { total: 0, broken: [] },
+    crossPage: { issues: [] },
     autoFixable: 0,
   }
 
@@ -258,6 +263,29 @@ export async function checkCommand(opts: CheckOptions = {}) {
       }
     } else if (!opts.json && result.links.total > 0) {
       console.log(chalk.green(`\n  🔗 Internal Links`) + chalk.dim(` — all ${result.links.total} links resolve ✓`))
+    }
+
+    // Cross-page consistency — only run on multi-page scans (not --page X).
+    if (!opts.page && files.length >= 2) {
+      const pageFiles: PageFile[] = files.map(f => ({
+        path: f.replace(projectRoot + '/', ''),
+        code: fileContents.get(f)!,
+      }))
+      const crossIssues = validateCrossPage(pageFiles)
+      result.crossPage.issues = crossIssues.map(i => ({
+        type: i.type,
+        severity: i.severity,
+        message: i.message,
+      }))
+      if (!opts.json && crossIssues.length > 0) {
+        console.log(chalk.yellow(`\n  🔀 Cross-Page Consistency`) + chalk.dim(` (${crossIssues.length} issue(s))\n`))
+        for (const issue of crossIssues) {
+          console.log(chalk.yellow(`  ⚠ ${issue.type}`))
+          console.log(chalk.dim(`    ${issue.message}`))
+        }
+      } else if (!opts.json && pageFiles.length >= 3) {
+        console.log(chalk.green(`\n  🔀 Cross-Page Consistency`) + chalk.dim(` — no drift detected ✓`))
+      }
     }
 
     // Shared manifest file check
