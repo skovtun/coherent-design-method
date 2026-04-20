@@ -43,6 +43,14 @@ import { checkForUpdates } from './utils/update-notifier.js'
 
 const program = new Command()
 
+// `_hidden` is an undocumented Commander flag that keeps a command working
+// (`coherent <cmd>` still runs) but removes it from `coherent --help`.
+// Use for deprecated aliases, contributor-only workflows, and niche tools.
+function hidden(cmd: Command): Command {
+  ;(cmd as any)._hidden = true
+  return cmd
+}
+
 program
   .name('coherent')
   .description(
@@ -142,6 +150,31 @@ const componentsCmd = createComponentsCommand()
 componentsCmd.description('Manage shared components')
 program.addCommand(componentsCmd)
 
+const dsCmd = new Command('ds').description('Design System viewer pages')
+dsCmd
+  .command('regenerate')
+  .description('Regenerate all Design System pages from current config')
+  .action(dsRegenerateCommand)
+program.addCommand(dsCmd)
+
+program.command('status').description('Show current project status').action(statusCommand)
+
+program
+  .command('report-issue')
+  .description('Open a pre-filled GitHub issue with project context (CLI/project versions, page path, pages list)')
+  .option('--page <path>', 'Page route where the issue occurs (e.g. /dashboard)')
+  .option('--screenshot <path>', 'Screenshot file to reference (user uploads manually after browser opens)')
+  .option('--title <text>', 'Issue title (overrides auto-generated title)')
+  .option('--body <text>', 'Additional body text prepended to the pre-filled template')
+  .option('--no-open', 'Print URL only, do not open the browser')
+  .action(reportIssueCommand)
+
+// ─── Hidden: niche/experimental/contributor-only ────────────────────
+// Still runnable via `coherent <cmd>`, just removed from `coherent --help`
+// so the main CLI surface stays focused on the 15 user-facing commands.
+
+// Figma import — experimental; stays invokable for the curious, but not
+// surfaced in help until the feature stabilizes.
 const importCmd = new Command('import').description('Import design from Figma or other sources')
 const importSpec = createImportCommand()
 importSpec.subcommands.forEach(sub => {
@@ -156,41 +189,36 @@ importSpec.subcommands.forEach(sub => {
     )
   }
 })
+hidden(importCmd)
 program.addCommand(importCmd)
 
-const dsCmd = new Command('ds').description('Design System viewer pages')
-dsCmd
-  .command('regenerate')
-  .description('Regenerate all Design System pages from current config')
-  .action(dsRegenerateCommand)
-program.addCommand(dsCmd)
+// Narrower subset of `ds regenerate`. Kept as hidden alias for muscle memory
+// from pre-0.7 projects; new users learn `ds regenerate` only.
+hidden(
+  program
+    .command('regenerate-docs')
+    .description('Use: coherent ds regenerate (hidden alias — regenerates only the docs subfolder)')
+    .action(regenerateDocsCommand),
+)
 
-program.command('status').description('Show current project status').action(statusCommand)
+// Structural regression snapshot tool — used by contributors developing the
+// platform itself, not by users building apps on top of it.
+hidden(
+  program
+    .command('baseline')
+    .description(
+      'Structural regression check — fingerprints pages (imports, LOC, validator issues), compares against saved baseline',
+    )
+    .option('--save', 'Save a new baseline snapshot without comparing')
+    .option('--compare', 'Compare against the latest baseline without saving a new one')
+    .action(baselineCommand),
+)
 
-program.command('regenerate-docs').description('Regenerate documentation pages').action(regenerateDocsCommand)
-
-program
-  .command('report-issue')
-  .description('Open a pre-filled GitHub issue with project context (CLI/project versions, page path, pages list)')
-  .option('--page <path>', 'Page route where the issue occurs (e.g. /dashboard)')
-  .option('--screenshot <path>', 'Screenshot file to reference (user uploads manually after browser opens)')
-  .option('--title <text>', 'Issue title (overrides auto-generated title)')
-  .option('--body <text>', 'Additional body text prepended to the pre-filled template')
-  .option('--no-open', 'Print URL only, do not open the browser')
-  .action(reportIssueCommand)
-
-program
-  .command('baseline')
-  .description(
-    'Structural regression check — fingerprints pages (imports, LOC, validator issues), compares against saved baseline',
-  )
-  .option('--save', 'Save a new baseline snapshot without comparing')
-  .option('--compare', 'Compare against the latest baseline without saving a new one')
-  .action(baselineCommand)
-
-// ─── Wiki maintenance (runs in Coherent source repo only) ───────────
+// Wiki maintenance — only meaningful when running inside the Coherent source
+// repo (operates on docs/wiki/* and docs/PATTERNS_JOURNAL.md). Hidden for
+// generated projects.
 const wikiCmd = new Command('wiki').description(
-  'Platform-level LLM wiki maintenance (for Coherent source repo contributors — NOT for generated projects)',
+  'Platform-level LLM wiki maintenance (Coherent source repo only — NOT for generated projects)',
 )
 wikiCmd
   .command('reflect')
@@ -213,14 +241,10 @@ wikiCmd
   .command('bench')
   .description('Run retrieval quality benchmark (precision@1 and @3) against docs/wiki/BENCH.yaml')
   .action(wikiBenchCommand)
+hidden(wikiCmd)
 program.addCommand(wikiCmd)
 
-// ─── Deprecated aliases (hidden from help, still work) ──────────────
-
-function hidden(cmd: Command): Command {
-  ;(cmd as any)._hidden = true
-  return cmd
-}
+// ─── Hidden: deprecated aliases (still work, not in help) ───────────
 
 hidden(program.command('repair').description('Use: coherent fix').action(repairCommand))
 hidden(program.command('doctor').description('Use: coherent fix').action(doctorCommand))

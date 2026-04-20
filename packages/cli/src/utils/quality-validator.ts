@@ -601,15 +601,26 @@ export function validatePageQuality(
 
   // Overlay patterns — Dialog full-width, custom overlay divs, AlertDialog misuse.
   issues.push(...detectOverlayIssues(code))
-  issues.push(
-    ...checkLines(
-      code,
-      SM_BREAKPOINT_RE,
-      'SM_BREAKPOINT',
-      'sm: breakpoint — consider if md:/lg: is sufficient',
-      'info',
-    ),
+  // SM_BREAKPOINT fires often on landing pages (one sm: per section) and
+  //   drowns out real issues in the fix report. Roll up to a single summary
+  //   info per file: "N sm: breakpoints — consider md:/lg:".
+  const smMatches = checkLines(
+    code,
+    SM_BREAKPOINT_RE,
+    'SM_BREAKPOINT',
+    'sm: breakpoint — consider if md:/lg: is sufficient',
+    'info',
   )
+  if (smMatches.length > 0) {
+    const firstLine = smMatches[0].line
+    const countSuffix = smMatches.length > 1 ? ` (${smMatches.length} occurrences)` : ''
+    issues.push({
+      line: firstLine,
+      type: 'SM_BREAKPOINT',
+      message: `sm: breakpoint — consider if md:/lg: is sufficient${countSuffix}`,
+      severity: 'info',
+    })
+  }
   issues.push(
     ...checkLines(
       code,
@@ -2268,6 +2279,38 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
     return `{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: ${digits}, maximumFractionDigits: ${digits} }).format(${valueVar})}`
   })
   if (hadCurrencyFix) fixes.push('toFixed currency → Intl.NumberFormat')
+
+  // 11. RAW_IMG_TAG — `<img src="..." ...>` → `<Image src="..." ...>` from
+  //     next/image. Only rewrite when width AND height are explicit (Next
+  //     requires them; otherwise the <Image> fires a second validator).
+  //     Adds the import if missing.
+  let hadImgFix = false
+  fixed = fixed.replace(/<img\b([^>]*)\/?>/g, (full, attrs: string) => {
+    const hasWidth = /\bwidth\s*=/.test(attrs)
+    const hasHeight = /\bheight\s*=/.test(attrs)
+    if (!hasWidth || !hasHeight) return full
+    const hasSrc = /\bsrc\s*=/.test(attrs)
+    if (!hasSrc) return full
+    hadImgFix = true
+    const normalized = attrs.trimEnd()
+    return `<Image${normalized} />`
+  })
+  if (hadImgFix) {
+    const hasImport = /from\s+['"]next\/image['"]/.test(fixed)
+    if (!hasImport) {
+      const importLine = "import Image from 'next/image'"
+      const lastImportIdx = fixed.lastIndexOf('\nimport ')
+      if (lastImportIdx !== -1) {
+        const lineEnd = fixed.indexOf('\n', lastImportIdx + 1)
+        fixed = fixed.slice(0, lineEnd + 1) + importLine + '\n' + fixed.slice(lineEnd + 1)
+      } else {
+        const hasUseClient = /^['"]use client['"]/.test(fixed.trim())
+        const insertAfter = hasUseClient ? fixed.indexOf('\n') + 1 : 0
+        fixed = fixed.slice(0, insertAfter) + importLine + '\n' + fixed.slice(insertAfter)
+      }
+    }
+    fixes.push('<img> → <Image> (with import)')
+  }
 
   return { code: fixed, fixes }
 }

@@ -2,6 +2,29 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.13] — 2026-04-20
+
+### CLI help cleanup + RAW_IMG_TAG autofix + SM_BREAKPOINT noise roll-up
+
+### Changed
+
+- **`coherent --help` surface reduced from 22 to 15 commands.** Contributor-only and niche commands are now hidden but still invokable:
+  - `wiki` — "Coherent source repo only — NOT for generated projects" (its own description said so, we finally acted on it).
+  - `regenerate-docs` — narrower subset of `ds regenerate`; kept as hidden alias with deprecation note.
+  - `baseline` — structural regression snapshot tool for platform contributors.
+  - `import` — experimental Figma importer; hidden until feature stabilizes.
+
+  Visible surface now: `init`, `chat`, `preview`, `check`, `fix`, `export`, `sync`, `rules`, `update`, `undo`, `migrate`, `components`, `ds`, `status`, `report-issue`.
+
+- **`SM_BREAKPOINT` rolls up to a single summary.** Previously every `sm:` utility produced its own info-level entry, drowning real issues under `L19, L27, L37, L101…`. Now reported once per file as `sm: breakpoint — consider if md:/lg: is sufficient (N occurrences)`. On a typical landing page this collapses 9 lines of output into 1.
+
+### Added
+
+- **`RAW_IMG_TAG` autofix.** `<img src="..." width="..." height="..." />` → `<Image src="..." width="..." height="..." />` from `next/image`, adding the import if missing. Only fires when width AND height are explicit — without them Next throws at render time, so the validator would just fire again.
+
+### Tests
+1010 passing (+5 cases: SM roll-up × 2, RAW_IMG_TAG × 3).
+
 ## [0.7.12] — 2026-04-20
 
 ### DSButton client component: hides on /design-system + much more expressive
