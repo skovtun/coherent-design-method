@@ -7,6 +7,7 @@ import type { AIProviderInterface } from '../../utils/ai-provider.js'
 import { inferPageTypeFromRoute, getDesignQualityForType, CORE_CONSTRAINTS } from '../../agents/design-constraints.js'
 import { findMissingPackagesInCode, installPackages } from '../../utils/self-heal.js'
 import { autoFixCode } from '../../utils/quality-validator.js'
+import { getDeterministicComponentCode } from '../../agents/deterministic-templates.js'
 
 const LAYOUT_SYNONYMS: Record<string, string> = {
   horizontal: 'header',
@@ -656,7 +657,21 @@ export async function generateSharedComponentsFromPlan(
 ): Promise<GeneratedComponent[]> {
   if (plan.sharedComponents.length === 0) return []
 
-  const componentSpecs = plan.sharedComponents
+  // Deterministic-first: for vetted component shapes (e.g., StatsChart) emit
+  // the template directly and drop them from the LLM request. Removes AI
+  // variance at the source for known classes of regression (CHART_PLACEHOLDER).
+  const results: GeneratedComponent[] = []
+  const aiNeeded: typeof plan.sharedComponents = []
+  for (const comp of plan.sharedComponents) {
+    const templated = getDeterministicComponentCode(comp)
+    if (templated) {
+      results.push({ name: comp.name, code: templated, file: `components/shared/${toKebabCase(comp.name)}.tsx` })
+    } else {
+      aiNeeded.push(comp)
+    }
+  }
+
+  const componentSpecs = aiNeeded
     .map(
       c =>
         `- ${c.name}: ${c.description}. Props: ${c.props}. Type: ${c.type}. shadcn deps: ${c.shadcnDeps.join(', ') || 'none'}`,
@@ -684,40 +699,40 @@ Requirements:
 
 Return JSON with { requests: [{ type: "add-page", changes: { name: "ComponentName", pageCode: "..." } }, ...] }`
 
-  const results: GeneratedComponent[] = []
+  if (aiNeeded.length > 0) {
+    try {
+      const raw = await aiProvider.parseModification(prompt)
+      const requests = Array.isArray(raw) ? raw : (raw?.requests ?? [])
 
-  try {
-    const raw = await aiProvider.parseModification(prompt)
-    const requests = Array.isArray(raw) ? raw : (raw?.requests ?? [])
-
-    for (const comp of plan.sharedComponents) {
-      const match = (requests as Array<{ type: string; changes: Record<string, unknown> }>).find(
-        r => r.type === 'add-page' && (r.changes as Record<string, string>)?.name === comp.name,
-      )
-      const code = (match?.changes as Record<string, string>)?.pageCode
-      if (code && (code.includes('export function') || code.includes('export default'))) {
-        const fixedCode = code.replace(/export default function (\w+)/g, 'export function $1')
-        const file = `components/shared/${toKebabCase(comp.name)}.tsx`
-        results.push({ name: comp.name, code: fixedCode, file })
-      }
-    }
-  } catch {
-    for (const comp of plan.sharedComponents) {
-      try {
-        const singlePrompt = `Generate a React component: ${comp.name} — ${comp.description}. Props: ${comp.props}. shadcn deps: ${comp.shadcnDeps.join(', ') || 'none'}. Style: ${styleContext || 'default'}. Return { requests: [{ type: "add-page", changes: { name: "${comp.name}", pageCode: "..." } }] }`
-        const raw = await aiProvider.parseModification(singlePrompt)
-        const requests = Array.isArray(raw) ? raw : (raw?.requests ?? [])
-        const match = (requests as Array<{ type: string; changes: Record<string, string> }>).find(
-          r => r.type === 'add-page' && r.changes?.name === comp.name,
+      for (const comp of aiNeeded) {
+        const match = (requests as Array<{ type: string; changes: Record<string, unknown> }>).find(
+          r => r.type === 'add-page' && (r.changes as Record<string, string>)?.name === comp.name,
         )
-        const code = match?.changes?.pageCode
+        const code = (match?.changes as Record<string, string>)?.pageCode
         if (code && (code.includes('export function') || code.includes('export default'))) {
           const fixedCode = code.replace(/export default function (\w+)/g, 'export function $1')
           const file = `components/shared/${toKebabCase(comp.name)}.tsx`
           results.push({ name: comp.name, code: fixedCode, file })
         }
-      } catch {
-        // skip this component
+      }
+    } catch {
+      for (const comp of aiNeeded) {
+        try {
+          const singlePrompt = `Generate a React component: ${comp.name} — ${comp.description}. Props: ${comp.props}. shadcn deps: ${comp.shadcnDeps.join(', ') || 'none'}. Style: ${styleContext || 'default'}. Return { requests: [{ type: "add-page", changes: { name: "${comp.name}", pageCode: "..." } }] }`
+          const raw = await aiProvider.parseModification(singlePrompt)
+          const requests = Array.isArray(raw) ? raw : (raw?.requests ?? [])
+          const match = (requests as Array<{ type: string; changes: Record<string, string> }>).find(
+            r => r.type === 'add-page' && r.changes?.name === comp.name,
+          )
+          const code = match?.changes?.pageCode
+          if (code && (code.includes('export function') || code.includes('export default'))) {
+            const fixedCode = code.replace(/export default function (\w+)/g, 'export function $1')
+            const file = `components/shared/${toKebabCase(comp.name)}.tsx`
+            results.push({ name: comp.name, code: fixedCode, file })
+          }
+        } catch {
+          // skip this component
+        }
       }
     }
   }

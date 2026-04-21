@@ -2,6 +2,37 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.23] — 2026-04-21
+
+### F9 — Deterministic StatsChart template (closes PJ-002 at the source)
+
+PJ-002 ("Chart visualization would go here") has been mitigated across eight releases but never **prevented** — `CHART_PLACEHOLDER` still fires when the LLM cops out with a stub instead of real recharts. v0.7.17 added a cosmetic skeleton autofix; F9 closes the root cause.
+
+### Added
+
+- **`packages/cli/src/agents/deterministic-templates.ts`.** For vetted component shapes (today: `StatsChart` + chart/graph-named data-display components), emit a vetted TSX body directly and skip the LLM round-trip. Zero AI variance at the source.
+- **Partitioned Phase 4.5.** `generateSharedComponentsFromPlan` splits `plan.sharedComponents` into deterministic vs AI-needed. Deterministic components get emitted verbatim; the LLM prompt lists only the remainder. When every component is deterministic, the AI call is skipped entirely.
+
+### Behavior
+
+- `StatsChart` (exact name) always uses the deterministic template.
+- `RevenueChart`, `AnalyticsGraph`, and similar `[Name]Chart` / `[Name]Graph` names use the template **only when** `type: data-display`. Plan authors who want a bespoke chart keep control by declaring a different type or name.
+- The template passes `validatePageQuality` clean — no CHART_PLACEHOLDER, no raw Tailwind colors, semantic `var(--chart-N)` tokens only.
+
+### Tests
+
+- `packages/cli/src/agents/deterministic-templates.test.ts` — 8 tests (exact name match, fallthrough for unrelated names, chart-suffix + data-display matching, rename, quality-validator pass, semantic-token-only, empty-state presence).
+- `packages/cli/src/commands/chat/plan-generator.test.ts` — 2 new tests for `generateSharedComponentsFromPlan` (StatsChart-only plan skips the AI call; mixed plan partitions correctly and the prompt lists only AI-needed components).
+- Full suite: 1078 passing (was 1068).
+
+### Architecture
+
+See **[ADR-0004](./wiki/ADR/0004-deterministic-templates-before-llm.md)** for why prompt engineering hit diminishing returns on this class and what the contract is for future deterministic templates.
+
+### Migration
+
+No migration required. Plans unchanged. Generated projects unchanged except that StatsChart shared components are now produced from the template.
+
 ## [0.7.22] — 2026-04-20
 
 ### `coherent wiki audit` — extended checks (PR 2 from v0.7.x wiki refactor)

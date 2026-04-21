@@ -83,6 +83,8 @@ fixed_in: [0.6.99]
 
 **v0.7.17 addendum:** `CHART_PLACEHOLDER` autofix ships — replaces placeholder div with animated bar skeleton (7 bars, `bg-primary/30`, `transition-colors`, `aria-hidden`). Cosmetic fallback when prevention layer fails. Root prevention still pending **F9** (deterministic StatsChart template before LLM fallback).
 
+**v0.7.23 addendum (F9 shipped):** `generateSharedComponentsFromPlan` now partitions `plan.sharedComponents`: vetted shapes (today: `StatsChart` + chart/graph names with `type: data-display`) get emitted from `deterministic-templates.ts` without an AI round-trip. The LLM prompt only lists the remaining components. Zero AI variance at the source for this class. See ADR-0004.
+
 ---
 id: PJ-003
 type: bug

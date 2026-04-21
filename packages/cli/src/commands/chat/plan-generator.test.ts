@@ -526,6 +526,75 @@ describe('generateSharedComponentsFromPlan', { timeout: 15000 }, () => {
     expect(results).toHaveLength(0)
   })
 
+  it('emits StatsChart deterministically without calling the AI', async () => {
+    const mockProvider = {
+      parseModification: vi.fn().mockResolvedValue({ requests: [] }),
+    }
+    const plan = ArchitecturePlanSchema.parse({
+      groups: [],
+      sharedComponents: [
+        {
+          name: 'StatsChart',
+          description: 'Chart wrapper',
+          props: '{}',
+          usedBy: ['/dashboard'],
+          type: 'data-display',
+          shadcnDeps: ['chart', 'card'],
+        },
+      ],
+      pageNotes: {},
+    })
+    const results = await generateSharedComponentsFromPlan(plan, '', projectRoot, mockProvider as any)
+    expect(mockProvider.parseModification).not.toHaveBeenCalled()
+    expect(results).toHaveLength(1)
+    expect(results[0].name).toBe('StatsChart')
+    expect(results[0].code).toContain('export function StatsChart')
+    expect(results[0].code).toContain('recharts')
+  })
+
+  it('partitions deterministic and AI-needed components in one batch', async () => {
+    const mockProvider = {
+      parseModification: vi.fn().mockResolvedValue({
+        requests: [
+          {
+            type: 'add-page',
+            changes: {
+              name: 'PricingCard',
+              pageCode: 'export function PricingCard() { return <div/> }',
+            },
+          },
+        ],
+      }),
+    }
+    const plan = ArchitecturePlanSchema.parse({
+      groups: [],
+      sharedComponents: [
+        {
+          name: 'StatsChart',
+          description: 'Chart wrapper',
+          props: '{}',
+          usedBy: ['/dashboard'],
+          type: 'data-display',
+          shadcnDeps: ['chart'],
+        },
+        {
+          name: 'PricingCard',
+          description: 'pricing card',
+          props: '{}',
+          usedBy: ['/pricing'],
+          type: 'widget',
+        },
+      ],
+      pageNotes: {},
+    })
+    const results = await generateSharedComponentsFromPlan(plan, '', projectRoot, mockProvider as any)
+    expect(mockProvider.parseModification).toHaveBeenCalledTimes(1)
+    const promptArg = mockProvider.parseModification.mock.calls[0][0] as string
+    expect(promptArg).toContain('PricingCard')
+    expect(promptArg).not.toContain('- StatsChart:')
+    expect(results.map(r => r.name).sort()).toEqual(['PricingCard', 'StatsChart'])
+  })
+
   it('converts export default to named export in fallback path', async () => {
     let callCount = 0
     const mockProvider = {

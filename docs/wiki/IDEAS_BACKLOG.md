@@ -91,6 +91,13 @@ Prefix clusters: `F` features · `M` meta-architecture · `N` nice-to-haves · `
 - Flags 3+ session occurrences as PATTERNS_JOURNAL candidates
 - See ADR-0002
 
+#### v0.7.23 — F9 deterministic StatsChart template
+
+- `deterministic-templates.ts`: emit vetted TSX for `StatsChart` (+ chart/graph-named data-display components) before the LLM round-trip.
+- `generateSharedComponentsFromPlan` partitions plan.sharedComponents — deterministic shapes get emitted verbatim, LLM prompt only lists the rest.
+- Passes `validatePageQuality` — no CHART_PLACEHOLDER, no raw colors, semantic chart tokens only.
+- See ADR-0004. Closes PJ-002 root-cause thread (was "mitigated", now "prevented").
+
 ---
 
 ## Open ideas
@@ -121,7 +128,8 @@ In the `--page X` path, use `ai.editPageCode()` instead of full `parseModificati
 ---
 id: F9
 type: idea
-status: open
+status: resolved
+shipped_in: [0.7.23]
 target: v0.7.20
 effort: 1-2h
 date: 2026-04-19
@@ -130,9 +138,7 @@ confidence: verified
 
 ### F9 — Deterministic StatsChart template
 
-When `plan.sharedComponents` asks for StatsChart, generate from `templates/patterns/chart-card.tsx` deterministically BEFORE LLM fallback.
-
-**Why:** CHART_PLACEHOLDER still fires in practice. v0.7.17 autofix is cosmetic (animated bar skeleton) — fallback, not prevention. A deterministic template for a known component = zero AI variance at the source.
+When `plan.sharedComponents` asks for StatsChart, generate from `templates/patterns/chart-card.tsx` deterministically BEFORE LLM fallback. Shipped v0.7.23 via `deterministic-templates.ts`. See ADR-0004.
 
 **Target:** v0.7.20.
 
