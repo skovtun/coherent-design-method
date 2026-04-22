@@ -895,35 +895,37 @@ export function Header() {
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
+/**
+ * Design System FAB — contextual bidirectional navigator.
+ * On /*             → "Design System →" (opens DS)
+ * On /design-system → "← Back to App"   (returns to host app)
+ *
+ * Console skin: glass background, border-first, mono label, no decorative icons.
+ * Uses shadcn tokens so it adapts to any atmosphere's accent color automatically.
+ */
 export function DSButton() {
   const pathname = usePathname()
-  if (pathname?.startsWith('/design-system')) return null
+  const onDS = pathname?.startsWith('/design-system')
+  const href = onDS ? '/' : '/design-system'
+  const label = onDS ? 'Back to App' : 'Design System'
+
   return (
     <Link
-      href="/design-system"
-      className="fixed bottom-4 right-4 z-50 group inline-flex items-center gap-2 rounded-full bg-foreground text-background px-4 py-2.5 text-sm font-medium shadow-lg shadow-foreground/25 ring-1 ring-foreground/10 hover:shadow-xl hover:shadow-foreground/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
-      title="Open Design System"
-      aria-label="Open Design System"
+      href={href}
+      aria-label={label}
+      className="group fixed bottom-4 right-4 z-50 inline-flex items-center gap-2 rounded-full border border-border bg-background/90 px-3.5 py-2 font-mono text-[12px] text-foreground shadow-[0_18px_40px_-20px_rgba(0,0,0,0.5)] outline-none backdrop-blur transition-colors hover:border-primary/50 hover:text-primary"
     >
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="transition-transform duration-300 group-hover:rotate-12"
-        aria-hidden="true"
-      >
-        <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
-        <path d="M20 3v4" />
-        <path d="M22 5h-4" />
-        <path d="M4 17v2" />
-        <path d="M5 18H3" />
-      </svg>
-      Design System
+      {onDS && (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="transition-transform duration-150 group-hover:-translate-x-0.5">
+          <path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>
+        </svg>
+      )}
+      {label}
+      {!onDS && (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="transition-transform duration-150 group-hover:translate-x-0.5">
+          <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+        </svg>
+      )}
     </Link>
   )
 }

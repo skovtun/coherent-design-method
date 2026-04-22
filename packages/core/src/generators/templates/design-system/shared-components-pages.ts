@@ -1,5 +1,5 @@
 /**
- * Design System: Shared Components section (Epic 2).
+ * Design System: Shared Components section — Console skin.
  */
 
 export const SHARED_COMPONENTS_INDEX_PAGE = `'use client'
@@ -15,6 +15,15 @@ interface SharedEntry {
   description?: string
 }
 
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+      <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
+      {children}
+    </div>
+  )
+}
+
 export default function SharedComponentsPage() {
   const [shared, setShared] = useState<SharedEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -22,9 +31,7 @@ export default function SharedComponentsPage() {
   useEffect(() => {
     fetch('/api/design-system/shared-components')
       .then((res) => res.json())
-      .then((data) => {
-        setShared(data.shared ?? [])
-      })
+      .then((data) => setShared(data.shared ?? []))
       .catch(() => setShared([]))
       .finally(() => setLoading(false))
   }, [])
@@ -37,51 +44,62 @@ export default function SharedComponentsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Shared Components</h1>
-        <p className="text-sm text-muted-foreground">
-          Reusable layout and section components (Header, Footer, etc.) with unique IDs. Edit via <code className="rounded bg-muted px-1 text-xs">coherent chat</code> by ID or name.
+        <h1 className="text-[28px] font-medium leading-tight tracking-[-0.02em] text-foreground">
+          Shared Components
+        </h1>
+        <p className="mt-1 text-[13.5px] text-muted-foreground">
+          Reusable layout and section components with unique IDs · edit via{' '}
+          <code className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">coherent chat</code>{' '}
+          by ID or name.
         </p>
       </div>
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">Loading...</p>
+        <p className="font-mono text-[11.5px] text-muted-foreground/70">loading…</p>
       ) : sorted.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          No shared components yet. Create them with{' '}
-          <code className="rounded bg-muted px-1">coherent components shared add Header --type layout</code> or by saying &quot;add a page with header and footer&quot; in chat.
+        <div className="rounded-md border border-dashed border-border bg-card p-8 text-center font-mono text-[12px] text-muted-foreground/70">
+          no shared components yet · run{' '}
+          <code className="rounded border border-border bg-muted px-1.5 py-0.5 text-foreground">coherent components shared add Header --type layout</code>{' '}
+          or ask chat "add a page with header and footer".
         </div>
       ) : (
-        <div className="rounded-lg border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                <th className="px-4 py-3 text-left font-medium">ID</th>
-                <th className="px-4 py-3 text-left font-medium">Name</th>
-                <th className="px-4 py-3 text-left font-medium">Type</th>
-                <th className="px-4 py-3 text-left font-medium">Used in</th>
-                <th className="px-4 py-3 text-left font-medium">Description</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((entry) => (
-                <tr key={entry.id} className="border-b last:border-0 hover:bg-muted/30">
-                  <td className="px-4 py-3 font-mono text-xs">{entry.id}</td>
-                  <td className="px-4 py-3">
-                    <Link href={\`/design-system/shared/\${encodeURIComponent(entry.id)}\`} className="font-medium hover:underline">
-                      {entry.name}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{entry.type}</td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {entry.usedIn.length === 0 ? '—' : entry.usedIn.length === 1 && entry.usedIn[0] === 'app/layout.tsx' ? 'layout (all pages)' : entry.usedIn.join(', ')}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground max-w-xs truncate">
-                    {entry.description ?? '—'}
-                  </td>
+        <div className="overflow-hidden rounded-md border border-border bg-card">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border bg-muted font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/70">
+                  <th className="px-4 py-2 text-left font-normal">id</th>
+                  <th className="px-4 py-2 text-left font-normal">name</th>
+                  <th className="px-4 py-2 text-left font-normal">type</th>
+                  <th className="px-4 py-2 text-left font-normal">used in</th>
+                  <th className="px-4 py-2 text-left font-normal">description</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {sorted.map((entry) => (
+                  <tr key={entry.id} className="border-b border-border font-mono text-[12px] transition-colors last:border-0 hover:bg-muted">
+                    <td className="px-4 py-2 text-[11px] text-primary">{entry.id}</td>
+                    <td className="px-4 py-2">
+                      <Link href={\`/design-system/shared/\${encodeURIComponent(entry.id)}\`} className="text-foreground hover:text-primary">
+                        {entry.name}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-2 text-muted-foreground">{entry.type}</td>
+                    <td className="px-4 py-2 text-muted-foreground">
+                      {entry.usedIn.length === 0
+                        ? '—'
+                        : entry.usedIn.length === 1 && entry.usedIn[0] === 'app/layout.tsx'
+                          ? 'layout (all pages)'
+                          : entry.usedIn.join(', ')}
+                    </td>
+                    <td className="max-w-xs truncate px-4 py-2 text-muted-foreground">
+                      {entry.description ?? '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
@@ -101,6 +119,15 @@ interface Entry {
   file: string
   usedIn: string[]
   description?: string
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+      <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
+      {children}
+    </div>
+  )
 }
 
 export default function SharedComponentDetailPage() {
@@ -125,38 +152,41 @@ export default function SharedComponentDetailPage() {
       .finally(() => setLoading(false))
   }, [id])
 
-  if (loading) return <p className="text-sm text-muted-foreground">Loading...</p>
-  if (!entry) return <p className="text-sm text-muted-foreground">Component not found.</p>
+  if (loading) return <p className="font-mono text-[11.5px] text-muted-foreground/70">loading…</p>
+  if (!entry) return <p className="font-mono text-[11.5px] text-muted-foreground/70">component not found.</p>
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-          <Link href="/design-system/shared" className="hover:text-foreground">Shared Components</Link>
-          <span>/</span>
-          <span className="text-foreground font-medium">{entry.name}</span>
-        </div>
-        <h1 className="text-2xl font-bold tracking-tight">{entry.name}</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          <span className="font-mono text-xs">{entry.id}</span> · {entry.type} · {entry.file}
+        <h1 className="text-[28px] font-medium leading-tight tracking-[-0.02em] text-foreground">
+          {entry.name}
+        </h1>
+        <p className="mt-1 font-mono text-[11.5px] text-muted-foreground/70">
+          <span className="text-primary">{entry.id}</span> · {entry.type} · {entry.file}
         </p>
-        {entry.description && <p className="text-sm text-muted-foreground mt-2">{entry.description}</p>}
+        {entry.description && (
+          <p className="mt-2 text-[13px] text-muted-foreground">{entry.description}</p>
+        )}
       </div>
 
       {entry.usedIn.length > 0 && (
-        <div className="rounded-lg border p-4">
-          <h2 className="text-sm font-medium mb-2">Used in</h2>
-          <ul className="text-sm text-muted-foreground space-y-1">
+        <div className="overflow-hidden rounded-md border border-border bg-card">
+          <div className="border-b border-border bg-muted px-4 py-3">
+            <SectionLabel>used in</SectionLabel>
+          </div>
+          <ul className="flex flex-col gap-1 p-4 font-mono text-[11.5px] text-muted-foreground">
             {entry.usedIn.map((f) => (
-              <li key={f} className="font-mono text-xs">{f}</li>
+              <li key={f}>{f}</li>
             ))}
           </ul>
         </div>
       )}
 
-      <div className="rounded-lg border">
-        <h2 className="text-sm font-medium px-4 py-2 border-b bg-muted/30">Source</h2>
-        <pre className="p-4 text-xs overflow-auto max-h-[60vh] bg-muted/20">
+      <div className="overflow-hidden rounded-md border border-border bg-card">
+        <div className="border-b border-border bg-muted px-4 py-3">
+          <SectionLabel>source</SectionLabel>
+        </div>
+        <pre className="max-h-[60vh] overflow-auto bg-muted/40 p-4 font-mono text-[11px] leading-[1.6] text-foreground">
           <code>{code || '(no content)'}</code>
         </pre>
       </div>

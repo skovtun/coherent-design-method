@@ -2,6 +2,33 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.25] — 2026-04-22
+
+### Console-skin Design System — portable through shadcn tokens
+
+`coherent init` now generates a Design System page set that reads natively inside any downstream atmosphere. Identity comes from rhythm (mono uppercase section labels, rounded-square accent markers, border-first treatment, `tabular-nums` on every numeric), not from fixed colors. `--primary`, `--card`, `--muted-foreground`, `--border` drive surfaces and accents — the same layout reads as Console (emerald on near-black), Warm (terracotta on cream), or Editorial (ink on parchment) without template forks.
+
+### Changed
+
+- **`DesignSystemGenerator`** — every inline template rewritten to use shadcn tokens directly: `bg-card`, `text-muted-foreground/70`, `text-primary`, `font-mono`. Removed hardcoded `--surface` / `--elevated` references so generated DS pages theme-adapt through host atmosphere.
+- **`PageGenerator` floating DS button** — contextual affordance. On app routes: "Design System →". On `/design-system/*` routes: "← Back to App". Same element, location, glass + border-first styling; `pathname.startsWith('/design-system')` decides. Test updated to assert both branches.
+- **Design System layout + pages** (`design-system-layout.ts`, `design-system-home.ts`, `component-dynamic.ts`, `shared-components-pages.ts`) — uniform Console skin: simplified headers (no logo + wordmark + pill combo, just `• design system` mono anchor), activity heatmap uses `hsl(var(--border))` (visible on both light and dark), SectionLabel marker switched from circle to rounded square (`rounded-[2px]`) to echo CoherentMark.
+
+### Rules asserted (the skin, 7 invariants)
+
+1. Surface hierarchy from host tokens (`--bg / --card / --muted / --border`)
+2. Mono uppercase section labels + rounded-square accent marker
+3. Sans body / mono meta (numbers, IDs, paths)
+4. `tabular-nums` on every numeric value
+5. Border-first, shadow-last (1px `--border`, no soft drop shadows)
+6. Accent = host `--primary` token
+7. Zero decorative icons — lucide line icons only, 2pt stroke
+
+### Not added
+
+- No new rules in `design-constraints.ts`. This release changes the generator's DS page templates, not the prompts. Per Rule 2 of the constraint architecture (no new exports), these are template edits inside existing files.
+- No ADR — architecture unchanged; this is template polish delivering a portable DS skin via existing shadcn-token mapping.
+
 ## [0.7.24] — 2026-04-22
 
 ### F11 interface-details + F12 Nielsen heuristic subset
