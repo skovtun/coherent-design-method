@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.27] — 2026-04-22
+
+### Scaffolder favicon — transparent background, optimal fit
+
+`public/favicon.svg` no longer ships on a dark plate. Drops the `#0a0a0a` backdrop that rendered as a small dark-green square in browser tabs (accent stroke + dark bg blended together at 16–24px). Mark now sits on transparent, scaled from 22×22 to 28.5×28.5 within the 32×32 viewBox — reads as a clean rounded frame + 2×2 token grid on any tab theme. `public/coherent-logo.svg` scaled to match (21.5×21.5 in 24×24).
+
+### Changed
+
+- **`ProjectScaffolder.generateFavicon()`** — `favicon.svg` removes fill backdrop (`fill="none"` on root), enlarges frame (x=1.75, 28.5 side, rx=4, stroke-width=2.5), enlarges inner quadrants (8×8 at 7.25/16.75 positions). `coherent-logo.svg` rescaled to 21.5×21.5 frame with 6×6 quadrants for visual parity.
+
+### Not added
+
+- No rule or constraint changes. Asset-only refresh.
+- No ADR — follow-up to 0.7.26.
+
 ## [0.7.26] — 2026-04-22
 
 ### Scaffolder favicon refresh — MarkG 2×2 token grid
