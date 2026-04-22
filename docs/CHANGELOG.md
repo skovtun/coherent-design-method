@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.26] — 2026-04-22
+
+### Scaffolder favicon refresh — MarkG 2×2 token grid
+
+`coherent init` now emits the current Coherent brand mark for `public/favicon.svg` and `public/coherent-logo.svg`. Previously the scaffolder hardcoded an old bracket-triangle path on a `#3B82F6` blue background — visually unrelated to Coherent's current identity and out of step with the landing site. New SVGs mirror the `CoherentMark` component: outer rounded square frame, 2×2 inner token grid (top-left + bottom-right full opacity, top-right + bottom-left at 0.45α), accent `#3ecf8e` on `#0a0a0a`.
+
+### Changed
+
+- **`ProjectScaffolder.generateFavicon()`** — both emitted SVGs replaced. `public/coherent-logo.svg` ships transparent-background MarkG (accent on any surface). `public/favicon.svg` ships dark-background variant for tab display contrast. No API change; regenerates on every `coherent init`.
+
+### Not added
+
+- No rule or constraint changes. Template-level asset refresh only.
+- No ADR — brand asset update, not architectural.
+
 ## [0.7.25] — 2026-04-22
 
 ### Console-skin Design System — portable through shadcn tokens

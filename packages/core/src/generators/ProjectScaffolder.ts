@@ -557,19 +557,22 @@ export default function ErrorPage({
   }
 
   private async generateFavicon(): Promise<void> {
-    const logoPath =
-      'M10 4C10.5523 4 11 4.44772 11 5V13H19C19.5523 13 20 13.4477 20 14V20.4287C19.9999 22.401 18.401 23.9999 16.4287 24H3.57129C1.59895 23.9999 7.5245e-05 22.401 0 20.4287V7.57129C7.53742e-05 5.59895 1.59895 4.00008 3.57129 4H10ZM2 20.4287C2.00008 21.2965 2.70352 21.9999 3.57129 22H9V15H2V20.4287ZM11 22H16.4287C17.2965 21.9999 17.9999 21.2965 18 20.4287V15H11V22ZM3.57129 6C2.70352 6.00008 2.00008 6.70352 2 7.57129V13H9V6H3.57129ZM20.5 0C22.433 0 24 1.567 24 3.5V9.90039C23.9998 10.5076 23.5076 10.9998 22.9004 11H14.0996C13.4924 10.9998 13.0002 10.5076 13 9.90039V1.09961C13.0002 0.492409 13.4924 0.000211011 14.0996 0H20.5ZM15 9H22V3.5C22 2.67157 21.3284 2 20.5 2H15V9Z'
-
-    const logoSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="${logoPath}" fill="#FFA500"/>
+    const logoSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <rect x="2.5" y="2.5" width="19" height="19" rx="2" stroke="#3ecf8e" stroke-width="2"/>
+  <rect x="7" y="7" width="4" height="4" rx="0.75" fill="#3ecf8e"/>
+  <rect x="13" y="7" width="4" height="4" rx="0.75" fill="#3ecf8e" opacity="0.45"/>
+  <rect x="7" y="13" width="4" height="4" rx="0.75" fill="#3ecf8e" opacity="0.45"/>
+  <rect x="13" y="13" width="4" height="4" rx="0.75" fill="#3ecf8e"/>
 </svg>`
     await this.writeFile('public/coherent-logo.svg', logoSvg)
 
     const faviconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="8" fill="#3B82F6"/>
-  <g transform="translate(4, 4)">
-    <path d="${logoPath}" fill="white"/>
-  </g>
+  <rect width="32" height="32" rx="6" fill="#0a0a0a"/>
+  <rect x="5" y="5" width="22" height="22" rx="2.5" stroke="#3ecf8e" stroke-width="2" fill="none"/>
+  <rect x="9" y="9" width="6" height="6" rx="1" fill="#3ecf8e"/>
+  <rect x="17" y="9" width="6" height="6" rx="1" fill="#3ecf8e" opacity="0.45"/>
+  <rect x="9" y="17" width="6" height="6" rx="1" fill="#3ecf8e" opacity="0.45"/>
+  <rect x="17" y="17" width="6" height="6" rx="1" fill="#3ecf8e"/>
 </svg>`
     await this.writeFile('public/favicon.svg', faviconSvg)
   }
