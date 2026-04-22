@@ -52,7 +52,7 @@ export class DesignSystemGenerator {
   }
 
   /**
-   * Generate design system home page (fetches config from API at runtime)
+   * Generate design system home page (fetches config from API at runtime) — Console skin.
    */
   private generateDynamicHome(): string {
     return `'use client'
@@ -77,14 +77,41 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString()
 }
 
-const typeIcons: Record<string, string> = {
-  'add-page': '📄',
-  'modify-page': '✏️',
-  'add-component': '🧩',
-  'modify-component': '🔧',
-  'modify-tokens': '🎨',
-  'modify-config': '⚙️',
-  init: '🚀',
+const TYPE_LABELS: Record<string, string> = {
+  'add-page': 'PAGE',
+  'modify-page': 'PAGE',
+  'add-component': 'COMP',
+  'modify-component': 'COMP',
+  'modify-tokens': 'TOKEN',
+  'modify-config': 'CONFIG',
+  init: 'INIT',
+}
+
+const TYPE_TONE: Record<string, string> = {
+  'add-page': 'text-primary',
+  'modify-page': 'text-muted-foreground',
+  'add-component': 'text-primary',
+  'modify-component': 'text-muted-foreground',
+  'modify-tokens': 'text-muted-foreground',
+  'modify-config': 'text-muted-foreground',
+  init: 'text-primary',
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+      <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
+      {children}
+    </div>
+  )
+}
+
+function ArrowIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className}>
+      <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+    </svg>
+  )
 }
 
 function activityLevel(changes: Change[]): { total: number; days: Map<string, number> } {
@@ -146,51 +173,74 @@ export default function DesignSystemPage() {
     return d.toLocaleDateString(undefined, { month: 'short' })
   }
 
+  const summary = [
+    { href: '/design-system/components', label: 'components', value: components.length, hint: 'view all' },
+    { href: '/design-system/shared', label: 'shared', value: sharedCount, hint: 'header · footer · etc' },
+    { href: '/design-system/tokens', label: 'tokens', value: tokenTotal, hint: 'colors · spacing · radius' },
+    { href: '/design-system/sitemap', label: 'pages', value: pages.length, hint: 'sitemap & analysis' },
+  ]
+
+  const quickLinks = [
+    { href: '/design-system/components', label: 'Components', meta: String(components.length) },
+    { href: '/design-system/shared', label: 'Shared Components', meta: String(sharedCount) },
+    { href: '/design-system/tokens/colors', label: 'Colors', meta: String(colorCount), swatches: true },
+    { href: '/design-system/tokens/typography', label: 'Typography', meta: '' },
+    { href: '/design-system/tokens/spacing', label: 'Spacing & Radius', meta: String(spacingCount + radiusCount) },
+    { href: '/design-system/docs', label: 'Documentation', meta: '' },
+    { href: '/design-system/recommendations', label: 'Recommendations', meta: '' },
+  ]
+
   return (
     <div className="flex flex-col gap-6">
+      {/* HEADER */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Design System</h1>
-        <p className="text-sm text-muted-foreground">
-          Overview of your project's components, tokens, and recent activity.
+        <h1 className="text-[28px] font-medium leading-tight tracking-[-0.02em] text-foreground">
+          Design System
+        </h1>
+        <p className="mt-1 text-[13.5px] text-muted-foreground">
+          Components, tokens, and recent activity — for this project.
         </p>
       </div>
 
-      {/* Summary cards: Components, Shared, Tokens, Documentation (no separate Pages/Changes) */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        <Link href="/design-system/components" className="rounded-lg border p-4 hover:border-primary transition-colors">
-          <div className="text-2xl font-bold">{components.length}</div>
-          <div className="text-sm text-muted-foreground">Components</div>
-          <div className="text-xs text-muted-foreground mt-1">View all →</div>
-        </Link>
-        <Link href="/design-system/shared" className="rounded-lg border p-4 hover:border-primary transition-colors">
-          <div className="text-2xl font-bold">{sharedCount}</div>
-          <div className="text-sm text-muted-foreground">Shared Components</div>
-          <div className="text-xs text-muted-foreground mt-1">Header, Footer, etc. →</div>
-        </Link>
-        <Link href="/design-system/tokens" className="rounded-lg border p-4 hover:border-primary transition-colors">
-          <div className="text-2xl font-bold">{tokenTotal}</div>
-          <div className="text-sm text-muted-foreground">Tokens</div>
-          <div className="text-xs text-muted-foreground mt-1">Colors · Spacing · Radius</div>
-        </Link>
-        <Link href="/design-system/sitemap" className="rounded-lg border p-4 hover:border-primary transition-colors">
-          <div className="text-2xl font-bold">{pages.length}</div>
-          <div className="text-sm text-muted-foreground">Pages</div>
-          <div className="text-xs text-muted-foreground mt-1">Sitemap & analysis →</div>
-        </Link>
+      {/* SUMMARY CARDS */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {summary.map((s) => (
+          <Link
+            key={s.href}
+            href={s.href}
+            className="group rounded-md border border-border bg-card p-4 outline-none transition-colors hover:border-primary/50 hover:bg-muted"
+          >
+            <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+              {s.label}
+            </div>
+            <div className="mt-1.5 font-mono text-[28px] font-medium leading-none tracking-tight tabular-nums text-foreground">
+              {s.value}
+            </div>
+            <div className="mt-2 flex items-center justify-between font-mono text-[10.5px] text-muted-foreground/70">
+              <span>{s.hint}</span>
+              <ArrowIcon className="transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-primary" />
+            </div>
+          </Link>
+        ))}
       </div>
 
-      {/* Activity heatmap (last year) — GitHub-style grid, contained so it never overflows screen */}
-      <div className="rounded-lg border p-3 sm:p-4 w-full max-w-full overflow-hidden">
-        <h2 className="text-sm font-medium mb-2 sm:mb-3">Activity (last year)</h2>
-        <div className="w-full max-w-full overflow-x-auto overflow-y-hidden pb-1">
-          <div className="flex gap-0.5 sm:gap-1 text-[10px] text-muted-foreground mb-1 min-w-0">
+      {/* ACTIVITY HEATMAP */}
+      <div className="rounded-md border border-border bg-card p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <SectionLabel>activity · last year</SectionLabel>
+          <span className="font-mono text-[10.5px] tabular-nums text-muted-foreground/70">
+            {changes.length} events
+          </span>
+        </div>
+        <div className="w-full overflow-x-auto pb-1">
+          <div className="mb-1 flex min-w-0 gap-0.5 font-mono text-[9px] text-muted-foreground/70 sm:gap-1">
             {Array.from({ length: weeks }, (_, col) => (
-              <span key={col} className="shrink-0 w-2.5 min-w-2.5 sm:w-3 sm:min-w-3">{monthLabel(col)}</span>
+              <span key={col} className="w-2.5 min-w-2.5 shrink-0 sm:w-3 sm:min-w-3">{monthLabel(col).toLowerCase()}</span>
             ))}
           </div>
-          <div className="flex items-start gap-0.5 sm:gap-1 min-w-0 touch-pan-x">
+          <div className="flex min-w-0 items-start gap-0.5 touch-pan-x sm:gap-1">
           {Array.from({ length: weeks }, (_, col) => (
-            <div key={col} className="flex flex-col gap-0.5 shrink-0">
+            <div key={col} className="flex shrink-0 flex-col gap-0.5">
               {Array.from({ length: rows }, (_, row) => {
                 const idx = col * rows + row
                 const day = last364[idx]
@@ -200,18 +250,18 @@ export default function DesignSystemPage() {
                 return (
                   <div
                     key={day}
-                    className="size-2.5 min-w-2.5 sm:size-3 sm:min-w-3 rounded-[2px] sm:rounded-sm transition-colors"
+                    className="size-2.5 min-w-2.5 rounded-[2px] transition-colors sm:size-3 sm:min-w-3 sm:rounded-sm"
                     style={{
                       backgroundColor:
                         level === 0
-                          ? 'var(--muted)'
+                          ? 'hsl(var(--border))'
                           : level === 1
-                            ? 'color-mix(in srgb, var(--primary) 25%, var(--muted))'
+                            ? 'color-mix(in srgb, hsl(var(--primary)) 25%, hsl(var(--border)))'
                             : level === 2
-                              ? 'color-mix(in srgb, var(--primary) 50%, var(--muted))'
+                              ? 'color-mix(in srgb, hsl(var(--primary)) 50%, hsl(var(--border)))'
                               : level === 3
-                                ? 'color-mix(in srgb, var(--primary) 75%, var(--muted))'
-                                : 'var(--primary)',
+                                ? 'color-mix(in srgb, hsl(var(--primary)) 75%, hsl(var(--border)))'
+                                : 'hsl(var(--primary))',
                     }}
                     title={\`\${day}: \${count} change\${count === 1 ? '' : 's'}\`}
                   />
@@ -221,97 +271,93 @@ export default function DesignSystemPage() {
           ))}
           </div>
         </div>
-        <div className="flex items-center gap-2 mt-2 flex-shrink-0">
-          <span className="text-xs text-muted-foreground">Less</span>
+        <div className="mt-3 flex items-center gap-2 font-mono text-[10px] text-muted-foreground/70">
+          <span>less</span>
           <div className="flex gap-0.5">
             {[0, 1, 2, 3, 4].map((i) => (
               <div
                 key={i}
-                className="size-2.5 sm:size-3 rounded-[2px] sm:rounded-sm shrink-0"
+                className="size-2.5 shrink-0 rounded-[2px] sm:size-3 sm:rounded-sm"
                 style={{
                   backgroundColor:
                     i === 0
-                      ? 'var(--muted)'
-                      : \`color-mix(in srgb, var(--primary) \${i * 25}%, var(--muted))\`,
+                      ? 'hsl(var(--border))'
+                      : \`color-mix(in srgb, hsl(var(--primary)) \${i * 25}%, hsl(var(--border)))\`,
                 }}
               />
             ))}
           </div>
-          <span className="text-xs text-muted-foreground">More</span>
+          <span>more</span>
         </div>
         {changes.length === 0 && (
-          <p className="text-xs text-muted-foreground mt-2">No activity yet. Run <code className="rounded bg-muted px-1">coherent chat</code> to start building.</p>
+          <p className="mt-3 font-mono text-[11px] text-muted-foreground/70">
+            no activity yet · run <code className="rounded border border-border bg-muted px-1.5 py-0.5 text-foreground">coherent chat</code> to start
+          </p>
         )}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Quick links */}
-        <div className="rounded-lg border p-4">
-          <h2 className="text-sm font-medium mb-3">Quick links</h2>
-          <div className="space-y-2">
-            <Link href="/design-system/components" className="flex items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-muted transition-colors">
-              <span>Components</span>
-              <span className="text-xs text-muted-foreground">{components.length} →</span>
-            </Link>
-            <Link href="/design-system/shared" className="flex items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-muted transition-colors">
-              <span>Shared Components</span>
-              <span className="text-xs text-muted-foreground">{sharedCount} →</span>
-            </Link>
-            <Link href="/design-system/tokens/colors" className="flex items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-muted transition-colors">
-              <div className="flex items-center gap-2">
-                <span>Colors</span>
-                <div className="flex gap-0.5">
-                  <div className="size-3 rounded-sm bg-primary" />
-                  <div className="size-3 rounded-sm bg-secondary border" />
-                  <div className="size-3 rounded-sm bg-destructive" />
+      {/* TWO-COL — QUICK LINKS + RECENT CHANGES */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-md border border-border bg-card">
+          <div className="border-b border-border px-4 py-3">
+            <SectionLabel>quick links</SectionLabel>
+          </div>
+          <div className="flex flex-col p-2">
+            {quickLinks.map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                className="flex items-center justify-between rounded-md px-3 py-2 font-mono text-[12.5px] text-foreground outline-none transition-colors hover:bg-muted"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span>{l.label}</span>
+                  {l.swatches && (
+                    <div className="flex gap-0.5">
+                      <span className="h-2.5 w-2.5 rounded-sm bg-primary" />
+                      <span className="h-2.5 w-2.5 rounded-sm border border-border bg-muted-foreground" />
+                      <span className="h-2.5 w-2.5 rounded-sm bg-destructive" />
+                    </div>
+                  )}
                 </div>
-              </div>
-              <span className="text-xs text-muted-foreground">{colorCount} →</span>
-            </Link>
-            <Link href="/design-system/tokens/typography" className="flex items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-muted transition-colors">
-              <span>Typography</span>
-              <span className="text-xs text-muted-foreground">→</span>
-            </Link>
-            <Link href="/design-system/tokens/spacing" className="flex items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-muted transition-colors">
-              <span>Spacing & Radius</span>
-              <span className="text-xs text-muted-foreground">{spacingCount + radiusCount} →</span>
-            </Link>
-            <Link href="/design-system/docs" className="flex items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-muted transition-colors">
-              <span>Documentation</span>
-              <span className="text-xs text-muted-foreground">→</span>
-            </Link>
-            <Link href="/design-system/recommendations" className="flex items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-muted transition-colors">
-              <span>Recommendations</span>
-              <span className="text-xs text-muted-foreground">→</span>
-            </Link>
+                <span className="inline-flex items-center gap-1.5 text-[10.5px] tabular-nums text-muted-foreground/70">
+                  {l.meta}
+                  <ArrowIcon />
+                </span>
+              </Link>
+            ))}
           </div>
         </div>
 
-        {/* Recent changes log */}
-        <div className="rounded-lg border p-4">
-          <h2 className="text-sm font-medium mb-3">Recent changes</h2>
-          {changes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No changes recorded yet.</p>
-          ) : (
-            <div className="space-y-0">
-              {changes.slice(0, 10).map((change, i) => (
-                <div key={i} className="flex items-start gap-3 py-2 border-b last:border-0">
-                  <span className="text-sm shrink-0 mt-0.5" title={change.type}>
-                    {typeIcons[change.type] || '📝'}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm truncate">{change.description}</div>
-                    <div className="text-xs text-muted-foreground">{timeAgo(change.timestamp)}</div>
+        <div className="rounded-md border border-border bg-card">
+          <div className="border-b border-border px-4 py-3">
+            <SectionLabel>recent changes</SectionLabel>
+          </div>
+          <div className="p-2">
+            {changes.length === 0 ? (
+              <p className="px-2 py-3 font-mono text-[11.5px] text-muted-foreground/70">
+                no changes recorded yet
+              </p>
+            ) : (
+              <div className="flex flex-col">
+                {changes.slice(0, 10).map((change, i) => (
+                  <div key={i} className="flex items-start gap-3 border-b border-border px-3 py-2 font-mono text-[11.5px] last:border-0">
+                    <span className={\`mt-0.5 shrink-0 rounded-[3px] border border-border bg-muted px-1.5 text-[9px] uppercase tracking-[0.08em] \${TYPE_TONE[change.type] || 'text-muted-foreground'}\`}>
+                      {TYPE_LABELS[change.type] || 'EVENT'}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-foreground">{change.description}</div>
+                      <div className="mt-0.5 text-[10.5px] text-muted-foreground/70">{timeAgo(change.timestamp)}</div>
+                    </div>
                   </div>
-                </div>
-              ))}
-              {changes.length > 10 && (
-                <p className="text-xs text-muted-foreground pt-2 text-center">
-                  + {changes.length - 10} more changes
-                </p>
-              )}
-            </div>
-          )}
+                ))}
+                {changes.length > 10 && (
+                  <p className="pt-2 text-center font-mono text-[10.5px] text-muted-foreground/70">
+                    + {changes.length - 10} more changes
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -321,12 +367,21 @@ export default function DesignSystemPage() {
   }
 
   /**
-   * Generate design system components index page (separate section, not anchor)
+   * Generate design system components index page — Console skin.
    */
   private generateComponentsIndexPage(): string {
     return `'use client'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+      <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
+      {children}
+    </div>
+  )
+}
 
 export default function ComponentsIndexPage() {
   const [components, setComponents] = useState<any[]>([])
@@ -348,7 +403,7 @@ export default function ComponentsIndexPage() {
   const variantSizeLabel = (comp: any) => {
     const v = comp.variants?.length ?? 0
     const s = comp.sizes?.length ?? 0
-    if (v === 0 && s === 0) return 'Default'
+    if (v === 0 && s === 0) return 'default'
     const parts = []
     if (v > 0) parts.push(\`\${v} variant\${v !== 1 ? 's' : ''}\`)
     if (s > 0) parts.push(\`\${s} size\${s !== 1 ? 's' : ''}\`)
@@ -356,32 +411,32 @@ export default function ComponentsIndexPage() {
   }
 
   return (
-    <div className="flex flex-col gap-10">
+    <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Components</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {components.length} component{components.length !== 1 ? 's' : ''}. Click a card to view variants, sizes, and code.
+        <h1 className="text-[28px] font-medium leading-tight tracking-[-0.02em] text-foreground">
+          Components
+        </h1>
+        <p className="mt-1 text-[13.5px] text-muted-foreground">
+          {components.length} component{components.length !== 1 ? 's' : ''} · click a card for variants, sizes, and code.
         </p>
       </div>
       {Object.entries(grouped).map(([category, comps]) => (
-        <section key={category} className="space-y-4">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {category.replace(/-/g, ' ')}
-          </h2>
+        <section key={category} className="flex flex-col gap-3">
+          <SectionLabel>{category.replace(/-/g, ' ')}</SectionLabel>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {(comps as any[]).map((comp) => (
               <Link
                 key={comp.id}
                 href={\`/design-system/components/\${comp.id}\`}
-                className="group flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3.5 hover:border-primary/50 hover:bg-muted/30 transition-colors"
+                className="group flex items-center justify-between rounded-md border border-border bg-card px-4 py-3 outline-none transition-colors hover:border-primary/50 hover:bg-muted"
               >
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-foreground truncate">{comp.name}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
+                  <div className="truncate text-[13.5px] font-medium text-foreground">{comp.name}</div>
+                  <div className="mt-0.5 font-mono text-[10.5px] text-muted-foreground/70">
                     {variantSizeLabel(comp)}
                   </div>
                 </div>
-                <span className="text-muted-foreground group-hover:text-foreground transition-colors shrink-0 ml-2">→</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="ml-2 shrink-0 text-muted-foreground/60 transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-primary"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
               </Link>
             ))}
           </div>
@@ -503,39 +558,78 @@ export default function ComponentsIndexPage() {
   private generateTokensHome(): string {
     return `import Link from 'next/link'
 
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+      <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
+      {children}
+    </div>
+  )
+}
+
 export default function TokensPage() {
+  const cards = [
+    {
+      href: '/design-system/tokens/colors',
+      label: 'Colors',
+      hint: 'light and dark palettes',
+      preview: (
+        <div className="flex gap-1">
+          <div className="size-4 rounded-sm bg-primary" />
+          <div className="size-4 rounded-sm border border-border bg-muted-foreground" />
+          <div className="size-4 rounded-sm bg-destructive" />
+        </div>
+      ),
+    },
+    {
+      href: '/design-system/tokens/typography',
+      label: 'Typography',
+      hint: 'font families, sizes, weights',
+      preview: (
+        <span className="font-mono text-[22px] font-medium leading-none tracking-tight text-foreground">Aa</span>
+      ),
+    },
+    {
+      href: '/design-system/tokens/spacing',
+      label: 'Spacing & Radius',
+      hint: 'scale and border radius',
+      preview: (
+        <div className="flex items-end gap-1.5">
+          <div className="w-2 rounded-sm bg-primary/70" style={{ height: 6 }} />
+          <div className="w-2 rounded-sm bg-primary/70" style={{ height: 12 }} />
+          <div className="w-2 rounded-sm bg-primary/70" style={{ height: 18 }} />
+        </div>
+      ),
+    },
+  ]
+
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Design Tokens</h1>
-        <p className="text-sm text-muted-foreground">
-          Color, typography, spacing, and radius values that define your design system.
+        <h1 className="text-[28px] font-medium leading-tight tracking-[-0.02em] text-foreground">
+          Design Tokens
+        </h1>
+        <p className="mt-1 text-[13.5px] text-muted-foreground">
+          Color, typography, spacing, and radius that define your design system.
         </p>
       </div>
-      <div className="grid gap-4 md:grid-cols-3">
-        <Link href="/design-system/tokens/colors" className="rounded-lg border p-6 hover:border-primary transition-colors">
-          <div className="flex gap-2 mb-3">
-            <div className="size-4 rounded bg-primary" />
-            <div className="size-4 rounded bg-secondary border" />
-            <div className="size-4 rounded bg-destructive" />
-          </div>
-          <div className="text-sm font-medium">Colors</div>
-          <div className="text-xs text-muted-foreground mt-1">Light and dark theme palettes</div>
-        </Link>
-        <Link href="/design-system/tokens/typography" className="rounded-lg border p-6 hover:border-primary transition-colors">
-          <div className="mb-3 text-sm font-bold">Aa</div>
-          <div className="text-sm font-medium">Typography</div>
-          <div className="text-xs text-muted-foreground mt-1">Font families, sizes, and weights</div>
-        </Link>
-        <Link href="/design-system/tokens/spacing" className="rounded-lg border p-6 hover:border-primary transition-colors">
-          <div className="flex gap-1.5 mb-3 items-end">
-            <div className="w-2.5 h-2.5 rounded-sm bg-primary" />
-            <div className="w-2.5 h-4 rounded-sm bg-primary" />
-            <div className="w-2.5 h-6 rounded-sm bg-primary" />
-          </div>
-          <div className="text-sm font-medium">Spacing &amp; Radius</div>
-          <div className="text-xs text-muted-foreground mt-1">Spacing scale and border radius</div>
-        </Link>
+      <div className="grid gap-3 md:grid-cols-3">
+        {cards.map((c) => (
+          <Link
+            key={c.href}
+            href={c.href}
+            className="group flex flex-col gap-3 rounded-md border border-border bg-card p-5 outline-none transition-colors hover:border-primary/50 hover:bg-muted"
+          >
+            <div className="flex h-8 items-center">{c.preview}</div>
+            <div>
+              <div className="text-[14px] font-medium text-foreground">{c.label}</div>
+              <div className="mt-1 flex items-center justify-between font-mono text-[10.5px] text-muted-foreground/70">
+                <span>{c.hint}</span>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-primary"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </div>
+            </div>
+          </Link>
+        ))}
       </div>
     </div>
   )
@@ -544,283 +638,317 @@ export default function TokensPage() {
   }
 
   private generateColorsPage(): string {
-    const lines: string[] = []
-    lines.push("'use client'")
-    lines.push("import { useEffect, useState } from 'react'")
-    lines.push('')
-    lines.push('export default function ColorsPage() {')
-    lines.push(
-      '  const [tokens, setTokens] = useState<{ colors?: { light?: Record<string, string>; dark?: Record<string, string> } } | null>(null)',
-    )
-    lines.push('  const [loading, setLoading] = useState(true)')
-    lines.push('')
-    lines.push('  useEffect(() => {')
-    lines.push("    fetch('/api/design-system/config')")
-    lines.push('      .then((res) => res.json())')
-    lines.push('      .then((data) => { setTokens(data.tokens ?? null); setLoading(false) })')
-    lines.push('      .catch(() => { setTokens(null); setLoading(false) })')
-    lines.push('  }, [])')
-    lines.push('')
-    lines.push('  if (loading) {')
-    lines.push('    return (')
-    lines.push('      <div className="space-y-8">')
-    lines.push('        <h1 className="text-4xl font-bold tracking-tight">Color Tokens</h1>')
-    lines.push('        <p className="text-muted-foreground">Loading...</p>')
-    lines.push('      </div>')
-    lines.push('    )')
-    lines.push('  }')
-    lines.push('')
-    lines.push('  const light = tokens?.colors?.light ?? {}')
-    lines.push('  const dark = tokens?.colors?.dark ?? {}')
-    lines.push('  const keys = Array.from(new Set([...Object.keys(light), ...Object.keys(dark)]))')
-    lines.push('  const toCssVar = (key: string) => `--${key}`')
-    lines.push('')
-    lines.push('  return (')
-    lines.push('    <div className="space-y-8">')
-    lines.push('      <h1 className="text-4xl font-bold tracking-tight">Color Tokens</h1>')
-    lines.push('      <p className="text-muted-foreground">Design system color variables (light and dark themes).</p>')
-    lines.push('      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">')
-    lines.push('        <div className="space-y-4">')
-    lines.push('          <h2 className="text-xl font-semibold">Light Theme</h2>')
-    lines.push('          <div className="rounded-lg border p-4 space-y-3">')
-    lines.push('            {keys.length === 0 ? (')
-    lines.push('              <p className="text-sm text-muted-foreground">No color tokens</p>')
-    lines.push('            ) : (')
-    lines.push('              keys.map((key) => {')
-    lines.push('                const value = light[key]')
-    lines.push('                if (!value) return null')
-    lines.push('                return (')
-    lines.push('                  <div key={`light-${key}`} className="flex items-center gap-4">')
-    lines.push('                    <div')
-    lines.push('                      className="h-10 w-10 shrink-0 rounded-md border"')
-    lines.push('                      style={{ backgroundColor: value }}')
-    lines.push('                    />')
-    lines.push('                    <div className="min-w-0 flex-1">')
-    lines.push('                      <div className="font-medium capitalize">{key}</div>')
-    lines.push(
-      '                      <div className="text-xs text-muted-foreground font-mono">{value} · var({toCssVar(key)})</div>',
-    )
-    lines.push('                    </div>')
-    lines.push('                  </div>')
-    lines.push('                )')
-    lines.push('              })')
-    lines.push('            )}')
-    lines.push('          </div>')
-    lines.push('        </div>')
-    lines.push('        <div className="space-y-4">')
-    lines.push('          <h2 className="text-xl font-semibold">Dark Theme</h2>')
-    lines.push('          <div className="dark rounded-lg border border-border p-4 space-y-3 bg-background">')
-    lines.push('            {keys.length === 0 ? (')
-    lines.push('              <p className="text-sm text-muted-foreground">No color tokens</p>')
-    lines.push('            ) : (')
-    lines.push('              keys.map((key) => {')
-    lines.push('                const value = dark[key]')
-    lines.push('                if (!value) return null')
-    lines.push('                return (')
-    lines.push('                  <div key={`dark-${key}`} className="flex items-center gap-4">')
-    lines.push('                    <div')
-    lines.push('                      className="h-10 w-10 shrink-0 rounded-md border border-border"')
-    lines.push('                      style={{ backgroundColor: value }}')
-    lines.push('                    />')
-    lines.push('                    <div className="min-w-0 flex-1">')
-    lines.push('                      <div className="font-medium capitalize text-foreground">{key}</div>')
-    lines.push('                      <div className="text-xs text-muted-foreground font-mono">{value}</div>')
-    lines.push('                    </div>')
-    lines.push('                  </div>')
-    lines.push('                )')
-    lines.push('              })')
-    lines.push('            )}')
-    lines.push('          </div>')
-    lines.push('        </div>')
-    lines.push('      </div>')
-    lines.push('    </div>')
-    lines.push('  )')
-    lines.push('}')
-    return lines.join('\n')
+    return `'use client'
+import { useEffect, useState } from 'react'
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+      <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
+      {children}
+    </div>
+  )
+}
+
+function ColorRow({ name, value, cssVar }: { name: string; value: string; cssVar?: string }) {
+  return (
+    <div className="flex items-center gap-4 border-b border-border px-3 py-2 font-mono last:border-0">
+      <div className="h-9 w-9 shrink-0 rounded-md border border-border" style={{ backgroundColor: value }} />
+      <div className="min-w-0 flex-1">
+        <div className="text-[12.5px] text-foreground">{name}</div>
+        <div className="mt-0.5 text-[10.5px] tabular-nums text-muted-foreground/70">
+          {value}
+          {cssVar && (<>{' · '}<span className="text-primary">var({cssVar})</span></>)}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function ColorsPage() {
+  const [tokens, setTokens] = useState<{ colors?: { light?: Record<string, string>; dark?: Record<string, string> } } | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/design-system/config')
+      .then((res) => res.json())
+      .then((data) => { setTokens(data.tokens ?? null); setLoading(false) })
+      .catch(() => { setTokens(null); setLoading(false) })
+  }, [])
+
+  const light = tokens?.colors?.light ?? {}
+  const dark = tokens?.colors?.dark ?? {}
+  const keys = Array.from(new Set([...Object.keys(light), ...Object.keys(dark)]))
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="text-[28px] font-medium leading-tight tracking-[-0.02em] text-foreground">
+          Color Tokens
+        </h1>
+        <p className="mt-1 text-[13.5px] text-muted-foreground">
+          Design system color variables — light and dark themes.
+        </p>
+      </div>
+
+      {loading ? (
+        <p className="font-mono text-[11.5px] text-muted-foreground/70">loading…</p>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="overflow-hidden rounded-md border border-border bg-card">
+            <div className="border-b border-border bg-muted px-4 py-3">
+              <SectionLabel>light · palette</SectionLabel>
+            </div>
+            {keys.length === 0 ? (
+              <p className="px-4 py-6 font-mono text-[11.5px] text-muted-foreground/70">no color tokens</p>
+            ) : (
+              <div className="p-2">
+                {keys.map((key) => {
+                  const value = light[key]
+                  if (!value) return null
+                  return <ColorRow key={\`light-\${key}\`} name={key} value={value} cssVar={\`--\${key}\`} />
+                })}
+              </div>
+            )}
+          </div>
+          <div className="dark overflow-hidden rounded-md border border-border bg-card">
+            <div className="border-b border-border bg-muted px-4 py-3">
+              <SectionLabel>dark · palette</SectionLabel>
+            </div>
+            {keys.length === 0 ? (
+              <p className="px-4 py-6 font-mono text-[11.5px] text-muted-foreground/70">no color tokens</p>
+            ) : (
+              <div className="p-2">
+                {keys.map((key) => {
+                  const value = dark[key]
+                  if (!value) return null
+                  return <ColorRow key={\`dark-\${key}\`} name={key} value={value} />
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+`
   }
 
   private generateTypographyPage(): string {
-    const lines: string[] = []
-    lines.push("'use client'")
-    lines.push("import { useEffect, useState } from 'react'")
-    lines.push('')
-    lines.push('export default function TypographyPage() {')
-    lines.push('  const [tokens, setTokens] = useState<any>(null)')
-    lines.push('  const [loading, setLoading] = useState(true)')
-    lines.push('')
-    lines.push('  useEffect(() => {')
-    lines.push("    fetch('/api/design-system/config')")
-    lines.push('      .then((res) => res.json())')
-    lines.push('      .then((data) => { setTokens(data.tokens ?? null); setLoading(false) })')
-    lines.push('      .catch(() => { setTokens(null); setLoading(false) })')
-    lines.push('  }, [])')
-    lines.push('')
-    lines.push('  if (loading) {')
-    lines.push('    return (')
-    lines.push('      <div className="space-y-8">')
-    lines.push('        <h1 className="text-4xl font-bold tracking-tight">Typography</h1>')
-    lines.push('        <p className="text-muted-foreground">Loading...</p>')
-    lines.push('      </div>')
-    lines.push('    )')
-    lines.push('  }')
-    lines.push('')
-    lines.push('  const typography = tokens?.typography ?? {}')
-    lines.push('  const fontFamily = typography.fontFamily ?? {}')
-    lines.push('  const fontSize = typography.fontSize ?? {}')
-    lines.push('  const fontWeight = typography.fontWeight ?? {}')
-    lines.push('  const lineHeight = typography.lineHeight ?? {}')
-    lines.push('')
-    lines.push('  const remToPx = (rem: string) => {')
-    lines.push('    const val = parseFloat(rem)')
-    lines.push('    return isNaN(val) ? rem : `${val * 16}px`')
-    lines.push('  }')
-    lines.push('')
-    lines.push('  return (')
-    lines.push('    <div className="space-y-10">')
-    lines.push('      <h1 className="text-4xl font-bold tracking-tight">Typography</h1>')
-    lines.push('      <p className="text-muted-foreground">Font families, sizes, weights, and line heights.</p>')
-    lines.push('')
-    lines.push('      <div className="space-y-4">')
-    lines.push('        <h2 className="text-2xl font-semibold">Font Families</h2>')
-    lines.push('        <div className="rounded-lg border p-6 space-y-6">')
-    lines.push('          {Object.entries(fontFamily).map(([name, value]) => (')
-    lines.push('            <div key={name} className="space-y-2">')
-    lines.push('              <div className="text-sm font-medium capitalize">{name}</div>')
-    lines.push('              <div className="text-xs text-muted-foreground font-mono">{value as string}</div>')
-    lines.push(
-      '              <div className="text-lg" style={{ fontFamily: value as string }}>The quick brown fox jumps over the lazy dog</div>',
-    )
-    lines.push('            </div>')
-    lines.push('          ))}')
-    lines.push('        </div>')
-    lines.push('      </div>')
-    lines.push('      <div className="space-y-4">')
-    lines.push('        <h2 className="text-2xl font-semibold">Font Sizes</h2>')
-    lines.push('        <div className="rounded-lg border p-6 space-y-6">')
-    lines.push('          {Object.entries(fontSize).map(([name, value]) => (')
-    lines.push('            <div key={name} className="space-y-1">')
-    lines.push('              <div className="flex items-baseline gap-2">')
-    lines.push('                <span className="text-sm font-medium">{name}</span>')
-    lines.push(
-      '                <span className="text-xs text-muted-foreground font-mono">{value as string} ({remToPx(value as string)})</span>',
-    )
-    lines.push('              </div>')
-    lines.push(
-      '              <div style={{ fontSize: value as string }}>The quick brown fox jumps over the lazy dog</div>',
-    )
-    lines.push('            </div>')
-    lines.push('          ))}')
-    lines.push('        </div>')
-    lines.push('      </div>')
-    lines.push('      <div className="space-y-4">')
-    lines.push('        <h2 className="text-2xl font-semibold">Font Weights</h2>')
-    lines.push('        <div className="rounded-lg border p-6">')
-    lines.push('          <div className="flex flex-wrap gap-8">')
-    lines.push('            {Object.entries(fontWeight).map(([name, value]) => (')
-    lines.push('              <div key={name} className="space-y-1 text-center">')
-    lines.push('                <div className="text-2xl" style={{ fontWeight: value as number }}>Aa</div>')
-    lines.push('                <div className="text-xs font-medium">{name}</div>')
-    lines.push('                <div className="text-xs text-muted-foreground">{String(value)}</div>')
-    lines.push('              </div>')
-    lines.push('            ))}')
-    lines.push('          </div>')
-    lines.push('        </div>')
-    lines.push('      </div>')
-    lines.push('      <div className="space-y-4">')
-    lines.push('        <h2 className="text-2xl font-semibold">Line Heights</h2>')
-    lines.push('        <div className="rounded-lg border p-6 space-y-6">')
-    lines.push('          {Object.entries(lineHeight).map(([name, value]) => (')
-    lines.push('            <div key={name} className="space-y-1">')
-    lines.push('              <div className="text-sm font-medium">{name} ({String(value)})</div>')
-    lines.push(
-      '              <div className="text-sm bg-muted/50 p-3 rounded max-w-md" style={{ lineHeight: value as number }}>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.</div>',
-    )
-    lines.push('            </div>')
-    lines.push('          ))}')
-    lines.push('        </div>')
-    lines.push('      </div>')
-    lines.push('    </div>')
-    lines.push('  )')
-    lines.push('}')
-    return lines.join('\n')
+    return `'use client'
+import { useEffect, useState } from 'react'
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+      <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
+      {children}
+    </div>
+  )
+}
+
+function Card({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="overflow-hidden rounded-md border border-border bg-card">
+      <div className="border-b border-border bg-muted px-4 py-3">
+        <SectionLabel>{title}</SectionLabel>
+      </div>
+      <div className="p-4">{children}</div>
+    </div>
+  )
+}
+
+export default function TypographyPage() {
+  const [tokens, setTokens] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/design-system/config')
+      .then((res) => res.json())
+      .then((data) => { setTokens(data.tokens ?? null); setLoading(false) })
+      .catch(() => { setTokens(null); setLoading(false) })
+  }, [])
+
+  const typography = tokens?.typography ?? {}
+  const fontFamily = typography.fontFamily ?? {}
+  const fontSize = typography.fontSize ?? {}
+  const fontWeight = typography.fontWeight ?? {}
+  const lineHeight = typography.lineHeight ?? {}
+
+  const remToPx = (rem: string) => {
+    const val = parseFloat(rem)
+    return isNaN(val) ? rem : \`\${val * 16}px\`
+  }
+
+  return (
+    <div className="flex flex-col gap-8">
+      <div>
+        <h1 className="text-[28px] font-medium leading-tight tracking-[-0.02em] text-foreground">
+          Typography
+        </h1>
+        <p className="mt-1 text-[13.5px] text-muted-foreground">
+          Font families, sizes, weights, and line heights.
+        </p>
+      </div>
+
+      {loading ? (
+        <p className="font-mono text-[11.5px] text-muted-foreground/70">loading…</p>
+      ) : (
+        <>
+          <Card title="font families">
+            <div className="flex flex-col gap-5">
+              {Object.entries(fontFamily).map(([name, value]) => (
+                <div key={name} className="flex flex-col gap-1">
+                  <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground/70">{name}</div>
+                  <div className="font-mono text-[10.5px] text-muted-foreground/70">{value as string}</div>
+                  <div className="text-[18px] text-foreground" style={{ fontFamily: value as string }}>
+                    The quick brown fox jumps over the lazy dog
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card title="font sizes">
+            <div className="flex flex-col gap-5">
+              {Object.entries(fontSize).map(([name, value]) => (
+                <div key={name} className="flex flex-col gap-1">
+                  <div className="flex items-baseline gap-2 font-mono text-[10.5px]">
+                    <span className="uppercase tracking-[0.14em] text-muted-foreground/70">{name}</span>
+                    <span className="tabular-nums text-muted-foreground/70">{value as string} · {remToPx(value as string)}</span>
+                  </div>
+                  <div className="text-foreground" style={{ fontSize: value as string, lineHeight: 1.2 }}>
+                    The quick brown fox jumps over the lazy dog
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card title="font weights">
+            <div className="flex flex-wrap gap-6">
+              {Object.entries(fontWeight).map(([name, value]) => (
+                <div key={name} className="flex flex-col items-center gap-1">
+                  <div className="text-[28px] leading-none text-foreground" style={{ fontWeight: value as number }}>Aa</div>
+                  <div className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground/70">{name}</div>
+                  <div className="font-mono text-[10px] tabular-nums text-muted-foreground/70">{String(value)}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card title="line heights">
+            <div className="flex flex-col gap-4">
+              {Object.entries(lineHeight).map(([name, value]) => (
+                <div key={name} className="flex flex-col gap-1.5">
+                  <div className="font-mono text-[10.5px] tabular-nums text-muted-foreground/70">
+                    <span className="uppercase tracking-[0.14em]">{name}</span>{' · '}<span>{String(value)}</span>
+                  </div>
+                  <div className="max-w-md rounded-md border border-border bg-muted p-3 text-[13px] text-foreground" style={{ lineHeight: value as number }}>
+                    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </>
+      )}
+    </div>
+  )
+}
+`
   }
 
   private generateSpacingPage(): string {
-    const lines: string[] = []
-    lines.push("'use client'")
-    lines.push("import { useEffect, useState } from 'react'")
-    lines.push('')
-    lines.push('export default function SpacingPage() {')
-    lines.push('  const [tokens, setTokens] = useState<any>(null)')
-    lines.push('  const [loading, setLoading] = useState(true)')
-    lines.push('')
-    lines.push('  useEffect(() => {')
-    lines.push("    fetch('/api/design-system/config')")
-    lines.push('      .then((res) => res.json())')
-    lines.push('      .then((data) => { setTokens(data.tokens ?? null); setLoading(false) })')
-    lines.push('      .catch(() => { setTokens(null); setLoading(false) })')
-    lines.push('  }, [])')
-    lines.push('')
-    lines.push('  if (loading) {')
-    lines.push('    return (')
-    lines.push('      <div className="space-y-8">')
-    lines.push('        <h1 className="text-4xl font-bold tracking-tight">Spacing & Radius</h1>')
-    lines.push('        <p className="text-muted-foreground">Loading...</p>')
-    lines.push('      </div>')
-    lines.push('    )')
-    lines.push('  }')
-    lines.push('')
-    lines.push('  const spacing = tokens?.spacing ?? {}')
-    lines.push('  const radius = tokens?.radius ?? {}')
-    lines.push('')
-    lines.push('  return (')
-    lines.push('    <div className="space-y-10">')
-    lines.push('      <h1 className="text-4xl font-bold tracking-tight">Spacing & Radius</h1>')
-    lines.push('      <p className="text-muted-foreground">Spacing scale and border radius tokens.</p>')
-    lines.push('      <div className="space-y-4">')
-    lines.push('        <h2 className="text-2xl font-semibold">Spacing Scale</h2>')
-    lines.push('        <div className="rounded-lg border p-6 space-y-4">')
-    lines.push('          {Object.keys(spacing).length === 0 ? (')
-    lines.push('            <p className="text-sm text-muted-foreground">No spacing tokens</p>')
-    lines.push('          ) : (')
-    lines.push('            Object.entries(spacing).map(([name, value]) => (')
-    lines.push('              <div key={name} className="flex items-center gap-4">')
-    lines.push('                <div className="w-12 text-sm font-mono font-medium text-right">{name}</div>')
-    lines.push('                <div className="w-24 text-xs text-muted-foreground font-mono">{value as string}</div>')
-    lines.push('                <div')
-    lines.push('                  className="h-6 rounded bg-primary/70"')
-    lines.push('                  style={{ width: value as string }}')
-    lines.push('                />')
-    lines.push('              </div>')
-    lines.push('            ))')
-    lines.push('          )}')
-    lines.push('        </div>')
-    lines.push('      </div>')
-    lines.push('      <div className="space-y-4">')
-    lines.push('        <h2 className="text-2xl font-semibold">Border Radius</h2>')
-    lines.push('        <div className="rounded-lg border p-6">')
-    lines.push('          {Object.keys(radius).length === 0 ? (')
-    lines.push('            <p className="text-sm text-muted-foreground">No radius tokens</p>')
-    lines.push('          ) : (')
-    lines.push('            <div className="flex flex-wrap gap-6">')
-    lines.push('              {Object.entries(radius).map(([name, value]) => (')
-    lines.push('                <div key={name} className="flex flex-col items-center gap-2">')
-    lines.push('                  <div')
-    lines.push('                    className="h-16 w-16 border-2 border-primary/70 bg-primary/10"')
-    lines.push('                    style={{ borderRadius: value as string }}')
-    lines.push('                  />')
-    lines.push('                  <div className="text-xs font-medium">{name}</div>')
-    lines.push('                  <div className="text-xs text-muted-foreground font-mono">{value as string}</div>')
-    lines.push('                </div>')
-    lines.push('              ))}')
-    lines.push('            </div>')
-    lines.push('          )}')
-    lines.push('        </div>')
-    lines.push('      </div>')
-    lines.push('    </div>')
-    lines.push('  )')
-    lines.push('}')
-    return lines.join('\n')
+    return `'use client'
+import { useEffect, useState } from 'react'
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+      <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
+      {children}
+    </div>
+  )
+}
+
+export default function SpacingPage() {
+  const [tokens, setTokens] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/design-system/config')
+      .then((res) => res.json())
+      .then((data) => { setTokens(data.tokens ?? null); setLoading(false) })
+      .catch(() => { setTokens(null); setLoading(false) })
+  }, [])
+
+  const spacing = tokens?.spacing ?? {}
+  const radius = tokens?.radius ?? {}
+
+  return (
+    <div className="flex flex-col gap-8">
+      <div>
+        <h1 className="text-[28px] font-medium leading-tight tracking-[-0.02em] text-foreground">
+          Spacing & Radius
+        </h1>
+        <p className="mt-1 text-[13.5px] text-muted-foreground">
+          Scale and border radius tokens — used across every component.
+        </p>
+      </div>
+
+      {loading ? (
+        <p className="font-mono text-[11.5px] text-muted-foreground/70">loading…</p>
+      ) : (
+        <>
+          <div className="overflow-hidden rounded-md border border-border bg-card">
+            <div className="border-b border-border bg-muted px-4 py-3">
+              <SectionLabel>spacing · scale</SectionLabel>
+            </div>
+            <div className="p-4">
+              {Object.keys(spacing).length === 0 ? (
+                <p className="font-mono text-[11.5px] text-muted-foreground/70">no spacing tokens</p>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {Object.entries(spacing).map(([name, value]) => (
+                    <div key={name} className="grid grid-cols-[56px_96px_1fr] items-center gap-3 font-mono text-[12px]">
+                      <div className="text-right font-medium text-foreground">{name}</div>
+                      <div className="text-[10.5px] tabular-nums text-muted-foreground/70">{value as string}</div>
+                      <div className="h-5 rounded-sm bg-primary/70" style={{ width: value as string }} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-md border border-border bg-card">
+            <div className="border-b border-border bg-muted px-4 py-3">
+              <SectionLabel>border radius</SectionLabel>
+            </div>
+            <div className="p-4">
+              {Object.keys(radius).length === 0 ? (
+                <p className="font-mono text-[11.5px] text-muted-foreground/70">no radius tokens</p>
+              ) : (
+                <div className="flex flex-wrap gap-5">
+                  {Object.entries(radius).map(([name, value]) => (
+                    <div key={name} className="flex flex-col items-center gap-1.5">
+                      <div className="h-14 w-14 border-2 border-primary/70 bg-primary/10" style={{ borderRadius: value as string }} />
+                      <div className="font-mono text-[11px] font-medium text-foreground">{name}</div>
+                      <div className="font-mono text-[10px] tabular-nums text-muted-foreground/70">{value as string}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+`
   }
 
   private generateSitemapPage(): string {
@@ -857,41 +985,66 @@ function loadPages() {
   }
 }
 
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+      <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
+      {children}
+    </div>
+  )
+}
+
 export default function SitemapPage() {
   const pages = loadPages()
 
   return (
-    <div className="space-y-8">
+    <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Sitemap</h1>
-        <p className="text-muted-foreground mt-1">All pages, sections, and component usage</p>
+        <h1 className="text-[28px] font-medium leading-tight tracking-[-0.02em] text-foreground">
+          Sitemap
+        </h1>
+        <p className="mt-1 text-[13.5px] text-muted-foreground">
+          All pages · sections · component usage.
+        </p>
       </div>
-      <div className="space-y-4">
+      <div className="flex flex-col gap-3">
         {pages.map((page: any) => (
-          <div key={page.route} className="rounded-xl border p-4 space-y-3">
-            <div className="flex items-center gap-3">
-              <Link href={page.route} className="font-semibold text-sm hover:text-primary transition-colors">
+          <div key={page.route} className="flex flex-col gap-3 rounded-md border border-border bg-card p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Link href={page.route} className="text-[14px] font-medium text-foreground transition-colors hover:text-primary">
                 {page.name}
               </Link>
-              <span className="text-xs text-muted-foreground font-mono">{page.route}</span>
-              {page.layoutPattern && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{page.layoutPattern}</span>}
-              {page.hasForm && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">form</span>}
+              <span className="font-mono text-[11px] text-muted-foreground/70">{page.route}</span>
+              {page.layoutPattern && (
+                <span className="inline-flex items-center rounded border border-border bg-muted px-1.5 py-[1px] font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+                  {page.layoutPattern}
+                </span>
+              )}
+              {page.hasForm && (
+                <span className="inline-flex items-center rounded border border-primary/35 bg-primary/10 px-1.5 py-[1px] font-mono text-[10px] uppercase tracking-[0.08em] text-primary">
+                  form
+                </span>
+              )}
             </div>
             {page.sections.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {page.sections.map((s: string) => (
-                  <span key={s} className="text-[11px] px-2 py-0.5 rounded-full border text-muted-foreground">{s}</span>
+                  <span key={s} className="inline-flex items-center rounded-full border border-border px-2 py-0.5 font-mono text-[11px] text-muted-foreground">{s}</span>
                 ))}
               </div>
             )}
             {Object.keys(page.componentUsage).length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {Object.entries(page.componentUsage).filter(([,c]) => (c as number) > 0).map(([name, count]) => (
-                  <span key={name} className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                    {name}<span className="text-[10px] text-muted-foreground/60 ml-0.5">{String.fromCharCode(215)}{count as number}</span>
+                  <span key={name} className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
+                    {name}<span className="text-muted-foreground/60">{String.fromCharCode(215)}{count as number}</span>
                   </span>
                 ))}
-                {page.iconCount > 0 && <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Icons {String.fromCharCode(215)}{page.iconCount}</span>}
+                {page.iconCount > 0 && (
+                  <span className="inline-flex items-center rounded-full border border-border bg-muted px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
+                    Icons {String.fromCharCode(215)}{page.iconCount}
+                  </span>
+                )}
               </div>
             )}
           </div>

@@ -322,6 +322,7 @@ export const DESIGN_QUALITY_COMMON = `
 - Card titles (h3): text-sm font-semibold (never text-base or text-lg)
 - Body text: text-sm text-muted-foreground leading-relaxed
 - The SIZE DIFFERENCE between levels must be dramatic, not subtle
+- Two sizes max per component/section: avoid size-soup. The contrast between primary and secondary text comes from weight (font-medium vs font-normal) or color (text-foreground vs text-muted-foreground), NOT from introducing a third size step. Three sizes in one card = hierarchy reads as noise.
 
 ### Visual Depth & Layers
 - Cards: bg-card border border-border/15 rounded-xl (not rounded-md)
@@ -329,6 +330,7 @@ export const DESIGN_QUALITY_COMMON = `
 - Cards MUST have hover state: hover:border-border/30 transition-colors
 - Sections alternate between bg-background and bg-muted/5 for rhythm
 - Section dividers: border-t border-border/10 (subtle, not heavy)
+- Concentric radius formula: nested radii satisfy outer = inner + padding. If a Card is rounded-xl (12px) with p-4 (16px), child elements use rounded-md / rounded-lg — NOT the same rounded-xl as the parent. Matching radii on parent and child reads as uneven, mismatched corners; stepping down reads as intentional nesting.
 
 ### Buttons with Icons
 - Buttons containing text + icon: ALWAYS use inline-flex items-center gap-2 whitespace-nowrap
@@ -369,6 +371,7 @@ export const DESIGN_QUALITY_COMMON = `
   ease-out-circ: cubic-bezier(0, 0.55, 0.45, 1) — quick micro-interactions
   iOS sheet: cubic-bezier(0.32, 0.72, 0, 1) — bottom sheets/drawers
 - Default duration: 150ms hover, 200ms state changes. UI ≤300ms. Exit faster than entrance.
+- Exit motion is subtler than entrance: if an entering element translates from 24px, the exiting version translates only ~8px before fading. Blur + opacity still carry the directional cue — full-magnitude exit movement breaks hierarchy by competing for attention with the new content replacing it.
 - Button press: active:scale-[0.97] transition-transform duration-100.
 - Only animate transform and opacity (GPU). NEVER animate height directly — use grid-template-rows: 0fr → 1fr.
 - Specify properties: transition-colors, transition-transform. Never transition-all.
@@ -381,6 +384,8 @@ export const DESIGN_QUALITY_COMMON = `
 ### Typography Polish
 - Headings: text-wrap: balance to prevent orphaned single words on last line.
 - Body text: text-wrap: pretty for better line breaking (where supported).
+- Grayscale antialiasing: globals.css body gets -webkit-font-smoothing: antialiased AND -moz-osx-font-smoothing: grayscale. Tailwind: put "antialiased" on <html> or <body>. Without it, light text on dark backgrounds renders heavy on macOS. This is a one-line fix with disproportionate perceived-quality gain.
+- Tabular numbers for changing digits: any numeric value that updates at runtime (stats, timers, counters, leaderboards, table cells with percentages / prices / durations) uses font-variant-numeric: tabular-nums or Tailwind's "tabular-nums" utility. Prevents width-jitter when values rerender — a common AI-slop tell.
 
 ### Modern CSS (progressive enhancement)
 - Container queries: prefer @container over @media for component-level responsive behavior.
@@ -1244,6 +1249,7 @@ IMAGE / MEDIA CONTAINERS:
 - Rounded: rounded-xl for hero. rounded-md for inline. rounded-full for avatars.
 - Fallback: bg-muted with centered icon.
 - Object fit: object-cover for photos. object-contain for logos.
+- Outline overlay: every content image (<Image> or <img>) gets a subtle inner outline at low opacity — outline outline-1 -outline-offset-1 outline-black/10 (dark: outline-white/10). Handles the edge case where the image's own background matches the page background and the image's edge would otherwise disappear. Cheap, consistent, silently fixes unknown-content cases.
 
 CALENDAR / DATE PICKER:
 - Use shadcn Calendar for date selection. Pair with Popover for date picker trigger.
@@ -1378,13 +1384,15 @@ LOADING STATES (async operations):
   onClick: setLoading(true) → try { await action() } finally { setLoading(false) }
 - NEVER leave a submit/action button clickable during an async operation
 
-ESCAPE ROUTES:
+ESCAPE ROUTES (Nielsen #3 — user control and freedom):
 - Every Dialog/Sheet/Drawer MUST have: visible close button (X) + onOpenChange handler
 - Modal forms: always provide Cancel button alongside Submit
 - Esc key must dismiss (shadcn Dialog default, but verify onOpenChange is wired)
 - Skeleton > spinner for page loads. Spinner > skeleton for inline actions (button submit)
+- Focus return: when a Dialog/Sheet/Popover closes, focus MUST return to the element that opened it. shadcn Radix primitives handle this by default — custom overlays often don't. Smoke test: after close, press Tab; if focus lands on <body>, the return is broken. Critical for keyboard + screen-reader users.
+- Never block the back button. Use onOpenChange to keep modal state in sync with URL (router back closes the modal instead of navigating away from a trapped page).
 
-### Feedback & Confirmation
+### Feedback & Confirmation (Nielsen #1 visibility of system status, #5 error prevention)
 - Every user action gets visible feedback:
   - Button click → disabled state + loading indicator during processing
   - Form submit → "Saving..." → "Saved ✓" (or error message)
@@ -1392,6 +1400,9 @@ ESCAPE ROUTES:
   - Toggle/switch → immediate visual change (optimistic UI)
 - Success feedback: subtle (toast, inline text). Don't use modals for success.
 - Error feedback: prominent, inline near the cause, with suggested fix
+- HIGH-RISK destructive (delete account, delete workspace, drop project, mass unsubscribe, charge > threshold): confirmation dialog is not enough on its own. The confirm button stays disabled until the user types the resource name or the word DELETE into an input. Pattern: <AlertDialogAction disabled={typed !== resource.name}>{resource.name}</AlertDialogAction>. Friction is the feature — irreversible actions deserve a second gesture beyond "click Confirm".
+- Reversible destructive with undo (Gmail pattern): for soft destructive actions (archive, mark-read, hide, mute), prefer an optimistic action + toast { "Archived. Undo [5s]" } over a blocking confirmation dialog. Cheaper interaction, same safety. Use Sonner toast with { action: { label: "Undo", onClick: revert } } and a 5-second dismiss timer.
+- Stream long operations: operations > 3s show incremental progress ("Step 2 of 4: generating page layouts…"), not just a spinner. Spinners for > 3s read as "it's hung". Use Progress or step-indicator so the user can see the system is making progress (Nielsen #1).
 
 ### Error Recovery
 - Error messages: what happened + why + what to do next

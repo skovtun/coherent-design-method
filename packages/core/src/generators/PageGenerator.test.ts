@@ -148,15 +148,17 @@ describe('PageGenerator', () => {
       expect(header).toContain('ThemeToggle')
     })
 
-    it('generateDSButtonCode returns a self-hiding client component linking to /design-system', () => {
+    it('generateDSButtonCode returns a contextual FAB that navigates between app and /design-system', () => {
       const config = makeConfig([{ route: '/', label: 'Home' }], 'App')
       const gen = new PageGenerator(config)
       const code = gen.generateDSButtonCode()
       expect(code).toContain("'use client'")
       expect(code).toContain('usePathname')
       expect(code).toContain("startsWith('/design-system')")
-      expect(code).toContain('href="/design-system"')
+      // Contextual href: goes to '/design-system' on app pages, back to '/' on DS pages.
+      expect(code).toContain("'/design-system'")
       expect(code).toContain('Design System')
+      expect(code).toContain('Back to App')
       // Should use theme-adaptive tokens, never raw white/black.
       expect(code).not.toMatch(/bg-(?:white|black)\b/)
       expect(code).not.toMatch(/text-(?:white|black)\b/)

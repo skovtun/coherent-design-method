@@ -542,37 +542,51 @@ export default function ComponentShowcase({ component }: ComponentShowcaseProps)
   })()
 
   return (
-    <div className="space-y-10">
+    <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">{name}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+          <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
+          components · {component.category || 'component'}
+        </div>
+        <h1 className="text-[28px] font-medium leading-tight tracking-[-0.02em] text-foreground">
+          {name}
+        </h1>
+        <p className="mt-1 text-[13.5px] text-muted-foreground">
           {descriptions[component.id] || \`\${name} component\`}
         </p>
       </div>
 
-      <div>
-        <h2 className="text-sm font-medium mb-3">Preview</h2>
-        <div className="flex flex-wrap items-center gap-4 rounded-lg border p-6 bg-muted/30">
+      <div className="overflow-hidden rounded-md border border-border bg-card">
+        <div className="border-b border-border bg-muted px-4 py-3">
+          <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+            <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
+            preview
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-4 p-6">
           <Preview component={component} />
         </div>
       </div>
 
       {component.variants && component.variants.length > 0 && (
-        <div>
-          <h2 className="text-sm font-medium mb-3">Variants</h2>
-          <div className="rounded-lg border divide-y">
+        <div className="overflow-hidden rounded-md border border-border bg-card">
+          <div className="border-b border-border bg-muted px-4 py-3">
+            <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+              <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
+              variants
+            </div>
+          </div>
+          <div className="divide-y divide-border">
             {component.variants.map((v: any) => (
               <div key={v.name} className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-4 min-w-0">
-                  <div className="shrink-0">
-                    <Preview component={component} variant={v.name} />
-                  </div>
+                  <div className="shrink-0"><Preview component={component} variant={v.name} /></div>
                   <div className="min-w-0">
-                    <div className="font-mono text-xs font-medium">{v.name}</div>
-                    {v.className && <code className="text-xs text-muted-foreground break-all">{v.className}</code>}
+                    <div className="font-mono text-[12px] font-medium text-foreground">{v.name}</div>
+                    {v.className && <code className="font-mono text-[10.5px] text-muted-foreground/70 break-all">{v.className}</code>}
                   </div>
                 </div>
-                <code className="text-xs text-muted-foreground hidden md:block shrink-0 ml-4">variant=&quot;{v.name}&quot;</code>
+                <code className="hidden font-mono text-[10.5px] text-muted-foreground/70 md:block shrink-0 ml-4">variant=&quot;{v.name}&quot;</code>
               </div>
             ))}
           </div>
@@ -580,70 +594,81 @@ export default function ComponentShowcase({ component }: ComponentShowcaseProps)
       )}
 
       {component.sizes && component.sizes.length > 0 && (
-        <div>
-          <h2 className="text-sm font-medium mb-3">Sizes</h2>
-          <div className="rounded-lg border divide-y">
+        <div className="overflow-hidden rounded-md border border-border bg-card">
+          <div className="border-b border-border bg-muted px-4 py-3">
+            <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+              <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
+              sizes
+            </div>
+          </div>
+          <div className="divide-y divide-border">
             {component.sizes.map((s: any) => (
               <div key={s.name} className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-4 min-w-0">
-                  <div className="shrink-0">
-                    <Preview component={component} size={s.name} />
-                  </div>
+                  <div className="shrink-0"><Preview component={component} size={s.name} /></div>
                   <div className="min-w-0">
-                    <div className="font-mono text-xs font-medium">{s.name}</div>
-                    {s.className && <code className="text-xs text-muted-foreground break-all">{s.className}</code>}
+                    <div className="font-mono text-[12px] font-medium text-foreground">{s.name}</div>
+                    {s.className && <code className="font-mono text-[10.5px] text-muted-foreground/70 break-all">{s.className}</code>}
                   </div>
                 </div>
-                <code className="text-xs text-muted-foreground hidden md:block shrink-0 ml-4">size=&quot;{s.name}&quot;</code>
+                <code className="hidden font-mono text-[10.5px] text-muted-foreground/70 md:block shrink-0 ml-4">size=&quot;{s.name}&quot;</code>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      <div>
-        <h2 className="text-sm font-medium mb-3">Usage</h2>
-        <div className="relative rounded-lg border bg-muted/50 p-4">
+      <div className="overflow-hidden rounded-md border border-border bg-card">
+        <div className="flex items-center justify-between border-b border-border bg-muted px-4 py-3">
+          <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+            <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
+            usage
+          </div>
           <button
             onClick={() => copyCode(usageCode)}
-            className="absolute top-3 right-3 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="font-mono text-[10.5px] text-muted-foreground/70 transition-colors hover:text-primary"
           >
-            {copied ? 'Copied!' : 'Copy'}
+            {copied ? 'copied' : 'copy'}
           </button>
-          <pre className="text-sm overflow-x-auto"><code>{usageCode}</code></pre>
         </div>
+        <pre className="overflow-x-auto p-4 font-mono text-[12px] leading-[1.6] text-foreground"><code>{usageCode}</code></pre>
       </div>
 
-      <div>
-        <h2 className="text-sm font-medium mb-3">Props</h2>
-        <div className="rounded-lg border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="border-b bg-muted/50">
-              <tr>
-                <th className="p-3 text-left text-xs font-medium text-muted-foreground">Prop</th>
-                <th className="p-3 text-left text-xs font-medium text-muted-foreground">Type</th>
-                <th className="p-3 text-left text-xs font-medium text-muted-foreground">Default</th>
+      <div className="overflow-hidden rounded-md border border-border bg-card">
+        <div className="border-b border-border bg-muted px-4 py-3">
+          <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+            <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
+            props
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="border-b border-border">
+              <tr className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/70">
+                <th className="px-4 py-2 text-left font-normal">prop</th>
+                <th className="px-4 py-2 text-left font-normal">type</th>
+                <th className="px-4 py-2 text-left font-normal">default</th>
               </tr>
             </thead>
             <tbody>
               {component.variants && component.variants.length > 0 && (
-                <tr className="border-b">
-                  <td className="p-3 font-mono text-xs">variant</td>
-                  <td className="p-3 font-mono text-xs">{component.variants.map((v: any) => \`"\${v.name}"\`).join(' | ')}</td>
-                  <td className="p-3 font-mono text-xs">&quot;{component.variants[0].name}&quot;</td>
+                <tr className="border-b border-border font-mono text-[12px]">
+                  <td className="px-4 py-2 text-foreground">variant</td>
+                  <td className="px-4 py-2 text-muted-foreground">{component.variants.map((v: any) => \`"\${v.name}"\`).join(' | ')}</td>
+                  <td className="px-4 py-2 text-muted-foreground">&quot;{component.variants[0].name}&quot;</td>
                 </tr>
               )}
               {component.sizes && component.sizes.length > 0 && (
-                <tr className="border-b">
-                  <td className="p-3 font-mono text-xs">size</td>
-                  <td className="p-3 font-mono text-xs">{component.sizes.map((s: any) => \`"\${s.name}"\`).join(' | ')}</td>
-                  <td className="p-3 font-mono text-xs">&quot;{component.sizes[0].name}&quot;</td>
+                <tr className="border-b border-border font-mono text-[12px]">
+                  <td className="px-4 py-2 text-foreground">size</td>
+                  <td className="px-4 py-2 text-muted-foreground">{component.sizes.map((s: any) => \`"\${s.name}"\`).join(' | ')}</td>
+                  <td className="px-4 py-2 text-muted-foreground">&quot;{component.sizes[0].name}&quot;</td>
                 </tr>
               )}
-              <tr>
-                <td className="p-3 font-mono text-xs">className</td>
-                <td className="p-3 font-mono text-xs">string</td>
-                <td className="p-3 font-mono text-xs">undefined</td>
+              <tr className="font-mono text-[12px]">
+                <td className="px-4 py-2 text-foreground">className</td>
+                <td className="px-4 py-2 text-muted-foreground">string</td>
+                <td className="px-4 py-2 text-muted-foreground">undefined</td>
               </tr>
             </tbody>
           </table>

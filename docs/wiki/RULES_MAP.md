@@ -117,6 +117,14 @@ Blocks: CORE = CORE_CONSTRAINTS. RULES_X = TIER-2 contextual blocks.
 | R009 | Table: columns schema as single source of truth | RULES_DATA_DISPLAY | PJ-004 empty columns | `TABLE_COLUMN_MISMATCH` | — | 0.7.0 |
 | R010 | Overlays: shadcn primitives only, max-w-* required | CORE | PJ-008 full-width modal | `DIALOG_FULL_WIDTH`, `DIALOG_CUSTOM_OVERLAY` | `dialog.tsx`, `alert-dialog.tsx`, `sheet.tsx` | 0.7.1 |
 | R011 | AlertDialog only for destructive actions | CORE | AlertDialog used for "Save" | `ALERT_DIALOG_NON_DESTRUCTIVE` | `alert-dialog.tsx` | 0.7.1 |
+| R012 | Two sizes max per component — no size-soup, contrast via weight or color | DESIGN_QUALITY_COMMON | jakub.kr + Refactoring UI | — | — | 0.7.24 |
+| R013 | Concentric border radius: outer = inner + padding | DESIGN_QUALITY_COMMON | jakub.kr + Refactoring UI nesting | — | — | 0.7.24 |
+| R014 | Exit motion subtler than entrance (exit translate ~8px, enter ~24px) | DESIGN_QUALITY_COMMON | jakub.kr | — | — | 0.7.24 |
+| R015 | Grayscale antialiasing on html/body | DESIGN_QUALITY_COMMON | jakub.kr — heavy light text on dark (macOS) | — | — | 0.7.24 |
+| R016 | Tabular numerals on changing digit UI (stats, timers, cells) | DESIGN_QUALITY_COMMON | jakub.kr — width-jitter on rerender | — | — | 0.7.24 |
+| R017 | Focus returns to trigger element after overlay close | INTERACTION_PATTERNS | Nielsen #3 (user control) | — | `dialog.tsx`, `sheet.tsx` | 0.7.24 |
+| R018 | Back button compatibility with modals — no back-button traps | INTERACTION_PATTERNS | Nielsen #3 (user control) | — | — | 0.7.24 |
+| R019 | High-risk destructive: type-to-confirm. Reversible: optimistic + undo toast | INTERACTION_PATTERNS | Nielsen #5 (error prevention) + Gmail undo | — | — | 0.7.24 |
 
 ## Contextual (TIER-2, keyword-matched)
 
@@ -126,6 +134,7 @@ Blocks: CORE = CORE_CONSTRAINTS. RULES_X = TIER-2 contextual blocks.
 | R021 | Empty state: icon + title + description + single CTA | RULES_DATA_DISPLAY | AI skipped empty state | `NO_EMPTY_STATE` | `empty-state.tsx` | 0.6.94 |
 | R022 | Stat card: CardHeader flex-row pb-2, text-2xl font-bold value, arrow trend | RULES_DATA_DISPLAY | Inconsistent stat cards | — (PJ-007 needs cross-page validator) | `stat-card.tsx` | 0.7.0 |
 | R023 | Pagination via shadcn Pagination | RULES_DATA_DISPLAY | Custom Prev/Next buttons | (pending) | `pagination.tsx` | 0.7.1 |
+| R024 | Image outline overlay at low opacity | RULES_COMPONENTS_MISC | jakub.kr — silent edge where bg matches | — | — | 0.7.24 |
 
 ## Planned
 
