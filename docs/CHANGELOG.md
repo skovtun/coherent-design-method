@@ -2,6 +2,38 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.24] — 2026-04-22
+
+### F11 interface-details + F12 Nielsen heuristic subset
+
+Nine new rules added to always-on blocks — floor-raising polish and safety. Origin: jakub.kr/writing/details-that-make-interfaces-feel-better + Nielsen 10 usability heuristics. No new subsystem, no breaking changes, no new exports — all inlined into existing `DESIGN_QUALITY_COMMON` / `INTERACTION_PATTERNS` / `RULES_COMPONENTS_MISC` blocks per Rule 2 of the constraint architecture.
+
+### Added — F11 (interface details)
+
+- **R012 Two sizes max per component.** Contrast between primary and secondary text comes from weight (font-medium vs font-normal) or color (text-foreground vs text-muted-foreground), NOT from a third size step. Three sizes in one card reads as noise.
+- **R013 Concentric border radius formula.** Nested radii satisfy `outer = inner + padding`. A Card rounded-xl with p-4 gets children rounded-md/rounded-lg — not the same rounded-xl as the parent. Matching radii on nested elements read as mismatched corners.
+- **R014 Exit motion subtler than entrance.** If an entering element translates from 24px, the exiting version translates only ~8px before fading. Blur + opacity still carry the directional cue. Full-magnitude exit movement competes with the content replacing it.
+- **R015 Grayscale antialiasing.** html/body gets `-webkit-font-smoothing: antialiased` + `-moz-osx-font-smoothing: grayscale`. Tailwind: `antialiased` class. Without it, light text on dark renders heavy on macOS.
+- **R016 Tabular numerals.** Any UI element with changing digits (stats, timers, counters, table cells with prices / durations / percentages) uses `font-variant-numeric: tabular-nums`. Prevents width-jitter on rerender — a common AI-slop tell.
+- **R024 Image outline overlay.** Every content image gets `outline outline-1 -outline-offset-1 outline-black/10` (dark: `outline-white/10`). Handles the edge case where the image's own background matches the page background and the image edge would otherwise disappear.
+
+### Added — F12 (Nielsen heuristic subset)
+
+- **R017 Focus return to trigger element.** When a Dialog/Sheet/Popover closes, focus MUST return to the element that opened it. shadcn Radix primitives handle this by default; custom overlays often don't. Critical for keyboard and screen-reader users (Nielsen #3 user control).
+- **R018 Back-button compatibility with modals.** Use `onOpenChange` to keep modal state in sync with URL. Router back closes the modal instead of navigating away from a trapped page (Nielsen #3).
+- **R019 Tiered destructive confirmation.** HIGH-RISK destructive (delete account, drop project, charge > threshold) requires typing the resource name or "DELETE" to unlock the confirm button. Reversible destructive (archive, mark-read, hide) prefers optimistic + Gmail-style undo toast over a blocking dialog. Friction is the feature for irreversible; cheap interaction preserves safety for reversible (Nielsen #5 error prevention).
+
+### Updated
+
+- `docs/wiki/RULES_MAP.md` — 9 new rows (R012-R019 always-on, R024 contextual). Auto-generated block refreshed via `scripts/generate-rules-map.mjs`.
+- `docs/wiki/IDEAS_BACKLOG.md` — F11 + F12 entries marked `status: resolved, shipped_in: [0.7.24]`, plus v0.7.24 entry under Shipped section.
+- `CLAUDE.md` — stale version marker bumped to reflect current state.
+
+### Not added
+
+- No new validators for these rules yet. They are prompt-level only. If an F11 rule turns out to be frequently violated despite CORE injection (measurable via `coherent journal aggregate` over several releases), promote to a validator in a follow-up PR.
+- No ADR — no new subsystem, no breaking change, existing tier architecture unchanged.
+
 ## [0.7.22] — 2026-04-20
 
 ### `coherent wiki audit` — extended checks (PR 2 from v0.7.x wiki refactor)

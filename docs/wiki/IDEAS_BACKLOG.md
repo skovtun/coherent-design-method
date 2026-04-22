@@ -91,11 +91,65 @@ Prefix clusters: `F` features · `M` meta-architecture · `N` nice-to-haves · `
 - Flags 3+ session occurrences as PATTERNS_JOURNAL candidates
 - See ADR-0002
 
+#### v0.7.24 — F11 interface-details + F12 Nielsen heuristic subset
+
+- **F11 — jakub.kr "details that make interfaces feel better" (6 rules):**
+  - R012 Two sizes max per component (contrast via weight/color, not a third size step)
+  - R013 Concentric border radius (outer = inner + padding, child radius steps down from parent)
+  - R014 Exit motion subtler than entrance (exit translate ~8px, enter ~24px)
+  - R015 Grayscale antialiasing on html/body — fixes heavy light-text-on-dark on macOS
+  - R016 Tabular numerals on any changing-digit UI — stops width-jitter on rerender
+  - R024 Image outline overlay at low opacity — handles image-bg-matches-page-bg silent edge
+- **F12 — Nielsen heuristic subset (3 rules, spread across feedback + escape-routes):**
+  - R017 Focus returns to trigger element after overlay close (Nielsen #3 user control)
+  - R018 Back button compatibility with modals — no back-button traps (Nielsen #3)
+  - R019 High-risk destructive: type-to-confirm. Reversible destructive: optimistic + undo toast (Nielsen #5)
+- Inline into existing DESIGN_QUALITY_COMMON / INTERACTION_PATTERNS / RULES_COMPONENTS_MISC blocks — no new exported constants, no new subsystem, no ADR.
+- Origin: jakub.kr/writing/details-that-make-interfaces-feel-better + Nielsen 10 usability heuristics.
+
 ---
 
 ## Open ideas
 
 Each `###` block below is an indexable entry (wiki-index.ts scans `###` headings). Frontmatter above each heading supplies id/status/target/date for retrieval weighting and filtering.
+
+---
+id: F11
+type: idea
+status: resolved
+shipped_in: [0.7.24]
+target: v0.7.24
+effort: 1h
+date: 2026-04-22
+confidence: verified
+---
+
+### F11 — Interface details polish rules (from jakub.kr)
+
+Bundled 6 interface-detail rules from jakub.kr/writing/details-that-make-interfaces-feel-better into existing always-on blocks (DESIGN_QUALITY_COMMON + RULES_COMPONENTS_MISC): two-sizes-max per component (R012), concentric radius formula (R013), subtler exit motion (R014), grayscale antialiasing (R015), tabular numerals (R016), image outline overlay (R024). Shipped v0.7.24.
+
+**Why:** These are floor-raising rules — small, concrete, enforceable via prompt. jakub.kr is a quality touchstone for details the AI typically misses. All six were absent from CORE; five now always-on, one contextual (image). Zero token-budget concerns — added ~180 tokens total to DQ_COMMON, well under budget.
+
+**Target:** v0.7.24.
+
+---
+id: F12
+type: idea
+status: resolved
+shipped_in: [0.7.24]
+target: v0.7.24
+effort: 30min
+date: 2026-04-22
+confidence: verified
+---
+
+### F12 — Nielsen heuristic subset (3 rules)
+
+Selected 3 highest-leverage heuristics from Nielsen 10 that weren't already covered by INTERACTION_PATTERNS: focus return after overlay close (R017, #3 user control), back-button compatibility with modals (R018, #3 user control), high-risk type-to-confirm + reversible undo-toast pattern (R019, #5 error prevention). Shipped v0.7.24.
+
+**Why:** Nielsen 10 in full is too much — Coherent already implicitly covers #1 (system status), #2 (match real world), #4 (consistency), #6 (recognition not recall), #7 (flex/efficiency), #8 (aesthetic/minimalist), #10 (help docs) through existing CORE + INTERACTION_PATTERNS + golden patterns. What was genuinely missing: focus return (most AI-generated overlays break this), back-button traps (modals that aren't router-aware), and the DESTRUCTIVE_NO_CONFIRM coverage was shallow — just "show a confirm dialog", not tiered by severity. Type-to-confirm for irreversible + undo-toast for reversible = cheap interaction, same safety.
+
+**Target:** v0.7.24.
 
 ---
 id: M7
