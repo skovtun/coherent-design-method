@@ -98,7 +98,7 @@ Deletion is never one file. `applyModification` for `delete-page`:
 
 ## References
 
-- Prompted by: PJ-009 in `docs/PATTERNS_JOURNAL.md`.
+- Prompted by: PJ-009 in `docs/wiki/PATTERNS_JOURNAL.md`.
 - Related: ADR-0001 (golden patterns). Destructive operations benefit from the same "explicit schema affordance over LLM interpretation" principle.
 - Code: `packages/core/src/schemas/` (ModificationRequest), `packages/cli/src/commands/chat/modification-handler.ts`, `packages/cli/src/agents/destructive-preparser.ts`.
 - Changelog: v0.7.5 through v0.7.11.

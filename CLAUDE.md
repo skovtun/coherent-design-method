@@ -5,7 +5,7 @@
 > Coherent's job is to make that impossible — by encoding design decisions
 > as a tiered constraint system that runs before the AI writes a single line of code.
 
-**Current version:** 0.8.0
+**Current version:** 0.8.1
 **Packages:** `@getcoherent/core` + `@getcoherent/cli` (published together, same version)
 **Tests:** 1098 passing
 
@@ -16,7 +16,7 @@
 Coherent maintains a platform-level LLM wiki with decisions, patterns, and
 ideas that persist across sessions. Read these before touching code:
 
-1. **`docs/PATTERNS_JOURNAL.md`** — append-only log of every AI-output bug we've seen, its root cause, and what we shipped in response. If you're debugging something that feels familiar, it probably IS.
+1. **`docs/wiki/PATTERNS_JOURNAL.md`** — append-only log of every AI-output bug we've seen, its root cause, and what we shipped in response. If you're debugging something that feels familiar, it probably IS.
 2. **`docs/wiki/RULES_MAP.md`** — every rule in `design-constraints.ts` with origin bug, validator, golden pattern. Check this before adding or modifying a rule.
 3. **`docs/wiki/MODEL_PROFILE.md`** — empirical notes on Claude Sonnet 4's systematic behaviors. Saves time on "why does AI keep doing X?" questions.
 4. **`docs/wiki/IDEAS_BACKLOG.md`** — open proposals, deferred work, rejected ideas with reasons. Check before proposing a new feature — it might already be scoped.
@@ -29,6 +29,10 @@ Update them when you:
 - Observe a new AI-output failure pattern (JOURNAL entry).
 - Make a breaking or philosophically-significant change (new ADR).
 - Propose or defer an idea (IDEAS_BACKLOG.md).
+
+**Not in the wiki, on purpose:**
+- `docs/FAQ.md` — user-facing answers. Not retrieval-indexed (would pollute generation context).
+- `docs/runbooks/` — operational how-tos (cut a release, validate retrieval, debug indexing). Not retrieval-indexed. See `docs/runbooks/README.md` for the layering rule.
 
 ---
 

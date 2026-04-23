@@ -10,7 +10,7 @@
  * method we can swap in v0.8.x without changing callers.
  *
  * What gets indexed:
- *   - docs/PATTERNS_JOURNAL.md — each PJ-NNN entry as a separate document
+ *   - docs/wiki/PATTERNS_JOURNAL.md — each PJ-NNN entry as a separate document
  *   - docs/wiki/ADR/*.md — each ADR as one document
  *   - docs/wiki/MODEL_PROFILE.md — split by ### section
  *   - docs/wiki/IDEAS_BACKLOG.md — split by ### section

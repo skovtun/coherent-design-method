@@ -5,7 +5,7 @@ Karpathy-style LLM wiki for the Coherent platform itself — facts and decisions
 ## Contents
 
 - [**ADR/**](./ADR/) — Architectural Decision Records. One file per significant design shift, with YAML frontmatter, context, decision, consequences, why-nots.
-- [**PATTERNS_JOURNAL.md**](../PATTERNS_JOURNAL.md) — Append-only log of AI-output failure patterns observed in the wild, root causes, and how we responded. Each entry has `### PJ-NNN — Title` heading with YAML frontmatter (id, type, confidence, status, date, fixed_in, evidence). IDs assigned in observation order (sequential, three-digit zero-padded).
+- [**PATTERNS_JOURNAL.md**](./PATTERNS_JOURNAL.md) — Append-only log of AI-output failure patterns observed in the wild, root causes, and how we responded. Each entry has `### PJ-NNN — Title` heading with YAML frontmatter (id, type, confidence, status, date, fixed_in, evidence). IDs assigned in observation order (sequential, three-digit zero-padded).
 - [**MODEL_PROFILE.md**](./MODEL_PROFILE.md) — Empirical notes on how Claude Sonnet 4 behaves with Coherent's prompts. Updates when a systematic pattern shows up across multiple runs.
 - [**RULES_MAP.md**](./RULES_MAP.md) — Living index of every rule in `design-constraints.ts` with origin bug, validator, golden pattern, and version history. Has auto-generated and hand-maintained sections.
 - [**IDEAS_BACKLOG.md**](./IDEAS_BACKLOG.md) — Open / deferred / shipped ideas. Each open/deferred idea is `### ID — Title` with YAML frontmatter so retrieval can rank by status/target. Shipped items use `####` so they don't bloat retrieval.
