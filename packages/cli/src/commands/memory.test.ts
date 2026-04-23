@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'fs'
+import { mkdtempSync, mkdirSync, rmSync, utimesSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { spawnSync } from 'child_process'
@@ -103,9 +103,12 @@ describe('memoryShowCommand', () => {
 
   it('lists recent run records newest-first', async () => {
     mkdirSync(join(dir, '.coherent/runs'), { recursive: true })
+    const olderPath = join(dir, '.coherent/runs', '2026-04-20T10-00-00Z.yaml')
+    const newerPath = join(dir, '.coherent/runs', '2026-04-23T09-00-00Z.yaml')
+
     // Older run
     writeFileSync(
-      join(dir, '.coherent/runs', '2026-04-20T10-00-00Z.yaml'),
+      olderPath,
       [
         '# coherent chat run — generation outcome record',
         'timestamp: 2026-04-20T10:00:00.000Z',
@@ -121,7 +124,7 @@ describe('memoryShowCommand', () => {
     )
     // Newer run
     writeFileSync(
-      join(dir, '.coherent/runs', '2026-04-23T09-00-00Z.yaml'),
+      newerPath,
       [
         '# coherent chat run — generation outcome record',
         'timestamp: 2026-04-23T09:00:00.000Z',
@@ -137,6 +140,13 @@ describe('memoryShowCommand', () => {
         '',
       ].join('\n'),
     )
+
+    // Force mtime ordering deterministically. CI filesystems (ext4 without
+    // high-res timestamps) can land both writes at the same whole second,
+    // making the statSync-mtime-based sort in memory.ts unstable.
+    const now = Date.now() / 1000
+    utimesSync(olderPath, now - 10, now - 10)
+    utimesSync(newerPath, now, now)
 
     await memoryShowCommand({ _projectRoot: dir })
     const o = out()
