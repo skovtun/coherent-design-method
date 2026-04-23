@@ -394,10 +394,12 @@ Backfilled ADRs landed in wiki refactor (ADR-0002, ADR-0003). Add CI lint: when 
 ---
 id: W3
 type: idea
-status: open
+status: shipped
 target: v0.7.21
 effort: 30min
 date: 2026-04-20
+shipped_in: 0.7.31
+shipped_date: 2026-04-23
 confidence: observed
 ---
 
@@ -407,7 +409,7 @@ Scaffold new ADR file with next sequential number, today's date, frontmatter tem
 
 **Why:** Every new ADR is hand-written. A scaffold ensures consistent frontmatter and reduces the friction that leads to skipping ADRs.
 
-**Target:** v0.7.21.
+**Shipped (v0.7.31):** `coherent wiki adr create <slug> [--title <title>]`. Scans `docs/wiki/ADR/` for existing `NNNN-*.md`, writes next sequential number (zero-padded to 4 digits) with today's date and full skeleton (Context / Decision / Consequences / Why not alternatives / References). Rejects invalid slugs and slug collisions. Auto-creates `docs/wiki/ADR/` if missing.
 
 ---
 

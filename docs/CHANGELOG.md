@@ -2,6 +2,27 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.31] — 2026-04-23
+
+### `coherent wiki adr create` — scaffold next ADR with skeleton (W3)
+
+Every ADR until now was hand-written. That friction meant occasional ADR-worthy decisions never got recorded. `coherent wiki adr create <slug>` scans `docs/wiki/ADR/` for the highest existing number, writes `NNNN-<slug>.md` with today's date and the canonical skeleton (Context / Decision / Consequences / Why not alternatives / References).
+
+Used it to dogfood itself: **ADR-0004 — Atmosphere preset catalog** recording the v0.7.29 + v0.7.30 decisions.
+
+### Added
+
+- **`coherent wiki adr create <slug> [--title <title>]`** — new subcommand. Auto-creates `docs/wiki/ADR/` if missing. Rejects non-kebab slugs and slug collisions with existing ADRs.
+- **`docs/wiki/ADR/0004-atmosphere-preset-catalog.md`** — full ADR covering the atmosphere-preset decision, alternatives considered, and consequences.
+- **10 unit tests** across `nextAdrNumber` (empty/missing dir, gaps, non-ADR file skip, zero-padding past 99) and `renderAdrTemplate` (frontmatter shape, canonical sections, title rendering, trailing newline).
+
+### Changed
+
+- **`IDEAS_BACKLOG.md` → W3** — marked `shipped_in: 0.7.31`.
+- **QUICK_REFERENCE.md** — new command documented.
+
+---
+
 ## [0.7.30] — 2026-04-23
 
 ### `--atmosphere <name>` flag for `coherent chat`

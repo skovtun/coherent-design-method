@@ -22,6 +22,7 @@ import { baselineCommand } from './commands/baseline.js'
 import {
   wikiReflectCommand,
   wikiAuditCommand,
+  wikiAdrCreateCommand,
   wikiIndexCommand,
   wikiSearchCommand,
   wikiBenchCommand,
@@ -263,6 +264,15 @@ wikiCmd
   .command('bench')
   .description('Run retrieval quality benchmark (precision@1 and @3) against docs/wiki/BENCH.yaml')
   .action(wikiBenchCommand)
+
+const adrCmd = new Command('adr').description('Scaffold and manage Architecture Decision Records')
+adrCmd
+  .command('create <slug>')
+  .description('Scaffold a new ADR: next sequential number + skeleton sections under docs/wiki/ADR/')
+  .option('--title <title>', 'Override the auto-generated title (otherwise derived from slug)')
+  .action((slug: string, opts: { title?: string }) => wikiAdrCreateCommand(slug, opts))
+wikiCmd.addCommand(adrCmd)
+
 hidden(wikiCmd)
 program.addCommand(wikiCmd)
 
