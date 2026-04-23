@@ -250,6 +250,36 @@ evidence: [transcript://2026-04-20 session — "coherent chat 'delete account pa
 **ADR reference:** ADR-0003 (destructive operations architecture) — to be written.
 
 ---
+id: PJ-010
+type: bug
+confidence: verified
+status: active
+date: 2026-04-23
+fixed_in: []
+evidence: [screenshot://2026-04-23 landing DS /design-system/tokens/colors showing generic blue/purple/orange palette while real brand is green, repo://getcoherent/export/design-system.config.ts vs app/layout.tsx inline CSS]
+---
+
+### PJ-010 — DS tokens page shows stale palette from config snapshot after CSS-vars brand change
+
+**Observed:** On `getcoherent.design` landing (Coherent-generated), `/design-system/tokens/colors` renders the default scaffolded palette (`primary: #3B82F6` blue, `secondary: #8B5CF6` purple, `accent: #F59E0B` orange). Real brand (`#17a862` light / `#3ecf8e` dark green) is applied via CSS vars in `app/layout.tsx` inline `<style>` and is what the rest of the page actually uses. The DS tokens page contradicts the live UI.
+
+**Root cause (compound):**
+1. `design-system.config.ts` is a **JSON snapshot** of tokens at scaffold time. The tokens API route (`/api/design-system/config`) serves this snapshot.
+2. The DS tokens page (`/design-system/tokens/colors/page.tsx`) fetches from that API and renders the snapshot.
+3. Users who customize brand by editing CSS vars in `globals.css` / `layout.tsx` (common, because CSS vars is the recommended pattern) **do not trigger any sync** to `design-system.config.ts`. No warning, no build-time check.
+4. File header says "Do not edit manually - use 'coherent chat' command to modify" — but `coherent chat` has no command to sync tokens from the live CSS vars back into the config snapshot. Drift is silent.
+
+**User impact:** The generated DS page ships as part of the scaffolded project and is publicly reachable (landing site showed it to real visitors). Directly contradicts the value prop — "consistent UI across pages" — while the DS page shows a different palette than the UI.
+
+**Fix shipped (this project only, not in Coherent core yet):**
+- **A** — Manually updated `design-system.config.ts` `tokens.colors.light/dark` to real brand values.
+- **B** — Rewrote `/design-system/tokens/colors/page.tsx` to read live CSS custom properties directly from `document.styleSheets` (scanning `:root` and `.dark` rules for `--*` props). Config snapshot is now a fallback when stylesheet scan returns empty (e.g. stylesheet behind CORS).
+
+**Platform-level fix (proposed):** See backlog **M13 — DS tokens page: live CSS var reader by default**.
+
+**Validator idea:** `DS_TOKEN_DRIFT` — at `coherent check` time, diff `design-system.config.ts` token values against `:root` / `.dark` rules resolved from `globals.css` + any inline `<style>` in `layout.tsx`. Warn on mismatch.
+
+---
 
 ## How to add a new entry
 

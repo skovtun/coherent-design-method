@@ -615,6 +615,39 @@ Already exists; currently under-used for styling consistency. Could inject into 
 **Why:** Design-memory system shipped v0.6.77 but integration with retrieval layer (v0.7.3-4) isn't verified end-to-end. Confirming it feeds the prompt unblocks the per-project loop.
 
 ---
+id: M13
+type: idea
+status: open
+target: v0.8.x
+effort: 3-4h
+date: 2026-04-23
+confidence: verified
+---
+
+### M13 — DS tokens page: live CSS var reader by default
+
+Scaffolded `/design-system/tokens/colors` page currently reads `design-system.config.ts` (JSON snapshot from scaffold time). When users customize brand by editing CSS vars in `globals.css` / `layout.tsx` — the recommended pattern — the snapshot goes stale silently. Result: the Coherent-generated DS page publicly contradicts the live UI. See **PJ-010**.
+
+**Proposal:** Scaffolded DS tokens pages should treat **live CSS custom properties as source of truth**, not the config snapshot.
+
+Implementation outline (inherits from landing-repo fix done 2026-04-23):
+- Scan `document.styleSheets` for rules matching `:root` and `.dark`, extract `--*` custom properties.
+- Config snapshot becomes a fallback only (e.g. when stylesheet scan returns empty due to CORS or missing sheet).
+- Show a small "source: live stylesheet | config snapshot (fallback)" indicator so users and future-us can tell at a glance which path served the palette.
+- Apply the same inversion to `/design-system/tokens/spacing` and `/design-system/tokens/typography` (same drift class — they read the same snapshot).
+
+**Why:**
+- Removes an entire class of silent drift between DS page and live UI — the drift that prompted PJ-010 would be structurally impossible.
+- Aligns with how design tokens are actually authored in the wild (CSS vars + shadcn pattern), not an imagined "only mutate via `coherent chat`" discipline.
+- Config can then shrink to metadata (token names, categories) without having to hold values.
+
+**Complementary validator (optional):** `DS_TOKEN_DRIFT` — `coherent check` diffs `design-system.config.ts` values against `:root` / `.dark` rules in `globals.css` + inline `<style>` in `layout.tsx`. Warns on mismatch. Useful as a bridge while M13 is rolled out; can be retired once M13 ships and config-values are no longer the source of truth.
+
+**Blocker:** None. Change is local to the page templates used by `coherent init` + `coherent scaffold`.
+
+**Target:** v0.8.x.
+
+---
 
 ## Meta-ideas (about the process)
 
