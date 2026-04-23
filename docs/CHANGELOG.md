@@ -2,6 +2,56 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.8.2] — 2026-04-23
+
+### Generation outcome records + auditable memory (codex recommendations)
+
+v0.8.1 docs reorg surfaced two unmet product needs from the codex review. This release lands both.
+
+**Why this matters:** memory that influences generation output must be inspectable, and "did memory help?" must be answerable with data. Until now both were black-box. After this release: every `coherent chat` invocation leaves a YAML trace, and `coherent memory show` prints the full per-project state in one command.
+
+### Added
+
+- **`.coherent/runs/<timestamp>.yaml`** — per-invocation run record, written automatically after every `coherent chat` (skipped on `--dry-run`). Captures:
+  - timestamp, Coherent version
+  - intent (user's message), options (atmosphere, atmosphereOverride, page/component/newComponent, dryRun)
+  - final atmosphere tuple (after merge / preset override)
+  - pages written + shared components written (TSX paths)
+  - durationMs, outcome (`success` / `error`), error message on failure
+  - Consistent convention with `.coherent/fix-sessions/*.yaml` from v0.7.18.
+- **`coherent memory show`** — one-command view of per-project memory:
+  - `.coherent/wiki/decisions.md` (design decisions log)
+  - `coherent.components.json` (shared components registry with id/name/category/usage count)
+  - Last 5 run records (outcome badge, intent, atmosphere background, duration)
+- **`coherent memory diff [ref]`** — `git diff` of `decisions.md` vs ref (default `HEAD`). Shows exactly how memory changed between the last commit and working tree. Requires git repo; errors helpfully otherwise.
+- **`packages/cli/src/utils/run-record.ts`** — new module: `RunRecord` interface, `renderRunRecordYaml`, `writeRunRecord`, `writeRunRecordRel`. 13 unit tests covering YAML escaping, atmosphere block, empty/populated lists, error outcome formatting, timestamp-to-filename mapping.
+- **`packages/cli/src/commands/memory.ts`** — new module: `memoryShowCommand`, `memoryDiffCommand`. Wired into CLI under `coherent memory show|diff`.
+
+### Changed
+
+- **`packages/cli/src/commands/chat.ts`** — instrumented to populate `runRecord` at key points:
+  - Run start (timestamp, CLI_VERSION, intent, options) before entering `try`.
+  - Plan-resolved atmosphere captured from `splitResult.plan.atmosphere` after `splitGeneratePages`.
+  - Files written captured after `regenerateFiles` (heuristic: paths matching `app/*/page.tsx` → `pagesWritten`, paths under `components/shared/` → `sharedComponentsWritten`).
+  - Outcome set to `error` in catch block; `durationMs` set in finally.
+  - Record written in finally via `writeRunRecordRel`, with a `📝 Run journaled → <path>` hint on success.
+- **`packages/cli/src/index.ts`** — new `memory` command group.
+- **QUICK_REFERENCE.md** — two new rows (`coherent memory show`, `coherent memory diff`).
+
+### Not changed (yet)
+
+The run record captures input/output/outcome but not the rich signal codex flagged as the eventual target:
+- **Which validators fired during generation** — would require inline `coherent check` after generation, a bigger instrumentation. Still on the roadmap.
+- **User accept/reject signal** — no post-hoc mark-kept / mark-rejected API yet. Future addition; for now, treat every non-error run as pending.
+- **Distilled accepted patterns corpus** — premature until we have outcome signal.
+
+### Notes
+
+- Run records are `.gitignore`d by default in existing projects (they live under `.coherent/`, which is fully ignored via `.coherent/.gitignore` shipped by `coherent init`).
+- Failure to write a run record is never fatal — `coherent chat` exits with its normal code regardless.
+
+---
+
 ## [0.8.1] — 2026-04-23
 
 ### Docs memory layering reorg (no code behavior change)
