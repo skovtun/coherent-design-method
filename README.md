@@ -253,48 +253,47 @@ my-app/
 
 ## AI Provider Setup
 
-Coherent uses Claude (by Anthropic) for AI-powered code generation. You need an API key for the `coherent chat` command.
+Coherent uses Claude (by Anthropic) for code generation. There are **two ways** to run generation, depending on how you already pay for Claude.
 
-### Step 1: Get an API key
+| Mode | When to use | API key required? | Command |
+|------|-------------|-------------------|---------|
+| **Standalone CLI** | You have an Anthropic API key (usage-billed) and want Coherent to run unattended (CI, cron, scripts). | ✅ Yes | `coherent chat "..."` |
+| **Claude Code skill** | You have a Claude Free/Pro/Max subscription and want to drive Coherent from inside your Claude Code session. | ❌ No | `/coherent-generate` (in Claude Code) |
 
-1. Go to [console.anthropic.com](https://console.anthropic.com)
-2. Sign up or log in
-3. Navigate to **API Keys** in your account settings
-4. Click **Create Key** and copy it
+In skill mode, your Claude Code session does the generation using your subscription. Coherent contributes the constraint bundle and the quality validator — no tokens spent on our side, no API key needed, fully within Anthropic's Terms of Service.
 
-### Step 2: Configure the key
+### Mode A — Standalone CLI (API key)
 
-During `coherent init`, you'll be prompted to enter your key. It's saved to `.env` in your project directory (already in `.gitignore`).
-
-To set it manually:
+1. Go to [console.anthropic.com](https://console.anthropic.com), create a key.
+2. During `coherent init`, enter the key when prompted — it's saved to `.env` in your project (already in `.gitignore`). Or set manually:
 
 ```bash
-# In your project directory
 echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
-```
-
-Or export it in your shell:
-
-```bash
+# or
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-### Model configuration
+3. Model override (optional): `export CLAUDE_MODEL=claude-sonnet-4-20250514`.
 
-Coherent uses the latest Claude Sonnet model by default. To override:
+### Mode B — Claude Code skill (no API key)
 
-```bash
-export CLAUDE_MODEL=claude-sonnet-4-20250514   # or any Claude model
-```
+1. Run `coherent init` to create a Coherent-enabled project (this writes `.claude/commands/coherent-generate.md`).
+2. Open the project in Claude Code.
+3. Run `/coherent-generate "build a CRM dashboard"` — your session does the generation, then Coherent's deterministic validator (`coherent check` + `coherent fix`) enforces the constraints.
+
+Already have a project on an older Coherent version? Run `coherent update` to refresh the `.claude/` commands.
 
 ### Security
 
-- Your API key is stored locally in `.env` (never committed to git)
-- Coherent sends your design instructions to the Claude API and receives generated code
-- No data is stored on Coherent's servers — there are no Coherent servers
-- Each user needs their own API key
+- Your API key (if any) is stored locally in `.env`, never committed to git.
+- Coherent has no servers — all AI calls go directly from your machine to Anthropic.
+- Skill mode sends nothing to Anthropic on Coherent's behalf — your Claude Code session does, as usual.
 
-If you accidentally expose a key, revoke it immediately at [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys) and create a new one.
+### Why can't Coherent CLI just use my Claude Code subscription?
+
+Anthropic's Terms of Service explicitly prohibit external tools from using OAuth tokens issued to Claude Free / Pro / Max accounts. Coherent CLI piggybacking on your subscription would violate that and could risk your account. The skill mode (Mode B) is the legally sanctioned path: your own Claude Code session does the work, Coherent provides constraints and validation. See [Anthropic authentication docs](https://code.claude.com/docs/en/authentication) and [discussion in claude-code#6536](https://github.com/anthropics/claude-code/issues/6536).
+
+If you accidentally expose an API key, revoke it immediately at [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys) and create a new one.
 
 ## Design System Viewer
 

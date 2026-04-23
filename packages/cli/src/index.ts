@@ -12,6 +12,7 @@ import { Command } from 'commander'
 import { CLI_VERSION } from '@getcoherent/core'
 import { initCommand } from './commands/init.js'
 import { chatCommand } from './commands/chat.js'
+import { promptCommand } from './commands/prompt.js'
 import { previewCommand } from './commands/preview.js'
 import { exportCommand } from './commands/export.js'
 import { statusCommand } from './commands/status.js'
@@ -90,6 +91,17 @@ program
   .option('--list-atmospheres', 'List available atmosphere presets and exit')
   .allowExcessArguments(false)
   .action(chatCommand)
+
+program
+  .command('prompt')
+  .description('Emit the structured constraint bundle for an intent (no API call — for Claude Code skill mode)')
+  .argument('[intent]', 'What you want to generate (e.g., "build a CRM dashboard")')
+  .option('--page-type <type>', 'Force page type: marketing | app | auth (default: inferred from intent)')
+  .option('--atmosphere <name>', 'Use a named atmosphere preset (see --list-atmospheres)')
+  .option('--list-atmospheres', 'List available atmosphere presets and exit')
+  .option('--format <format>', 'Output format: markdown | json | plain (default: markdown)', 'markdown')
+  .allowExcessArguments(false)
+  .action(promptCommand)
 
 program.command('preview').description('Launch dev server for preview').action(previewCommand)
 
