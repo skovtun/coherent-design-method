@@ -285,10 +285,11 @@ At end of Phase 2, cross-reference `pageNotes[].sections` and auto-extend `usedB
 ---
 id: N1
 type: idea
-status: open
+status: rejected
 target: v0.7.21
 effort: 15min
 date: 2026-04-19
+rejected: 2026-04-23
 confidence: verified
 ---
 
@@ -298,7 +299,7 @@ Pass page route to preview, open browser directly to that URL.
 
 **Why:** Small UX win; current flow opens root and requires nav.
 
-**Target:** v0.7.21.
+**Rejected (2026-04-23):** not needed — nav cost trivial, dev server already auto-opens root.
 
 ---
 id: N2
@@ -613,6 +614,41 @@ confidence: observed
 Already exists; currently under-used for styling consistency. Could inject into every chat call's prompt — closes per-project design memory loop.
 
 **Why:** Design-memory system shipped v0.6.77 but integration with retrieval layer (v0.7.3-4) isn't verified end-to-end. Confirming it feeds the prompt unblocks the per-project loop.
+
+---
+id: R5
+type: research
+status: open
+target: F9/Atmosphere pivot (pre-MVP)
+effort: 4-6h (corpus read + pattern extraction)
+date: 2026-04-23
+confidence: observed
+---
+
+### R5 — TasteUI reference corpus for Atmosphere catalog
+
+**Source:** https://tasteui.dev — `npx tasteui.dev add <user>/<skill>` installs `SKILL.md` to `.agents/skills/<user>/<skill>/`. 20 named aesthetics (neo-brutalist, Swiss, Paper, wabi-sabi, Obsidian-lime, luxury-editorial, midnight-editorial, zenith-ui, newsprint, solar-saas-ui, neon-velocity-ui, apex-ui, cosmos-ui, red-sun-ui, premium-ui, brutalist-editorial, warm-industrial, Elegant, Kinetic, brutalism-design).
+
+**Format:** Plain markdown — visual philosophy, hex palette w/ semantic roles, typography, spacing/shadows/motion/components + rationales. Semantic-only injection (agent reads as reference). No structured tuple, no validators, no tier system.
+
+**Strategic read:**
+- Validates Atmosphere Engine pivot — 20 aesthetics on market = ceiling-problem real.
+- They're ahead on catalog, behind on enforcement. Coherent's moat (validators + deterministic floor + tier-injection) stands.
+- License unknown — cannot repackage.
+
+**How to apply — reference corpus, NOT dependency:**
+1. Read 10-15 SKILL.md files as research corpus.
+2. Extract patterns: which names resonate, how `mood_phrase` reads, what's in a well-written palette-with-roles, which layout_archetypes cover the space.
+3. Author **native Coherent Atmospheres** in the structured tuple format (typography_pair / color_system / spacing_ratio / motion_signature / layout_archetype / mood_phrase).
+4. Seed the F9 MVP catalog with 8-12 atmospheres.
+5. (Deferred) `coherent atmosphere import <tasteui-skill-url>` — ETL adapter SKILL.md → Atmosphere tuple — only if market pull.
+
+**Risks of pulling directly:**
+- Format mismatch (soft markdown vs typed tuple) → brittle parsing.
+- Community-contributed = quality variance → dilutes "ship-quality by default".
+- Semantic-only injection re-imports the very slop problem Coherent's validators solve.
+
+**Related:** F9/Atmosphere pivot design doc (`feat/f9-deterministic-statschart` branch).
 
 ---
 id: M13
