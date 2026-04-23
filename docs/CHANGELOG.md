@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.28] — 2026-04-23
+
+### `coherent` CLI binary — rename to `.js` so Node ESM can resolve it
+
+Fresh `npm install -g @getcoherent/cli` on Node 19+ died with `ERR_UNKNOWN_FILE_EXTENSION` when running `coherent init` — Node's strict ESM resolver refuses to load an extensionless file from a `"type": "module"` package. Reported from the wild by a user on Node 19.8 / macOS (see **PJ-011**). The bin file worked through local `pnpm link` in development because symlinked exec paths bypass the same resolution path, so CI + my workflow never caught it.
+
+### Changed
+
+- **`packages/cli/bin/coherent`** — renamed to `packages/cli/bin/coherent.js`. Exec bit and shebang preserved. Body unchanged (`#!/usr/bin/env node` + dynamic `import('../dist/index.js')`).
+- **`packages/cli/package.json`** — `"bin": { "coherent": "./bin/coherent.js" }` matches the renamed file. Added `"engines": { "node": ">=18" }` so npm warns future users on older Node instead of half-installing.
+
+### Not added
+
+- No rule / constraint changes. Bin-resolution fix only.
+- No ADR — packaging fix, not architectural.
+
+### Release note for consumers
+
+Anyone who hit `ERR_UNKNOWN_FILE_EXTENSION` should `npm install -g @getcoherent/cli@latest` (or `@0.7.28`) and retry.
+
 ## [0.7.27] — 2026-04-22
 
 ### Scaffolder favicon — transparent background, optimal fit

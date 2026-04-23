@@ -280,6 +280,46 @@ evidence: [screenshot://2026-04-23 landing DS /design-system/tokens/colors showi
 **Validator idea:** `DS_TOKEN_DRIFT` — at `coherent check` time, diff `design-system.config.ts` token values against `:root` / `.dark` rules resolved from `globals.css` + any inline `<style>` in `layout.tsx`. Warn on mismatch.
 
 ---
+id: PJ-011
+type: bug
+confidence: verified
+status: resolved
+date: 2026-04-23
+fixed_in: [0.7.28]
+evidence: [screenshot://2026-04-23 user terminal — ERR_UNKNOWN_FILE_EXTENSION after npm install -g on Node 19.8 macOS, repo://packages/cli/bin/coherent (pre-rename) + packages/cli/package.json bin field]
+---
+
+### PJ-011 — `coherent` CLI bin extensionless file fails Node ESM resolution on fresh global install
+
+**Observed:** User reports `npm install -g @getcoherent/cli` succeeded (after `sudo` for EACCES), but `coherent init rdesign` immediately crashed:
+
+```
+TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ""
+for /usr/local/lib/node_modules/@getcoherent/cli/bin/coherent.
+Loading extensionless files is not supported inside of
+"type":"module" package.json contexts.
+```
+
+Node version: 19.8.0 (macOS, Kiboko-AirM1). Also reproduces on Node 20+ — this is strict ESM behavior, not a version-specific regression. Existed since the CLI package shipped with `"type": "module"`.
+
+**Root cause (compound):**
+1. `packages/cli/package.json` declares `"type": "module"` (ESM context for every file in the package) and `"bin": { "coherent": "./bin/coherent" }` — a path to an **extensionless file**.
+2. `packages/cli/bin/coherent` was a tiny launcher: `#!/usr/bin/env node` + `import('../dist/index.js')`.
+3. Under ESM, Node's module resolver refuses extensionless files — it cannot infer whether to parse as ESM or CJS. With `"type": "module"`, there is no fallback path. The shebang lets macOS / Linux find the file, but the moment Node tries to *evaluate* it as a module, resolution fails before the first line runs.
+4. **Why it never caught me in dev:** `pnpm link` / local `bin` symlinks route through a different resolution path; extensionless files are tolerated via symlink + direct exec. Only *published* `npm install -g` installs expose the bug — and no one had done a fresh global install on Node 18+ until this user.
+
+**User impact:** install-blocker. Literally the first command in the Getting Started flow (`coherent init`) crashes with an ugly stack trace. Worst possible first impression — the landing says "five commands from empty folder", first command dies.
+
+**Fix shipped (v0.7.28):**
+- **Rename** `packages/cli/bin/coherent` → `packages/cli/bin/coherent.js`. Body unchanged (`#!/usr/bin/env node` + `import('../dist/index.js')`). Exec bit preserved via `git mv`.
+- **`packages/cli/package.json`** — `"bin": { "coherent": "./bin/coherent.js" }` points at the renamed file. Added `"engines": { "node": ">=18" }` so npm surfaces a readable warning on older Node instead of half-installing.
+- **`files` array** already includes `bin` — rename is picked up by the published tarball without further config.
+
+**Validator idea:** `BIN_EXTENSION_CHECK` — at pre-publish (and in CI), assert every entry in `package.json` `bin` resolves to a path ending in `.js` / `.mjs` / `.cjs` when `"type": "module"` is set. One-line check, prevents re-regression if anyone adds another bin shim later.
+
+**Test gap to close:** the `coherent` smoke test suite never did a `npm pack → npm install -g <tgz>` on a clean Node image. Adding that as a release-gate step would have caught PJ-011 pre-publish. Not done in this PR — deferred as a follow-up task.
+
+---
 
 ## How to add a new entry
 
