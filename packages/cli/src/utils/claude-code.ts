@@ -32,13 +32,61 @@ Report what was fixed and what remains.
 Use \`--dry-run\` to preview without writing.
 `,
   'add-page.md': `---
-description: Add a new page to the prototype via Coherent CLI
+description: Add a new page to the prototype via Coherent CLI (requires ANTHROPIC_API_KEY)
 argument-hint: [page-description]
 allowed-tools: Bash(coherent chat *)
 ---
 Run \`coherent chat "add $ARGUMENTS"\` in the project root.
 This ensures the page goes through the full Coherent pipeline:
 shared component reuse, validation, manifest update.
+
+Note: this command calls the Anthropic API directly via \`coherent chat\` and
+requires an API key. If you want to use your Claude Code subscription instead,
+use \`/coherent-generate\` — same pipeline, but the generation happens in your
+current Claude session.
+`,
+  'coherent-generate.md': `---
+description: Generate Coherent-constrained UI using your Claude Code session (no API key needed)
+argument-hint: [intent, e.g. "a CRM dashboard with charts"]
+allowed-tools: Bash(coherent prompt *), Bash(coherent check *), Bash(coherent fix *), Write, Edit, Read
+---
+
+You are generating UI inside a Coherent-initialized project, using your **current Claude Code session** — no API key required on Coherent's side. Coherent contributes the design constraints + validation; you (Claude) contribute the generation.
+
+## Step 1 — Load constraints
+
+Run \`coherent prompt "$ARGUMENTS"\` and read the output. It contains the full constraint stack that \`coherent chat\` would have sent to an external API:
+
+- TIER 0 design thinking (mindset + anti-slop)
+- TIER 1 core constraints (typography, semantic tokens, spacing, a11y, anti-patterns)
+- TIER 2 contextual rules matched to "$ARGUMENTS" keywords
+- Golden patterns, atmosphere directive (if any), interaction patterns
+
+**Follow those constraints exactly when generating code.** They are not suggestions.
+
+Optional flags you can add: \`--atmosphere <preset>\` (see \`coherent prompt --list-atmospheres\`), \`--page-type marketing|app|auth\`, \`--format json\` (for structured output).
+
+## Step 2 — Generate files
+
+Write Next.js App Router TSX under \`app/\`. Use \`Write\` to create pages. For a single page, a typical path is \`app/<route>/page.tsx\`. Use shadcn/ui from \`@/components/ui/*\`. Use **semantic tokens only** — \`bg-background\`, \`text-foreground\`, \`bg-muted\`, \`text-primary\`. NEVER raw Tailwind colors (\`bg-gray-100\`, \`bg-white\`, \`text-blue-600\`).
+
+## Step 3 — Validate + auto-fix loop
+
+After writing files, run the Coherent validator (deterministic, no API needed):
+
+1. \`coherent check\` — reports quality issues + consistency violations.
+2. If any issues are reported, run \`coherent fix\` to auto-correct what's mechanically fixable.
+3. For issues \`fix\` cannot resolve, edit the offending files yourself based on the \`check\` output.
+4. Repeat \`coherent check\` until it reports zero issues.
+
+## Report back
+
+Tell the user:
+- What files you wrote.
+- Final \`coherent check\` status (clean / issues remaining).
+- Any design decisions you made that are worth knowing.
+
+Do NOT claim success until \`coherent check\` is clean.
 `,
 }
 

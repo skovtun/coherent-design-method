@@ -6,12 +6,14 @@ A cheat sheet for Coherent CLI commands and workflows.
 
 ```bash
 coherent init                    # Create a new project
-coherent chat "<message>"        # Generate/modify pages with AI
+coherent chat "<message>"        # Generate/modify pages with AI (needs API key)
 coherent chat --page "X" "..."   # Edit only page X
 coherent chat --component "X" "..."  # Edit shared component X
 coherent chat --dry-run "..."       # Preview changes without applying
 coherent chat --atmosphere <name> "..."  # Use a named atmosphere preset (see --list-atmospheres)
 coherent chat --list-atmospheres # Show all 10 atmosphere presets and exit
+coherent prompt "<intent>"       # Emit constraints + intent (no API call — for Claude Code skill mode)
+coherent prompt --list-atmospheres # Same list as chat, but for the skill-mode command
 coherent wiki adr create <slug>  # Scaffold a new ADR (next number + skeleton sections)
 coherent components list         # Show all shared + UI components
 coherent status                  # Show project stats (pages, components, tokens)

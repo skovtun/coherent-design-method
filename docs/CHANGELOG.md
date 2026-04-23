@@ -2,6 +2,35 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.8.0] — 2026-04-23
+
+### Skill-mode distribution — use Coherent with a Claude Code subscription, no API key
+
+Users with Claude Code Free / Pro / Max subscriptions reported they couldn't run Coherent: our CLI called the Anthropic API directly and required `ANTHROPIC_API_KEY`, which subscription-only users don't have. Piggybacking on the subscription's OAuth token would violate Anthropic's Terms of Service (see [code.claude.com/docs/en/authentication](https://code.claude.com/docs/en/authentication)).
+
+**The fix:** a second, legally sanctioned path. Run `/coherent-generate "..."` inside your Claude Code session — your session does the generation on your subscription, Coherent contributes constraints and validation. No API key, no ToS issue.
+
+Minor version bump (0.7.31 → 0.8.0) because this adds a new distribution mode, not just a feature.
+
+### Added
+
+- **`coherent prompt <intent>`** — emits the structured constraint bundle (TIER 0 design thinking, TIER 1 core, TIER 2 contextual rules, golden patterns, atmosphere directive, interaction patterns) for an intent — **no API call**. Three output formats: `--format markdown` (default, human + LLM readable), `--format json` (structured), `--format plain` (flat text). Supports `--atmosphere <preset>`, `--page-type`, and `--list-atmospheres`.
+- **`inferPageTypeFromIntent(intent)`** — new helper that maps natural-language intents to `marketing | app | auth`. Complementary to `inferPageTypeFromRoute` which parses URL slugs.
+- **`/coherent-generate` slash command** — new `.claude/commands/coherent-generate.md`. Orchestrates the skill-mode loop: `coherent prompt` → Claude generates TSX with Write tool → `coherent check` → `coherent fix` → iterate until clean. Works with your Claude Code subscription; no API key on Coherent's side.
+- **13 unit tests** for `coherent prompt` + `inferPageTypeFromIntent` across all three output formats, atmosphere handling, and page-type inference.
+
+### Changed
+
+- **README** — "AI Provider Setup" section reorganized around a dual-mode table (standalone CLI vs Claude Code skill). New FAQ row explaining the ToS constraint + link to Anthropic's docs.
+- **QUICK_REFERENCE.md** — `coherent prompt` documented alongside `coherent chat`.
+- **`.claude/commands/add-page.md`** — clarified it requires an API key; suggests `/coherent-generate` as the subscription-compatible alternative.
+
+### Migration for existing users
+
+Existing projects on 0.7.31 or earlier: run `coherent update` in the project root to refresh `.claude/commands/` with the new `/coherent-generate` skill. Version pins bump to 0.8.0 on next `npm install -g @getcoherent/cli@latest`.
+
+---
+
 ## [0.7.31] — 2026-04-23
 
 ### `coherent wiki adr create` — scaffold next ADR with skeleton (W3)
