@@ -63,3 +63,4 @@ examples/*/.next/
 # Playwright MCP scratch
 .playwright-mcp/
 .claude/scheduled_tasks.lock
+.gstack/

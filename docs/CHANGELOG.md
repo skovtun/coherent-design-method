@@ -2,6 +2,27 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.29] — 2026-04-23
+
+### Atmosphere preset catalog — seed for F9/Atmosphere pivot (R5 pre-MVP)
+
+Ships **10 named atmosphere presets** (structured `Atmosphere` values) as a ceiling-setting alternative to ad-hoc mood inference. Pre-work for the F9/Atmosphere pivot: before the pipeline can consume named atmospheres, the catalog has to exist.
+
+Each preset passes `AtmosphereSchema.parse` and covers a point on the aesthetic spectrum — `swiss-grid`, `paper-editorial`, `neo-brutalist`, `dark-terminal`, `obsidian-neon`, `premium-focused`, `warm-industrial`, `solar-saas`, `wabi-sabi`, `luxury-editorial`.
+
+Inspired by public design movements (Swiss, brutalism, wabi-sabi, editorial, industrial, paper) — not derived from any proprietary source. See IDEAS_BACKLOG **R5** for the strategic rationale and the survey of adjacent tools that motivated this.
+
+### Added
+
+- **`packages/cli/src/commands/chat/atmosphere-presets.ts`** — exports `ATMOSPHERE_PRESETS` (10 named tuples), `getAtmospherePreset(name)`, `listAtmospherePresets()`, and type `AtmospherePresetName`.
+- **`packages/cli/src/commands/chat/atmosphere-presets.test.ts`** — 7 tests: schema-parse coverage on every preset, mood/primary-hint non-empty, kebab-case names, lookup round-trip.
+
+### Not changed (yet)
+
+Generation pipeline still uses `extractAtmosphereFromMessage` for implicit mood inference. Wiring a `coherent chat --atmosphere <name>` override onto the preset catalog is the next step and will ship in a follow-up.
+
+---
+
 ## [0.7.28] — 2026-04-23
 
 ### `coherent` CLI binary — rename to `.js` so Node ESM can resolve it
