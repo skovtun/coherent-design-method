@@ -61,7 +61,15 @@ import { buildReusePlan, buildReusePlanDirective } from '../utils/reuse-planner.
 import { inferPageTypeFromRoute } from '../agents/design-constraints.js'
 import { savePlan, loadPlan } from './chat/plan-generator.js'
 import { getAtmospherePreset, listAtmospherePresets } from './chat/atmosphere-presets.js'
-import { writeRunRecordRel, type RunRecord, type RunRecordAtmosphere } from '../utils/run-record.js'
+import {
+  writeRunRecordRel,
+  markLatestRunOutcome,
+  type RunRecord,
+  type RunRecordAtmosphere,
+  type RunRecordValidator,
+  aggregateValidatorIssues,
+  summarizeValidators,
+} from '../utils/run-record.js'
 import { applyModification } from './chat/modification-handler.js'
 import { regenerateFiles, scanAndInstallSharedDeps, ensurePlanGroupLayouts } from './chat/code-generator.js'
 import { takeNavSnapshot, hasNavChanged } from '../utils/nav-snapshot.js'
@@ -84,9 +92,26 @@ export async function chatCommand(
     dryRun?: boolean
     atmosphere?: string
     listAtmospheres?: boolean
+    markKept?: boolean
+    markRejected?: boolean
     _throwOnError?: boolean
   },
 ) {
+  if (options.markKept || options.markRejected) {
+    const project = requireProject()
+    const signal: 'kept' | 'rejected' = options.markKept ? 'kept' : 'rejected'
+    const result = markLatestRunOutcome(project.root, signal)
+    if (!result) {
+      console.error(chalk.red(`\n❌ No run records found to mark.\n`))
+      console.log(chalk.dim(`   Run \`coherent chat "..."\` first, then mark.\n`))
+      if (options._throwOnError) throw new Error('No run records found')
+      process.exit(1)
+    }
+    const emoji = signal === 'kept' ? '✅' : '🗑'
+    console.log(chalk.dim(`${emoji} ${result.rel}  ${result.previous} → ${signal}`))
+    return
+  }
+
   if (options.listAtmospheres) {
     const names = listAtmospherePresets()
     console.log(chalk.bold('\nAvailable atmosphere presets:\n'))
@@ -1155,6 +1180,27 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
           console.log(chalk.dim(`   ${page}: ${message}`))
         }
       }
+    }
+
+    // Collect validator outcomes per written page for run-record telemetry.
+    // Runs regardless of route count — single-page runs still benefit.
+    const validators: RunRecordValidator[] = []
+    for (const result of results) {
+      if (!result.success) continue
+      for (const mod of result.modified) {
+        if (!mod.startsWith('app/') || !mod.endsWith('/page.tsx')) continue
+        try {
+          const code = readFileSync(resolve(projectRoot, mod), 'utf-8')
+          const issues = validatePageQuality(code, allRoutes)
+          validators.push({ page: mod, issues: aggregateValidatorIssues(issues) })
+        } catch {
+          // file might not exist / unreadable — skip
+        }
+      }
+    }
+    if (validators.length > 0) {
+      runRecord.validators = validators
+      runRecord.validatorSummary = summarizeValidators(validators)
     }
 
     const updatedConfig = dsm.getConfig()

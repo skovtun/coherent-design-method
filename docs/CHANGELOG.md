@@ -2,6 +2,41 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.8.3] — 2026-04-23
+
+### Codex health audit — five findings closed + v0.8.2 follow-ups shipped
+
+Fresh-context codex review of the repo surfaced five concrete issues (1 false positive, 4 real). This release lands fixes plus the v0.8.2 follow-up work that was still in flight: validator-outcome telemetry in run records, user accept/reject signals, and integration-test coverage for the v0.8.x surfaces.
+
+**Why this matters:** v0.8.2 made memory inspectable; v0.8.3 makes the *telemetry* inside that memory actually useful, and closes drift between what the docs promise and what the code does. Skill-mode users (subscription path) now see the same context-engineering layers that `coherent chat` uses.
+
+### Added
+
+- **`--mark-kept` / `--mark-rejected` flags on `coherent chat`** — retroactively transitions the latest `.coherent/runs/<timestamp>.yaml` from `outcome: success` (pending verdict) to `outcome: kept` / `rejected`. Enables "did memory help?" analysis over time. Skips generation when passed. Idempotent.
+- **Validator outcomes in run records** — every `coherent chat` now runs `validatePageQuality` on each written page post-generation and records per-page findings (type + severity + count) under `validators:` in the YAML, plus an aggregate `validatorSummary:` block. Inline in run record, no separate file. Answers "which rules actually fired on this run?" for every invocation.
+- **Project-context injection in `coherent prompt`** (codex #4 — prompt parity with `coherent chat`). When run inside a Coherent project, the emitted bundle now also includes: design memory from `.coherent/wiki/decisions.md`, shared-components registry summary from `coherent.components.json`, existing-routes note, and the context-free alignment rule. Stateless behavior preserved outside a project (skill mode, portable use).
+- **`mergeAtmosphere` exported pure function** — extracted from `splitGeneratePages` so the `--atmosphere <preset>` override branch and the deterministic/AI merge branch are directly unit-testable. 4 new tests. Behavior identical.
+- **New test files:** `packages/cli/src/commands/memory.test.ts` (10 tests — decisions.md, shared components from `coherent.components.json`, runs/, diff), project-context injection suite in `prompt.test.ts` (+6 tests). Total suite: 1111 → 1146 passing.
+
+### Changed
+
+- **`coherent memory show` reads `coherent.components.json` (not `design-system.config.ts`)** — codex #2. Previously `memory.ts:50` loaded `config.components` via `loadConfig()` and cast to a `usedBy` field that doesn't exist in the schema, producing unreliable usage counts. Now reads `coherent.components.json` via `loadManifest()` (the authoritative manifest per docs) and displays the real `usedIn` array length. Column labels updated: `category` → `type`, matching `SharedComponentEntry`.
+- **Phase 6 partial-success visibility** — codex #3. Per-page generation failures are now logged inline (`⚠ "<name>" (<route>) generation failed: <reason>`) instead of silently returning an empty add-page stub. Retry failures are also surfaced. When some-but-not-all pages have full code, the Phase 6 spinner uses `.warn` with explicit empty count (`… 7 with full code, 3 empty / template fallback`) instead of `.succeed`. No more silent degradation to success.
+- **Design constraint on hardcoded dates** — codex #5. `design-constraints.ts:51` previously banned literal years `2023/2024/2025`, which went stale on the rolling calendar. Rewritten as a principle-based rule: "never hardcode a year more than one year in the past" plus a nudge to compute via `new Date()` or relative formatting. Self-updating, no rot.
+
+### Fixed
+
+- **False positive on codex #1** (stale manifest in Phase 6) — investigated and closed without code changes. Traced: `generateSharedComponentsFromPlan` awaits `saveManifest` sequentially; Phase 5 block awaits that completion; `currentManifest = await loadManifest()` at `split-generator.ts:964` reads post-Phase-5 disk state; Phase 6 only mutates `usedIn` per-entry via `updateManifestSafe` (never `shared` array). Added a clarifying comment at the load site so the invariant is explicit for future readers.
+
+### Dogfooded
+
+- **`/coherent-generate` end-to-end verified on real Claude Code subscription session.** Generated a 361-line CRM dashboard in 3:24, with `coherent check` going 2 errors/4 warnings → 0 errors/0 warnings via the auto-fix loop. Validator caught an inline `Intl.NumberFormat({style:'currency'})` used to format percentages and refactored into a dedicated `percent()` helper — floor-raising moat confirmed in the wild.
+- **Known gap (tracked as R6 in IDEAS_BACKLOG):** skill-mode path (`coherent prompt` + Claude Code writes files) bypasses `.coherent/runs/*.yaml` — subscription users get zero run-record telemetry. Options: append in `coherent prompt`, add `coherent log-run` subcommand for skills, or leave stateless by design.
+
+### Infrastructure
+
+- **PR #31 (F9 deterministic StatsChart) closed as superseded** — PJ-002 mitigations across v0.7.17–v0.8.2 (rules + cosmetic autofix + skeleton fallback) cover the placeholder bug in practice. Deterministic-before-LLM pattern (ADR-0004 + `deterministic-templates.ts`) preserved on `feat/f9-deterministic-statschart` for future revival if a new class of vetted shapes emerges.
+
 ## [0.8.2] — 2026-04-23
 
 ### Generation outcome records + auditable memory (codex recommendations)

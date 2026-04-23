@@ -16,6 +16,8 @@
  */
 
 import chalk from 'chalk'
+import { existsSync, readFileSync } from 'fs'
+import { resolve } from 'path'
 import {
   DESIGN_THINKING,
   CORE_CONSTRAINTS,
@@ -28,6 +30,80 @@ import {
 import { pickGoldenPatterns } from '../agents/golden-patterns.js'
 import { getAtmospherePreset, listAtmospherePresets } from './chat/atmosphere-presets.js'
 import { renderAtmosphereDirective } from './chat/plan-generator.js'
+import { findConfig } from '../utils/find-config.js'
+import { formatMemoryForPrompt, readDesignMemory } from '../utils/design-memory.js'
+
+/**
+ * Generic rule used by `coherent chat` at split-generator.ts:970. Context-free
+ * enough to ship in the stateless prompt bundle so skill-mode users get it too.
+ */
+const ALIGNMENT_NOTE =
+  'CRITICAL LAYOUT RULE: Every <section> must wrap its content in a container div matching the header width. Use the EXACT same container classes as shown in the style context (e.g. className="container max-w-6xl px-4" or className="max-w-6xl mx-auto px-4"). Inner content can use narrower max-w for text centering, but the outer section container MUST match.'
+
+interface ProjectContext {
+  root: string
+  designMemory: string // already-formatted prompt block (or '' when empty)
+  existingRoutes: string[]
+  sharedComponentsSummary: string
+}
+
+/**
+ * Best-effort project context read for skill-mode parity with `coherent chat`.
+ * Returns null when not inside a Coherent project — prompt stays portable.
+ * Individual reads are silent on failure so skill-mode never breaks on a
+ * malformed manifest or missing memory file.
+ */
+function readProjectContext(startDir?: string): ProjectContext | null {
+  const project = findConfig(startDir)
+  if (!project) return null
+
+  const designMemory = formatMemoryForPrompt(readDesignMemory(project.root))
+
+  const existingRoutes = readExistingRoutesFromApp(project.root)
+  const sharedComponentsSummary = readSharedComponentsSummary(project.root)
+
+  return {
+    root: project.root,
+    designMemory,
+    existingRoutes,
+    sharedComponentsSummary,
+  }
+}
+
+function readExistingRoutesFromApp(projectRoot: string): string[] {
+  const appDir = resolve(projectRoot, 'app')
+  if (!existsSync(appDir)) return []
+  try {
+    const { readdirSync } = require('fs') as typeof import('fs')
+    const entries = readdirSync(appDir, { recursive: true }) as string[]
+    const routes = new Set<string>()
+    for (const e of entries) {
+      if (typeof e !== 'string' || !e.endsWith('page.tsx')) continue
+      const slug = e.replace(/\/page\.tsx$/, '').replace(/\(.*?\)\//g, '')
+      routes.add(slug === '' ? '/' : '/' + slug)
+    }
+    return [...routes].sort()
+  } catch {
+    return []
+  }
+}
+
+function readSharedComponentsSummary(projectRoot: string): string {
+  const path = resolve(projectRoot, 'coherent.components.json')
+  if (!existsSync(path)) return ''
+  try {
+    const raw = JSON.parse(readFileSync(path, 'utf-8')) as {
+      shared?: Array<{ id: string; name: string; type: string; file: string; description?: string }>
+    }
+    const shared = raw.shared ?? []
+    if (shared.length === 0) return ''
+    return shared
+      .map(c => `- ${c.id} ${c.name} (${c.type}) → ${c.file}${c.description ? ` — ${c.description}` : ''}`)
+      .join('\n')
+  } catch {
+    return ''
+  }
+}
 
 type OutputFormat = 'markdown' | 'json' | 'plain'
 
@@ -52,6 +128,8 @@ export interface PromptCommandOptions {
   format?: OutputFormat
   listAtmospheres?: boolean
   _throwOnError?: boolean
+  /** Test hook — start findConfig from this dir instead of cwd (vitest workers can't chdir). */
+  _startDir?: string
 }
 
 export async function promptCommand(intent: string | undefined, options: PromptCommandOptions = {}) {
@@ -89,6 +167,17 @@ export async function promptCommand(intent: string | undefined, options: PromptC
   const pageType = options.pageType ?? inferPageTypeFromIntent(intent)
   const format = options.format ?? 'markdown'
 
+  // Project context — absent when outside a Coherent project (keeps prompt portable).
+  const projectContext = readProjectContext(options._startDir)
+  const routeNote =
+    projectContext && projectContext.existingRoutes.length > 0
+      ? `EXISTING ROUTES in this project: ${projectContext.existingRoutes.join(', ')}. All internal links MUST point to one of these routes. If a target doesn't exist, use href="#".`
+      : ''
+  const sharedComponentsNote =
+    projectContext && projectContext.sharedComponentsSummary
+      ? `SHARED COMPONENTS already in this project — import from @/components/shared/* instead of recreating inline:\n${projectContext.sharedComponentsSummary}`
+      : ''
+
   const blocks = {
     designThinking: DESIGN_THINKING,
     coreConstraints: CORE_CONSTRAINTS,
@@ -99,6 +188,10 @@ export async function promptCommand(intent: string | undefined, options: PromptC
     contextualRules: selectContextualRules(intent),
     goldenPatterns: pickGoldenPatterns(intent),
     atmosphereDirective: atmosphereValue ? renderAtmosphereDirective(atmosphereValue) : '',
+    alignmentNote: ALIGNMENT_NOTE,
+    designMemory: projectContext?.designMemory ?? '',
+    routeNote,
+    sharedComponentsNote,
   }
 
   if (format === 'json') {
@@ -118,6 +211,7 @@ export async function promptCommand(intent: string | undefined, options: PromptC
       `# Coherent constraints for: ${intent}`,
       `# Page type: ${pageType}`,
       atmosphereValue ? `# Atmosphere: ${options.atmosphere}` : '',
+      projectContext ? `# Project context detected: ${projectContext.root}` : '',
       '',
       blocks.designThinking,
       blocks.coreConstraints,
@@ -128,6 +222,10 @@ export async function promptCommand(intent: string | undefined, options: PromptC
       blocks.contextualRules,
       blocks.goldenPatterns,
       blocks.atmosphereDirective,
+      blocks.alignmentNote,
+      blocks.designMemory,
+      blocks.sharedComponentsNote,
+      blocks.routeNote,
       '',
       buildGenerationInstructions(intent, pageType),
     ]
@@ -178,6 +276,10 @@ function renderMarkdown(
     contextualRules: string
     goldenPatterns: string
     atmosphereDirective: string
+    alignmentNote: string
+    designMemory: string
+    routeNote: string
+    sharedComponentsNote: string
   },
 ): string {
   const parts: string[] = []
@@ -244,6 +346,27 @@ function renderMarkdown(
 
   if (blocks.atmosphereDirective.trim()) {
     parts.push(`---`, ``, `## Atmosphere directive`, ``, blocks.atmosphereDirective.trim(), ``)
+  }
+
+  parts.push(`---`, ``, `## Alignment rule`, ``, blocks.alignmentNote.trim(), ``)
+
+  if (blocks.designMemory.trim()) {
+    parts.push(
+      `---`,
+      ``,
+      `## Design memory (decisions from prior runs in this project)`,
+      ``,
+      blocks.designMemory.trim(),
+      ``,
+    )
+  }
+
+  if (blocks.sharedComponentsNote.trim()) {
+    parts.push(`---`, ``, `## Shared components available`, ``, blocks.sharedComponentsNote.trim(), ``)
+  }
+
+  if (blocks.routeNote.trim()) {
+    parts.push(`---`, ``, `## Existing routes`, ``, blocks.routeNote.trim(), ``)
   }
 
   parts.push(`---`, ``, buildGenerationInstructions(intent, pageType))

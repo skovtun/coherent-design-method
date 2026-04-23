@@ -366,6 +366,48 @@ export function buildLayoutNote(layoutType?: string): string {
   }
 }
 
+/**
+ * Resolve the final Atmosphere for a chat run. If `override` is set (user passed
+ * `--atmosphere <preset>`), it wins verbatim with no merge. Otherwise merges the
+ * AI-plan-supplied atmosphere with the deterministic extractor, giving deterministic
+ * the edge when the AI looks like it defaulted to "minimal-paper / monochrome".
+ *
+ * Extracted from splitGeneratePages so the override and merge branches are
+ * testable in isolation.
+ */
+export function mergeAtmosphere(input: {
+  override: Atmosphere | undefined
+  aiAtmosphere: Atmosphere | undefined
+  message: string
+}): Atmosphere {
+  if (input.override) return input.override
+
+  const deterministic = extractAtmosphereFromMessage(input.message)
+  const aiAtmosphere = input.aiAtmosphere || ({} as Partial<Atmosphere>)
+  const aiLooksDefault =
+    (!aiAtmosphere.background || aiAtmosphere.background === 'minimal-paper') &&
+    (!aiAtmosphere.accents || aiAtmosphere.accents === 'monochrome')
+
+  return {
+    moodPhrase: aiAtmosphere.moodPhrase || deterministic.moodPhrase || '',
+    background:
+      (aiLooksDefault && deterministic.background) ||
+      aiAtmosphere.background ||
+      deterministic.background ||
+      'minimal-paper',
+    heroLayout:
+      (aiLooksDefault && deterministic.heroLayout) ||
+      aiAtmosphere.heroLayout ||
+      deterministic.heroLayout ||
+      'split-text-image',
+    spacing: (aiLooksDefault && deterministic.spacing) || aiAtmosphere.spacing || deterministic.spacing || 'medium',
+    accents: (aiLooksDefault && deterministic.accents) || aiAtmosphere.accents || deterministic.accents || 'monochrome',
+    fontStyle:
+      (aiLooksDefault && deterministic.fontStyle) || aiAtmosphere.fontStyle || deterministic.fontStyle || 'sans',
+    primaryHint: aiAtmosphere.primaryHint || deterministic.primaryHint || '',
+  }
+}
+
 export function buildAnchorPagePrompt(
   homePage: { name: string; route: string },
   message: string,
@@ -579,48 +621,11 @@ export async function splitGeneratePages(
         endPhase2Timer()
       }
       if (plan) {
-        let merged: Atmosphere
-        if (parseOpts.atmosphereOverride) {
-          // User explicitly passed `--atmosphere <preset>`. Preset wins, no merge.
-          merged = parseOpts.atmosphereOverride
-        } else {
-          // Merge AI-supplied atmosphere with deterministic extraction.
-          // Deterministic extractor catches mood phrases the AI plan-generator might
-          // have skipped or filled with safe defaults. Deterministic wins on confident
-          // matches because the AI tends to default to "minimal-paper / split-text-image"
-          // even when the user explicitly asked for "premium and dark".
-          const deterministic = extractAtmosphereFromMessage(message)
-          const aiAtmosphere = plan.atmosphere || ({} as Partial<Atmosphere>)
-          const aiLooksDefault =
-            (!aiAtmosphere.background || aiAtmosphere.background === 'minimal-paper') &&
-            (!aiAtmosphere.accents || aiAtmosphere.accents === 'monochrome')
-          merged = {
-            moodPhrase: aiAtmosphere.moodPhrase || deterministic.moodPhrase || '',
-            background:
-              (aiLooksDefault && deterministic.background) ||
-              aiAtmosphere.background ||
-              deterministic.background ||
-              'minimal-paper',
-            heroLayout:
-              (aiLooksDefault && deterministic.heroLayout) ||
-              aiAtmosphere.heroLayout ||
-              deterministic.heroLayout ||
-              'split-text-image',
-            spacing:
-              (aiLooksDefault && deterministic.spacing) || aiAtmosphere.spacing || deterministic.spacing || 'medium',
-            accents:
-              (aiLooksDefault && deterministic.accents) ||
-              aiAtmosphere.accents ||
-              deterministic.accents ||
-              'monochrome',
-            fontStyle:
-              (aiLooksDefault && deterministic.fontStyle) ||
-              aiAtmosphere.fontStyle ||
-              deterministic.fontStyle ||
-              'sans',
-            primaryHint: aiAtmosphere.primaryHint || deterministic.primaryHint || '',
-          }
-        }
+        const merged = mergeAtmosphere({
+          override: parseOpts.atmosphereOverride,
+          aiAtmosphere: plan.atmosphere,
+          message,
+        })
         plan.atmosphere = merged
 
         // Token regeneration: apply primaryHint to actual design tokens
@@ -951,6 +956,9 @@ export async function splitGeneratePages(
   const designMemoryBlock = projectRoot ? formatMemoryForPrompt(readDesignMemory(projectRoot)) : ''
 
   const sharedComponentsNote = buildSharedComponentsNote(parseOpts.sharedComponentsSummary)
+  // Loaded AFTER Phase 5 awaited completion — sees post-Phase-5 manifest state.
+  // Phase 6 never mutates manifest.shared (only usedIn per-entry via updateManifestSafe),
+  // so a single load is sufficient for buildReusePlan/filterManifestForPage below.
   const currentManifest = projectRoot ? await loadManifest(projectRoot) : null
   const routeNote = `EXISTING ROUTES in this project: ${allRoutes}. All internal links MUST point to one of these routes. If a target doesn't exist, use href="#".`
   const alignmentNote =
@@ -1137,9 +1145,14 @@ export async function splitGeneratePages(
         }
 
         return codePage || { type: 'add-page' as const, target: 'new', changes: { id, name, route } }
-      } catch {
+      } catch (err) {
         phase5Done++
         spinner.text = `Phase 6/6 — ${phase5Done}/${remainingPages.length} pages generated...`
+        // Surface the failure so partial-success runs don't silently degrade. The
+        // empty add-page request still flows through so retry + templates can
+        // salvage the page, but the user knows which page failed and why.
+        const reason = err instanceof Error ? err.message : String(err)
+        console.log(chalk.yellow(`\n  ⚠  "${name}" (${route}) generation failed: ${reason}`))
         return { type: 'add-page' as const, target: 'new', changes: { id, name, route } }
       }
     },
@@ -1180,9 +1193,13 @@ export async function splitGeneratePages(
         if (codePage && (codePage.changes as Record<string, unknown>)?.pageCode) {
           const idx = allRequests.indexOf(req)
           if (idx !== -1) allRequests[idx] = codePage
+        } else {
+          // Retry returned without usable code — make this visible, don't swallow.
+          console.log(chalk.yellow(`  ⚠  Retry for "${pageName}" (${pageRoute}) returned no pageCode`))
         }
-      } catch {
-        // keep the empty version — user will see the warning
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err)
+        console.log(chalk.yellow(`  ⚠  Retry for "${pageName}" (${pageRoute}) threw: ${reason}`))
       }
     }
   }
@@ -1190,8 +1207,14 @@ export async function splitGeneratePages(
   endPhase6Timer()
 
   const withCode = allRequests.filter(r => (r.changes as Record<string, unknown>)?.pageCode).length
+  const emptyCount = allRequests.length - withCode
   if (withCode === 0) {
     spinner.warn(`Phase 6/6 — Generated ${allRequests.length} pages (0 with full code — AI may have failed)`)
+  } else if (emptyCount > 0) {
+    // Partial success — use .warn not .succeed so user sees the shortfall.
+    spinner.warn(
+      `Phase 6/6 — Generated ${allRequests.length} pages (${withCode} with full code, ${emptyCount} empty / template fallback)`,
+    )
   } else {
     spinner.succeed(`Phase 6/6 — Generated ${allRequests.length} pages (${withCode} with full code)`)
   }

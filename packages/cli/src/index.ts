@@ -90,6 +90,11 @@ program
     'Use a named atmosphere preset (swiss-grid, paper-editorial, neo-brutalist, dark-terminal, obsidian-neon, premium-focused, warm-industrial, solar-saas, wabi-sabi, luxury-editorial). Hard-overrides mood inference.',
   )
   .option('--list-atmospheres', 'List available atmosphere presets and exit')
+  .option('--mark-kept', 'Retroactively mark the latest run as kept (you liked the output). Skips generation.')
+  .option(
+    '--mark-rejected',
+    'Retroactively mark the latest run as rejected (you discarded the output). Skips generation.',
+  )
   .allowExcessArguments(false)
   .action(chatCommand)
 
