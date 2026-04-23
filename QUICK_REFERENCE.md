@@ -12,6 +12,7 @@ coherent chat --component "X" "..."  # Edit shared component X
 coherent chat --dry-run "..."       # Preview changes without applying
 coherent chat --atmosphere <name> "..."  # Use a named atmosphere preset (see --list-atmospheres)
 coherent chat --list-atmospheres # Show all 10 atmosphere presets and exit
+coherent wiki adr create <slug>  # Scaffold a new ADR (next number + skeleton sections)
 coherent components list         # Show all shared + UI components
 coherent status                  # Show project stats (pages, components, tokens)
 coherent preview                 # Start dev server (http://localhost:3000)

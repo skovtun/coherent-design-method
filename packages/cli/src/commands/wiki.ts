@@ -722,6 +722,121 @@ export function auditVersionConsistency(ctx: WikiContext): AuditIssue[] {
   return issues
 }
 
+const ADR_FILE_PATTERN = /^(\d{4})-([a-z0-9][a-z0-9-]*)\.md$/
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+
+/**
+ * Scan `adrDir` for existing `NNNN-*.md` files and return the next sequential
+ * 4-digit number as a zero-padded string. Returns "0001" for an empty or
+ * missing directory. Gaps in numbering (e.g. 0001, 0003) are ignored —
+ * we always pick max+1, never fill holes.
+ */
+export function nextAdrNumber(adrDir: string): string {
+  if (!existsSync(adrDir)) return '0001'
+  let max = 0
+  for (const name of readdirSync(adrDir)) {
+    const m = name.match(ADR_FILE_PATTERN)
+    if (!m) continue
+    const n = parseInt(m[1], 10)
+    if (n > max) max = n
+  }
+  return String(max + 1).padStart(4, '0')
+}
+
+function slugToTitle(slug: string): string {
+  return slug
+    .split('-')
+    .map(w => (w.length > 0 ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(' ')
+}
+
+/**
+ * Render an ADR skeleton from the repo's canonical template (see
+ * `docs/wiki/ADR/0001-*.md` for the format).
+ *
+ * Frontmatter starts at `status: proposed` / `confidence: proposed` —
+ * the author flips these to `accepted` / `established` when shipping,
+ * and fills in `shipped_in: [version]`.
+ */
+export function renderAdrTemplate(params: { number: string; slug: string; title: string; date: string }): string {
+  const { number, title, date } = params
+  return `---
+id: ADR-${number}
+type: adr
+status: proposed
+date: ${date}
+confidence: proposed
+shipped_in: []
+---
+
+# ADR ${number} — ${title}
+
+**Status:** Proposed
+**Date:** ${date}
+
+## Context
+
+<!-- What problem, constraint, or observation forced this decision? Evidence
+     (bug IDs, validator fires, user reports) belongs here, not in Decision. -->
+
+## Decision
+
+<!-- Lead with one clear sentence. Details after. Decisions that can't be
+     stated in one sentence usually aren't decided yet. -->
+
+## Consequences
+
+<!-- What changes downstream? What breaks? What's the cost we accept? -->
+
+## Why not alternatives
+
+- **Option A:** <!-- why rejected -->
+- **Option B:** <!-- why rejected -->
+
+## References
+
+<!-- Related PJ-* bug IDs, ADRs, backlog items, commits, external links. -->
+`
+}
+
+export async function wikiAdrCreateCommand(slug: string, opts: { title?: string } = {}) {
+  const ctx = requireRepoContext()
+
+  if (!SLUG_PATTERN.test(slug)) {
+    console.error(chalk.red(`❌ Invalid slug: "${slug}"`))
+    console.error(chalk.dim('   Use lowercase kebab-case: e.g. "atmosphere-preset-catalog".'))
+    process.exit(1)
+  }
+
+  if (existsSync(ctx.adrDir)) {
+    for (const name of readdirSync(ctx.adrDir)) {
+      const m = name.match(ADR_FILE_PATTERN)
+      if (m && m[2] === slug) {
+        console.error(chalk.red(`❌ ADR with slug "${slug}" already exists: ${name}`))
+        process.exit(1)
+      }
+    }
+  } else {
+    // Respect `mkdir -p` semantics: create the directory if missing.
+    spawnSync('mkdir', ['-p', ctx.adrDir])
+  }
+
+  const number = nextAdrNumber(ctx.adrDir)
+  const title = opts.title?.trim() || slugToTitle(slug)
+  const date = new Date().toISOString().slice(0, 10)
+  const filename = `${number}-${slug}.md`
+  const filePath = join(ctx.adrDir, filename)
+  const content = renderAdrTemplate({ number, slug, title, date })
+
+  writeFileSync(filePath, content, 'utf8')
+
+  const rel = relative(ctx.repoRoot, filePath)
+  console.log(chalk.green(`\n✓ Created ${chalk.bold(`ADR-${number}`)} at ${chalk.cyan(rel)}\n`))
+  console.log(chalk.dim(`  Title: ${title}`))
+  console.log(chalk.dim(`  Next:  fill in Context → Decision → Consequences → Why-not-alternatives`))
+  console.log(chalk.dim(`         flip status to "accepted" when shipped, add shipped_in: [version]\n`))
+}
+
 /**
  * Parse the YAML frontmatter block immediately before a heading at `pos`.
  *

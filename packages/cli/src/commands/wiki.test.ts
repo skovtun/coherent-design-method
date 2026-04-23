@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { extractFrontmatterAtTop, auditVersionConsistency } from './wiki.js'
+import { extractFrontmatterAtTop, auditVersionConsistency, nextAdrNumber, renderAdrTemplate } from './wiki.js'
 
 describe('extractFrontmatterAtTop', () => {
   it('parses frontmatter at the top of a file', () => {
@@ -107,5 +107,98 @@ describe('auditVersionConsistency', () => {
     writeVersion('cli', '0.7.21')
     writeVersion('core', '0.7.21')
     expect(auditVersionConsistency(makeCtx())).toEqual([])
+  })
+})
+
+describe('nextAdrNumber', () => {
+  let adrDir: string
+  beforeEach(() => {
+    adrDir = mkdtempSync(join(tmpdir(), 'coherent-adr-'))
+  })
+  afterEach(() => rmSync(adrDir, { recursive: true, force: true }))
+
+  it('returns 0001 for an empty directory', () => {
+    expect(nextAdrNumber(adrDir)).toBe('0001')
+  })
+
+  it('returns 0001 for a missing directory', () => {
+    expect(nextAdrNumber(join(adrDir, 'does-not-exist'))).toBe('0001')
+  })
+
+  it('returns max+1 when ADRs exist', () => {
+    writeFileSync(join(adrDir, '0001-first.md'), '')
+    writeFileSync(join(adrDir, '0002-second.md'), '')
+    writeFileSync(join(adrDir, '0003-third.md'), '')
+    expect(nextAdrNumber(adrDir)).toBe('0004')
+  })
+
+  it('skips gaps — always picks max+1, never fills holes', () => {
+    writeFileSync(join(adrDir, '0001-first.md'), '')
+    writeFileSync(join(adrDir, '0004-fourth.md'), '')
+    expect(nextAdrNumber(adrDir)).toBe('0005')
+  })
+
+  it('ignores non-ADR files', () => {
+    writeFileSync(join(adrDir, '0001-first.md'), '')
+    writeFileSync(join(adrDir, 'README.md'), '')
+    writeFileSync(join(adrDir, 'not-an-adr.txt'), '')
+    writeFileSync(join(adrDir, '99999-too-long.md'), '')
+    expect(nextAdrNumber(adrDir)).toBe('0002')
+  })
+
+  it('zero-pads to 4 digits even past 0099', () => {
+    writeFileSync(join(adrDir, '0099-ninety-ninth.md'), '')
+    expect(nextAdrNumber(adrDir)).toBe('0100')
+  })
+})
+
+describe('renderAdrTemplate', () => {
+  it('produces valid frontmatter with ADR-NNNN id', () => {
+    const out = renderAdrTemplate({
+      number: '0007',
+      slug: 'atmosphere-preset-catalog',
+      title: 'Atmosphere preset catalog',
+      date: '2026-04-23',
+    })
+    expect(out).toMatch(/^---\nid: ADR-0007\n/)
+    expect(out).toContain('type: adr')
+    expect(out).toContain('status: proposed')
+    expect(out).toContain('date: 2026-04-23')
+    expect(out).toContain('confidence: proposed')
+    expect(out).toContain('shipped_in: []')
+  })
+
+  it('includes all four canonical sections + References', () => {
+    const out = renderAdrTemplate({
+      number: '0007',
+      slug: 'x',
+      title: 'X',
+      date: '2026-04-23',
+    })
+    expect(out).toContain('## Context')
+    expect(out).toContain('## Decision')
+    expect(out).toContain('## Consequences')
+    expect(out).toContain('## Why not alternatives')
+    expect(out).toContain('## References')
+  })
+
+  it('renders title in the heading', () => {
+    const out = renderAdrTemplate({
+      number: '0007',
+      slug: 'atmosphere-preset-catalog',
+      title: 'Atmosphere preset catalog',
+      date: '2026-04-23',
+    })
+    expect(out).toContain('# ADR 0007 — Atmosphere preset catalog')
+  })
+
+  it('ends with a trailing newline', () => {
+    const out = renderAdrTemplate({
+      number: '0007',
+      slug: 'x',
+      title: 'X',
+      date: '2026-04-23',
+    })
+    expect(out.endsWith('\n')).toBe(true)
   })
 })
