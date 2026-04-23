@@ -2,6 +2,31 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.7.30] — 2026-04-23
+
+### `--atmosphere <name>` flag for `coherent chat`
+
+Wires the v0.7.29 preset catalog into the generation pipeline. A user who runs `coherent chat "build a CRM" --atmosphere premium-focused` now gets a hard-override on `plan.atmosphere` — the preset wins over both the AI plan-generator's inference and the deterministic `extractAtmosphereFromMessage` fallback. No more fighting the model to get dark + tight + monochrome when that's exactly what was asked for.
+
+### Added
+
+- **`coherent chat --atmosphere <name>`** — override atmosphere with a named preset. Unknown names error with the full list.
+- **`coherent chat --list-atmospheres`** — print the preset catalog with mood phrases and exit.
+- **`SplitGenerateParseOpts.atmosphereOverride`** — new field; when set, `splitGeneratePages` skips the AI/deterministic merge and uses the override directly.
+- **QUICK_REFERENCE.md** — flag documented.
+
+### Changed
+
+- **`packages/cli/src/commands/chat/split-generator.ts`** — atmosphere assembly wrapped in an `if (parseOpts.atmosphereOverride) { … } else { merge path }` branch. Merge logic preserved verbatim for the default path.
+- **`packages/cli/src/commands/chat.ts`** — early-exit for `--list-atmospheres`, preset lookup + validation before entering the pipeline.
+- **`packages/cli/src/index.ts`** — new `--atmosphere` / `--list-atmospheres` options on the `chat` command.
+
+### Not changed (yet)
+
+Atmosphere is still a flat 7-enum tuple. The full F9/Atmosphere pivot (typed `typography_pair` / `color_system.palette[5-7]` / `motion_signature` / `layout_archetype`) remains a separate workstream — this PR only makes the existing shape addressable by name.
+
+---
+
 ## [0.7.29] — 2026-04-23
 
 ### Atmosphere preset catalog — seed for F9/Atmosphere pivot (R5 pre-MVP)

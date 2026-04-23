@@ -444,6 +444,11 @@ export type SplitGenerateParseOpts = {
   sharedComponentsSummary?: string
   /** When set and the root/anchor page exists on disk, skip Phase 2 AI and reuse file for style context */
   projectRoot?: string
+  /**
+   * Hard override for plan.atmosphere — wins over AI plan + deterministic message extraction.
+   * Set by `coherent chat --atmosphere <preset-name>` via {@link getAtmospherePreset}.
+   */
+  atmosphereOverride?: Atmosphere
 }
 
 export type SplitGenerateResult = {
@@ -574,35 +579,47 @@ export async function splitGeneratePages(
         endPhase2Timer()
       }
       if (plan) {
-        // Merge AI-supplied atmosphere with deterministic extraction.
-        // Deterministic extractor catches mood phrases the AI plan-generator might
-        // have skipped or filled with safe defaults. Deterministic wins on confident
-        // matches because the AI tends to default to "minimal-paper / split-text-image"
-        // even when the user explicitly asked for "premium and dark".
-        const deterministic = extractAtmosphereFromMessage(message)
-        const aiAtmosphere = plan.atmosphere || ({} as Partial<Atmosphere>)
-        const aiLooksDefault =
-          (!aiAtmosphere.background || aiAtmosphere.background === 'minimal-paper') &&
-          (!aiAtmosphere.accents || aiAtmosphere.accents === 'monochrome')
-        const merged: Atmosphere = {
-          moodPhrase: aiAtmosphere.moodPhrase || deterministic.moodPhrase || '',
-          background:
-            (aiLooksDefault && deterministic.background) ||
-            aiAtmosphere.background ||
-            deterministic.background ||
-            'minimal-paper',
-          heroLayout:
-            (aiLooksDefault && deterministic.heroLayout) ||
-            aiAtmosphere.heroLayout ||
-            deterministic.heroLayout ||
-            'split-text-image',
-          spacing:
-            (aiLooksDefault && deterministic.spacing) || aiAtmosphere.spacing || deterministic.spacing || 'medium',
-          accents:
-            (aiLooksDefault && deterministic.accents) || aiAtmosphere.accents || deterministic.accents || 'monochrome',
-          fontStyle:
-            (aiLooksDefault && deterministic.fontStyle) || aiAtmosphere.fontStyle || deterministic.fontStyle || 'sans',
-          primaryHint: aiAtmosphere.primaryHint || deterministic.primaryHint || '',
+        let merged: Atmosphere
+        if (parseOpts.atmosphereOverride) {
+          // User explicitly passed `--atmosphere <preset>`. Preset wins, no merge.
+          merged = parseOpts.atmosphereOverride
+        } else {
+          // Merge AI-supplied atmosphere with deterministic extraction.
+          // Deterministic extractor catches mood phrases the AI plan-generator might
+          // have skipped or filled with safe defaults. Deterministic wins on confident
+          // matches because the AI tends to default to "minimal-paper / split-text-image"
+          // even when the user explicitly asked for "premium and dark".
+          const deterministic = extractAtmosphereFromMessage(message)
+          const aiAtmosphere = plan.atmosphere || ({} as Partial<Atmosphere>)
+          const aiLooksDefault =
+            (!aiAtmosphere.background || aiAtmosphere.background === 'minimal-paper') &&
+            (!aiAtmosphere.accents || aiAtmosphere.accents === 'monochrome')
+          merged = {
+            moodPhrase: aiAtmosphere.moodPhrase || deterministic.moodPhrase || '',
+            background:
+              (aiLooksDefault && deterministic.background) ||
+              aiAtmosphere.background ||
+              deterministic.background ||
+              'minimal-paper',
+            heroLayout:
+              (aiLooksDefault && deterministic.heroLayout) ||
+              aiAtmosphere.heroLayout ||
+              deterministic.heroLayout ||
+              'split-text-image',
+            spacing:
+              (aiLooksDefault && deterministic.spacing) || aiAtmosphere.spacing || deterministic.spacing || 'medium',
+            accents:
+              (aiLooksDefault && deterministic.accents) ||
+              aiAtmosphere.accents ||
+              deterministic.accents ||
+              'monochrome',
+            fontStyle:
+              (aiLooksDefault && deterministic.fontStyle) ||
+              aiAtmosphere.fontStyle ||
+              deterministic.fontStyle ||
+              'sans',
+            primaryHint: aiAtmosphere.primaryHint || deterministic.primaryHint || '',
+          }
         }
         plan.atmosphere = merged
 

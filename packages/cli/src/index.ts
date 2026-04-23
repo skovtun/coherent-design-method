@@ -82,6 +82,11 @@ program
   )
   .option('-i, --interactive', 'Interactive chat mode')
   .option('--dry-run', 'Show what would change without applying')
+  .option(
+    '--atmosphere <name>',
+    'Use a named atmosphere preset (swiss-grid, paper-editorial, neo-brutalist, dark-terminal, obsidian-neon, premium-focused, warm-industrial, solar-saas, wabi-sabi, luxury-editorial). Hard-overrides mood inference.',
+  )
+  .option('--list-atmospheres', 'List available atmosphere presets and exit')
   .allowExcessArguments(false)
   .action(chatCommand)
 
