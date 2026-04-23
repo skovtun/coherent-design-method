@@ -61,6 +61,7 @@ import { buildReusePlan, buildReusePlanDirective } from '../utils/reuse-planner.
 import { inferPageTypeFromRoute } from '../agents/design-constraints.js'
 import { savePlan, loadPlan } from './chat/plan-generator.js'
 import { getAtmospherePreset, listAtmospherePresets } from './chat/atmosphere-presets.js'
+import { writeRunRecordRel, type RunRecord, type RunRecordAtmosphere } from '../utils/run-record.js'
 import { applyModification } from './chat/modification-handler.js'
 import { regenerateFiles, scanAndInstallSharedDeps, ensurePlanGroupLayouts } from './chat/code-generator.js'
 import { takeNavSnapshot, hasNavChanged } from '../utils/nav-snapshot.js'
@@ -144,6 +145,32 @@ export async function chatCommand(
   const project = requireProject()
   const projectRoot = project.root
   const configPath = project.configPath
+
+  // Run record — collects outcome data across the chat flow; written in
+  // the `finally` block to `.coherent/runs/<timestamp>.yaml`. Mutable
+  // because different phases of the pipeline own different fields
+  // (options captured here; atmosphere after plan resolution; pagesWritten
+  // after regenerateFiles; outcome + duration on finally).
+  const runStartMs = Date.now()
+  const runStartIso = new Date().toISOString()
+  const runRecord: RunRecord = {
+    timestamp: runStartIso,
+    coherentVersion: CLI_VERSION,
+    intent: message ?? '',
+    options: {
+      atmosphere: options.atmosphere ?? null,
+      atmosphereOverride: !!atmosphereOverride,
+      page: options.page ?? null,
+      component: options.component ?? null,
+      newComponent: options.newComponent ?? null,
+      dryRun: !!options.dryRun,
+    },
+    atmosphere: null,
+    pagesWritten: [],
+    sharedComponentsWritten: [],
+    durationMs: 0,
+    outcome: 'success',
+  }
 
   const migrationGuard = join(projectRoot, '.coherent', 'migration-in-progress')
   if (existsSync(migrationGuard)) {
@@ -417,6 +444,9 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
           savePlan(projectRoot, splitResult.plan)
           await ensurePlanGroupLayouts(projectRoot, splitResult.plan, storedHashes, dsm.getConfig())
         }
+        if (splitResult.plan?.atmosphere) {
+          runRecord.atmosphere = splitResult.plan.atmosphere as RunRecordAtmosphere
+        }
         uxRecommendations = undefined
       } catch {
         spinner.warn('Split generation encountered an issue — trying page-by-page...')
@@ -563,6 +593,9 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
             if (splitResult.plan && projectRoot) {
               savePlan(projectRoot, splitResult.plan)
               await ensurePlanGroupLayouts(projectRoot, splitResult.plan, storedHashes, dsm.getConfig())
+            }
+            if (splitResult.plan?.atmosphere) {
+              runRecord.atmosphere = splitResult.plan.atmosphere as RunRecordAtmosphere
             }
             uxRecommendations = undefined
           } catch {
@@ -1186,6 +1219,13 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
       spinner.start('Regenerating affected files...')
       await regenerateFiles(Array.from(allModified), updatedConfig, projectRoot, { navChanged, storedHashes })
       spinner.succeed('Files regenerated')
+      for (const path of allModified) {
+        if (/^app\/.*page\.tsx$/.test(path) || /\/page\.tsx$/.test(path)) {
+          runRecord.pagesWritten.push(path)
+        } else if (/^components\/shared\//.test(path)) {
+          runRecord.sharedComponentsWritten.push(path)
+        }
+      }
     }
 
     const finalDeps = await scanAndInstallSharedDeps(projectRoot)
@@ -1406,6 +1446,8 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
   } catch (error) {
     spinner.fail('Chat command failed')
     console.error(chalk.red('\n✖ Chat command failed'))
+    runRecord.outcome = 'error'
+    runRecord.error = error instanceof Error ? error.message : String(error)
 
     const zodError = error as { issues?: Array<{ path: (string | number)[]; message: string }> }
     const issues =
@@ -1462,6 +1504,19 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
     }
     process.exit(1)
   } finally {
+    // Write run record unless dry-run (journaling dry-runs pollutes the dir
+    // with zero-outcome files). Never let journaling failure block exit.
+    if (!options.dryRun) {
+      runRecord.durationMs = Date.now() - runStartMs
+      try {
+        const rel = writeRunRecordRel(projectRoot, runRecord)
+        if (rel && runRecord.outcome === 'success') {
+          console.log(chalk.dim(`  📝 Run journaled → ${rel}`))
+        }
+      } catch {
+        /* journaling is best-effort */
+      }
+    }
     process.removeListener('SIGINT', onSigint)
     releaseLock?.()
   }

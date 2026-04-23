@@ -13,6 +13,7 @@ import { CLI_VERSION } from '@getcoherent/core'
 import { initCommand } from './commands/init.js'
 import { chatCommand } from './commands/chat.js'
 import { promptCommand } from './commands/prompt.js'
+import { memoryShowCommand, memoryDiffCommand } from './commands/memory.js'
 import { previewCommand } from './commands/preview.js'
 import { exportCommand } from './commands/export.js'
 import { statusCommand } from './commands/status.js'
@@ -102,6 +103,19 @@ program
   .option('--format <format>', 'Output format: markdown | json | plain (default: markdown)', 'markdown')
   .allowExcessArguments(false)
   .action(promptCommand)
+
+const memoryCmd = new Command('memory').description(
+  'Inspect per-project design memory (decisions.md + components + recent runs)',
+)
+memoryCmd
+  .command('show')
+  .description('Print design memory, shared components, and recent run summaries')
+  .action(opts => memoryShowCommand(opts))
+memoryCmd
+  .command('diff [ref]')
+  .description('git diff decisions.md vs <ref> (default: HEAD). Shows how memory changed recently.')
+  .action((ref: string | undefined, opts: { _throwOnError?: boolean }) => memoryDiffCommand(ref, opts))
+program.addCommand(memoryCmd)
 
 program.command('preview').description('Launch dev server for preview').action(previewCommand)
 
