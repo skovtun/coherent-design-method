@@ -69,6 +69,6 @@ Starting v0.7.0:
 
 ## References
 
-- Bug that prompted: PJ-006 in `docs/PATTERNS_JOURNAL.md`.
+- Bug that prompted: PJ-006 in `docs/wiki/PATTERNS_JOURNAL.md`.
 - Code: `packages/cli/templates/patterns/`, `packages/cli/src/agents/golden-patterns.ts`.
 - Changelog: `docs/CHANGELOG.md` → v0.7.0.

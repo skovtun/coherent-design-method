@@ -250,8 +250,7 @@ hidden(
 )
 
 // Wiki maintenance — only meaningful when running inside the Coherent source
-// repo (operates on docs/wiki/* and docs/PATTERNS_JOURNAL.md). Hidden for
-// generated projects.
+// repo (operates on docs/wiki/*). Hidden for generated projects.
 const wikiCmd = new Command('wiki').description(
   'Platform-level LLM wiki maintenance (Coherent source repo only — NOT for generated projects)',
 )
@@ -265,7 +264,9 @@ wikiCmd
   .action(wikiAuditCommand)
 wikiCmd
   .command('index')
-  .description('Rebuild the TF-IDF retrieval index over docs/wiki/ and docs/PATTERNS_JOURNAL.md')
+  .description(
+    'Rebuild the TF-IDF retrieval index over docs/wiki/ (PATTERNS_JOURNAL, ADRs, MODEL_PROFILE, IDEAS_BACKLOG, RULES_MAP)',
+  )
   .action(wikiIndexCommand)
 wikiCmd
   .command('search <query...>')

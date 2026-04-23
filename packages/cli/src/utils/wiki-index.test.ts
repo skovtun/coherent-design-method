@@ -41,7 +41,7 @@ describe('scanWiki + buildIndex + retrieve', () => {
 
   it('retrieves filter-bar entry when query mentions filter', () => {
     writeFileSync(
-      join(dir, 'docs', 'PATTERNS_JOURNAL.md'),
+      join(dir, 'docs', 'wiki', 'PATTERNS_JOURNAL.md'),
       `# Patterns Journal\n\n### PJ-006 — Filter bar failures\n\nFilter bar got 3 regressions: duplicate Categories, heights mismatched, search icon misplaced.`,
     )
     writeFileSync(
@@ -51,7 +51,7 @@ describe('scanWiki + buildIndex + retrieve', () => {
 
     const entries = scanWiki({
       wikiDir: join(dir, 'docs', 'wiki'),
-      journalFile: join(dir, 'docs', 'PATTERNS_JOURNAL.md'),
+      journalFile: join(dir, 'docs', 'wiki', 'PATTERNS_JOURNAL.md'),
     })
     expect(entries.length).toBeGreaterThan(0)
 
@@ -61,9 +61,9 @@ describe('scanWiki + buildIndex + retrieve', () => {
   })
 
   it('returns empty for query with only stopwords', () => {
-    writeFileSync(join(dir, 'docs', 'PATTERNS_JOURNAL.md'), `### PJ-001\n\ncontent`)
+    writeFileSync(join(dir, 'docs', 'wiki', 'PATTERNS_JOURNAL.md'), `### PJ-001\n\ncontent`)
     const index = buildIndex(
-      scanWiki({ wikiDir: join(dir, 'docs', 'wiki'), journalFile: join(dir, 'docs', 'PATTERNS_JOURNAL.md') }),
+      scanWiki({ wikiDir: join(dir, 'docs', 'wiki'), journalFile: join(dir, 'docs', 'wiki', 'PATTERNS_JOURNAL.md') }),
     )
     expect(retrieve(index, 'the is a')).toEqual([])
   })
@@ -97,20 +97,20 @@ describe('scanWiki + buildIndex + retrieve', () => {
 
   it('ranks exact-term matches higher', () => {
     writeFileSync(
-      join(dir, 'docs', 'PATTERNS_JOURNAL.md'),
+      join(dir, 'docs', 'wiki', 'PATTERNS_JOURNAL.md'),
       `### PJ-001 — Filter bar issues\n\nfilter bar issues\n\n### PJ-002 — Chart placeholders\n\nchart placeholder issues`,
     )
     const index = buildIndex(
-      scanWiki({ wikiDir: join(dir, 'docs', 'wiki'), journalFile: join(dir, 'docs', 'PATTERNS_JOURNAL.md') }),
+      scanWiki({ wikiDir: join(dir, 'docs', 'wiki'), journalFile: join(dir, 'docs', 'wiki', 'PATTERNS_JOURNAL.md') }),
     )
     const results = retrieve(index, 'filter', 5)
     expect(results[0].entry.id).toBe('PJ-001')
   })
 
   it('persists and reloads index', () => {
-    writeFileSync(join(dir, 'docs', 'PATTERNS_JOURNAL.md'), `### PJ-001 — Filter bar\n\nfilter bar`)
+    writeFileSync(join(dir, 'docs', 'wiki', 'PATTERNS_JOURNAL.md'), `### PJ-001 — Filter bar\n\nfilter bar`)
     const index = buildIndex(
-      scanWiki({ wikiDir: join(dir, 'docs', 'wiki'), journalFile: join(dir, 'docs', 'PATTERNS_JOURNAL.md') }),
+      scanWiki({ wikiDir: join(dir, 'docs', 'wiki'), journalFile: join(dir, 'docs', 'wiki', 'PATTERNS_JOURNAL.md') }),
     )
     const path = join(dir, '.cache', 'wiki-index.json')
     saveIndex(path, index)
@@ -125,12 +125,12 @@ describe('scanWiki + buildIndex + retrieve', () => {
 
   it('parses YAML frontmatter into entry.frontmatter', () => {
     writeFileSync(
-      join(dir, 'docs', 'PATTERNS_JOURNAL.md'),
+      join(dir, 'docs', 'wiki', 'PATTERNS_JOURNAL.md'),
       `---\nid: PJ-006\ntype: bug\nconfidence: verified\n---\n\n### PJ-006 — Filter bar\n\ncontent`,
     )
     const entries = scanWiki({
       wikiDir: join(dir, 'docs', 'wiki'),
-      journalFile: join(dir, 'docs', 'PATTERNS_JOURNAL.md'),
+      journalFile: join(dir, 'docs', 'wiki', 'PATTERNS_JOURNAL.md'),
     })
     expect(entries[0].frontmatter.confidence).toBe('verified')
     expect(entries[0].frontmatter.type).toBe('bug')

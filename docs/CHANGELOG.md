@@ -2,6 +2,39 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.8.1] — 2026-04-23
+
+### Docs memory layering reorg (no code behavior change)
+
+Codex review of our memory architecture flagged two issues: `PATTERNS_JOURNAL.md` living at `docs/` while the rest of the wiki lives at `docs/wiki/` (pointless path split), and missing a bucket for operational runbooks distinct from retrieval-indexed wiki content. Also addressed a user-facing issue: user Q&A had nowhere to go — the wiki is retrieval-indexed, so support prose would have polluted code-generation prompts.
+
+### Added
+
+- **`docs/FAQ.md`** — user-facing answers, explicitly out of wiki retrieval. First entries cover: why the CLI needs an API key (ToS constraint), how Coherent differs from v0/bolt/lovable/tasteui, how design decisions are stored per-project, Next.js-only limitation, contributing.
+- **`docs/runbooks/`** — operational how-tos for developing Coherent. Not retrieval-indexed. Initial runbooks: `cut-release.md`, `validate-retrieval.md`, `debug-indexing.md`, plus a `README.md` explaining the memory-layering rule.
+- **README** — "FAQ" section pointing at `docs/FAQ.md`.
+- **CLAUDE.md** — added "Not in the wiki, on purpose" subsection pointing at FAQ + runbooks and the layering rule.
+
+### Changed
+
+- **`docs/PATTERNS_JOURNAL.md` → `docs/wiki/PATTERNS_JOURNAL.md`** — conceptually it's wiki content; the path split was pointless. Updated all references: `CLAUDE.md` start-of-session reading list, `packages/cli/src/commands/wiki.ts` (ctx.journalPath + user-facing strings), `packages/cli/src/utils/wiki-index.ts` doc comments, `packages/cli/src/utils/wiki-index.test.ts` fixture paths, `packages/cli/src/index.ts` comments + subcommand description, `docs/wiki/README.md` link, `docs/wiki/ADR/0001-*.md` + `0003-*.md` reference path.
+- **`docs/wiki/README.md`** — fixed `PATTERNS_JOURNAL.md` link (was `../PATTERNS_JOURNAL.md`, now `./PATTERNS_JOURNAL.md`).
+
+### Not changed
+
+- Code behavior: `coherent chat`, `coherent check`, `coherent fix`, `coherent prompt`, `coherent wiki *` — all unchanged. This is a docs + paths reorg.
+- `.coherent/wiki-index.json` retrieval cache: regenerated on `coherent wiki index` with the new path. Old cached paths in built artifacts refresh on next build.
+
+### Memory-architecture decisions recorded
+
+Codex consult surfaced two unmet needs that didn't land in this release but are on the roadmap:
+- **Product-side:** generation outcome records (per-run provenance — what was generated, what memory was injected, which validators fired, user kept/regenerated/rejected). Enables "did memory help?" measurement.
+- **Product-side:** `coherent memory show` / `diff` — make per-project memory auditable instead of black-box.
+
+Both are tracked in the backlog for a future release.
+
+---
+
 ## [0.8.0] — 2026-04-23
 
 ### Skill-mode distribution — use Coherent with a Claude Code subscription, no API key

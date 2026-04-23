@@ -29,7 +29,7 @@ const REFLECT_TEMPLATE = `<!--
   delete the rest before saving. What you write here will be appended to the
   wiki as a new journal/profile/idea entry with YAML frontmatter.
 
-  - Bug entries → docs/PATTERNS_JOURNAL.md (PJ-NNN)
+  - Bug entries → docs/wiki/PATTERNS_JOURNAL.md (PJ-NNN)
   - Model behavior → docs/wiki/MODEL_PROFILE.md
   - Ideas → docs/wiki/IDEAS_BACKLOG.md
 
@@ -92,7 +92,7 @@ function detectRepoContext(): WikiContext | null {
     if (hasWiki && hasCliPkg) {
       return {
         repoRoot: dir,
-        journalPath: join(dir, 'docs', 'PATTERNS_JOURNAL.md'),
+        journalPath: join(dir, 'docs', 'wiki', 'PATTERNS_JOURNAL.md'),
         profilePath: join(dir, 'docs', 'wiki', 'MODEL_PROFILE.md'),
         backlogPath: join(dir, 'docs', 'wiki', 'IDEAS_BACKLOG.md'),
         rulesMapPath: join(dir, 'docs', 'wiki', 'RULES_MAP.md'),
@@ -501,7 +501,7 @@ export async function wikiIndexCommand() {
   const wikiDir = join(ctx.repoRoot, 'docs', 'wiki')
   const entries = scanWiki({ wikiDir, journalFile: ctx.journalPath })
   if (entries.length === 0) {
-    console.log(chalk.yellow('⚠ No entries found. Make sure docs/wiki/ and docs/PATTERNS_JOURNAL.md exist.\n'))
+    console.log(chalk.yellow('⚠ No entries found. Make sure docs/wiki/ exists and has content.\n'))
     return
   }
   const index = buildIndex(entries)

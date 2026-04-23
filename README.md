@@ -455,6 +455,15 @@ coherent fix     # auto-installs missing components
 
 For the full list of known issues and solutions, see [TROUBLESHOOTING.md](./TROUBLESHOOTING.md).
 
+## FAQ
+
+Common user-facing questions with answers in [docs/FAQ.md](./docs/FAQ.md):
+
+- Why does Coherent CLI need an API key even though I have Claude Code?
+- How is Coherent different from v0 / bolt / lovable / tasteui?
+- Where does Coherent store design decisions about my project?
+- Can I use Coherent without Next.js?
+
 ## Contributing
 
 We welcome contributions! See [CONTRIBUTING.md](./CONTRIBUTING.md) for:
