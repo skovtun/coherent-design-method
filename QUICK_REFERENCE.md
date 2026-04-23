@@ -10,6 +10,8 @@ coherent chat "<message>"        # Generate/modify pages with AI
 coherent chat --page "X" "..."   # Edit only page X
 coherent chat --component "X" "..."  # Edit shared component X
 coherent chat --dry-run "..."       # Preview changes without applying
+coherent chat --atmosphere <name> "..."  # Use a named atmosphere preset (see --list-atmospheres)
+coherent chat --list-atmospheres # Show all 10 atmosphere presets and exit
 coherent components list         # Show all shared + UI components
 coherent status                  # Show project stats (pages, components, tokens)
 coherent preview                 # Start dev server (http://localhost:3000)

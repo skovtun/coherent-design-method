@@ -60,6 +60,7 @@ import { splitGeneratePages, buildSharedComponentsSummary } from './chat/split-g
 import { buildReusePlan, buildReusePlanDirective } from '../utils/reuse-planner.js'
 import { inferPageTypeFromRoute } from '../agents/design-constraints.js'
 import { savePlan, loadPlan } from './chat/plan-generator.js'
+import { getAtmospherePreset, listAtmospherePresets } from './chat/atmosphere-presets.js'
 import { applyModification } from './chat/modification-handler.js'
 import { regenerateFiles, scanAndInstallSharedDeps, ensurePlanGroupLayouts } from './chat/code-generator.js'
 import { takeNavSnapshot, hasNavChanged } from '../utils/nav-snapshot.js'
@@ -80,9 +81,35 @@ export async function chatCommand(
     newComponent?: string
     type?: string
     dryRun?: boolean
+    atmosphere?: string
+    listAtmospheres?: boolean
     _throwOnError?: boolean
   },
 ) {
+  if (options.listAtmospheres) {
+    const names = listAtmospherePresets()
+    console.log(chalk.bold('\nAvailable atmosphere presets:\n'))
+    for (const name of names) {
+      const preset = getAtmospherePreset(name)!
+      console.log(`  ${chalk.cyan(name.padEnd(20))} ${chalk.dim(preset.moodPhrase)}`)
+    }
+    console.log(chalk.dim(`\n  Usage: coherent chat "your request" --atmosphere <name>\n`))
+    return
+  }
+
+  let atmosphereOverride: ReturnType<typeof getAtmospherePreset>
+  if (options.atmosphere) {
+    atmosphereOverride = getAtmospherePreset(options.atmosphere)
+    if (!atmosphereOverride) {
+      const names = listAtmospherePresets().join(', ')
+      console.error(chalk.red(`\n❌ Unknown atmosphere preset: "${options.atmosphere}"`))
+      console.log(chalk.dim(`   Available: ${names}`))
+      console.log(chalk.dim(`   See all: coherent chat --list-atmospheres\n`))
+      if (options._throwOnError) throw new Error(`Unknown atmosphere: ${options.atmosphere}`)
+      process.exit(1)
+    }
+  }
+
   if (options.interactive) {
     return interactiveChat(options, chatCommand)
   }
@@ -361,7 +388,7 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
     let uxRecommendations: string | undefined
 
     const SPLIT_THRESHOLD = 4
-    const parseOpts = { sharedComponentsSummary, projectRoot }
+    const parseOpts = { sharedComponentsSummary, projectRoot, atmosphereOverride }
     const modCtx = { config: dsm.getConfig(), componentManager: cm }
 
     const explicitPageTarget = !!(options.page || options.component)
