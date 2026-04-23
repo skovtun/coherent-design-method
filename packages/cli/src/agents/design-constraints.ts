@@ -48,7 +48,7 @@ ANTI-SLOP CHECKLIST (avoid generic AI aesthetics):
 - Content must feel real: no "John Doe", "Jane Smith", "Acme Corp". Use distinctive, diverse names
 - No cliché copy: avoid "Seamless", "Elevate", "Unleash", "Next-Gen", "Game-changer"
 - Numbers must feel real: not 100%, 50%, 99.99%. Use 87%, 1,247, 34.2%
-- Dates must feel current: use relative phrases ("2 hours ago", "yesterday", "last week", "3 days ago") over hardcoded years. NEVER use 2023/2024/2025 hardcoded — they look stale. If a concrete date is required, use "Today" / current-year-aware formatting. For "joined Jan 15 of past year" prefer "Joined 3 months ago".
+- Dates must feel current. Prefer relative phrases ("2 hours ago", "yesterday", "last week", "3 days ago") over hardcoded years in user-facing UI. Never hardcode a year that is more than one year in the past — it dates the mockup. If a concrete date is required, compute from \`new Date()\` or use relative formatting. For "joined Jan 15 of past year" prefer "Joined 3 months ago".
 - Max-width for readable text: max-w-prose or max-w-2xl (45-75 characters)
 - Touch targets: minimum 44x44px for all interactive elements (use padding if visual size is smaller)
 - Cognitive load: at decision points (filters, tabs, CTAs), show ≤4 visible options. Group the rest under "More" or dropdowns

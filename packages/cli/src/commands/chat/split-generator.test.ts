@@ -11,7 +11,9 @@ import {
   buildAnchorPagePrompt,
   buildLayoutNote,
   filterManifestForPage,
+  mergeAtmosphere,
 } from './split-generator.js'
+import type { Atmosphere } from './plan-generator.js'
 import { ArchitecturePlanSchema } from './plan-generator.js'
 import { inferPageType } from './modification-handler.js'
 import { detectPageType } from '../../agents/page-templates.js'
@@ -787,5 +789,95 @@ describe('filterManifestForPage', () => {
     expect(names).toContain('TaskItem')
     expect(names).toContain('Header')
     expect(names).not.toContain('StatCard')
+  })
+})
+
+describe('mergeAtmosphere', () => {
+  const preset: Atmosphere = {
+    moodPhrase: 'premium and focused',
+    background: 'dark-zinc',
+    heroLayout: 'centered-bold',
+    spacing: 'tight',
+    accents: 'monochrome',
+    fontStyle: 'mono-labels',
+    primaryHint: 'zinc',
+  }
+
+  it('returns the override verbatim when user passed --atmosphere (no merge)', () => {
+    const result = mergeAtmosphere({
+      override: preset,
+      aiAtmosphere: {
+        moodPhrase: 'soft and airy',
+        background: 'minimal-paper',
+        heroLayout: 'split-text-image',
+        spacing: 'wide',
+        accents: 'warm-soft',
+        fontStyle: 'serif-headings',
+        primaryHint: 'amber',
+      },
+      message: 'build a dark terminal dashboard', // deterministic would say dark-zinc/code-mono
+    })
+    expect(result).toEqual(preset)
+  })
+
+  it('falls back to defaults when nothing is set anywhere', () => {
+    const result = mergeAtmosphere({
+      override: undefined,
+      aiAtmosphere: undefined,
+      message: 'build a CRM',
+    })
+    expect(result.background).toBe('minimal-paper')
+    expect(result.heroLayout).toBe('split-text-image')
+    expect(result.spacing).toBe('medium')
+    expect(result.accents).toBe('monochrome')
+    expect(result.fontStyle).toBe('sans')
+  })
+
+  it('lets deterministic extraction win when AI atmosphere looks like defaults', () => {
+    const aiLooksDefault: Atmosphere = {
+      moodPhrase: '',
+      background: 'minimal-paper',
+      heroLayout: 'split-text-image',
+      spacing: 'medium',
+      accents: 'monochrome',
+      fontStyle: 'sans',
+      primaryHint: '',
+    }
+    // "dark terminal" message → deterministic extractor picks dark-zinc / code-bg territory
+    const result = mergeAtmosphere({
+      override: undefined,
+      aiAtmosphere: aiLooksDefault,
+      message: 'build a dark terminal dashboard with monospaced font',
+    })
+    // When AI looks default, deterministic should overtake at least one dimension
+    const deviated =
+      result.background !== 'minimal-paper' ||
+      result.heroLayout !== 'split-text-image' ||
+      result.accents !== 'monochrome' ||
+      result.fontStyle !== 'sans'
+    expect(deviated).toBe(true)
+  })
+
+  it('preserves non-default AI atmosphere values', () => {
+    const aiRich: Atmosphere = {
+      moodPhrase: 'bold and editorial',
+      background: 'warm-stone',
+      heroLayout: 'left-editorial',
+      spacing: 'wide',
+      accents: 'editorial',
+      fontStyle: 'serif-headings',
+      primaryHint: 'amber',
+    }
+    const result = mergeAtmosphere({
+      override: undefined,
+      aiAtmosphere: aiRich,
+      message: 'landing page',
+    })
+    expect(result.background).toBe('warm-stone')
+    expect(result.heroLayout).toBe('left-editorial')
+    expect(result.spacing).toBe('wide')
+    expect(result.accents).toBe('editorial')
+    expect(result.fontStyle).toBe('serif-headings')
+    expect(result.primaryHint).toBe('amber')
   })
 })

@@ -1,5 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs'
+import { join } from 'path'
+import { tmpdir } from 'os'
 import { inferPageTypeFromIntent, promptCommand } from './prompt.js'
+
+const MINIMAL_CONFIG = `export const config = {
+  meta: { name: 'Test', version: '0.1.0' },
+  tokens: { color: {}, typography: {}, spacing: {} },
+  components: [],
+} as const
+`
 
 describe('inferPageTypeFromIntent', () => {
   it('returns auth for login/register/signup intents', () => {
@@ -136,5 +146,94 @@ describe('promptCommand', () => {
     expect(out).toContain('# Coherent constraints for: dashboard')
     expect(out).toContain('DESIGN THINKING')
     expect(out).toContain('SHADCN/UI DESIGN CONSTRAINTS')
+  })
+
+  it('always includes the alignment note (context-free)', async () => {
+    await promptCommand('dashboard', { format: 'markdown' })
+    const out = logs.join('\n')
+    expect(out).toContain('Alignment rule')
+    expect(out).toContain('CRITICAL LAYOUT RULE')
+  })
+})
+
+describe('promptCommand — project context injection', () => {
+  let projectDir: string
+  let logs: string[]
+  let origLog: typeof console.log
+
+  beforeEach(() => {
+    projectDir = mkdtempSync(join(tmpdir(), 'coherent-prompt-ctx-'))
+    writeFileSync(join(projectDir, 'design-system.config.ts'), MINIMAL_CONFIG)
+    logs = []
+    origLog = console.log
+    console.log = (...args: unknown[]) => logs.push(args.map(String).join(' '))
+  })
+
+  afterEach(() => {
+    console.log = origLog
+    rmSync(projectDir, { recursive: true, force: true })
+  })
+
+  const out = () => logs.join('\n')
+
+  it('omits design-memory section when decisions.md does not exist', async () => {
+    await promptCommand('build a dashboard', { format: 'markdown', _startDir: projectDir })
+    expect(out()).not.toContain('## Design memory')
+  })
+
+  it('injects design memory from .coherent/wiki/decisions.md', async () => {
+    mkdirSync(join(projectDir, '.coherent/wiki'), { recursive: true })
+    writeFileSync(
+      join(projectDir, '.coherent/wiki/decisions.md'),
+      '# Design Decisions\n\n## 2026-04-23\n\n### Home (/)\n- Container: max-w-6xl mx-auto\n- Palette: bg-primary, text-foreground\n',
+    )
+    await promptCommand('build a dashboard', { format: 'markdown', _startDir: projectDir })
+    const o = out()
+    expect(o).toContain('## Design memory')
+    expect(o).toContain('Container: max-w-6xl mx-auto')
+  })
+
+  it('injects shared components list from coherent.components.json', async () => {
+    writeFileSync(
+      join(projectDir, 'coherent.components.json'),
+      JSON.stringify({
+        shared: [
+          {
+            id: 'CID-001',
+            name: 'StatCard',
+            type: 'widget',
+            file: 'components/shared/stat-card.tsx',
+            usedIn: [],
+            description: 'Dashboard metric card',
+          },
+        ],
+        nextId: 2,
+      }),
+    )
+    await promptCommand('build a dashboard', { format: 'markdown', _startDir: projectDir })
+    const o = out()
+    expect(o).toContain('Shared components available')
+    expect(o).toContain('CID-001')
+    expect(o).toContain('StatCard')
+    expect(o).toContain('components/shared/stat-card.tsx')
+  })
+
+  it('injects existing routes from app/ directory', async () => {
+    mkdirSync(join(projectDir, 'app/(app)/dashboard'), { recursive: true })
+    mkdirSync(join(projectDir, 'app/pricing'), { recursive: true })
+    writeFileSync(join(projectDir, 'app/page.tsx'), 'export default function P() { return null }')
+    writeFileSync(join(projectDir, 'app/(app)/dashboard/page.tsx'), 'export default function P() { return null }')
+    writeFileSync(join(projectDir, 'app/pricing/page.tsx'), 'export default function P() { return null }')
+    await promptCommand('build another page', { format: 'markdown', _startDir: projectDir })
+    const o = out()
+    expect(o).toContain('Existing routes')
+    expect(o).toContain('EXISTING ROUTES in this project')
+    expect(o).toContain('/dashboard')
+    expect(o).toContain('/pricing')
+  })
+
+  it('includes project context marker in plain format when detected', async () => {
+    await promptCommand('build a dashboard', { format: 'plain', _startDir: projectDir })
+    expect(out()).toContain('# Project context detected:')
   })
 })

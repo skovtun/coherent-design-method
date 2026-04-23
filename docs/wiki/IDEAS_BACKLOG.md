@@ -653,6 +653,31 @@ confidence: observed
 **Related:** F9/Atmosphere pivot design doc (`feat/f9-deterministic-statschart` branch).
 
 ---
+id: R6
+type: idea
+status: open
+target: v0.8.x
+effort: 3-4h
+date: 2026-04-23
+confidence: verified
+---
+
+### R6 — Run-record parity for skill-mode (`coherent prompt`)
+
+**Source:** Discovered during v0.8.3 dogfood of `/coherent-generate` on a real Claude Code subscription session. Skill-mode path (`coherent prompt` → Claude writes files → `coherent check` → `coherent fix` loop) never writes `.coherent/runs/<timestamp>.yaml`. Only `coherent chat` (API path) instruments the run record.
+
+**Why this matters:** Subscription users (the reason v0.8.0 skill-mode exists) are invisible to the telemetry surface that was the whole point of v0.8.2. "Did memory help?", `--mark-kept`/`--mark-rejected`, validator outcomes — all skip them. The moat (validator loop) demonstrably works for skill-mode users, but we have zero data to analyze it.
+
+**Proposal — three options, ranked:**
+1. **`coherent log-run` subcommand** called explicitly by the skill at end of its loop. Skill markdown gets a step 4: "Run `coherent log-run --intent '$ARGUMENTS' --pages '<files>' --outcome success`". Pros: stateless `coherent prompt` preserved, skill controls when. Cons: skill-drift risk if step skipped.
+2. **`coherent prompt` writes a partial record** (intent, atmosphere, options, timestamp) with `outcome: pending`, then `coherent check` updates it with validator outcomes. Skill naturally completes it by running the existing commands. Pros: zero skill changes. Cons: `coherent check` becomes stateful.
+3. **Leave stateless by design** — skill-mode is the stateless path, accept the telemetry gap. Rely on kept/rejected marks via aggregated CLI usage.
+
+**Recommendation:** option 1. Cleanest separation of concerns. Update skill markdown in `packages/cli/src/utils/claude-code.ts` `COMMANDS['coherent-generate.md']` to add the log-run step, and ship a `coherent log-run` command that builds and writes a `RunRecord` from flags + disk reads (pages-written can be inferred from git status in the project root, validator outcomes from re-running `validatePageQuality`).
+
+**Related:** v0.8.3 CHANGELOG "Known gap" note, `packages/cli/src/utils/run-record.ts`, `packages/cli/src/commands/prompt.ts`, `packages/cli/src/utils/claude-code.ts`.
+
+---
 id: M13
 type: idea
 status: open

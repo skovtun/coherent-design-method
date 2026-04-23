@@ -20,15 +20,20 @@ import chalk from 'chalk'
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs'
 import { join, resolve, relative } from 'path'
 import { spawnSync } from 'child_process'
-import { requireProject, loadConfig } from './chat/utils.js'
+import { loadManifest } from '@getcoherent/core'
+import { requireProject } from './chat/utils.js'
 import { readDesignMemory } from '../utils/design-memory.js'
 
 export interface MemoryCommandOptions {
   _throwOnError?: boolean
+  /** Test hook — bypass requireProject()/cwd lookup */
+  _projectRoot?: string
 }
 
-export async function memoryShowCommand(_opts: MemoryCommandOptions = {}) {
-  const project = requireProject()
+export async function memoryShowCommand(opts: MemoryCommandOptions = {}) {
+  const project = opts._projectRoot
+    ? { root: opts._projectRoot, configPath: resolve(opts._projectRoot, 'design-system.config.ts') }
+    : requireProject()
   const projectRoot = project.root
 
   console.log(chalk.bold('\nCoherent memory for this project\n'))
@@ -45,24 +50,25 @@ export async function memoryShowCommand(_opts: MemoryCommandOptions = {}) {
   }
   console.log('')
 
-  // 2. Components registry
+  // 2. Shared components registry — reads coherent.components.json (the authoritative
+  // manifest per docs), not the legacy config.components field. Each entry has
+  // `usedIn: string[]`; empty list means the component isn't wired into any page yet.
+  console.log(chalk.cyan(`🧩 Shared components`) + chalk.dim(` — coherent.components.json`))
   try {
-    const config = await loadConfig(project.configPath)
-    const components = config.components ?? []
-    console.log(chalk.cyan(`🧩 Shared components`) + chalk.dim(` — ${components.length} registered`))
-    if (components.length === 0) {
+    const manifest = await loadManifest(projectRoot)
+    const shared = manifest.shared ?? []
+    if (shared.length === 0) {
       console.log(chalk.dim('   (none yet)'))
     } else {
-      for (const c of components) {
-        const used = (c as unknown as { usedBy?: string[] }).usedBy
-        const usedCount = Array.isArray(used) ? used.length : 0
+      for (const c of shared) {
+        const usedCount = Array.isArray(c.usedIn) ? c.usedIn.length : 0
         console.log(
-          `   ${chalk.bold(c.id)}  ${chalk.white(c.name)}  ${chalk.dim(`(${c.category}, used on ${usedCount} page${usedCount === 1 ? '' : 's'})`)}`,
+          `   ${chalk.bold(c.id)}  ${chalk.white(c.name)}  ${chalk.dim(`(${c.type}, used on ${usedCount} page${usedCount === 1 ? '' : 's'})`)}`,
         )
       }
     }
   } catch (err) {
-    console.log(chalk.dim(`   (could not read config: ${err instanceof Error ? err.message : String(err)})`))
+    console.log(chalk.dim(`   (could not read manifest: ${err instanceof Error ? err.message : String(err)})`))
   }
   console.log('')
 
@@ -102,7 +108,9 @@ export async function memoryShowCommand(_opts: MemoryCommandOptions = {}) {
 }
 
 export async function memoryDiffCommand(ref: string | undefined, opts: MemoryCommandOptions = {}) {
-  const project = requireProject()
+  const project = opts._projectRoot
+    ? { root: opts._projectRoot, configPath: resolve(opts._projectRoot, 'design-system.config.ts') }
+    : requireProject()
   const projectRoot = project.root
   const decisionsRel = '.coherent/wiki/decisions.md'
   const decisionsAbs = resolve(projectRoot, decisionsRel)
