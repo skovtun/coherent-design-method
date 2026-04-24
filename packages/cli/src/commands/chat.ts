@@ -26,7 +26,7 @@ import { messageHasDestructiveIntent } from '../agents/destructive-preparser.js'
 import { isAuthRoute } from '../agents/page-templates.js'
 import { ensureAuthRouteGroup } from '../utils/auth-route-group.js'
 import { setDefaultDarkTheme, ensureThemeToggle } from '../utils/dark-mode.js'
-import { readFile, writeFile, acquirePersistentLock, releasePersistentLock } from '../utils/files.js'
+import { readFile, writeFile, releasePersistentLock } from '../utils/files.js'
 import { compareSemver } from '../utils/migrations.js'
 import { appendFile } from 'fs/promises'
 import { appendRecentChanges, type RecentChange } from '../utils/recent-changes.js'
@@ -61,8 +61,9 @@ import { buildReusePlan, buildReusePlanDirective } from '../utils/reuse-planner.
 import { inferPageTypeFromRoute } from '../agents/design-constraints.js'
 import { savePlan, loadPlan } from './chat/plan-generator.js'
 import { getAtmospherePreset, listAtmospherePresets } from './chat/atmosphere-presets.js'
+import { sessionStart, sessionEnd } from '../phase-engine/session-lifecycle.js'
+import { FileBackedSessionStore } from '../phase-engine/file-backed-session-store.js'
 import {
-  writeRunRecordRel,
   markLatestRunOutcome,
   type RunRecord,
   type RunRecordAtmosphere,
@@ -206,8 +207,16 @@ export async function chatCommand(
 
   const validProviders = ['claude', 'openai', 'auto']
   const provider = (options.provider || 'auto').toLowerCase() as 'claude' | 'openai' | 'auto'
+  const store = new FileBackedSessionStore(projectRoot)
+  let sessionUuid: string | undefined
   try {
-    acquirePersistentLock(projectRoot)
+    const started = await sessionStart({
+      projectRoot,
+      intent: message ?? '',
+      options: runRecord.options as Record<string, unknown>,
+      store,
+    })
+    sessionUuid = started.uuid
 
     if (!validProviders.includes(provider)) {
       spinner.fail('Invalid provider')
@@ -1547,24 +1556,24 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
     }
     process.exit(1)
   } finally {
-    // Write run record unless dry-run (journaling dry-runs pollutes the dir
-    // with zero-outcome files). Never let journaling failure block exit.
-    if (!options.dryRun) {
-      runRecord.durationMs = Date.now() - runStartMs
+    runRecord.durationMs = Date.now() - runStartMs
+    process.removeListener('SIGINT', onSigint)
+    if (sessionUuid) {
       try {
-        const rel = writeRunRecordRel(projectRoot, runRecord)
-        if (rel && runRecord.outcome === 'success') {
-          console.log(chalk.dim(`  📝 Run journaled → ${rel}`))
+        await store.writeArtifact(sessionUuid, 'run-record.json', JSON.stringify(runRecord))
+        const ended = await sessionEnd({
+          projectRoot,
+          uuid: sessionUuid,
+          appliers: [],
+          skipRunRecord: !!options.dryRun,
+          store,
+        })
+        if (ended.runRecordPath && runRecord.outcome === 'success') {
+          console.log(chalk.dim(`  📝 Run journaled → ${relative(projectRoot, ended.runRecordPath)}`))
         }
       } catch {
-        /* journaling is best-effort */
+        /* sessionEnd releases lock internally even on applier failure */
       }
-    }
-    process.removeListener('SIGINT', onSigint)
-    try {
-      releasePersistentLock(projectRoot)
-    } catch {
-      /* lock already released or never acquired */
     }
   }
 }
