@@ -380,6 +380,134 @@ description: UX and accessibility rules for Coherent UI
 - lucide-react only; pair with text when meaning is not obvious (aria-label or sr-only text)
 `
 
+const SKILL_COHERENT_GENERATE = `---
+name: coherent-generate
+description: Skill-mode orchestrator for Coherent page/component/project generation via the phase-engine CLI
+---
+
+# coherent-generate — skill-mode orchestrator
+
+Drives Coherent's v0.9.0 phase rail via the \`coherent\` CLI, one phase at a
+time. Responses come from THIS model session; the CLI never calls an AI API
+under this skill.
+
+## When to invoke
+
+- User asks to build, generate, scaffold, or add pages/components/a project
+- Working directory has \`design-system.config.ts\` (Coherent project root)
+- API-key-less flow: no \`ANTHROPIC_API_KEY\` / \`OPENAI_API_KEY\` configured
+
+If the user ran \`coherent init --api-mode\` or has an API key, prefer
+\`coherent chat "<request>"\` (the single-shot in-process rail).
+
+## Flow
+
+\`\`\`
+session start
+  → plan          (AI: prep → respond → ingest)
+  → anchor        (AI)
+  → extract-style (deterministic: run)
+  → components    (AI)
+  → page × N      (AI, one prep/ingest per page)
+  → log-run       (deterministic)
+session end
+\`\`\`
+
+## Steps
+
+### 1. Start the session
+
+\`\`\`bash
+UUID=$(coherent session start --intent "<user request verbatim>")
+\`\`\`
+
+Keep \`UUID\` for every subsequent phase call.
+
+### 2. Plan phase (AI)
+
+\`\`\`bash
+coherent _phase prep plan --session "$UUID" > /tmp/plan-prompt.md
+\`\`\`
+
+Read \`/tmp/plan-prompt.md\`. Produce the plan JSON response (match the
+schema in the prompt exactly). Write to \`/tmp/plan-response.md\`. Then:
+
+\`\`\`bash
+coherent _phase ingest plan --session "$UUID" < /tmp/plan-response.md
+\`\`\`
+
+### 3. Anchor phase (AI)
+
+Same prep → respond → ingest cycle:
+
+\`\`\`bash
+coherent _phase prep anchor --session "$UUID" > /tmp/anchor-prompt.md
+# produce response file
+coherent _phase ingest anchor --session "$UUID" < /tmp/anchor-response.md
+\`\`\`
+
+### 4. Extract-style phase (deterministic)
+
+No AI call — pure transform over the anchor artifact:
+
+\`\`\`bash
+coherent _phase run extract-style --session "$UUID"
+\`\`\`
+
+### 5. Components phase (AI)
+
+\`\`\`bash
+coherent _phase prep components --session "$UUID" > /tmp/components-prompt.md
+# produce response file
+coherent _phase ingest components --session "$UUID" < /tmp/components-response.md
+\`\`\`
+
+### 6. Page phase (AI, repeat per page)
+
+For each \`pageId\` in \`.coherent/session/$UUID/plan.json\` under
+\`pageNames[].id\`:
+
+\`\`\`bash
+coherent _phase prep page:<pageId> --session "$UUID" > /tmp/page-<id>-prompt.md
+# produce response file
+coherent _phase ingest page:<pageId> --session "$UUID" < /tmp/page-<id>-response.md
+\`\`\`
+
+### 7. Log-run phase (deterministic)
+
+\`\`\`bash
+coherent _phase run log-run --session "$UUID"
+\`\`\`
+
+### 8. End the session
+
+\`\`\`bash
+coherent session end "$UUID"
+\`\`\`
+
+Applies all artifacts (config-delta, generated pages, components), writes
+the run record under \`.coherent/runs/\`, releases the project lock.
+
+## Error recovery
+
+- Any step fails: the session dir under \`.coherent/session/$UUID/\` stays
+  intact for post-mortem. Re-run the failing step after producing a
+  corrected response, or \`coherent session end "$UUID" --keep\` to bail
+  while preserving state.
+- \`Protocol mismatch\`: the CLI's \`PHASE_ENGINE_PROTOCOL\` differs from
+  what this skill was written for. Upgrade one side before retrying.
+- \`ingest: empty stdin\`: your response file is empty or whitespace-only.
+  Regenerate and re-pipe.
+
+## Response quality
+
+Every AI phase's prompt contains the Coherent constraint bundle (design
+thinking, core constraints, quality rules, contextual rules, golden
+patterns, atmosphere directive). Follow them literally — the CLI's
+validator rejects raw Tailwind colors, undersized tap targets, and other
+anti-patterns on \`session end\`, and the page will be regenerated.
+`
+
 const SETTINGS_JSON = `{
   "permissions": {
     "allow": [
@@ -405,10 +533,13 @@ export function writeClaudeCommands(projectRoot: string): void {
 export function writeClaudeSkills(projectRoot: string): void {
   const dirCoherent = join(projectRoot, '.claude', 'skills', 'coherent-project')
   const dirFrontend = join(projectRoot, '.claude', 'skills', 'frontend-ux')
+  const dirGenerate = join(projectRoot, '.claude', 'skills', 'coherent-generate')
   ensureDir(dirCoherent)
   ensureDir(dirFrontend)
+  ensureDir(dirGenerate)
   writeFileSync(join(dirCoherent, 'SKILL.md'), SKILL_COHERENT, 'utf-8')
   writeFileSync(join(dirFrontend, 'SKILL.md'), SKILL_FRONTEND_UX, 'utf-8')
+  writeFileSync(join(dirGenerate, 'SKILL.md'), SKILL_COHERENT_GENERATE, 'utf-8')
 }
 
 export function writeClaudeSettings(projectRoot: string): void {

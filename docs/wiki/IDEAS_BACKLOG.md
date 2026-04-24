@@ -114,6 +114,30 @@ Prefix clusters: `F` features · `M` meta-architecture · `N` nice-to-haves · `
 Each `###` block below is an indexable entry (wiki-index.ts scans `###` headings). Frontmatter above each heading supplies id/status/target/date for retrieval weighting and filtering.
 
 ---
+id: M13
+type: idea
+status: deferred
+target: v0.9.x
+effort: 4h
+date: 2026-04-23
+confidence: medium
+---
+
+### M13 — `coherent prompt` rewrite as phase-preps concat
+
+Lane C's original Task 4 called for rewriting `coherent prompt` (the one-shot constraint-bundle command) as a concat of all phase preps. Deferred because phase preps have artifact dependencies: plan.prep reads plan-input.json; anchor.prep reads plan.json (written by plan.ingest); extract-style.run reads anchor.json; etc. "Concat of all preps" requires the upstream phases to have actually run with real AI responses — chicken-and-egg without AI calls inside a non-API command.
+
+Candidate resolutions:
+1. **Skeleton mode** — emit each phase's prep template with `<<artifacts from prior phase>>` placeholders. Honest about the chain without lying about resolved values.
+2. **Plan-only mode** — emit only the plan phase's prep (the one phase with no prior-phase deps). Smaller, accurate, usable.
+3. **--engine flag** — add `--engine` / `--phase <name>` flags. Default keeps old one-shot bundle; `--phase plan` emits just plan's prep; `--phase all` emits skeletons.
+4. **Rename the goal** — Lane D's parity harness proves bundle equivalence. Keep `coherent prompt` as-is (hand-built one-shot), let skill mode use `session start` + `_phase prep/ingest` directly. This effectively retires Task 4 without rewriting.
+
+**Why deferred:** Lane C Task 5 (skill markdown orchestrator) ships the end-of-Lane-C user-visible capability without requiring this rewrite. Revisit after Lane D parity harness shows whether `coherent prompt` still has a role distinct from the skill-mode rail.
+
+**Target:** v0.9.x or later, once Lane D parity data makes the right answer obvious.
+
+---
 id: F11
 type: idea
 status: resolved
