@@ -2,7 +2,12 @@ import { describe, it, expect, afterEach, vi } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { COHERENT_GENERATE_SKILL_BODY, readSkillProtocol, writeClaudeSkills } from './claude-code.js'
+import {
+  COHERENT_GENERATE_SKILL_BODY,
+  readSkillProtocol,
+  writeClaudeCommands,
+  writeClaudeSkills,
+} from './claude-code.js'
 import { PHASE_ENGINE_PROTOCOL } from '../phase-engine/phase-registry.js'
 
 describe('writeClaudeSkills', () => {
@@ -104,6 +109,49 @@ describe('skill-markdown protocol embed (R5)', () => {
 
   it('readSkillProtocol returns null for non-numeric values', () => {
     expect(readSkillProtocol('---\nphase_engine_protocol: not-a-number\n---\nbody')).toBeNull()
+  })
+})
+
+describe('slash command coherent-generate (codex R3 P1 #7)', () => {
+  let projectRoot: string
+  afterEach(() => {
+    if (projectRoot && existsSync(projectRoot)) {
+      rmSync(projectRoot, { recursive: true, force: true })
+    }
+  })
+
+  function readCommand(): string {
+    projectRoot = mkdtempSync(join(tmpdir(), 'coherent-claude-code-'))
+    writeClaudeCommands(projectRoot)
+    return readFileSync(join(projectRoot, '.claude', 'commands', 'coherent-generate.md'), 'utf-8')
+  }
+
+  it('drives the new phase-engine rail, not the legacy `coherent prompt` flow', () => {
+    const body = readCommand()
+    // Legacy flow anchors absent.
+    expect(body).not.toMatch(/coherent prompt/)
+    // New-rail anchors present.
+    expect(body).toMatch(/coherent session start/)
+    expect(body).toMatch(/coherent session end/)
+    expect(body).toMatch(/coherent _phase prep plan/)
+    expect(body).toMatch(/coherent _phase run extract-style/)
+  })
+
+  it('allowed-tools grant the new-rail CLI subcommands', () => {
+    const body = readCommand()
+    expect(body).toMatch(/allowed-tools:.*coherent session/)
+    expect(body).toMatch(/allowed-tools:.*coherent _phase/)
+    // No longer needs direct Write for TSX files — session end does that.
+    // Still grants Read (for session/plan.json inspection) and Write (for
+    // response-file piping) — both retained.
+  })
+
+  it('every `coherent _phase` call carries --protocol <N>', () => {
+    const body = readCommand()
+    const invocations = body.split('\n').filter(line => /^coherent _phase /.test(line.trim()))
+    expect(invocations.length).toBeGreaterThan(0)
+    const missing = invocations.filter(line => !new RegExp(`--protocol\\s+${PHASE_ENGINE_PROTOCOL}\\b`).test(line))
+    expect(missing, `invocations without --protocol ${PHASE_ENGINE_PROTOCOL}`).toEqual([])
   })
 })
 

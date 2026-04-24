@@ -50,45 +50,103 @@ current Claude session.
   'coherent-generate.md': `---
 description: Generate Coherent-constrained UI using your Claude Code session (no API key needed)
 argument-hint: [intent, e.g. "a CRM dashboard with charts"]
-allowed-tools: Bash(coherent prompt *), Bash(coherent check *), Bash(coherent fix *), Write, Edit, Read
+allowed-tools: Bash(coherent session *), Bash(coherent _phase *), Bash(coherent check *), Bash(coherent fix *), Read, Write
 ---
 
-You are generating UI inside a Coherent-initialized project, using your **current Claude Code session** — no API key required on Coherent's side. Coherent contributes the design constraints + validation; you (Claude) contribute the generation.
+You are driving Coherent's v0.9.0 phase-engine rail from inside a Claude Code session. The CLI never calls an AI API under this command; every AI phase's response comes from THIS model session. Coherent contributes the constraint bundle, the per-phase prompts, and the session-end validator.
 
-## Step 1 — Load constraints
+**Protocol version: ${PHASE_ENGINE_PROTOCOL}.** Every \`coherent _phase ...\` call below carries \`--protocol ${PHASE_ENGINE_PROTOCOL}\` so CLI/markdown drift is caught at the first ingest, not silently halfway through the run.
 
-Run \`coherent prompt "$ARGUMENTS"\` and read the output. It contains the full constraint stack that \`coherent chat\` would have sent to an external API:
+## Flow overview
 
-- TIER 0 design thinking (mindset + anti-slop)
-- TIER 1 core constraints (typography, semantic tokens, spacing, a11y, anti-patterns)
-- TIER 2 contextual rules matched to "$ARGUMENTS" keywords
-- Golden patterns, atmosphere directive (if any), interaction patterns
+\`\`\`
+session start
+  → plan          (AI: prep → respond → ingest)
+  → anchor        (AI)
+  → extract-style (deterministic: run)
+  → components    (AI)
+  → page × N      (AI, one prep/ingest per page)
+session end  (applies all artifacts + writes run record)
+\`\`\`
 
-**Follow those constraints exactly when generating code.** They are not suggestions.
+## Steps
 
-Optional flags you can add: \`--atmosphere <preset>\` (see \`coherent prompt --list-atmospheres\`), \`--page-type marketing|app|auth\`, \`--format json\` (for structured output).
+### 1. Start the session
 
-## Step 2 — Generate files
+\`\`\`bash
+UUID=$(coherent session start --intent "$ARGUMENTS")
+\`\`\`
 
-Write Next.js App Router TSX under \`app/\`. Use \`Write\` to create pages. For a single page, a typical path is \`app/<route>/page.tsx\`. Use shadcn/ui from \`@/components/ui/*\`. Use **semantic tokens only** — \`bg-background\`, \`text-foreground\`, \`bg-muted\`, \`text-primary\`. NEVER raw Tailwind colors (\`bg-gray-100\`, \`bg-white\`, \`text-blue-600\`).
+Keep \`UUID\` for every subsequent phase call.
 
-## Step 3 — Validate + auto-fix loop
+### 2. Plan phase (AI)
 
-After writing files, run the Coherent validator (deterministic, no API needed):
+\`\`\`bash
+coherent _phase prep plan --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/plan-prompt.md
+\`\`\`
 
-1. \`coherent check\` — reports quality issues + consistency violations.
-2. If any issues are reported, run \`coherent fix\` to auto-correct what's mechanically fixable.
-3. For issues \`fix\` cannot resolve, edit the offending files yourself based on the \`check\` output.
-4. Repeat \`coherent check\` until it reports zero issues.
+Read \`/tmp/plan-prompt.md\`. Produce the plan JSON response (match the schema in the prompt exactly). Write to \`/tmp/plan-response.md\`. Then:
+
+\`\`\`bash
+coherent _phase ingest plan --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/plan-response.md
+\`\`\`
+
+### 3. Anchor phase (AI)
+
+Same prep → respond → ingest cycle:
+
+\`\`\`bash
+coherent _phase prep anchor --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/anchor-prompt.md
+# produce response file
+coherent _phase ingest anchor --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/anchor-response.md
+\`\`\`
+
+### 4. Extract-style phase (deterministic)
+
+\`\`\`bash
+coherent _phase run extract-style --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL}
+\`\`\`
+
+### 5. Components phase (AI)
+
+\`\`\`bash
+coherent _phase prep components --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/components-prompt.md
+# produce response file
+coherent _phase ingest components --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/components-response.md
+\`\`\`
+
+### 6. Page phase (AI, repeat per page)
+
+For each \`pageId\` in \`.coherent/session/$UUID/plan.json\` under \`pageNames[].id\`:
+
+\`\`\`bash
+coherent _phase prep page:<pageId> --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/page-<id>-prompt.md
+# produce response file
+coherent _phase ingest page:<pageId> --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/page-<id>-response.md
+\`\`\`
+
+### 7. End the session
+
+\`\`\`bash
+coherent session end "$UUID"
+\`\`\`
+
+Applies all artifacts (config-delta, generated pages, components) — including the auto-fix pass on every file — writes the run record under \`.coherent/runs/\`, releases the project lock.
 
 ## Report back
 
 Tell the user:
-- What files you wrote.
-- Final \`coherent check\` status (clean / issues remaining).
-- Any design decisions you made that are worth knowing.
+- Which pages and components were written (read from the \`session end\` output).
+- Run-record path under \`.coherent/runs/\`.
+- Any pages that were skipped (empty pageCode) and need regeneration.
 
-Do NOT claim success until \`coherent check\` is clean.
+If \`session end\` reported auto-fix counts, mention them — it means the AI-generated code had known issues and the CLI corrected them before write.
+
+## Error recovery
+
+- \`Protocol mismatch\`: the CLI's \`PHASE_ENGINE_PROTOCOL\` differs from this command's declared version. Upgrade one side (\`coherent update\` in the project to refresh this markdown) before retrying.
+- \`ingest: empty stdin\`: your response file is empty or whitespace-only. Regenerate and re-pipe.
+- Any step fails: the session dir under \`.coherent/session/$UUID/\` is preserved. Re-run the failing step after correcting the response, or \`coherent session end "$UUID" --keep\` to bail while preserving state. The project lock is released even on failure — subsequent sessions can start immediately.
 `,
 }
 
