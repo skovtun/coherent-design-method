@@ -6,6 +6,7 @@ import { phaseCommand } from './_phase.js'
 import { sessionStart } from '../phase-engine/session-lifecycle.js'
 import { PHASE_ENGINE_PROTOCOL } from '../phase-engine/phase-registry.js'
 import { createMinimalConfig } from '../utils/minimal-config.js'
+import { COHERENT_ERROR_CODES, CoherentError, isCoherentError } from '../errors/index.js'
 
 // sessionStart now parses design-system.config.ts via DesignSystemManager
 // (to seed plan-input.json), so this fixture must match the real schema.
@@ -206,5 +207,55 @@ describe('phaseCommand', () => {
         _throwOnError: true,
       }),
     ).rejects.toThrow(/empty stdin/)
+  })
+
+  describe('CoherentError wiring (T17b)', () => {
+    it('protocol mismatch throws CoherentError with code E004 + fix + docsUrl', async () => {
+      projectRoot = setupProject()
+      const { uuid } = await sessionStart({ projectRoot })
+
+      let caught: unknown = null
+      try {
+        await phaseCommand('prep', 'plan', {
+          session: uuid,
+          protocol: String(PHASE_ENGINE_PROTOCOL + 99),
+          _projectRoot: projectRoot,
+          _throwOnError: true,
+        })
+      } catch (e) {
+        caught = e
+      }
+
+      expect(isCoherentError(caught)).toBe(true)
+      const err = caught as CoherentError
+      expect(err.code).toBe(COHERENT_ERROR_CODES.E004_PROTOCOL_MISMATCH)
+      expect(err.message).toMatch(/Protocol mismatch/)
+      expect(err.fix).toMatch(/coherent update/)
+      expect(err.docsUrl).toBe('https://getcoherent.design/errors/E004')
+    })
+
+    it('empty-stdin ingest throws CoherentError with code E003', async () => {
+      projectRoot = setupProject()
+      const { uuid } = await sessionStart({ projectRoot })
+
+      let caught: unknown = null
+      try {
+        await phaseCommand('ingest', 'plan', {
+          session: uuid,
+          _projectRoot: projectRoot,
+          _stdin: '',
+          _throwOnError: true,
+        })
+      } catch (e) {
+        caught = e
+      }
+
+      expect(isCoherentError(caught)).toBe(true)
+      const err = caught as CoherentError
+      expect(err.code).toBe(COHERENT_ERROR_CODES.E003_PHASE_INGEST_MALFORMED)
+      expect(err.message).toMatch(/empty stdin/)
+      expect(err.fix).toMatch(/pipe it/)
+      expect(err.docsUrl).toBe('https://getcoherent.design/errors/E003')
+    })
   })
 })

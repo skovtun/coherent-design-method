@@ -34,6 +34,7 @@ import {
   type PhaseContext,
 } from '../phase-engine/phase.js'
 import { PHASE_ENGINE_PROTOCOL, resolvePhase } from '../phase-engine/phase-registry.js'
+import { COHERENT_ERROR_CODES, CoherentError } from '../errors/index.js'
 
 export type PhaseAction = 'prep' | 'ingest' | 'run'
 
@@ -56,14 +57,30 @@ export async function phaseCommand(action: PhaseAction, name: string, options: P
     process.exit(1)
   }
 
+  /**
+   * T17b — throw a typed `CoherentError` (full 4-field layout with code,
+   * cause, fix, docsUrl) instead of a plain `Error`. Preserves the same
+   * `_throwOnError` test hook so unit tests can assert `instanceof
+   * CoherentError` and inspect the code/fix fields directly.
+   */
+  const bailCoherent = (err: CoherentError): never => {
+    if (options._throwOnError) throw err
+    console.error(chalk.red(`\n${err.format()}\n`))
+    process.exit(1)
+  }
+
   if (!options.session) bail('--session <uuid> is required')
 
   if (options.protocol !== undefined) {
     const requested = Number(options.protocol)
     if (!Number.isFinite(requested) || requested !== PHASE_ENGINE_PROTOCOL) {
-      bail(
-        `Protocol mismatch: --protocol ${options.protocol}, expected ${PHASE_ENGINE_PROTOCOL}. ` +
-          `Upgrade the caller (skill markdown) or the CLI so they agree.`,
+      bailCoherent(
+        new CoherentError({
+          code: COHERENT_ERROR_CODES.E004_PROTOCOL_MISMATCH,
+          message: `Protocol mismatch: --protocol ${options.protocol}, expected ${PHASE_ENGINE_PROTOCOL}`,
+          cause: 'The skill markdown and the installed CLI disagree on the phase-engine protocol version.',
+          fix: 'Run `coherent update` in the project to refresh `.claude/skills/coherent-generate/SKILL.md`, or upgrade the CLI.',
+        }),
       )
     }
   }
@@ -102,7 +119,16 @@ export async function phaseCommand(action: PhaseAction, name: string, options: P
           bail(`Phase "${name}" is deterministic — use \`coherent _phase run ${name}\` instead.`)
         }
         const raw = options._stdin ?? (await readAllStdin())
-        if (!raw.trim()) bail(`ingest: empty stdin — pipe the model response in`)
+        if (!raw.trim()) {
+          bailCoherent(
+            new CoherentError({
+              code: COHERENT_ERROR_CODES.E003_PHASE_INGEST_MALFORMED,
+              message: `ingest: empty stdin`,
+              cause: `\`coherent _phase ingest ${name}\` expects the AI response on stdin, but received no input.`,
+              fix: `Write the AI response to a file, then pipe it: \`coherent _phase ingest ${name} --session <uuid> < response.md\``,
+            }),
+          )
+        }
         const aiPhase = phase as AiPhase
         await aiPhase.ingest(raw, ctx)
         return
