@@ -54,6 +54,8 @@ export function showSuccessMessage(projectPath: string = '.', options: SuccessMe
   const elapsed = options.elapsedMs ? ` ${chalk.dim('in')} ${chalk.white(formatElapsed(options.elapsedMs))}` : ''
   console.log('')
   console.log(`  ${chalk.green('Ready')}${elapsed}`)
+  console.log('')
+  console.log(`  ${chalk.magenta('✨ Coherent Design Method — Project Initialized')}`)
 
   const cdLine = options.projectName ? `cd ${options.projectName} && ` : ''
   console.log('')

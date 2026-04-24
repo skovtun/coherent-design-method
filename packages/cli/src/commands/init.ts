@@ -11,7 +11,7 @@ import chalk from 'chalk'
 import ora from 'ora'
 import { existsSync, readFileSync, mkdirSync, rmSync, writeFileSync } from 'fs'
 import { basename, join } from 'path'
-import { execSync } from 'child_process'
+import { execSync, spawn } from 'child_process'
 import { warnIfVolatile } from '../utils/find-config.js'
 import { writeFile } from '../utils/files.js'
 import { fileExistsAsync } from '../utils/files.js'
@@ -38,6 +38,61 @@ export interface InitOptions {
   apiMode?: boolean
   /** API key setup optional; emit both CTAs. */
   both?: boolean
+}
+
+/**
+ * Bordered hero header rendered at the very top of `coherent init`.
+ *
+ * Vite/Claude-Code aesthetic: a thin unicode box, the version inlined in the
+ * top border, and a 2×2 block-grid logo built from Unicode full/shade blocks
+ * (█ / ▒) that approximates the SVG favicon. Users with terminals narrower
+ * than 60 columns get a plain 2-line fallback so the box never wraps.
+ */
+function printInitHeader(version: string): void {
+  const cols = process.stdout.columns ?? 80
+  const logoTopPlain = '██ ▒▒'
+  const logoBotPlain = '▒▒ ██'
+
+  if (cols < 60) {
+    console.log('')
+    console.log(`  ${chalk.blue('██')} ${chalk.blue.dim('▒▒')}  ${chalk.bold('Coherent')} ${chalk.dim('v' + version)}`)
+    console.log(
+      `  ${chalk.blue.dim('▒▒')} ${chalk.blue('██')}  ${chalk.dim('Design once. Stay consistent everywhere.')}`,
+    )
+    console.log('')
+    return
+  }
+
+  const innerWidth = 58
+  const title = ` Coherent ${chalk.dim('v' + version)} `
+  const titleVisibleLen = ` Coherent v${version} `.length
+  const dashesAfterTitle = Math.max(0, innerWidth - 2 - titleVisibleLen)
+  const top = chalk.dim('╭─') + chalk.bold(title) + chalk.dim('─'.repeat(dashesAfterTitle)) + chalk.dim('╮')
+
+  const pad = (s: string, visibleLen: number): string => s + ' '.repeat(Math.max(0, innerWidth - visibleLen))
+
+  const empty = chalk.dim('│') + ' '.repeat(innerWidth) + chalk.dim('│')
+  const logo1 = chalk.blue('██') + ' ' + chalk.blue.dim('▒▒')
+  const logo2 = chalk.blue.dim('▒▒') + ' ' + chalk.blue('██')
+  const tag1 = chalk.bold('Design once.')
+  const tag2 = chalk.dim('Stay consistent everywhere.')
+
+  const row1 =
+    chalk.dim('│') + pad(`   ${logo1}   ${tag1}`, 3 + logoTopPlain.length + 3 + 'Design once.'.length) + chalk.dim('│')
+  const row2 =
+    chalk.dim('│') +
+    pad(`   ${logo2}   ${tag2}`, 3 + logoBotPlain.length + 3 + 'Stay consistent everywhere.'.length) +
+    chalk.dim('│')
+  const bottom = chalk.dim('╰' + '─'.repeat(innerWidth) + '╯')
+
+  console.log('')
+  console.log(top)
+  console.log(empty)
+  console.log(row1)
+  console.log(row2)
+  console.log(empty)
+  console.log(bottom)
+  console.log('')
 }
 
 /** Whether current directory has a package.json with next (dependencies or devDependencies). */
@@ -69,33 +124,108 @@ function cleanConflictingFiles(projectPath: string): void {
  *
  * Pinned to a CVE-patched 15.x release (CVE-2025-66478 fixed in 15.5.x). The
  * npm-side noise — funding ads, audit prompts, update-notifier — is silenced
- * via env vars so the log stays focused on what actually happened.
+ * via env vars.
+ *
+ * Additionally, this function line-filters create-next-app's own stdout so
+ * the user doesn't see details they can't act on: which pm is being used,
+ * the template slug (we only ship one), the dependency package list, the
+ * create-next-app update-notifier banner, and the duplicate "Initialized a
+ * git repository" message (Coherent's own scaffolder does its own git work
+ * separately). We keep real-time streaming (line by line) so the ~15s install
+ * still shows progress.
  */
-function runCreateNextApp(projectPath: string): void {
-  cleanConflictingFiles(projectPath)
+const NOISE_PATTERNS: RegExp[] = [
+  /^Using (npm|pnpm|yarn|bun)\.\s*$/i,
+  /^Initializing project with template:/i,
+  /^Installing dependencies:\s*$/i,
+  /^Installing devDependencies:\s*$/i,
+  /^- [a-z@][a-z0-9@/_.-]*\s*$/i,
+  /A new version of `?create-next-app`? is available/i,
+  /^You can update by running:/i,
+  /^\s*npm i -g create-next-app\s*$/i,
+  /^Initialized a git repository\.\s*$/i,
+  /^Success! Created .* at /i,
+]
 
-  const envPath = join(projectPath, '.env')
-  const envBackup = existsSync(envPath) ? readFileSync(envPath, 'utf-8') : null
-  if (envBackup !== null) rmSync(envPath, { force: true })
+function runCreateNextApp(projectPath: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    cleanConflictingFiles(projectPath)
 
-  const cmd =
-    'npx --yes create-next-app@15.5.15 . --typescript --tailwind --eslint --app --no-src-dir --no-turbopack --yes'
-  execSync(cmd, {
-    cwd: projectPath,
-    stdio: 'inherit',
-    env: {
-      ...process.env,
-      npm_config_fund: 'false',
-      npm_config_audit: 'false',
-      npm_config_update_notifier: 'false',
-      npm_config_loglevel: 'error',
-    },
+    const envPath = join(projectPath, '.env')
+    const envBackup = existsSync(envPath) ? readFileSync(envPath, 'utf-8') : null
+    if (envBackup !== null) rmSync(envPath, { force: true })
+
+    const args = [
+      '--yes',
+      'create-next-app@15.5.15',
+      '.',
+      '--typescript',
+      '--tailwind',
+      '--eslint',
+      '--app',
+      '--no-src-dir',
+      '--no-turbopack',
+      '--yes',
+    ]
+
+    const proc = spawn('npx', args, {
+      cwd: projectPath,
+      env: {
+        ...process.env,
+        NO_UPDATE_NOTIFIER: '1',
+        npm_config_fund: 'false',
+        npm_config_audit: 'false',
+        npm_config_update_notifier: 'false',
+        npm_config_loglevel: 'error',
+      },
+      stdio: ['inherit', 'pipe', 'inherit'],
+      shell: process.platform === 'win32',
+    })
+
+    let buffer = ''
+    let prevBlank = false
+
+    const handleChunk = (chunk: Buffer): void => {
+      buffer += chunk.toString('utf-8')
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+      for (const line of lines) {
+        const isEmpty = /^\s*$/.test(line)
+        const isNoise = !isEmpty && NOISE_PATTERNS.some(p => p.test(line))
+        if (isNoise) continue
+        if (isEmpty) {
+          if (prevBlank) continue
+          prevBlank = true
+        } else {
+          prevBlank = false
+        }
+        process.stdout.write(line + '\n')
+      }
+    }
+
+    proc.stdout?.on('data', handleChunk)
+
+    const finalize = (err?: Error): void => {
+      if (buffer && !NOISE_PATTERNS.some(p => p.test(buffer))) {
+        process.stdout.write(buffer + '\n')
+      }
+      if (envBackup !== null) {
+        const existing = existsSync(envPath) ? readFileSync(envPath, 'utf-8') : ''
+        writeFileSync(envPath, existing ? existing + '\n' + envBackup : envBackup, 'utf-8')
+      }
+      if (err) reject(err)
+    }
+
+    proc.on('error', err => finalize(err))
+    proc.on('close', code => {
+      if (code === 0) {
+        finalize()
+        resolve()
+      } else {
+        finalize(new Error(`create-next-app exited with code ${code}`))
+      }
+    })
   })
-
-  if (envBackup !== null) {
-    const existing = existsSync(envPath) ? readFileSync(envPath, 'utf-8') : ''
-    writeFileSync(envPath, existing ? existing + '\n' + envBackup : envBackup, 'utf-8')
-  }
 }
 
 /** Ensure lib/utils.ts (cn) and components/ui/ exist for Coherent layer. */
@@ -221,9 +351,7 @@ export async function initCommand(name?: string, options: InitOptions = {}) {
 
     const initStartMs = Date.now()
     const { CLI_VERSION } = await import('@getcoherent/core')
-    console.log('')
-    console.log(chalk.cyan('🎨 Coherent ') + chalk.dim(`v${CLI_VERSION}`))
-    console.log('')
+    printInitHeader(CLI_VERSION)
 
     // Step 1: Check if already initialized
     if (await fileExistsAsync('./design-system.config.ts')) {
@@ -246,13 +374,15 @@ export async function initCommand(name?: string, options: InitOptions = {}) {
       process.exit(0)
     }
 
-    // Step 2: If no Next.js, create it non-interactively (no prompts)
+    // Step 2: If no Next.js, create it non-interactively (no prompts).
+    // `runCreateNextApp` streams filtered stdout line-by-line — the user still
+    // sees progress during the ~15s install, they just don't see the noise.
     const hasNext = hasNextInPackageJson(projectPath)
     let usedCreateNextApp = false
     if (!hasNext) {
-      const cnaSpinner = ora('Creating Next.js app (non-interactive)...').start()
-      cnaSpinner.stop()
-      runCreateNextApp(projectPath)
+      console.log(chalk.dim('Scaffolding Next.js foundation...\n'))
+      await runCreateNextApp(projectPath)
+      console.log('')
       usedCreateNextApp = true
     }
 
@@ -280,46 +410,50 @@ export async function initCommand(name?: string, options: InitOptions = {}) {
       if (!appName) appName = toTitleCase(basename(projectPath))
     }
 
-    const spinner = ora('Creating design system...').start()
     const config = createMinimalConfig(appName)
     const configContent = generateConfigFile(config)
     await writeFile('./design-system.config.ts', configContent)
-    spinner.succeed('Design system created')
 
     const scaffolder = new ProjectScaffolder(config, projectPath)
 
-    if (usedCreateNextApp) {
-      // Add Coherent layer on top of create-next-app output
-      await ensureCoherentPrerequisites(projectPath)
+    // Single compound spinner for the entire Coherent layer setup. The
+    // previous flow surfaced four separate spinners (design-system config,
+    // dependency install, DS pages, docs pages) which duplicated content the
+    // final summary already lists. The slowest step is the `npm install`
+    // (~10-20s) so the spinner label calls it out explicitly.
+    const layerSpinner = ora('Setting up Coherent layer (installing deps + pages + docs)...').start()
+    try {
+      if (usedCreateNextApp) {
+        await ensureCoherentPrerequisites(projectPath)
 
-      // Install required packages for Coherent (icons, CVA, clsx, tailwind-merge)
-      const depsSpinner = ora('Installing component dependencies...').start()
-      try {
-        execSync(`npm install --legacy-peer-deps ${COHERENT_REQUIRED_PACKAGES.join(' ')}`, {
-          cwd: projectPath,
-          stdio: 'pipe',
-        })
-        depsSpinner.succeed('Component dependencies installed')
-      } catch {
-        depsSpinner.fail('Failed to install component dependencies')
-        console.log(chalk.yellow(`  Run manually: npm install ${COHERENT_REQUIRED_PACKAGES.join(' ')}`))
-      }
+        try {
+          execSync(`npm install --legacy-peer-deps ${COHERENT_REQUIRED_PACKAGES.join(' ')}`, {
+            cwd: projectPath,
+            stdio: 'pipe',
+            env: {
+              ...process.env,
+              NO_UPDATE_NOTIFIER: '1',
+              npm_config_fund: 'false',
+              npm_config_audit: 'false',
+              npm_config_loglevel: 'error',
+            },
+          })
+        } catch {
+          layerSpinner.fail('Component dependency install failed')
+          console.log(chalk.yellow(`  Run manually: npm install ${COHERENT_REQUIRED_PACKAGES.join(' ')}`))
+          throw new Error('npm install failed')
+        }
 
-      // Ensure registry components exist (button, card) so @/components/card etc. resolve
-      await ensureRegistryComponents(config, projectPath)
+        await ensureRegistryComponents(config, projectPath)
 
-      const usesV4 = isTailwindV4(projectPath)
-
-      if (usesV4) {
-        // Tailwind v4: keep v4 runtime & PostCSS plugin, write v4-compatible globals.css
-        const v4Css = generateV4GlobalsCss(config)
-        await writeFile(join(projectPath, 'app', 'globals.css'), v4Css)
-      } else {
-        // Tailwind v3: overwrite globals.css, tailwind.config, and postcss.config
-        await scaffolder.generateGlobalsCss()
-        await scaffolder.generateTailwindConfigTs()
-
-        const postcssContent = `/** @type {import('postcss-load-config').Config} */
+        const usesV4 = isTailwindV4(projectPath)
+        if (usesV4) {
+          const v4Css = generateV4GlobalsCss(config)
+          await writeFile(join(projectPath, 'app', 'globals.css'), v4Css)
+        } else {
+          await scaffolder.generateGlobalsCss()
+          await scaffolder.generateTailwindConfigTs()
+          const postcssContent = `/** @type {import('postcss-load-config').Config} */
 const config = {
   plugins: {
     tailwindcss: {},
@@ -329,58 +463,50 @@ const config = {
 
 export default config
 `
-        await writeFile(join(projectPath, 'postcss.config.mjs'), postcssContent)
+          await writeFile(join(projectPath, 'postcss.config.mjs'), postcssContent)
+        }
+
+        await scaffolder.generateRootLayout()
+        await configureNextImages(projectPath)
+        await createAppRouteGroupLayout(projectPath)
+
+        const welcomeMarkdown = getWelcomeMarkdown()
+        const homePageContent = generateWelcomeComponent(welcomeMarkdown)
+        await writeFile(join(projectPath, 'app', 'page.tsx'), homePageContent)
+        await scaffolder.generateDesignSystemPages()
+        await scaffolder.generateDocsPages()
+      } else {
+        const welcomeMarkdown = getWelcomeMarkdown()
+        const homePageContent = generateWelcomeComponent(welcomeMarkdown)
+        await scaffolder.scaffold({ homePageContent })
+
+        try {
+          execSync(`npm install --legacy-peer-deps ${COHERENT_REQUIRED_PACKAGES.join(' ')}`, {
+            cwd: projectPath,
+            stdio: 'pipe',
+            env: {
+              ...process.env,
+              NO_UPDATE_NOTIFIER: '1',
+              npm_config_fund: 'false',
+              npm_config_audit: 'false',
+              npm_config_loglevel: 'error',
+            },
+          })
+        } catch {
+          layerSpinner.fail('Component dependency install failed')
+          console.log(chalk.yellow(`  Run manually: npm install ${COHERENT_REQUIRED_PACKAGES.join(' ')}`))
+          throw new Error('npm install failed')
+        }
+
+        await ensureRegistryComponents(config, projectPath)
+        await createAppRouteGroupLayout(projectPath)
+        await scaffolder.generateDesignSystemPages()
+        await scaffolder.generateDocsPages()
       }
-
-      // Replace root layout with Coherent layout + AppNav (floating Design System button)
-      await scaffolder.generateRootLayout()
-
-      // Configure Next.js to allow external placeholder images (avatars, etc.)
-      await configureNextImages(projectPath)
-
-      // Create (app) route group layout for consistent page width
-      await createAppRouteGroupLayout(projectPath)
-
-      // Overwrite app/page.tsx with Coherent welcome page (replace default Next.js page)
-      const welcomeMarkdown = getWelcomeMarkdown()
-      const homePageContent = generateWelcomeComponent(welcomeMarkdown)
-      await writeFile(join(projectPath, 'app', 'page.tsx'), homePageContent)
-      const designSystemSpinner = ora('Creating design system pages...').start()
-      await scaffolder.generateDesignSystemPages()
-      designSystemSpinner.succeed('Design system pages created')
-      const docsSpinner = ora('Creating documentation pages...').start()
-      await scaffolder.generateDocsPages()
-      docsSpinner.succeed('Documentation pages created')
-    } else {
-      // Full scaffold (existing Next.js or legacy path)
-      const scaffoldSpinner = ora('Generating project structure...').start()
-      const welcomeMarkdown = getWelcomeMarkdown()
-      const homePageContent = generateWelcomeComponent(welcomeMarkdown)
-      await scaffolder.scaffold({ homePageContent })
-      scaffoldSpinner.succeed('Project structure created')
-
-      // Welcome page and Coherent components need required packages
-      const depsSpinner = ora('Installing component dependencies...').start()
-      try {
-        execSync(`npm install --legacy-peer-deps ${COHERENT_REQUIRED_PACKAGES.join(' ')}`, {
-          cwd: projectPath,
-          stdio: 'pipe',
-        })
-        depsSpinner.succeed('Component dependencies installed')
-      } catch {
-        depsSpinner.fail('Failed to install component dependencies')
-        console.log(chalk.yellow(`  Run manually: npm install ${COHERENT_REQUIRED_PACKAGES.join(' ')}`))
-      }
-
-      await ensureRegistryComponents(config, projectPath)
-      await createAppRouteGroupLayout(projectPath)
-
-      const designSystemSpinner = ora('Creating design system pages...').start()
-      await scaffolder.generateDesignSystemPages()
-      designSystemSpinner.succeed('Design system pages created')
-      const docsSpinner = ora('Creating documentation pages...').start()
-      await scaffolder.generateDocsPages()
-      docsSpinner.succeed('Documentation pages created')
+      layerSpinner.succeed('Coherent layer ready')
+    } catch (e) {
+      if (layerSpinner.isSpinning) layerSpinner.fail('Coherent layer setup failed')
+      throw e
     }
 
     // Record initial change for status
