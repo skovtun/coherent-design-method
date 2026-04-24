@@ -43,7 +43,7 @@ export function showSuccessMessage(projectPath: string = '.', options: SuccessMe
   console.log(`  ${tick} ${chalk.dim('Design system configured')}`)
   console.log(`  ${tick} ${chalk.dim('Shared components  ')}${chalk.gray('— Header, Footer, DSButton')}`)
   console.log(`  ${tick} ${chalk.dim('Design System viewer  ')}${chalk.gray('— /design-system')}`)
-  console.log(`  ${tick} ${chalk.dim('AI context  ')}${chalk.gray('— .cursorrules, CLAUDE.md, .claude/')}`)
+  console.log(`  ${tick} ${chalk.dim('AI context configured')}`)
 
   if (options.v2TargetEditors && options.v2TargetEditors.length > 0) {
     const names = options.v2TargetEditors.map(e => `.${e === 'claude-code' ? 'claude' : e}`).join(', ')

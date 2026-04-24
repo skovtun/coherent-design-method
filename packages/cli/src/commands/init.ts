@@ -503,7 +503,10 @@ export default config
         await scaffolder.generateDesignSystemPages()
         await scaffolder.generateDocsPages()
       }
-      layerSpinner.succeed('Coherent layer ready')
+      // Spinner stops silently — the final success signal is the ✨ line in
+      // showSuccessMessage, and duplicating "ready" markers reads as two
+      // separate completion events to a first-time user.
+      layerSpinner.stop()
     } catch (e) {
       if (layerSpinner.isSpinning) layerSpinner.fail('Coherent layer setup failed')
       throw e
