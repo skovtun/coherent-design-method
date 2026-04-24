@@ -68,6 +68,14 @@ export async function fileExistsAsync(path: string): Promise<boolean> {
 
 const LOCK_FILENAME = '.coherent.lock'
 const LOCK_STALE_MS = 5 * 60 * 1000
+// Persistent locks outlive the CLI process that acquired them (skill-mode's
+// `coherent session start` exits seconds after writing the lock, but the
+// session can span many minutes or hours between `_phase` calls). 60 min is
+// the generous-but-not-infinite window: long enough that a user reading a
+// prep prompt, editing a response, and piping it back through ingest stays
+// inside the window; short enough that a genuinely-abandoned session gets
+// reclaimable. Future: `_phase` calls touch the lock to refresh ts.
+const PERSISTENT_LOCK_STALE_MS = 60 * 60 * 1000
 
 /**
  * Acquire a project-level lock. Prevents parallel `coherent chat` from corrupting config.
@@ -127,8 +135,20 @@ export async function acquireProjectLock(projectRoot: string): Promise<() => voi
  * survive the `start` process exit so a later `_phase` or `session end` process can
  * find the project still locked by the session owner. Uses the same `.coherent.lock`
  * filename as `acquireProjectLock` so they are mutually exclusive, but skips the
- * process.on('exit') auto-release. Staleness + PID-liveness check on the holder still
- * applies; callers must invoke `releasePersistentLock` explicitly.
+ * process.on('exit') auto-release.
+ *
+ * Staleness is timestamp-based only — no PID-liveness check. Codex review caught
+ * that the old PID-liveness variant broke the persistent case: `coherent session
+ * start` exits immediately after writing the lock, so every subsequent `session
+ * start` saw ESRCH on the recorded PID, deleted the lock, and ran a parallel
+ * session over the still-active one. The fix is to accept that for persistent
+ * locks, "process no longer alive" is the EXPECTED state, not evidence of a
+ * crash. Only elapsed wall-clock distinguishes "active session" from "abandoned
+ * session" here.
+ *
+ * Lockfile shape: `{ kind: 'persistent', ts }`. The legacy PID variant written
+ * by `acquireProjectLock` remains readable and is treated as the in-process
+ * chat-rail's lock (mutually exclusive with the persistent rail).
  */
 export function acquirePersistentLock(projectRoot: string): void {
   const lockPath = join(projectRoot, LOCK_FILENAME)
@@ -136,27 +156,50 @@ export function acquirePersistentLock(projectRoot: string): void {
   if (existsSync(lockPath)) {
     try {
       const raw = readFileSync(lockPath, 'utf-8')
-      const data = JSON.parse(raw) as { pid: number; ts: number }
+      const data = JSON.parse(raw) as { kind?: 'persistent'; pid?: number; ts: number }
       const age = Date.now() - data.ts
 
-      if (age < LOCK_STALE_MS) {
-        try {
-          process.kill(data.pid, 0)
+      if (data.kind === 'persistent') {
+        // Persistent lock held by another session. Staleness = timestamp only.
+        if (age < PERSISTENT_LOCK_STALE_MS) {
           throw new Error(
-            `Another coherent process (PID ${data.pid}) is running. Wait for it to finish or remove ${LOCK_FILENAME}.`,
+            `Another coherent session is active (lock age: ${Math.round(age / 1000)}s). ` +
+              `Finish it with \`coherent session end <uuid>\` or remove ${LOCK_FILENAME} if the session is abandoned.`,
           )
-        } catch (e) {
-          if ((e as NodeJS.ErrnoException).code !== 'ESRCH') throw e
         }
+        // Stale persistent lock: reclaim.
+        unlinkSync(lockPath)
+      } else if (typeof data.pid === 'number') {
+        // Legacy chat-rail lock. Use the original PID + timestamp semantics so
+        // mixed-mode projects don't deadlock against each other.
+        if (age < LOCK_STALE_MS) {
+          try {
+            process.kill(data.pid, 0)
+            throw new Error(
+              `Another coherent process (PID ${data.pid}) is running. Wait for it to finish or remove ${LOCK_FILENAME}.`,
+            )
+          } catch (e) {
+            if ((e as NodeJS.ErrnoException).code !== 'ESRCH') throw e
+          }
+        }
+        unlinkSync(lockPath)
+      } else {
+        // Unknown shape — treat as corrupt and reclaim rather than leaving the
+        // project wedged forever.
+        unlinkSync(lockPath)
       }
-      unlinkSync(lockPath)
     } catch (e) {
       if (e instanceof SyntaxError) unlinkSync(lockPath)
-      else if (e instanceof Error && e.message.includes('Another coherent')) throw e
+      else if (
+        e instanceof Error &&
+        (e.message.includes('Another coherent process') || e.message.includes('Another coherent session'))
+      ) {
+        throw e
+      }
     }
   }
 
-  const lockData = JSON.stringify({ pid: process.pid, ts: Date.now() })
+  const lockData = JSON.stringify({ kind: 'persistent', ts: Date.now() })
   writeFileSync(lockPath, lockData, 'utf-8')
 }
 

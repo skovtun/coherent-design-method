@@ -92,7 +92,7 @@ describe('sessionStart', () => {
   it('refuses to start a second session while one is active', async () => {
     projectRoot = setupProject()
     await sessionStart({ projectRoot })
-    await expect(sessionStart({ projectRoot })).rejects.toThrow(/Another coherent process/)
+    await expect(sessionStart({ projectRoot })).rejects.toThrow(/Another coherent session is active/)
   })
 })
 
