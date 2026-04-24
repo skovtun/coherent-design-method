@@ -17,6 +17,7 @@
 import chalk from 'chalk'
 import { requireProject } from './chat/utils.js'
 import { sessionEnd, sessionStart } from '../phase-engine/session-lifecycle.js'
+import { defaultAppliers } from '../phase-engine/appliers.js'
 
 export interface SessionStartCliOptions {
   intent?: string
@@ -72,10 +73,16 @@ export interface SessionEndCliOptions {
 export async function sessionEndCommand(uuid: string, options: SessionEndCliOptions): Promise<void> {
   const project = requireProject()
   try {
+    // Wire the default applier set so generated artifacts (config-delta,
+    // components-generated, page-*.json) actually land on the project
+    // (codex P1 #2). Without these, a "successful" skill-mode run left the
+    // project unchanged — the session dir had all the work, none of it
+    // applied.
     const result = await sessionEnd({
       projectRoot: project.root,
       uuid,
       keepSession: options.keep,
+      appliers: defaultAppliers(),
     })
     console.log(chalk.green(`\n✔ Session ${uuid} ended at ${result.endedAt}`))
     if (result.applied.length > 0) {
