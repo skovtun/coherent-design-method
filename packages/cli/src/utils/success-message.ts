@@ -57,21 +57,35 @@ export function showSuccessMessage(projectPath: string = '.', options: SuccessMe
   console.log('')
   console.log(`  ${chalk.magenta('✨ Coherent Design Method — Project Initialized')}`)
 
-  const cdLine = options.projectName ? `cd ${options.projectName} && ` : ''
+  // Copy matches the getcoherent.design landing page: Describe first, then
+  // Preview. `cd <project>` is only prepended where a shell command actually
+  // needs it — slash-commands inside Claude Code don't, and hint lines
+  // definitely don't.
+  const cdPrefix = options.projectName ? `cd ${options.projectName} && ` : ''
+  const example = '"a fitness studio app with classes, pricing, and contact"'
   console.log('')
   console.log(chalk.bold('  Next:'))
+  console.log('')
 
   if (mode === 'skill') {
-    console.log(chalk.cyan(`    ${cdLine}coherent preview`))
-    console.log(chalk.dim(`    ${cdLine}then: `) + chalk.cyan('/coherent-generate "describe your app"'))
-    console.log(chalk.dim('    (in Claude Code — uses your subscription, no API key)'))
+    console.log(chalk.dim('    1. Describe your app') + chalk.dim(' — in Claude Code:'))
+    console.log(chalk.cyan(`       /coherent-generate ${example}`))
+    console.log('')
+    console.log(chalk.dim('    2. Preview:'))
+    console.log(chalk.cyan(`       ${cdPrefix}coherent preview`))
   } else if (mode === 'api') {
-    console.log(chalk.cyan(`    ${cdLine}coherent preview`))
-    console.log(chalk.dim(`    ${cdLine}then: `) + chalk.cyan('coherent chat "add a dashboard"'))
+    console.log(chalk.dim('    1. Describe your app:'))
+    console.log(chalk.cyan(`       ${cdPrefix}coherent chat ${example}`))
+    console.log('')
+    console.log(chalk.dim('    2. Preview:'))
+    console.log(chalk.cyan(`       ${cdPrefix}coherent preview`))
   } else {
-    console.log(chalk.cyan(`    ${cdLine}coherent preview`))
-    console.log(chalk.dim('    skill mode: ') + chalk.cyan('/coherent-generate "describe your app"'))
-    console.log(chalk.dim('    chat mode:  ') + chalk.cyan('coherent chat "add a dashboard"'))
+    console.log(chalk.dim('    1. Describe your app — pick one:'))
+    console.log(chalk.dim('       Claude Code:') + chalk.cyan(`  /coherent-generate ${example}`))
+    console.log(chalk.dim('       CLI:') + chalk.cyan(`          ${cdPrefix}coherent chat ${example}`))
+    console.log('')
+    console.log(chalk.dim('    2. Preview:'))
+    console.log(chalk.cyan(`       ${cdPrefix}coherent preview`))
   }
 
   console.log('')
