@@ -13,9 +13,24 @@ import {
   findSharedComponent as findInManifest,
 } from '../managers/SharedComponentsRegistry.js'
 
-/** Convert component name to file name (kebab-case). "Main Header" -> "main-header", "PricingCard" -> "pricing-card" */
+/**
+ * Convert component name to file name (kebab-case).
+ *
+ * "Main Header" -> "main-header"
+ * "PricingCard" -> "pricing-card"
+ * "DSButton"    -> "ds-button"        ← without the first replace, this used to collapse to "dsbutton"
+ * "APIKey"      -> "api-key"
+ * "XMLHttpRequest" -> "xml-http-request"
+ *
+ * The first `replace` splits consecutive-uppercase runs that end in a
+ * `[A-Z][a-z]` transition (e.g. `DS` + `Button` → `DS-Button`). Without it,
+ * any component whose name starts with an acronym — DSButton, APIKey,
+ * XMLHttpRequest — produced a filename that layout integration code could
+ * not resolve, because the integrator's import path is hyphen-cased.
+ */
 export function toSharedFileName(name: string): string {
   return name
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2')
     .replace(/([a-z])([A-Z])/g, '$1-$2')
     .replace(/\s+/g, '-')
     .toLowerCase()

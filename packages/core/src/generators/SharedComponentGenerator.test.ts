@@ -1,6 +1,37 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { generateSharedComponent } from './SharedComponentGenerator.js'
+import { generateSharedComponent, toSharedFileName } from './SharedComponentGenerator.js'
 import { writeFile, readFile } from 'fs/promises'
+
+describe('toSharedFileName', () => {
+  it('kebab-cases a regular CamelCase name', () => {
+    expect(toSharedFileName('PricingCard')).toBe('pricing-card')
+  })
+
+  it('kebab-cases a single-word name', () => {
+    expect(toSharedFileName('Header')).toBe('header')
+  })
+
+  it('kebab-cases a space-separated name', () => {
+    expect(toSharedFileName('Main Header')).toBe('main-header')
+  })
+
+  // Regression guard for v0.7.12+: "DSButton" used to collapse to "dsbutton"
+  // because the original regex only split on `[a-z][A-Z]` transitions and
+  // missed acronyms. The scaffolder wrote `components/shared/dsbutton.tsx`
+  // while the layout integrator imported `@/components/shared/ds-button` —
+  // every fresh `coherent init` project 500'd on first `coherent preview`.
+  it('splits an acronym at the start of the name', () => {
+    expect(toSharedFileName('DSButton')).toBe('ds-button')
+  })
+
+  it('splits an acronym at the start of a longer name', () => {
+    expect(toSharedFileName('APIKey')).toBe('api-key')
+  })
+
+  it('splits nested acronyms correctly', () => {
+    expect(toSharedFileName('XMLHttpRequest')).toBe('xml-http-request')
+  })
+})
 
 vi.mock('fs/promises', () => ({
   writeFile: vi.fn().mockResolvedValue(undefined),
