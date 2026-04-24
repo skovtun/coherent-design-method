@@ -152,6 +152,12 @@ const NOISE_PATTERNS: RegExp[] = [
   // moment with a progress UI — letting the raw text through would collide
   // visually with the animated spinner frame.
   /^Creating a new Next\.js app in/i,
+  // npm's own warnings about transitive-dep engine mismatches and funding —
+  // our env vars silence most, but macOS npm still surfaces a few through
+  // stdout. Filtering them here keeps the install-phase stdout truly quiet
+  // so the stderr-hosted spinner can animate without cursor interference.
+  /^npm warn /i,
+  /^npm notice /i,
 ]
 
 function runCreateNextApp(projectPath: string): Promise<void> {
@@ -190,17 +196,28 @@ function runCreateNextApp(projectPath: string): Promise<void> {
     })
 
     let buffer = ''
-    let prevBlank = false
-    // Static "install in progress" breadcrumb — not an animated spinner.
-    // An ora spinner duplicated itself on the screen when chunks of
-    // filtered-out noise arrived faster than ora's animation tick: every
-    // rapid-fire `chunk in, skip as noise` cycle left ora redrawing onto
-    // a new cursor position instead of clearing its previous frame. A
-    // single printed line before the child produces any real output is
-    // boring, but 100% duplication-proof, and gives the user the same
-    // signal ("install is happening, don't panic") until the real
-    // "added N packages in Xs" arrives a few seconds later.
-    process.stdout.write(chalk.dim('  Installing dependencies (takes ~15s)...\n'))
+    // Initialized to `true` so the very first blank line in create-next-app's
+    // output is suppressed — that first blank, if let through, would collide
+    // with the spinner's opening frame on stderr and cause the cursor-tracking
+    // to drift. After the first non-empty line arrives, this flips back to
+    // `false` and normal collapse resumes.
+    let prevBlank = true
+    let seenAnyOutput = false
+    // Animated progress spinner, on STDERR. Running ora on stderr while the
+    // child's filtered output goes to stdout means they use separate streams,
+    // so ora's cursor-manipulation frames don't compete with the filtered
+    // stdout writes. The filter is also tightened (first blank suppressed,
+    // npm-warn lines suppressed) so stdout is genuinely silent during the
+    // install phase — which is the condition under which ora's cursor math
+    // stays consistent.
+    const installSpinner = ora({
+      text: 'Installing dependencies (takes ~15s)...',
+      prefixText: ' ',
+      stream: process.stderr,
+    }).start()
+    const stopInstallSpinner = (): void => {
+      if (installSpinner.isSpinning) installSpinner.stop()
+    }
 
     const handleChunk = (chunk: Buffer): void => {
       buffer += chunk.toString('utf-8')
@@ -215,6 +232,13 @@ function runCreateNextApp(projectPath: string): Promise<void> {
           prevBlank = true
         } else {
           prevBlank = false
+          // First meaningful output means install has progressed past the
+          // quiet phase — stop the spinner so its frames don't overlap
+          // with the real output that's about to stream.
+          if (!seenAnyOutput) {
+            stopInstallSpinner()
+            seenAnyOutput = true
+          }
         }
         process.stdout.write(line + '\n')
       }
@@ -223,6 +247,7 @@ function runCreateNextApp(projectPath: string): Promise<void> {
     proc.stdout?.on('data', handleChunk)
 
     const finalize = (err?: Error): void => {
+      stopInstallSpinner()
       if (buffer && !NOISE_PATTERNS.some(p => p.test(buffer))) {
         process.stdout.write(buffer + '\n')
       }
