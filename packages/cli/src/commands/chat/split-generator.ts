@@ -1232,4 +1232,3 @@ export async function extractSharedComponents(
   const updatedManifest = await loadManifest(projectRoot)
   return { components: results, summary: buildSharedComponentsSummary(updatedManifest) }
 }
-
