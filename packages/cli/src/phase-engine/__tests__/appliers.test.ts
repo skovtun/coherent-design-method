@@ -141,6 +141,35 @@ describe('createComponentsApplier', () => {
     expect(await createComponentsApplier().apply(ctx)).toEqual([])
   })
 
+  it('runs autoFixCode on component source before writing (codex R3 P2 #9)', async () => {
+    projectRoot = setupProject()
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    // Raw Tailwind colors inside a component — same generation mistake
+    // autoFix already handles for pages. Should be rewritten to semantic
+    // tokens before the component lands on disk.
+    await store.writeArtifact(
+      uuid,
+      'components-generated.json',
+      JSON.stringify({
+        components: [
+          {
+            name: 'Hero',
+            code: `export function Hero(){ return <div className="bg-gray-100 text-blue-600">Hi</div> }`,
+            file: 'components/shared/hero.tsx',
+          },
+        ],
+      }),
+    )
+
+    const results = await createComponentsApplier().apply(ctx)
+    expect(results).toHaveLength(1)
+    expect(results[0]).toMatch(/auto-fix/)
+
+    const written = readFileSync(join(projectRoot, 'components/shared/hero.tsx'), 'utf-8')
+    expect(written).not.toContain('bg-gray-100')
+    expect(written).not.toContain('text-blue-600')
+  })
+
   it('skips entries with empty code', async () => {
     projectRoot = setupProject()
     const { ctx, store, uuid } = await makeContext(projectRoot)

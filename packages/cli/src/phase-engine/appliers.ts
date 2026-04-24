@@ -93,6 +93,14 @@ export function createConfigDeltaApplier(): ArtifactApplier {
 /**
  * Apply `components-generated.json` by writing each entry to
  * `components/shared/<kebab>.tsx` and registering it in the manifest.
+ * Runs `autoFixCode` on each component's source (codex R3 P2 #9) so
+ * known-broken patterns (raw Tailwind colors, missing "use client",
+ * HTML entities in JSX) get repaired before the file lands on disk.
+ *
+ * Missing-package install (e.g. lucide-react pulled in by a generated
+ * icon usage) is still deferred to `coherent fix` — the chat rail's
+ * `ensureComponentsInstalled` path is scope creep for this P2; the
+ * auto-fix pass is the minimum parity bar.
  */
 export function createComponentsApplier(): ArtifactApplier {
   return {
@@ -107,13 +115,21 @@ export function createComponentsApplier(): ArtifactApplier {
       const written: string[] = []
       for (const component of artifact.components) {
         if (!component.code || !component.name) continue
+        // Same autoFix pass the chat rail runs on shared components via
+        // `validateAndFixGeneratedCode` + the auto-install flow in
+        // `applyModification`. `AutoFixContext` is empty here because
+        // components don't have a route context; the fix rules that
+        // matter (raw-color rewrite, string escaping, icon class repair)
+        // don't need one.
+        const { code: fixedCode, fixes } = await autoFixCode(component.code)
         const result = await generateSharedComponent(ctx.projectRoot, {
           name: component.name,
           type: 'section',
-          code: component.code,
+          code: fixedCode,
           source: 'generated',
         })
-        written.push(`${result.name} → ${result.file}`)
+        const suffix = fixes.length > 0 ? ` (+${fixes.length} auto-fix)` : ''
+        written.push(`${result.name} → ${result.file}${suffix}`)
       }
       return written
     },
