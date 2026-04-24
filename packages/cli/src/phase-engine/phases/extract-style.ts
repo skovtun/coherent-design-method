@@ -89,6 +89,13 @@ export interface ExtractStylePhaseOptions {
   anchorArtifact?: string
   /** Artifact name to write style context to. Default: `style.json`. */
   styleArtifact?: string
+  /**
+   * Artifact to seed with ComponentsInput so the next phase (`_phase prep
+   * components`) finds its input. Default `components-input.json`. Set to
+   * `null` to suppress the chain (e.g. chat rail with a richer
+   * ArchitecturePlan to hand down).
+   */
+  componentsInputArtifact?: string | null
 }
 
 /**
@@ -99,6 +106,9 @@ export interface ExtractStylePhaseOptions {
 export function createExtractStylePhase(options: ExtractStylePhaseOptions = {}): DeterministicPhase {
   const anchorFile = options.anchorArtifact ?? 'anchor.json'
   const styleFile = options.styleArtifact ?? 'style.json'
+  // `undefined` → default 'components-input.json'; `null` → suppress chaining.
+  const componentsInputFile =
+    options.componentsInputArtifact === undefined ? 'components-input.json' : options.componentsInputArtifact
 
   return {
     kind: 'deterministic',
@@ -115,6 +125,18 @@ export function createExtractStylePhase(options: ExtractStylePhaseOptions = {}):
       const styleContext = extractStyleContext(anchor.pageCode)
       const out: StyleArtifact = { styleContext }
       await ctx.session.writeArtifact(ctx.sessionId, styleFile, JSON.stringify(out, null, 2))
+
+      // Chain components-input.json so `_phase prep components` finds its
+      // input (codex P1 #1 chain, part 3/4). v0.9.0 skill-mode has no
+      // separate architecture-plan phase yet, so `sharedComponents` is
+      // empty — components phase produces zero components and the rail
+      // advances with per-page generation only. This is functional but
+      // less rich than the chat rail; users who need shared components
+      // currently fall back to `coherent chat`.
+      if (componentsInputFile !== null) {
+        const componentsInput = { sharedComponents: [], styleContext }
+        await ctx.session.writeArtifact(ctx.sessionId, componentsInputFile, JSON.stringify(componentsInput, null, 2))
+      }
     },
   }
 }

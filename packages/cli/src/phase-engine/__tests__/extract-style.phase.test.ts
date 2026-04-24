@@ -96,4 +96,43 @@ describe('createExtractStylePhase', () => {
     const style = JSON.parse((await store.readArtifact(sessionId, 'style-override.json'))!) as StyleArtifact
     expect(style.styleContext).toContain('py-12')
   })
+
+  describe('components-input chain (codex P1 #1, part 3/4)', () => {
+    it('writes components-input.json with empty sharedComponents + derived styleContext', async () => {
+      await store.writeArtifact(
+        sessionId,
+        'anchor.json',
+        JSON.stringify({ pageCode: '<div className="container max-w-6xl mx-auto py-12">x</div>' }),
+      )
+      await createExtractStylePhase().run({ session: store, sessionId })
+
+      const raw = await store.readArtifact(sessionId, 'components-input.json')
+      expect(raw).not.toBeNull()
+      const input = JSON.parse(raw!)
+      // v0.9.0 skill-mode ships with no separate architecture-plan phase;
+      // sharedComponents is empty and the components phase produces zero
+      // components. This is documented as a functional-but-less-rich MVP.
+      expect(input.sharedComponents).toEqual([])
+      expect(input.styleContext).toContain('STYLE CONTEXT')
+      expect(input.styleContext).toContain('py-12')
+    })
+
+    it('suppresses chain when componentsInputArtifact = null', async () => {
+      await store.writeArtifact(sessionId, 'anchor.json', JSON.stringify({ pageCode: '<div>x</div>' }))
+      await createExtractStylePhase({ componentsInputArtifact: null }).run({ session: store, sessionId })
+
+      expect(await store.readArtifact(sessionId, 'components-input.json')).toBeNull()
+    })
+
+    it('honors a custom componentsInputArtifact name', async () => {
+      await store.writeArtifact(sessionId, 'anchor.json', JSON.stringify({ pageCode: '<div>x</div>' }))
+      await createExtractStylePhase({ componentsInputArtifact: 'components-input-x.json' }).run({
+        session: store,
+        sessionId,
+      })
+
+      expect(await store.readArtifact(sessionId, 'components-input.json')).toBeNull()
+      expect(await store.readArtifact(sessionId, 'components-input-x.json')).not.toBeNull()
+    })
+  })
 })
