@@ -311,7 +311,6 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
       const rawCode = (codeMatch?.changes?.pageCode as string) || ''
       if (!rawCode) {
         spinner.fail(`Could not generate component ${componentName}`)
-        releaseLock?.()
         return
       }
       const { code: fixedCode } = await autoFixCode(rawCode)
@@ -358,7 +357,6 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
       }
 
       spinner.succeed(`Created ${genResult.name} (${genResult.id}) at ${genResult.file}`)
-      releaseLock?.()
       return
     }
 
