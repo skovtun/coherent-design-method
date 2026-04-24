@@ -26,7 +26,7 @@ import { messageHasDestructiveIntent } from '../agents/destructive-preparser.js'
 import { isAuthRoute } from '../agents/page-templates.js'
 import { ensureAuthRouteGroup } from '../utils/auth-route-group.js'
 import { setDefaultDarkTheme, ensureThemeToggle } from '../utils/dark-mode.js'
-import { readFile, writeFile, acquireProjectLock } from '../utils/files.js'
+import { readFile, writeFile, acquirePersistentLock, releasePersistentLock } from '../utils/files.js'
 import { compareSemver } from '../utils/migrations.js'
 import { appendFile } from 'fs/promises'
 import { appendRecentChanges, type RecentChange } from '../utils/recent-changes.js'
@@ -151,25 +151,25 @@ export async function chatCommand(
     bail('No message provided')
   }
 
+  const project = requireProject()
+  const projectRoot = project.root
+  const configPath = project.configPath
+
   const spinner = ora('Processing your request...').start()
 
   // Graceful Ctrl+C: stop the spinner, release the project lock, exit 130.
   // Without this, SIGINT leaves the spinner frame stuck in the terminal and
-  // the .coherent/.lock file on disk, blocking subsequent runs.
+  // the .coherent.lock file on disk, blocking subsequent runs.
   const onSigint = () => {
     if (spinner.isSpinning) spinner.fail('Interrupted (Ctrl+C)')
     try {
-      releaseLock?.()
+      releasePersistentLock(projectRoot)
     } catch {
       /* lock already released or never acquired */
     }
     process.exit(130)
   }
   process.once('SIGINT', onSigint)
-
-  const project = requireProject()
-  const projectRoot = project.root
-  const configPath = project.configPath
 
   // Run record — collects outcome data across the chat flow; written in
   // the `finally` block to `.coherent/runs/<timestamp>.yaml`. Mutable
@@ -206,9 +206,8 @@ export async function chatCommand(
 
   const validProviders = ['claude', 'openai', 'auto']
   const provider = (options.provider || 'auto').toLowerCase() as 'claude' | 'openai' | 'auto'
-  let releaseLock: (() => void) | undefined
   try {
-    releaseLock = await acquireProjectLock(projectRoot)
+    acquirePersistentLock(projectRoot)
 
     if (!validProviders.includes(provider)) {
       spinner.fail('Invalid provider')
@@ -1562,6 +1561,10 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
       }
     }
     process.removeListener('SIGINT', onSigint)
-    releaseLock?.()
+    try {
+      releasePersistentLock(projectRoot)
+    } catch {
+      /* lock already released or never acquired */
+    }
   }
 }
