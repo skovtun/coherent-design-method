@@ -187,6 +187,24 @@ function runCreateNextApp(projectPath: string): Promise<void> {
 
     let buffer = ''
     let prevBlank = false
+    // Heartbeat spinner bridges the 10-15s silence while create-next-app's
+    // `npm install` is quietly installing 300+ packages. Without it, the
+    // filtered output goes dead after "Creating a new Next.js app in..."
+    // and the user can't tell if it's working or hung. Spinner starts on
+    // the first "Creating a new Next.js app" line and stops the moment any
+    // non-noise line arrives after it (typically "added N packages in Ns").
+    let installSpinner: ReturnType<typeof ora> | null = null
+    const startInstallSpinnerIfNeeded = (line: string): void => {
+      if (!installSpinner && /^Creating a new Next\.js app in/i.test(line)) {
+        installSpinner = ora({ text: 'Installing dependencies (takes ~15s)...', prefixText: ' ' }).start()
+      }
+    }
+    const stopInstallSpinner = (): void => {
+      if (installSpinner) {
+        installSpinner.stop()
+        installSpinner = null
+      }
+    }
 
     const handleChunk = (chunk: Buffer): void => {
       buffer += chunk.toString('utf-8')
@@ -201,7 +219,13 @@ function runCreateNextApp(projectPath: string): Promise<void> {
           prevBlank = true
         } else {
           prevBlank = false
+          // Any non-noise, non-empty signal means install has progressed —
+          // stop the heartbeat so its dots don't interleave with real output.
+          if (installSpinner && !/^Creating a new Next\.js app in/i.test(line)) {
+            stopInstallSpinner()
+          }
         }
+        startInstallSpinnerIfNeeded(line)
         process.stdout.write(line + '\n')
       }
     }
@@ -209,6 +233,7 @@ function runCreateNextApp(projectPath: string): Promise<void> {
     proc.stdout?.on('data', handleChunk)
 
     const finalize = (err?: Error): void => {
+      stopInstallSpinner()
       if (buffer && !NOISE_PATTERNS.some(p => p.test(buffer))) {
         process.stdout.write(buffer + '\n')
       }

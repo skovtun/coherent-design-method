@@ -95,7 +95,25 @@ export function showSuccessMessage(projectPath: string = '.', options: SuccessMe
     console.log(chalk.cyan(`       coherent preview`))
   }
 
+  // Shipping + recovery commands are shared between skill and API modes —
+  // they're plain CLI commands that don't depend on the AI-generation path.
+  // Listed below the immediate CTA so the first-time user isn't overwhelmed
+  // but knows where to look when they get there.
   console.log('')
+  console.log(chalk.dim('  When your UI is ready and you like it:'))
+  console.log(
+    chalk.cyan('    coherent export') + chalk.dim('  — export as a finished frontend, or hand off to a developer'),
+  )
+
+  console.log('')
+  console.log(chalk.dim('  If something is off:'))
+  console.log(
+    chalk.cyan('    coherent fix') + chalk.dim('     — auto-fix common issues (broken imports, missing files)'),
+  )
+  console.log(chalk.cyan('    coherent sync') + chalk.dim('    — re-sync the design system after manual edits'))
+
+  console.log('')
+  console.log(chalk.dim('  More commands: ') + chalk.cyan('coherent --help'))
   console.log(chalk.dim('  Docs: ') + chalk.dim.underline('https://github.com/skovtun/coherent-design-method'))
   console.log('')
 }

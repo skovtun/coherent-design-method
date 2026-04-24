@@ -83,10 +83,6 @@ export default function HomePage() {
             Describe an app.{' '}
             <span className="text-primary">Get a product.</span>
           </h1>
-          <p className="text-base text-muted-foreground leading-relaxed max-w-xl">
-            A consistent, interactive, multi-page UI — with a flexible design system
-            and reusable components built in.
-          </p>
           <p className="text-sm text-muted-foreground leading-relaxed max-w-lg">
             Your project is ready. Describe what you want to build — Coherent generates
             interconnected pages that share components, tokens, and layouts.
