@@ -58,6 +58,7 @@ import {
 } from '../../utils/design-memory.js'
 import { validateLayoutIntegrity } from '../../utils/layout-integrity.js'
 import { extractStyleContext } from '../../phase-engine/phases/extract-style.js'
+import { parseNavTypeFromPlan, extractAppNameFromPrompt } from '../../phase-engine/phases/plan.js'
 
 const MAX_EXISTING_PAGES_CONTEXT = 3
 
@@ -123,16 +124,6 @@ function buildExistingPagesContext(config: DesignSystemConfig, forPageType?: str
   }
 
   return ctx
-}
-
-const VALID_NAV_TYPES = new Set(['header', 'sidebar', 'both', 'none'])
-
-export function parseNavTypeFromPlan(planResult: Record<string, unknown>): 'header' | 'sidebar' | 'both' | 'none' {
-  const nav = planResult.navigation as Record<string, unknown> | undefined | null
-  if (nav && typeof nav.type === 'string' && VALID_NAV_TYPES.has(nav.type)) {
-    return nav.type as 'header' | 'sidebar' | 'both' | 'none'
-  }
-  return 'header'
 }
 
 export function buildSharedComponentsSummary(manifest: SharedComponentsManifest): string | undefined {
@@ -410,7 +401,13 @@ function getGroupLayoutForRoute(route: string, plan: ArchitecturePlan | null): s
   return group?.layout
 }
 
-export { buildExistingPagesContext, extractStyleContext, filterManifestForPage }
+export {
+  buildExistingPagesContext,
+  extractStyleContext,
+  filterManifestForPage,
+  parseNavTypeFromPlan,
+  extractAppNameFromPrompt,
+}
 
 let manifestLock = Promise.resolve()
 
@@ -1281,42 +1278,3 @@ export async function extractSharedComponents(
   return { components: results, summary: buildSharedComponentsSummary(updatedManifest) }
 }
 
-export function extractAppNameFromPrompt(prompt: string): string | null {
-  const patterns = [
-    /(?:called|named|app\s+name)\s+["']([^"']+)["']/i,
-    /(?:called|named|app\s+name)\s+(\S+)/i,
-    /\b(?:build|create|make)\s+(?:a\s+)?(\S+)\s+(?:app|platform|tool|dashboard|website|saas)/i,
-  ]
-  for (const re of patterns) {
-    const m = prompt.match(re)
-    if (m && m[1] && m[1].length >= 2 && m[1].length <= 30) {
-      const name = m[1].replace(/[.,;:!?]$/, '')
-      const skip = new Set([
-        'a',
-        'an',
-        'the',
-        'my',
-        'our',
-        'new',
-        'full',
-        'complete',
-        'simple',
-        'modern',
-        'beautiful',
-        'responsive',
-        'fast',
-        'cool',
-        'great',
-        'basic',
-        'quick',
-        'small',
-        'large',
-        'custom',
-        'nice',
-      ])
-      if (skip.has(name.toLowerCase())) continue
-      return name.charAt(0).toUpperCase() + name.slice(1)
-    }
-  }
-  return null
-}
