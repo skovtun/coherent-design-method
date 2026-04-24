@@ -17,6 +17,8 @@ npm install
 coherent preview
 ```
 
+Init auto-detects Claude Code and provisions a `.claude/skills/coherent-generate/` skill so you can generate pages **without an API key**. Open the project in Claude Code and run `/coherent-generate "<request>"` — your session drives the phase rail while Coherent enforces constraints. Prefer unattended CLI runs? Pass `coherent init --api-mode` and supply an Anthropic key.
+
 - **App:** http://localhost:3000  
 - **Design System:** http://localhost:3000/design-system  
 - **Docs:** http://localhost:3000/design-system/docs  
@@ -42,22 +44,28 @@ coherent preview
 After `coherent init` you can:
 
 1. **Work in Cursor/IDE** — Edit `design-system.config.ts`, `app/`, `components/`; hot reload. Best for fine-grained control.
-2. **Use `coherent chat`** — e.g. `coherent chat "add pricing page"` to scaffold pages/components and sync config/nav. Best for fast generation.
+2. **Generate via Claude Code skill (no API key)** — in Claude Code, `/coherent-generate "add pricing page"` drives the full phase rail. Best for key-less AI generation.
+3. **Use `coherent chat` (API key)** — e.g. `coherent chat "add pricing page"` for the same pipeline as a standalone command. Best for CI/scripts.
 
-**Tip:** Use chat for structure, then Cursor for details. Commit before each `coherent chat` and run `git diff` after.
+**Tip:** Use a generative path (2 or 3) for structure, then the IDE for details. Commit before each generate run and `git diff` after.
 
-## Examples (chat)
+## Examples
 
 ```bash
-coherent chat "add dashboard page with stats cards"
+# Skill mode (run from Claude Code chat)
+/coherent-generate "add dashboard page with stats cards"
+/coherent-generate "add contact page with form"
+
+# API-key mode (any shell)
 coherent chat "add Button, Card, Input from shadcn"
-coherent chat "add contact page with form"
 coherent chat "change primary color to #6366f1"
 ```
 
-## API Key
+## API Key (only for `coherent chat`)
 
-For `coherent init` (discovery) and `coherent chat` you need an AI provider key:
+Skill mode (`/coherent-generate`) needs no key — it uses your Claude Code subscription.
+
+For the standalone `coherent chat` path, set one of:
 
 - **Anthropic (default):** `ANTHROPIC_API_KEY`
 - **OpenAI:** `OPENAI_API_KEY`

@@ -66,15 +66,29 @@ coherent init my-app
 cd my-app
 ```
 
-This creates a Next.js 15 project with Tailwind CSS, a component library, design tokens, and a Design System viewer — all pre-configured. During init, you'll be asked for an [Anthropic API key](#ai-provider-setup) (needed for AI generation).
+This creates a Next.js 15 project with Tailwind CSS, a component library, design tokens, and a Design System viewer — all pre-configured. Init auto-detects Claude Code and provisions a `.claude/skills/coherent-generate/` skill so you can generate pages **without an API key**. Prefer the API key path? Pass `--api-mode` and you'll be prompted for an [Anthropic key](#ai-provider-setup) during init.
 
 ### 3. Generate pages
+
+Pick whichever path matches how you already pay for Claude:
+
+**Path A — Skill mode (no API key, uses your Claude Code subscription)**
+
+Open the project in Claude Code, then:
+
+```
+/coherent-generate "create a SaaS landing page with pricing, about us, and contact pages"
+```
+
+Your Claude Code session drives generation; Coherent contributes constraints + the deterministic validator. Nothing is billed on Coherent's side and no key is required.
+
+**Path B — Standalone CLI (API key, for CI / scripts / unattended runs)**
 
 ```bash
 coherent chat "create a SaaS landing page with pricing, about us, and contact pages"
 ```
 
-Coherent plans all pages, generates the home page first (establishing the visual style), then generates remaining pages with the same components, spacing, and color palette.
+Either way, Coherent plans all pages, generates the home page first (establishing the visual style), then generates remaining pages with the same components, spacing, and color palette.
 
 ### 4. Preview
 
@@ -86,9 +100,14 @@ Opens your app at `http://localhost:3000`. The Design System viewer is at `http:
 
 ### 5. Iterate
 
+Use the same invocation path you chose in step 3:
+
 ```bash
-coherent chat "change primary color to indigo and make buttons more rounded"
-coherent chat "add a dashboard page with stats and recent activity"
+# Skill mode (inside Claude Code)
+/coherent-generate "change primary color to indigo and make buttons more rounded"
+/coherent-generate "add a dashboard page with stats and recent activity"
+
+# Or API-key mode (from any shell)
 coherent chat "update the pricing page: add a fourth enterprise tier"
 ```
 
@@ -257,15 +276,23 @@ Coherent uses Claude (by Anthropic) for code generation. There are **two ways** 
 
 | Mode | When to use | API key required? | Command |
 |------|-------------|-------------------|---------|
-| **Standalone CLI** | You have an Anthropic API key (usage-billed) and want Coherent to run unattended (CI, cron, scripts). | ✅ Yes | `coherent chat "..."` |
-| **Claude Code skill** | You have a Claude Free/Pro/Max subscription and want to drive Coherent from inside your Claude Code session. | ❌ No | `/coherent-generate` (in Claude Code) |
+| **Claude Code skill** (recommended) | You have a Claude Free/Pro/Max subscription and want to drive Coherent from inside your Claude Code session. | ❌ No | `/coherent-generate` (in Claude Code) |
+| **Standalone CLI** | You want Coherent to run unattended (CI, cron, scripts) or already have an Anthropic API key (usage-billed). | ✅ Yes | `coherent chat "..."` |
 
 In skill mode, your Claude Code session does the generation using your subscription. Coherent contributes the constraint bundle and the quality validator — no tokens spent on our side, no API key needed, fully within Anthropic's Terms of Service.
 
-### Mode A — Standalone CLI (API key)
+### Mode A — Claude Code skill (no API key)
+
+1. Run `coherent init` (or `coherent init --skill-mode` to skip the API key prompt entirely). Init writes `.claude/skills/coherent-generate/SKILL.md` plus supporting `.claude/commands/` entries.
+2. Open the project in Claude Code.
+3. Run `/coherent-generate "build a CRM dashboard"` — your session orchestrates the phase rail (plan → anchor → extract-style → components → page × N → log-run) while Coherent's deterministic validator (`coherent check` + `coherent fix`) enforces the constraints on each ingest.
+
+Already have a project on an older Coherent version? Run `coherent update` to refresh the `.claude/` skills and commands.
+
+### Mode B — Standalone CLI (API key)
 
 1. Go to [console.anthropic.com](https://console.anthropic.com), create a key.
-2. During `coherent init`, enter the key when prompted — it's saved to `.env` in your project (already in `.gitignore`). Or set manually:
+2. During `coherent init --api-mode`, enter the key when prompted — it's saved to `.env` in your project (already in `.gitignore`). Or set manually:
 
 ```bash
 echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
@@ -274,14 +301,6 @@ export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 3. Model override (optional): `export CLAUDE_MODEL=claude-sonnet-4-20250514`.
-
-### Mode B — Claude Code skill (no API key)
-
-1. Run `coherent init` to create a Coherent-enabled project (this writes `.claude/commands/coherent-generate.md`).
-2. Open the project in Claude Code.
-3. Run `/coherent-generate "build a CRM dashboard"` — your session does the generation, then Coherent's deterministic validator (`coherent check` + `coherent fix`) enforces the constraints.
-
-Already have a project on an older Coherent version? Run `coherent update` to refresh the `.claude/` commands.
 
 ### Security
 
@@ -423,7 +442,7 @@ coherent preview   # now it works
 
 ### "No API key found"
 
-You need an Anthropic API key for `coherent chat`. See [AI Provider Setup](#ai-provider-setup).
+`coherent chat` is the API-key path. If you want key-less generation, use the **skill mode** instead: open the project in Claude Code and run `/coherent-generate "<request>"` — same pipeline, driven by your Claude Code subscription. See [AI Provider Setup](#ai-provider-setup).
 
 ### Build errors after generation
 
