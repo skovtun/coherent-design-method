@@ -1,8 +1,9 @@
-import { describe, it, expect, afterEach } from 'vitest'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'fs'
+import { describe, it, expect, afterEach, vi } from 'vitest'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { writeClaudeSkills } from './claude-code.js'
+import { COHERENT_GENERATE_SKILL_BODY, readSkillProtocol, writeClaudeSkills } from './claude-code.js'
+import { PHASE_ENGINE_PROTOCOL } from '../phase-engine/phase-registry.js'
 
 describe('writeClaudeSkills', () => {
   let projectRoot: string
@@ -70,5 +71,80 @@ describe('writeClaudeSkills', () => {
       expect(idx, `marker "${marker}" not found after previous`).toBeGreaterThan(lastIndex)
       lastIndex = idx
     }
+  })
+})
+
+describe('skill-markdown protocol embed (R5)', () => {
+  it('declares phase_engine_protocol in frontmatter', () => {
+    expect(COHERENT_GENERATE_SKILL_BODY).toMatch(
+      new RegExp(`^phase_engine_protocol:\\s*${PHASE_ENGINE_PROTOCOL}\\s*$`, 'm'),
+    )
+  })
+
+  it('every `coherent _phase` invocation carries --protocol <N>', () => {
+    // Strip backtick-fenced lines that document the flag contract (so we
+    // only inspect actual bash invocations, not the explanatory prose).
+    const invocations = COHERENT_GENERATE_SKILL_BODY.split('\n').filter(line => /^coherent _phase /.test(line.trim()))
+    expect(invocations.length, 'expected at least one _phase invocation').toBeGreaterThan(0)
+
+    const missing = invocations.filter(line => !new RegExp(`--protocol\\s+${PHASE_ENGINE_PROTOCOL}\\b`).test(line))
+    expect(missing, `invocations without --protocol ${PHASE_ENGINE_PROTOCOL}`).toEqual([])
+  })
+
+  it('readSkillProtocol parses a well-formed frontmatter value', () => {
+    expect(readSkillProtocol(COHERENT_GENERATE_SKILL_BODY)).toBe(PHASE_ENGINE_PROTOCOL)
+  })
+
+  it('readSkillProtocol returns null when frontmatter lacks the key', () => {
+    expect(readSkillProtocol('---\nname: anything\n---\nbody')).toBeNull()
+  })
+
+  it('readSkillProtocol returns null for non-numeric values', () => {
+    expect(readSkillProtocol('---\nphase_engine_protocol: not-a-number\n---\nbody')).toBeNull()
+  })
+})
+
+describe('writeClaudeSkills refresh notice (R5)', () => {
+  let projectRoot: string
+  afterEach(() => {
+    if (projectRoot && existsSync(projectRoot)) {
+      rmSync(projectRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('logs a refresh notice when existing markdown declares an older protocol', () => {
+    projectRoot = mkdtempSync(join(tmpdir(), 'coherent-claude-code-'))
+    const dirGenerate = join(projectRoot, '.claude', 'skills', 'coherent-generate')
+    mkdirSync(dirGenerate, { recursive: true })
+    const older = PHASE_ENGINE_PROTOCOL - 1
+    writeFileSync(
+      join(dirGenerate, 'SKILL.md'),
+      `---\nname: coherent-generate\nphase_engine_protocol: ${older}\n---\n`,
+      'utf-8',
+    )
+
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    writeClaudeSkills(projectRoot)
+    const notices = log.mock.calls.map(call => call.join(' ')).filter(msg => /Refreshing coherent-generate/.test(msg))
+    log.mockRestore()
+
+    expect(notices.length).toBe(1)
+    expect(notices[0]).toContain(`${older} → ${PHASE_ENGINE_PROTOCOL}`)
+  })
+
+  it('stays silent when markdown is fresh or missing', () => {
+    projectRoot = mkdtempSync(join(tmpdir(), 'coherent-claude-code-'))
+
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    writeClaudeSkills(projectRoot) // first write — no existing file
+    const firstBatch = log.mock.calls.map(call => call.join(' ')).filter(msg => /Refreshing/.test(msg))
+    log.mockClear()
+
+    writeClaudeSkills(projectRoot) // second write — existing file is already current
+    const secondBatch = log.mock.calls.map(call => call.join(' ')).filter(msg => /Refreshing/.test(msg))
+    log.mockRestore()
+
+    expect(firstBatch).toEqual([])
+    expect(secondBatch).toEqual([])
   })
 })

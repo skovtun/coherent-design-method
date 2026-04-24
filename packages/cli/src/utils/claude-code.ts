@@ -3,8 +3,10 @@
  * Dynamic project context (CLAUDE.md, etc.) lives in `harness-context.ts`.
  */
 
-import { writeFileSync, mkdirSync } from 'fs'
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { join } from 'path'
+import chalk from 'chalk'
+import { PHASE_ENGINE_PROTOCOL } from '../phase-engine/phase-registry.js'
 
 function ensureDir(dir: string): void {
   try {
@@ -383,6 +385,7 @@ description: UX and accessibility rules for Coherent UI
 const SKILL_COHERENT_GENERATE = `---
 name: coherent-generate
 description: Skill-mode orchestrator for Coherent page/component/project generation via the phase-engine CLI
+phase_engine_protocol: ${PHASE_ENGINE_PROTOCOL}
 ---
 
 # coherent-generate — skill-mode orchestrator
@@ -390,6 +393,10 @@ description: Skill-mode orchestrator for Coherent page/component/project generat
 Drives Coherent's v0.9.0 phase rail via the \`coherent\` CLI, one phase at a
 time. Responses come from THIS model session; the CLI never calls an AI API
 under this skill.
+
+**Protocol version: ${PHASE_ENGINE_PROTOCOL}.** Every \`coherent _phase ...\`
+invocation below passes \`--protocol ${PHASE_ENGINE_PROTOCOL}\` so CLI/markdown
+drift is caught at the first ingest, not silently halfway through a run.
 
 ## When to invoke
 
@@ -426,14 +433,14 @@ Keep \`UUID\` for every subsequent phase call.
 ### 2. Plan phase (AI)
 
 \`\`\`bash
-coherent _phase prep plan --session "$UUID" > /tmp/plan-prompt.md
+coherent _phase prep plan --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/plan-prompt.md
 \`\`\`
 
 Read \`/tmp/plan-prompt.md\`. Produce the plan JSON response (match the
 schema in the prompt exactly). Write to \`/tmp/plan-response.md\`. Then:
 
 \`\`\`bash
-coherent _phase ingest plan --session "$UUID" < /tmp/plan-response.md
+coherent _phase ingest plan --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/plan-response.md
 \`\`\`
 
 ### 3. Anchor phase (AI)
@@ -441,9 +448,9 @@ coherent _phase ingest plan --session "$UUID" < /tmp/plan-response.md
 Same prep → respond → ingest cycle:
 
 \`\`\`bash
-coherent _phase prep anchor --session "$UUID" > /tmp/anchor-prompt.md
+coherent _phase prep anchor --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/anchor-prompt.md
 # produce response file
-coherent _phase ingest anchor --session "$UUID" < /tmp/anchor-response.md
+coherent _phase ingest anchor --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/anchor-response.md
 \`\`\`
 
 ### 4. Extract-style phase (deterministic)
@@ -451,15 +458,15 @@ coherent _phase ingest anchor --session "$UUID" < /tmp/anchor-response.md
 No AI call — pure transform over the anchor artifact:
 
 \`\`\`bash
-coherent _phase run extract-style --session "$UUID"
+coherent _phase run extract-style --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL}
 \`\`\`
 
 ### 5. Components phase (AI)
 
 \`\`\`bash
-coherent _phase prep components --session "$UUID" > /tmp/components-prompt.md
+coherent _phase prep components --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/components-prompt.md
 # produce response file
-coherent _phase ingest components --session "$UUID" < /tmp/components-response.md
+coherent _phase ingest components --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/components-response.md
 \`\`\`
 
 ### 6. Page phase (AI, repeat per page)
@@ -468,15 +475,15 @@ For each \`pageId\` in \`.coherent/session/$UUID/plan.json\` under
 \`pageNames[].id\`:
 
 \`\`\`bash
-coherent _phase prep page:<pageId> --session "$UUID" > /tmp/page-<id>-prompt.md
+coherent _phase prep page:<pageId> --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/page-<id>-prompt.md
 # produce response file
-coherent _phase ingest page:<pageId> --session "$UUID" < /tmp/page-<id>-response.md
+coherent _phase ingest page:<pageId> --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/page-<id>-response.md
 \`\`\`
 
 ### 7. Log-run phase (deterministic)
 
 \`\`\`bash
-coherent _phase run log-run --session "$UUID"
+coherent _phase run log-run --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL}
 \`\`\`
 
 ### 8. End the session
@@ -530,6 +537,25 @@ export function writeClaudeCommands(projectRoot: string): void {
   }
 }
 
+/**
+ * Exported for tests — the skill body generated for this CLI build. Every
+ * `coherent _phase ...` invocation inside must carry
+ * `--protocol ${PHASE_ENGINE_PROTOCOL}`; the test suite enforces that.
+ */
+export const COHERENT_GENERATE_SKILL_BODY = SKILL_COHERENT_GENERATE
+
+/**
+ * Extract the declared `phase_engine_protocol` from a coherent-generate
+ * SKILL.md body. Returns `null` when the frontmatter key is missing or
+ * unparseable — callers treat that as "pre-protocol-guard markdown".
+ */
+export function readSkillProtocol(markdown: string): number | null {
+  const match = markdown.match(/^phase_engine_protocol:\s*(\d+)\s*$/m)
+  if (!match) return null
+  const n = Number(match[1])
+  return Number.isFinite(n) ? n : null
+}
+
 export function writeClaudeSkills(projectRoot: string): void {
   const dirCoherent = join(projectRoot, '.claude', 'skills', 'coherent-project')
   const dirFrontend = join(projectRoot, '.claude', 'skills', 'frontend-ux')
@@ -539,7 +565,26 @@ export function writeClaudeSkills(projectRoot: string): void {
   ensureDir(dirGenerate)
   writeFileSync(join(dirCoherent, 'SKILL.md'), SKILL_COHERENT, 'utf-8')
   writeFileSync(join(dirFrontend, 'SKILL.md'), SKILL_FRONTEND_UX, 'utf-8')
-  writeFileSync(join(dirGenerate, 'SKILL.md'), SKILL_COHERENT_GENERATE, 'utf-8')
+
+  // R5 refresh notice: if an older protocol generation exists in the project,
+  // tell the user it's being upgraded so a stale ambient copy never goes
+  // unnoticed. Silent when the markdown is absent or already current.
+  const generatePath = join(dirGenerate, 'SKILL.md')
+  if (existsSync(generatePath)) {
+    try {
+      const existing = readFileSync(generatePath, 'utf-8')
+      const declared = readSkillProtocol(existing)
+      if (declared !== null && declared !== PHASE_ENGINE_PROTOCOL) {
+        console.log(
+          chalk.yellow(`   ↻ Refreshing coherent-generate skill (protocol ${declared} → ${PHASE_ENGINE_PROTOCOL}).`),
+        )
+      }
+    } catch {
+      // Unreadable existing file — overwrite silently, downstream tooling
+      // already handles broken `.claude/` state.
+    }
+  }
+  writeFileSync(generatePath, SKILL_COHERENT_GENERATE, 'utf-8')
 }
 
 export function writeClaudeSettings(projectRoot: string): void {
