@@ -254,14 +254,14 @@ export default function DesignSystemPage() {
                     style={{
                       backgroundColor:
                         level === 0
-                          ? 'hsl(var(--border))'
+                          ? 'var(--border)'
                           : level === 1
-                            ? 'color-mix(in srgb, hsl(var(--primary)) 25%, hsl(var(--border)))'
+                            ? 'color-mix(in srgb, var(--primary) 25%, var(--border))'
                             : level === 2
-                              ? 'color-mix(in srgb, hsl(var(--primary)) 50%, hsl(var(--border)))'
+                              ? 'color-mix(in srgb, var(--primary) 50%, var(--border))'
                               : level === 3
-                                ? 'color-mix(in srgb, hsl(var(--primary)) 75%, hsl(var(--border)))'
-                                : 'hsl(var(--primary))',
+                                ? 'color-mix(in srgb, var(--primary) 75%, var(--border))'
+                                : 'var(--primary)',
                     }}
                     title={\`\${day}: \${count} change\${count === 1 ? '' : 's'}\`}
                   />
@@ -281,8 +281,8 @@ export default function DesignSystemPage() {
                 style={{
                   backgroundColor:
                     i === 0
-                      ? 'hsl(var(--border))'
-                      : \`color-mix(in srgb, hsl(var(--primary)) \${i * 25}%, hsl(var(--border)))\`,
+                      ? 'var(--border)'
+                      : \`color-mix(in srgb, var(--primary) \${i * 25}%, var(--border))\`,
                 }}
               />
             ))}
