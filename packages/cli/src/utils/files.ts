@@ -8,6 +8,7 @@ import { readFile as fsReadFile, writeFile as fsWriteFile, mkdir, rename, unlink
 import { dirname, join } from 'path'
 import { existsSync, writeFileSync, unlinkSync, readFileSync } from 'fs'
 import { randomBytes } from 'crypto'
+import { COHERENT_ERROR_CODES, CoherentError } from '../errors/index.js'
 
 /**
  * Read file content
@@ -162,10 +163,13 @@ export function acquirePersistentLock(projectRoot: string): void {
       if (data.kind === 'persistent') {
         // Persistent lock held by another session. Staleness = timestamp only.
         if (age < PERSISTENT_LOCK_STALE_MS) {
-          throw new Error(
-            `Another coherent session is active (lock age: ${Math.round(age / 1000)}s). ` +
-              `Finish it with \`coherent session end <uuid>\` or remove ${LOCK_FILENAME} if the session is abandoned.`,
-          )
+          throw new CoherentError({
+            code: COHERENT_ERROR_CODES.E002_SESSION_LOCKED,
+            message: `Another coherent session is active (lock age: ${Math.round(age / 1000)}s)`,
+            cause:
+              'Coherent holds a project-wide lock between session start and session end so two runs cannot corrupt shared state.',
+            fix: `Finish the active session with \`coherent session end <uuid>\`, or delete ${LOCK_FILENAME} if the session is abandoned.`,
+          })
         }
         // Stale persistent lock: reclaim.
         unlinkSync(lockPath)

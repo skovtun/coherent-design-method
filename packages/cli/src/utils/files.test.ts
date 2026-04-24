@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { acquirePersistentLock, releasePersistentLock } from './files.js'
+import { COHERENT_ERROR_CODES, CoherentError, isCoherentError } from '../errors/index.js'
 
 const LOCK_FILENAME = '.coherent.lock'
 
@@ -26,6 +27,24 @@ describe('acquirePersistentLock', () => {
     root = mkdtempSync(join(tmpdir(), 'coherent-lock-'))
     acquirePersistentLock(root)
     expect(() => acquirePersistentLock(root)).toThrow(/Another coherent session is active/)
+  })
+
+  it('throws CoherentError with code E002 on collision (T17b)', () => {
+    root = mkdtempSync(join(tmpdir(), 'coherent-lock-'))
+    acquirePersistentLock(root)
+
+    let caught: unknown = null
+    try {
+      acquirePersistentLock(root)
+    } catch (e) {
+      caught = e
+    }
+    expect(isCoherentError(caught)).toBe(true)
+    const err = caught as CoherentError
+    expect(err.code).toBe(COHERENT_ERROR_CODES.E002_SESSION_LOCKED)
+    expect(err.message).toMatch(/Another coherent session is active/)
+    expect(err.fix).toMatch(/coherent session end/)
+    expect(err.docsUrl).toBe('https://getcoherent.design/errors/E002')
   })
 
   it('regression (codex P1 #3): second acquire does NOT reclaim lock when PID is absent', () => {
