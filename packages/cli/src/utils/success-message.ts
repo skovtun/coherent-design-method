@@ -70,11 +70,9 @@ export function showSuccessMessage(projectPath: string = '.', options: SuccessMe
   console.log(chalk.bold('  Next:'))
   console.log('')
 
-  // Command color: `chalk.cyanBright.bold` makes the runnable commands pop
-  // against the `chalk.dim` explanation text around them. Plain cyan was
-  // rendering as a low-contrast muted turquoise in some terminals and got
-  // lost in the scrollback.
-  const cmd = chalk.cyanBright.bold
+  // Command color: plain `chalk.green` — readable across light and dark
+  // terminals, not bold (bold felt heavy in real-terminal testing).
+  const cmd = chalk.green
 
   if (mode === 'skill') {
     console.log(chalk.dim('    1. Describe your app — in Claude Code:'))

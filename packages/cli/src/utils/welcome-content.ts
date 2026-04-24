@@ -72,8 +72,8 @@ export default function HomePage() {
     {
       num: 1,
       title: 'Describe your app',
-      desc: \`Tell the AI what to build — pages, sections, and style. A full multi-page prototype is generated instantly. \${describeHint}\`,
-      cmd: describeCmd,
+      desc: ${JSON.stringify(`Tell the AI what to build — pages, sections, and style. A full multi-page prototype is generated instantly. ${describeHint}`)},
+      cmd: ${JSON.stringify(describeCmd)},
     },
     {
       num: 2,
@@ -85,7 +85,7 @@ export default function HomePage() {
       num: 3,
       title: 'Iterate',
       desc: 'Change colors, fonts, add pages — each command updates the entire system consistently.',
-      cmd: iterateCmd,
+      cmd: ${JSON.stringify(iterateCmd)},
     },
     {
       num: 4,
