@@ -191,17 +191,16 @@ function runCreateNextApp(projectPath: string): Promise<void> {
 
     let buffer = ''
     let prevBlank = false
-    // Heartbeat spinner bridges the 10-15s silence while create-next-app's
-    // `npm install` is quietly installing 300+ packages. Starts
-    // unconditionally when the child process starts — doesn't depend on
-    // catching a specific trigger line, which avoided a race that caused
-    // the spinner frame to overwrite the "Creating a new Next.js app..."
-    // line it used to fire on. Stops the moment the first non-noise
-    // line arrives (typically "added N packages in Xs").
-    const installSpinner = ora({ text: 'Installing dependencies (takes ~15s)...', prefixText: ' ' }).start()
-    const stopInstallSpinner = (): void => {
-      if (installSpinner.isSpinning) installSpinner.stop()
-    }
+    // Static "install in progress" breadcrumb — not an animated spinner.
+    // An ora spinner duplicated itself on the screen when chunks of
+    // filtered-out noise arrived faster than ora's animation tick: every
+    // rapid-fire `chunk in, skip as noise` cycle left ora redrawing onto
+    // a new cursor position instead of clearing its previous frame. A
+    // single printed line before the child produces any real output is
+    // boring, but 100% duplication-proof, and gives the user the same
+    // signal ("install is happening, don't panic") until the real
+    // "added N packages in Xs" arrives a few seconds later.
+    process.stdout.write(chalk.dim('  Installing dependencies (takes ~15s)...\n'))
 
     const handleChunk = (chunk: Buffer): void => {
       buffer += chunk.toString('utf-8')
@@ -216,9 +215,6 @@ function runCreateNextApp(projectPath: string): Promise<void> {
           prevBlank = true
         } else {
           prevBlank = false
-          // First non-noise, non-empty signal → stop the heartbeat so its
-          // dots don't interleave with the real output.
-          stopInstallSpinner()
         }
         process.stdout.write(line + '\n')
       }
@@ -227,7 +223,6 @@ function runCreateNextApp(projectPath: string): Promise<void> {
     proc.stdout?.on('data', handleChunk)
 
     const finalize = (err?: Error): void => {
-      stopInstallSpinner()
       if (buffer && !NOISE_PATTERNS.some(p => p.test(buffer))) {
         process.stdout.write(buffer + '\n')
       }
