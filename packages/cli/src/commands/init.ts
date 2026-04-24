@@ -391,6 +391,20 @@ export default config
       { type: 'init', description: 'Project initialized', timestamp: new Date().toISOString() },
     ])
 
+    // Step 4: Detect editors FIRST so the CTA reflects the user's actual setup.
+    //
+    // Historical bug (codex P2): detection used to run AFTER writeAllHarnessFiles,
+    // which unconditionally creates `.claude/`. On a fresh project with no Claude
+    // Code installed, detection would then always report `claude-code` — so init
+    // would emit the `/coherent-generate` CTA to users who couldn't actually use
+    // it. Capturing the snapshot before we write harness files fixes that.
+    //
+    // The snapshot is passed to writeAllHarnessFiles too, but only
+    // `detectEditors()` uses it today; harness writing still calls its own
+    // detection internally for compatibility with the non-init caller
+    // (`regenerateAllHarnessFiles`).
+    const preWriteDetection = detectEditors(projectPath)
+
     // Generate .cursorrules (Cursor) and CLAUDE.md + .claude/* (Claude Code)
     try {
       await writeAllHarnessFiles(projectPath)
@@ -398,21 +412,16 @@ export default config
       if (process.env.COHERENT_DEBUG === '1') console.error(chalk.dim('Could not write .cursorrules / CLAUDE.md:'), e)
     }
 
-    // Step 4: Resolve mode + show success message tailored to the user's setup.
-    // Detection runs AFTER writeAllHarnessFiles so a freshly scaffolded
-    // `.claude/` is visible — we're telling the user what they can do *now*,
-    // not what was true when they invoked the command.
-    const detection = detectEditors(projectPath)
     const resolvedMode = resolveInitMode(options, {
-      hasClaudeCode: detection.withAdapter.includes('claude-code'),
+      hasClaudeCode: preWriteDetection.withAdapter.includes('claude-code'),
       hasApiKey: hasApiKey(),
     })
 
     warnIfVolatile(projectPath)
     showSuccessMessage('.', {
       mode: resolvedMode,
-      detectedEditors: detection.detected,
-      v2TargetEditors: detection.v2Target,
+      detectedEditors: preWriteDetection.detected,
+      v2TargetEditors: preWriteDetection.v2Target,
     })
   } catch (error) {
     console.error(chalk.red('\n❌ Error:'), error instanceof Error ? error.message : 'Unknown error')
