@@ -267,8 +267,9 @@ export function createFixGlobalsCssApplier(): ArtifactApplier {
 /**
  * The default applier set for `coherent session end` — ordered so later
  * appliers see the effects of earlier ones (config-delta before components
- * before pages).
+ * before pages, globals-css last so token changes from config-delta land
+ * in `app/globals.css`).
  */
 export function defaultAppliers(): ArtifactApplier[] {
-  return [createConfigDeltaApplier(), createComponentsApplier(), createPagesApplier()]
+  return [createConfigDeltaApplier(), createComponentsApplier(), createPagesApplier(), createFixGlobalsCssApplier()]
 }

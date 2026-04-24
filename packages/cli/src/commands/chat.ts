@@ -1549,7 +1549,12 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
     if (options._throwOnError) {
       throw error instanceof Error ? error : new Error(String(error))
     }
-    process.exit(1)
+    // Deferred exit: `process.exit(1)` here would kill the event loop and
+    // abandon the finally's `await store.writeArtifact` / `await sessionEnd`,
+    // leaking the persistent lock (60-min stale-sweep window) for every chat
+    // error. Set `process.exitCode` and let finally drain normally; Node exits
+    // non-zero after the event loop empties.
+    process.exitCode = 1
   } finally {
     runRecord.durationMs = Date.now() - runStartMs
     process.removeListener('SIGINT', onSigint)

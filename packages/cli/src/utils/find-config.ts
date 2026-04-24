@@ -102,10 +102,10 @@ export function exitNotCoherent(): never {
   console.error(chalk.red('❌ Not a Coherent project'))
 
   if (isVolatileDirectory(resolved)) {
-    console.log(chalk.yellow('⚠ This directory is inside /tmp — the OS may have cleaned up your files.'))
-    console.log(chalk.dim('  macOS periodically removes files from /tmp. Use a permanent directory next time.'))
+    console.error(chalk.yellow('⚠ This directory is inside /tmp — the OS may have cleaned up your files.'))
+    console.error(chalk.dim('  macOS periodically removes files from /tmp. Use a permanent directory next time.'))
   }
 
-  console.log(chalk.dim('Run coherent init first, or cd into a project directory.\n'))
+  console.error(chalk.dim('Run coherent init first, or cd into a project directory.\n'))
   process.exit(1)
 }

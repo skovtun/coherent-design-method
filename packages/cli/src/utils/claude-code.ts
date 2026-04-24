@@ -82,13 +82,13 @@ Keep \`UUID\` for every subsequent phase call.
 ### 2. Plan phase (AI)
 
 \`\`\`bash
-coherent _phase prep plan --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/plan-prompt.md
+coherent _phase prep plan --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/coherent-$UUID-plan-prompt.md
 \`\`\`
 
-Read \`/tmp/plan-prompt.md\`. Produce the plan JSON response (match the schema in the prompt exactly). Write to \`/tmp/plan-response.md\`. Then:
+Read \`/tmp/coherent-$UUID-plan-prompt.md\`. Produce the plan JSON response (match the schema in the prompt exactly). Write to \`/tmp/coherent-$UUID-plan-response.md\`. Then:
 
 \`\`\`bash
-coherent _phase ingest plan --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/plan-response.md
+coherent _phase ingest plan --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/coherent-$UUID-plan-response.md
 \`\`\`
 
 ### 3. Anchor phase (AI)
@@ -96,9 +96,9 @@ coherent _phase ingest plan --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL
 Same prep → respond → ingest cycle:
 
 \`\`\`bash
-coherent _phase prep anchor --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/anchor-prompt.md
+coherent _phase prep anchor --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/coherent-$UUID-anchor-prompt.md
 # produce response file
-coherent _phase ingest anchor --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/anchor-response.md
+coherent _phase ingest anchor --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/coherent-$UUID-anchor-response.md
 \`\`\`
 
 ### 4. Extract-style phase (deterministic)
@@ -110,9 +110,9 @@ coherent _phase run extract-style --session "$UUID" --protocol ${PHASE_ENGINE_PR
 ### 5. Components phase (AI)
 
 \`\`\`bash
-coherent _phase prep components --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/components-prompt.md
+coherent _phase prep components --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/coherent-$UUID-components-prompt.md
 # produce response file
-coherent _phase ingest components --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/components-response.md
+coherent _phase ingest components --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/coherent-$UUID-components-response.md
 \`\`\`
 
 ### 6. Page phase (AI, repeat per page)
@@ -120,9 +120,9 @@ coherent _phase ingest components --session "$UUID" --protocol ${PHASE_ENGINE_PR
 For each \`pageId\` in \`.coherent/session/$UUID/plan.json\` under \`pageNames[].id\`:
 
 \`\`\`bash
-coherent _phase prep page:<pageId> --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/page-<id>-prompt.md
+coherent _phase prep page:<pageId> --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/coherent-$UUID-page-<id>-prompt.md
 # produce response file
-coherent _phase ingest page:<pageId> --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/page-<id>-response.md
+coherent _phase ingest page:<pageId> --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/coherent-$UUID-page-<id>-response.md
 \`\`\`
 
 ### 7. End the session
@@ -490,14 +490,14 @@ Keep \`UUID\` for every subsequent phase call.
 ### 2. Plan phase (AI)
 
 \`\`\`bash
-coherent _phase prep plan --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/plan-prompt.md
+coherent _phase prep plan --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/coherent-$UUID-plan-prompt.md
 \`\`\`
 
-Read \`/tmp/plan-prompt.md\`. Produce the plan JSON response (match the
-schema in the prompt exactly). Write to \`/tmp/plan-response.md\`. Then:
+Read \`/tmp/coherent-$UUID-plan-prompt.md\`. Produce the plan JSON response (match the
+schema in the prompt exactly). Write to \`/tmp/coherent-$UUID-plan-response.md\`. Then:
 
 \`\`\`bash
-coherent _phase ingest plan --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/plan-response.md
+coherent _phase ingest plan --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/coherent-$UUID-plan-response.md
 \`\`\`
 
 ### 3. Anchor phase (AI)
@@ -505,9 +505,9 @@ coherent _phase ingest plan --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL
 Same prep → respond → ingest cycle:
 
 \`\`\`bash
-coherent _phase prep anchor --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/anchor-prompt.md
+coherent _phase prep anchor --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/coherent-$UUID-anchor-prompt.md
 # produce response file
-coherent _phase ingest anchor --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/anchor-response.md
+coherent _phase ingest anchor --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/coherent-$UUID-anchor-response.md
 \`\`\`
 
 ### 4. Extract-style phase (deterministic)
@@ -521,9 +521,9 @@ coherent _phase run extract-style --session "$UUID" --protocol ${PHASE_ENGINE_PR
 ### 5. Components phase (AI)
 
 \`\`\`bash
-coherent _phase prep components --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/components-prompt.md
+coherent _phase prep components --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/coherent-$UUID-components-prompt.md
 # produce response file
-coherent _phase ingest components --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/components-response.md
+coherent _phase ingest components --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/coherent-$UUID-components-response.md
 \`\`\`
 
 ### 6. Page phase (AI, repeat per page)
@@ -532,9 +532,9 @@ For each \`pageId\` in \`.coherent/session/$UUID/plan.json\` under
 \`pageNames[].id\`:
 
 \`\`\`bash
-coherent _phase prep page:<pageId> --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/page-<id>-prompt.md
+coherent _phase prep page:<pageId> --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} > /tmp/coherent-$UUID-page-<id>-prompt.md
 # produce response file
-coherent _phase ingest page:<pageId> --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/page-<id>-response.md
+coherent _phase ingest page:<pageId> --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/coherent-$UUID-page-<id>-response.md
 \`\`\`
 
 ### 7. End the session

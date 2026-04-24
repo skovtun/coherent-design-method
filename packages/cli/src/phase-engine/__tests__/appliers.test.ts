@@ -364,8 +364,8 @@ describe('createPagesApplier', () => {
 })
 
 describe('defaultAppliers', () => {
-  it('returns config-delta, components, pages — in that order', () => {
+  it('returns config-delta, components, pages, fix-globals-css — in that order', () => {
     const appliers = defaultAppliers()
-    expect(appliers.map(a => a.name)).toEqual(['config-delta', 'components', 'pages'])
+    expect(appliers.map(a => a.name)).toEqual(['config-delta', 'components', 'pages', 'fix-globals-css'])
   })
 })
