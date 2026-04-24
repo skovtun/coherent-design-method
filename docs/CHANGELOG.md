@@ -2,6 +2,58 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.9.0] — 2026-04-24
+
+### Skill-mode parity — phase engine, shared lifecycle, error codes
+
+Coherent now ships two rails that enter and exit through the same code: the classic `coherent chat` CLI path and the new Claude Code skill (`/coherent-generate`). Both acquire the same persistent lock, drive the same phase sequence, write the same session artifacts, and emit the same run record. This is the foundation the canonical v0.9.0 design doc calls "parity by code-share, not by duplication."
+
+**Why this matters:** before v0.9.0, skill users paying a Claude Code subscription ran a parallel implementation of Coherent's generation pipeline — any drift between the two rails would show up as silent behavioral divergence ("chat produced X but skill produced Y"). v0.9.0 collapses both rails onto one shared phase engine so a new phase, prompt fix, or applier lands for both paths simultaneously.
+
+**What's not in this release:** the Tier 1 parity harness exists (`packages/cli/src/phase-engine/__tests__/parity.test.ts`) with infrastructure ready but fixtures unrecorded — 9 `test.todo` placeholders remain. Full byte-identical verification against canonical intents ships in a follow-up once the fixtures are recorded against live Anthropic responses. Until then, parity is a shared-lifecycle claim, not a byte-for-byte proof.
+
+### Added
+
+- **Phase engine (`packages/cli/src/phase-engine/`)** — the shared generation pipeline. Contract in `phase.ts` (AiPhase / DeterministicPhase), registry in `phase-registry.ts`, orchestrator in `run-pipeline.ts` with hook contract for spinner / heartbeat / retry UX. Six phases ship: `plan` (architecture), `extract-style` (consistency contract), `components` (shared-component generation), `page` (per-page generation with manifest filter), `anchor` (shared-component anchor consolidation), `log-run` (run record composition). Each phase reads its inputs from the session dir and writes its outputs back — strictly disk-backed so skill-rail multi-process invocations can pick up where the previous `_phase` left off.
+- **Session lifecycle (`phase-engine/session-lifecycle.ts`)** — `sessionStart` acquires the persistent project lock, creates a session dir under `.coherent/session/<uuid>/`, snapshots `design-system.config.ts` + file hashes + intent + options + plan-input. `sessionEnd` runs pluggable appliers, writes the run record (or skips on dry-run via `skipRunRecord`), releases the lock, and deletes the session dir. Outer `try/finally` guarantees lock release on every exit path including applier throws (closes codex R3 P1 #8).
+- **Pluggable appliers (`phase-engine/appliers.ts`)** — `createConfigDeltaApplier` / `createComponentsApplier` / `createPagesApplier` / `createFixGlobalsCssApplier`. Each reads its own session artifact, mutates project state, returns a human-readable change list. `defaultAppliers()` composes the skill-rail default set; the chat rail passes explicit appliers so both rails run equivalent post-AI stacks. Pages and components both run `autoFixCode` (codex R2 P2 + R3 P2 #9).
+- **Skill rail entry point (`/coherent-generate`)** — Claude Code slash command that drives `coherent session start` → `coherent _phase <name> prep/ingest` per phase → `coherent session end`. Markdown orchestrator lives in `skills/coherent-generate.md`; hidden `_phase` subcommand in `packages/cli/src/commands/_phase.ts`.
+- **Protocol guard (`_phase --protocol <major>`)** — every `_phase` invocation carries a protocol version that must match `PHASE_ENGINE_PROTOCOL`. Mismatch throws `[COHERENT_E004]` with a refresh instruction so a stale skill markdown can't silently speak to a new CLI (or vice versa).
+- **`coherent auth set-key` / `unset-key`** — top-level auth command. Writes `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` to the project's `.env`. Lane A output so skill users without shell env vars can authenticate through a first-class CLI path.
+- **Editor + mode auto-detection in `coherent init`** — detects Claude Code, Cursor, VS Code, and others; picks skill mode vs subscription mode before the API-key prompt. Codex R2 P1 #4 + #5.
+- **CoherentError base class + registry (E001-E006)** — stable error codes for user-facing failures. Every error carries `code` / `message` / `fix` / `cause` / `docsUrl`. Registry in `packages/cli/src/errors/codes.ts`, reference page in `docs/error-codes.md`. Allocated slots:
+  - `E001_NO_API_KEY` — `coherent chat` has no API credentials.
+  - `E002_SESSION_LOCKED` — `coherent session start` hit an active lock.
+  - `E003_PHASE_INGEST_MALFORMED` — `_phase <name> ingest` got empty / unparseable stdin.
+  - `E004_PROTOCOL_MISMATCH` — `_phase --protocol` version mismatch.
+  - `E005_SESSION_SCHEMA_MISMATCH` — `session.json.schemaVersion` incompatible with the current CLI build.
+  - `E006_SESSION_ARTIFACT_MISSING` — skill auto-resume expected an artifact that isn't there.
+- **ADR 0005 — chat.ts as facade over runPipeline** (`docs/wiki/ADR/0005-chat-ts-as-facade-over-runpipeline.md`) — the migration blueprint. Locks the final shape (`sessionStart` → `runPipeline` → `sessionEnd`) as the integration point both rails converge on.
+- **Skill-mode dogfood runbook** (`docs/runbooks/skill-mode-dogfood.md`) — step-by-step walkthrough for re-running the skill path end-to-end on a clean project.
+
+### Changed
+
+- **`coherent chat` enters via the shared lifecycle frame** — `sessionStart` replaces the inline `acquirePersistentLock` call at the top of the `chatCommand` try; `sessionEnd` replaces the finally's `writeRunRecordRel` + `releasePersistentLock` pair. The rich chat run record is seeded into the session dir as `run-record.json` before `sessionEnd`, so `sessionEnd` writes it to `.coherent/runs/<timestamp>.yaml` via the same path the skill rail uses. No observable behavior change on success; on error the session dir is preserved for post-mortem (matching skill-rail semantics). `--dry-run` skips the run-record write via the new `skipRunRecord` flag.
+- **Chat-rail persistent lock parity** — `acquireProjectLock` (closure-release, chat-only) → `acquirePersistentLock` / `releasePersistentLock` (shared with skill rail). Same `.coherent.lock` file, same API. Closes a latent SIGINT TDZ edge case that could fire early on Ctrl+C.
+- **Post-generation globals.css resync runs as an applier** — previously inline in `chat.ts`, now `createFixGlobalsCssApplier()` passed to `sessionEnd`. Idempotent; re-derives CSS tokens from current config state.
+- **README reframed around skill mode as the default path** — mode selection is auto-detected; subscription path is surfaced equally but not gated.
+
+### Fixed
+
+- **Persistent lock no longer self-destructs on ESRCH** (codex P1 #3). The stale-lock sweep used to delete `.coherent.lock` whenever the owning PID no longer existed, which meant any second process checking during an interrupted session could sweep away the first process's lock mid-run. Now we only sweep when the lock is both PID-stale AND older than the 60-minute wall-clock threshold.
+- **Session-end always releases the lock** (codex R3 P1 #8). Applier throws used to leave `.coherent.lock` on disk indefinitely, wedging the project for every subsequent `coherent session start`. Outer `try/finally` guarantees release.
+- **Skill-rail appliers run autoFixCode on pages + components** (codex R2 P2 + R3 P2 #9). Without this pass, skill-generated pages could ship with missing `"use client"`, invalid lucide-react icon renders, HTML entities in JSX, or raw Tailwind colors. Same `autoFixCode` function the chat rail uses via `modification-handler`.
+- **Session-end composes the run record when a phase didn't seed one** (codex R2 P1 #6). Skill rail previously produced an empty `.coherent/runs/` entry; now `composeRunRecord` assembles the record from session artifacts.
+- **Phase chaining writes the right input artifact for each consumer** (codex P1 #1, parts 1-4) — `plan` seeds `anchor-input.json`, `anchor` writes `components-input.json` via `extract-style`, `components` writes `pages-input.json`. Prevents `"missing required artifact"` errors mid-pipeline.
+- **`coherent init` detects editors before writing harness files** (codex P2). Previously the editor detector ran after the harness write, which meant an IDE-specific layout was never applied on fresh init.
+- **Slash command drives the phase-engine rail** (codex R3 P1 #7). `/coherent-generate` no longer routes to the old inline path.
+
+### For Maintainers
+
+- **Parity harness infrastructure shipped; fixtures pending.** `packages/cli/src/phase-engine/__tests__/parity-harness.ts` has `snapshotTree` / `normalizeTree` / `diffTrees` / `mkScratchRoot` wired. `runRailA` and `runRailB` drivers are stubs awaiting fixture recording against live Anthropic. Recording protocol in `packages/cli/src/phase-engine/__tests__/fixtures/parity/README.md`.
+- **chat.ts facade refactor is partial.** ADR 0005 locks the full migration blueprint; v0.9.0 ships the session-lifecycle bootstrap and one applier (`fix-globals-css` post-gen). Remaining migrations (`createBackup` pre/post, `autoScaffold`, `manifest-auto-sync`) land incrementally across v0.9.x. chat.ts is ~1560 lines today; target per ADR 0005 is ~100-150. Not a release blocker — each migration stands alone, each lands commit-by-commit with the full test suite green.
+- **Tests: 1415 passing + 9 `test.todo` (1424 total).** All `.todo` are parity-fixture placeholders. TypeScript clean. Prettier clean.
+
 ## [0.8.3] — 2026-04-23
 
 ### Codex health audit — five findings closed + v0.8.2 follow-ups shipped
