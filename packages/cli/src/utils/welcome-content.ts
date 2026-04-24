@@ -50,8 +50,8 @@ export default function HomePage() {
     {
       num: 1,
       title: 'Describe your app',
-      desc: 'Tell the AI what to build — pages, sections, and style. A full multi-page prototype is generated instantly.',
-      cmd: 'coherent chat "Create a fitness studio app with pages: home, classes, pricing, about, and contact. Modern, light theme"',
+      desc: 'Tell the AI what to build — pages, sections, and style. Inside Claude Code use /coherent-generate (no API key). Otherwise use coherent chat with an Anthropic or OpenAI key.',
+      cmd: '/coherent-generate "Create a fitness studio app with pages: home, classes, pricing, about, contact. Modern, light theme"',
     },
     {
       num: 2,
@@ -63,7 +63,7 @@ export default function HomePage() {
       num: 3,
       title: 'Iterate',
       desc: 'Change colors, fonts, add pages — each command updates the entire system consistently.',
-      cmd: 'coherent chat "Change primary color to indigo, add a blog page"',
+      cmd: '/coherent-generate "Change primary color to indigo, add a blog page"',
     },
     {
       num: 4,
@@ -166,14 +166,18 @@ export default function HomePage() {
               <Monitor className="size-5 text-primary" />
             </div>
             <div>
-              <h3 className="text-sm font-semibold mb-1">Works with Cursor &amp; AI editors too</h3>
+              <h3 className="text-sm font-semibold mb-1">Two ways to drive it</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                After initializing with CLI, you can describe design changes in Cursor or any AI editor —
-                the rules in <code className="mx-0.5 rounded bg-muted px-1.5 py-0.5 text-xs font-mono">.cursorrules</code>{' '}
-                guide the AI to follow your design system.
-                For the best results, we recommend using{' '}
+                <strong className="font-medium text-foreground">Inside Claude Code:</strong>{' '}
+                run <code className="mx-0.5 rounded bg-muted px-1.5 py-0.5 text-xs font-mono">/coherent-generate</code>{' '}
+                — responses come from your Claude Code session, no API key needed.
+                {' '}
+                <strong className="font-medium text-foreground">Or via CLI:</strong>{' '}
                 <code className="mx-0.5 rounded bg-muted px-1.5 py-0.5 text-xs font-mono">coherent chat</code>{' '}
-                as the primary workflow — it validates code, manages shared components, and keeps everything in sync automatically.
+                uses your own Anthropic or OpenAI key. Both paths hit the same phase engine — same pages, same tokens, same components on disk.
+                Cursor, VS Code, and other AI editors can also follow the{' '}
+                <code className="mx-0.5 rounded bg-muted px-1.5 py-0.5 text-xs font-mono">.cursorrules</code>{' '}
+                hints without running either command.
               </p>
             </div>
           </div>
@@ -337,8 +341,11 @@ export default function HomePage() {
                 <span className="ml-2 text-muted-foreground transition-transform group-open:rotate-45">+</span>
               </summary>
               <div className="px-6 pb-4 text-sm text-muted-foreground leading-relaxed">
-                Open source and free. You need your own API key (Anthropic or OpenAI)
-                for AI generation, which has its own usage costs.
+                The CLI is open source and free. For AI generation you have two options:
+                use <code className="mx-0.5 rounded bg-muted px-1.5 py-0.5 text-xs font-mono">/coherent-generate</code>{' '}
+                inside Claude Code (responses come from your existing Claude Code subscription — no extra charge), or
+                run <code className="mx-0.5 rounded bg-muted px-1.5 py-0.5 text-xs font-mono">coherent chat</code>{' '}
+                with your own Anthropic or OpenAI key (pay-per-use, your usage stays on your account).
               </div>
             </details>
           </div>
