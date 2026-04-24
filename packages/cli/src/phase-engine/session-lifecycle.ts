@@ -176,45 +176,55 @@ export async function sessionEnd(input: SessionEndInput): Promise<SessionEndResu
   const sessionDir = sessionDirPath(projectRoot, uuid)
   const applied: string[] = []
 
-  for (const applier of appliers) {
-    try {
-      const results = await applier.apply({ projectRoot, uuid, sessionDir, store, meta })
-      for (const r of results) applied.push(`${applier.name}: ${r}`)
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      throw new Error(`Applier "${applier.name}" failed: ${msg}`)
-    }
-  }
-
+  // Codex R3 P1 #8: the persistent lock MUST be released on every exit
+  // path from this function — including applier throws. Previously the
+  // release lived in a tail `finally` that only ran after `store.delete`,
+  // so any applier failure left `.coherent.lock` on disk indefinitely
+  // (or until the 60-min stale timeout) and blocked every subsequent
+  // `coherent session start` on the project. One bad run wedged the
+  // whole project for the user. Outer try/finally now guarantees
+  // release; the session dir is preserved on error (we skip
+  // `store.delete`) so the failed-session artifacts remain for
+  // post-mortem inspection.
   let runRecordPath: string | null = null
-  let runRecordRaw = await store.readArtifact(uuid, RUN_RECORD_ARTIFACT)
-
-  // Codex R2 P1 #6: no phase currently seeds `run-record.json` in the skill
-  // rail, so compose one here from session artifacts when missing. Keeps
-  // `.coherent/runs/<timestamp>.yaml` parity with the chat rail so "did
-  // memory help?" telemetry and run-history tooling see both rails
-  // equivalently.
-  if (!runRecordRaw) {
-    const composed = await composeRunRecord(projectRoot, store, uuid, meta)
-    if (composed) {
-      runRecordRaw = JSON.stringify(composed)
-      // Persist the composed record back to the session dir so the
-      // `--keep` flag preserves a full post-mortem, not a half-empty one.
-      await store.writeArtifact(uuid, RUN_RECORD_ARTIFACT, runRecordRaw)
-    }
-  }
-
-  if (runRecordRaw) {
-    try {
-      const parsed = JSON.parse(runRecordRaw) as RunRecord
-      const rel = writeRunRecordRel(projectRoot, parsed)
-      runRecordPath = rel ? resolve(projectRoot, rel) : null
-    } catch {
-      // run-record is best-effort — a malformed artifact shouldn't fail the session.
-    }
-  }
-
   try {
+    for (const applier of appliers) {
+      try {
+        const results = await applier.apply({ projectRoot, uuid, sessionDir, store, meta })
+        for (const r of results) applied.push(`${applier.name}: ${r}`)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        throw new Error(`Applier "${applier.name}" failed: ${msg}`)
+      }
+    }
+
+    let runRecordRaw = await store.readArtifact(uuid, RUN_RECORD_ARTIFACT)
+
+    // Codex R2 P1 #6: no phase currently seeds `run-record.json` in the skill
+    // rail, so compose one here from session artifacts when missing. Keeps
+    // `.coherent/runs/<timestamp>.yaml` parity with the chat rail so "did
+    // memory help?" telemetry and run-history tooling see both rails
+    // equivalently.
+    if (!runRecordRaw) {
+      const composed = await composeRunRecord(projectRoot, store, uuid, meta)
+      if (composed) {
+        runRecordRaw = JSON.stringify(composed)
+        // Persist the composed record back to the session dir so the
+        // `--keep` flag preserves a full post-mortem, not a half-empty one.
+        await store.writeArtifact(uuid, RUN_RECORD_ARTIFACT, runRecordRaw)
+      }
+    }
+
+    if (runRecordRaw) {
+      try {
+        const parsed = JSON.parse(runRecordRaw) as RunRecord
+        const rel = writeRunRecordRel(projectRoot, parsed)
+        runRecordPath = rel ? resolve(projectRoot, rel) : null
+      } catch {
+        // run-record is best-effort — a malformed artifact shouldn't fail the session.
+      }
+    }
+
     if (!keepSession) {
       await store.delete(uuid)
     }

@@ -132,7 +132,7 @@ describe('sessionEnd', () => {
     expect(existsSync(join(projectRoot, '.coherent.lock'))).toBe(false)
   })
 
-  it('surfaces applier failures with the applier name', async () => {
+  it('surfaces applier failures with the applier name + releases the lock (codex R3 P1 #8)', async () => {
     projectRoot = setupProject()
     const { uuid } = await sessionStart({ projectRoot })
 
@@ -144,9 +144,17 @@ describe('sessionEnd', () => {
     }
 
     await expect(sessionEnd({ projectRoot, uuid, appliers: [bad] })).rejects.toThrow(/Applier "bad" failed: boom/)
-    // Session dir should still exist (not deleted on applier error) so caller can inspect.
+    // Session dir preserved on error — caller can inspect the failed run.
     expect(existsSync(join(projectRoot, '.coherent', 'session', uuid))).toBe(true)
-    // Lock stays held on error — caller decides whether to retry or force-unlock.
+    // Lock MUST be released even on applier failure. Previously it stayed on
+    // disk and wedged the project until the stale-timeout window (60 min)
+    // or manual unlink. Now a subsequent `session start` should succeed.
+    expect(existsSync(join(projectRoot, '.coherent.lock'))).toBe(false)
+
+    // Demonstrate the project is NOT wedged: immediately starting another
+    // session on the same project works.
+    const fresh = await sessionStart({ projectRoot })
+    expect(fresh.uuid).not.toBe(uuid)
     expect(existsSync(join(projectRoot, '.coherent.lock'))).toBe(true)
   })
 
