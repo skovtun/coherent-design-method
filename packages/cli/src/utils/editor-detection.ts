@@ -1,5 +1,6 @@
 import { existsSync } from 'fs'
-import { join } from 'path'
+import { homedir } from 'os'
+import { delimiter, join } from 'path'
 
 /**
  * Editors/IDEs whose presence (via a config directory at the project root)
@@ -68,4 +69,47 @@ export function editorLabel(editor: DetectedEditor): string {
     case 'windsurf':
       return 'Windsurf'
   }
+}
+
+/**
+ * Detect whether Claude Code is available on the USER's machine (not just the
+ * current project dir). `coherent init my-app` runs in a brand-new directory
+ * that has no `.claude/` yet, so project-local detection always returns
+ * `false` on first init. This function answers the orthogonal question
+ * "would the user be able to invoke `/coherent-generate`?" by checking the
+ * user's global Claude Code install plus the `claude` binary in PATH.
+ *
+ * Signals (any one is sufficient):
+ *   - `~/.claude/` exists — Claude Code user config / CLI install.
+ *   - `claude` binary resolvable on `$PATH` — CLI reachable.
+ *   - `$CLAUDE_CODE_SESSION` set — running inside an active Claude Code session.
+ *
+ * False positives are cheap (init installs the skill anyway; if no session
+ * exists the CTA just won't fire). False negatives mean a Claude-Code-having
+ * user gets the API-key flow instead — the more painful failure mode, which
+ * is why this check layers on top of `detectEditors()` rather than replacing it.
+ *
+ * `overrides` exists purely for tests — production callers pass no argument.
+ */
+export function detectClaudeCodeUserLevel(overrides?: {
+  home?: string
+  path?: string
+  env?: NodeJS.ProcessEnv
+  fileExists?: (p: string) => boolean
+}): boolean {
+  const exists = overrides?.fileExists ?? existsSync
+  const home = overrides?.home ?? homedir()
+  const env = overrides?.env ?? process.env
+
+  if (env.CLAUDE_CODE_SESSION) return true
+
+  if (exists(join(home, '.claude'))) return true
+
+  const pathEnv = overrides?.path ?? env.PATH ?? ''
+  if (!pathEnv) return false
+  for (const dir of pathEnv.split(delimiter)) {
+    if (!dir) continue
+    if (exists(join(dir, 'claude'))) return true
+  }
+  return false
 }

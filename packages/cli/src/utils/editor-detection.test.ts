@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdirSync, mkdtempSync, rmSync } from 'fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { detectEditors, editorLabel } from './editor-detection.js'
+import { detectClaudeCodeUserLevel, detectEditors, editorLabel } from './editor-detection.js'
 
 describe('detectEditors', () => {
   let root: string
@@ -63,5 +63,52 @@ describe('editorLabel', () => {
     expect(editorLabel('cursor')).toBe('Cursor')
     expect(editorLabel('continue')).toBe('Continue')
     expect(editorLabel('windsurf')).toBe('Windsurf')
+  })
+})
+
+describe('detectClaudeCodeUserLevel (codex R2 P1 #5)', () => {
+  let home: string
+  let path: string
+
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), 'coherent-home-'))
+    path = mkdtempSync(join(tmpdir(), 'coherent-path-'))
+  })
+
+  afterEach(() => {
+    rmSync(home, { recursive: true, force: true })
+    rmSync(path, { recursive: true, force: true })
+  })
+
+  it('returns false for a clean user env with no signals', () => {
+    expect(detectClaudeCodeUserLevel({ home, path, env: {} })).toBe(false)
+  })
+
+  it('returns true when ~/.claude/ exists on disk', () => {
+    mkdirSync(join(home, '.claude'))
+    expect(detectClaudeCodeUserLevel({ home, path, env: {} })).toBe(true)
+  })
+
+  it('returns true when `claude` binary is on $PATH', () => {
+    writeFileSync(join(path, 'claude'), '#!/bin/sh\n', { mode: 0o755 })
+    expect(detectClaudeCodeUserLevel({ home, path, env: {} })).toBe(true)
+  })
+
+  it('returns true when CLAUDE_CODE_SESSION env is set (init running inside a session)', () => {
+    expect(
+      detectClaudeCodeUserLevel({
+        home,
+        path,
+        env: { CLAUDE_CODE_SESSION: '1' },
+      }),
+    ).toBe(true)
+  })
+
+  it('handles multi-entry $PATH gracefully', () => {
+    const other = mkdtempSync(join(tmpdir(), 'coherent-path-'))
+    writeFileSync(join(other, 'claude'), '#!/bin/sh\n', { mode: 0o755 })
+    const multiPath = `/nonexistent-one:${path}:${other}:/nonexistent-two`
+    expect(detectClaudeCodeUserLevel({ home, path: multiPath, env: {} })).toBe(true)
+    rmSync(other, { recursive: true, force: true })
   })
 })

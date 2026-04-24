@@ -27,7 +27,7 @@ import { getWelcomeMarkdown, generateWelcomeComponent } from '../utils/welcome-c
 import { setupApiKey, hasApiKey } from '../utils/api-key-setup.js'
 import { writeAllHarnessFiles } from '../utils/harness-context.js'
 import { isTailwindV4, generateV4GlobalsCss } from '../utils/tailwind-version.js'
-import { detectEditors } from '../utils/editor-detection.js'
+import { detectEditors, detectClaudeCodeUserLevel } from '../utils/editor-detection.js'
 import type { SuccessMode } from '../utils/success-message.js'
 import { cwd } from 'process'
 import { toKebabCase, toTitleCase } from '../utils/strings.js'
@@ -376,34 +376,48 @@ export default config
       docsSpinner.succeed('Documentation pages created')
     }
 
-    // API key setup. Mode flags decide whether we prompt:
-    //  - skill-mode: never prompt; rely on Claude Code subscription.
-    //  - api-mode:   prompt if no key (existing behavior).
-    //  - both:       prompt optionally; skill path works without key.
-    //  - default:    prompt if no key (existing behavior).
-    const skipApiKey = options.skillMode === true
-    if (!skipApiKey && !hasApiKey()) {
-      await setupApiKey(projectPath)
-    }
-
     // Record initial change for status
     appendRecentChanges(projectPath, [
       { type: 'init', description: 'Project initialized', timestamp: new Date().toISOString() },
     ])
 
-    // Step 4: Detect editors FIRST so the CTA reflects the user's actual setup.
+    // Detect editors FIRST — BEFORE the API key prompt, so `resolveInitMode()`
+    // can pick `skill` when the user already has Claude Code and never has
+    // to be prompted for a key they don't need.
     //
-    // Historical bug (codex P2): detection used to run AFTER writeAllHarnessFiles,
-    // which unconditionally creates `.claude/`. On a fresh project with no Claude
-    // Code installed, detection would then always report `claude-code` — so init
-    // would emit the `/coherent-generate` CTA to users who couldn't actually use
-    // it. Capturing the snapshot before we write harness files fixes that.
+    // Two layers (codex review R1 P2 + R2 P1 #5):
     //
-    // The snapshot is passed to writeAllHarnessFiles too, but only
-    // `detectEditors()` uses it today; harness writing still calls its own
-    // detection internally for compatibility with the non-init caller
-    // (`regenerateAllHarnessFiles`).
+    //   1. Project-local detection (`detectEditors`) — picks up any editor
+    //      marker dirs (`.cursor/`, `.continue/`, `.windsurf/`, `.claude/`)
+    //      that already exist in the project. Useful for `coherent init`
+    //      run against an existing codebase, not a fresh directory.
+    //
+    //   2. User-level detection (`detectClaudeCodeUserLevel`) — checks
+    //      `~/.claude/`, `$PATH` for `claude` binary, `$CLAUDE_CODE_SESSION`
+    //      env. This is the path that matters for `coherent init my-app`
+    //      against a brand-new directory, where the project marker will
+    //      never exist on first run.
+    //
+    // Historical bug (R1 P2): detection used to run AFTER writeAllHarnessFiles,
+    // which unconditionally creates `.claude/` — making detection always see
+    // claude-code even for users who didn't have it. Snapshot BEFORE harness
+    // write.
     const preWriteDetection = detectEditors(projectPath)
+    const hasClaudeCode = preWriteDetection.withAdapter.includes('claude-code') || detectClaudeCodeUserLevel()
+
+    // Resolve mode once, up front, so the API-key prompt branch below sees
+    // the final answer. Previously we auto-detected AFTER the API key
+    // prompt fired, so the skill flow was unreachable in practice (codex
+    // R2 P1 #4).
+    const resolvedMode = resolveInitMode(options, { hasClaudeCode, hasApiKey: hasApiKey() })
+
+    // API key setup. Skip the prompt entirely for skill mode — the whole
+    // point of the no-key flow is that the user doesn't need one. Both /
+    // api mode still prompt when no key is present.
+    const skipApiKey = resolvedMode === 'skill'
+    if (!skipApiKey && !hasApiKey()) {
+      await setupApiKey(projectPath)
+    }
 
     // Generate .cursorrules (Cursor) and CLAUDE.md + .claude/* (Claude Code)
     try {
@@ -411,11 +425,6 @@ export default config
     } catch (e) {
       if (process.env.COHERENT_DEBUG === '1') console.error(chalk.dim('Could not write .cursorrules / CLAUDE.md:'), e)
     }
-
-    const resolvedMode = resolveInitMode(options, {
-      hasClaudeCode: preWriteDetection.withAdapter.includes('claude-code'),
-      hasApiKey: hasApiKey(),
-    })
 
     warnIfVolatile(projectPath)
     showSuccessMessage('.', {
