@@ -1085,7 +1085,7 @@ export function Footer() {
               <span className="text-sm font-semibold">Coherent Design Method</span>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Design once. Stay consistent everywhere.
+              Describe an app. Get a product.
             </p>
           </div>
           <div>

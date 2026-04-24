@@ -56,9 +56,7 @@ function printInitHeader(version: string): void {
   if (cols < 60) {
     console.log('')
     console.log(`  ${chalk.blue('██')} ${chalk.blue.dim('▒▒')}  ${chalk.bold('Coherent')} ${chalk.dim('v' + version)}`)
-    console.log(
-      `  ${chalk.blue.dim('▒▒')} ${chalk.blue('██')}  ${chalk.blue('Design once. Stay consistent everywhere.')}`,
-    )
+    console.log(`  ${chalk.blue.dim('▒▒')} ${chalk.blue('██')}  ${chalk.blue('Describe an app. Get a product.')}`)
     console.log('')
     return
   }
@@ -74,18 +72,20 @@ function printInitHeader(version: string): void {
   const empty = chalk.dim('│') + ' '.repeat(innerWidth) + chalk.dim('│')
   const logo1 = chalk.blue('██') + ' ' + chalk.blue.dim('▒▒')
   const logo2 = chalk.blue.dim('▒▒') + ' ' + chalk.blue('██')
-  // Tagline is rendered in a single primary-blue for brand coherence — two
-  // different weights (bold + dim) used to imply a hierarchy the phrase
-  // doesn't actually have. It's one brand statement; treat it as one.
-  const tag1 = chalk.blue('Design once.')
-  const tag2 = chalk.blue('Stay consistent everywhere.')
+  // Two-level tagline: tagline + subtitle. Tagline is the hook,
+  // subtitle unpacks the promise (what you get). Subtitle is kept
+  // short (<58 chars) to fit the CLI banner; the scaffolded welcome
+  // page carries the longer form with "design system built in"
+  // since it has more room to breathe.
+  const tag1Plain = 'Describe an app. Get a product.'
+  const tag2Plain = 'Consistent, interactive, multi-page UI.'
+  const tag1 = chalk.blue(tag1Plain)
+  const tag2 = chalk.blue(tag2Plain)
 
   const row1 =
-    chalk.dim('│') + pad(`   ${logo1}   ${tag1}`, 3 + logoTopPlain.length + 3 + 'Design once.'.length) + chalk.dim('│')
+    chalk.dim('│') + pad(`   ${logo1}   ${tag1}`, 3 + logoTopPlain.length + 3 + tag1Plain.length) + chalk.dim('│')
   const row2 =
-    chalk.dim('│') +
-    pad(`   ${logo2}   ${tag2}`, 3 + logoBotPlain.length + 3 + 'Stay consistent everywhere.'.length) +
-    chalk.dim('│')
+    chalk.dim('│') + pad(`   ${logo2}   ${tag2}`, 3 + logoBotPlain.length + 3 + tag2Plain.length) + chalk.dim('│')
   const bottom = chalk.dim('╰' + '─'.repeat(innerWidth) + '╯')
 
   console.log('')

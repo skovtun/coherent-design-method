@@ -80,13 +80,17 @@ export default function HomePage() {
       <section className="bg-gradient-to-b from-muted/40 via-background to-background">
         <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-4 py-16 lg:py-24 text-center">
           <h1 className="text-3xl font-bold tracking-tight md:text-4xl lg:text-5xl max-w-2xl">
-            Design once.{' '}
-            <span className="text-primary">Stay consistent everywhere.</span>
+            Describe an app.{' '}
+            <span className="text-primary">Get a product.</span>
           </h1>
+          <p className="text-base text-muted-foreground leading-relaxed max-w-xl">
+            A consistent, interactive, multi-page UI — with a flexible design system
+            and reusable components built in.
+          </p>
           <p className="text-sm text-muted-foreground leading-relaxed max-w-lg">
-            Your project is ready. Describe what you want to build — the AI generates
-            interconnected pages with shared components, tokens, and layouts.
-            Everything stays in sync.
+            Your project is ready. Describe what you want to build — Coherent generates
+            interconnected pages that share components, tokens, and layouts.
+            Change one token; every page follows.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <a
