@@ -4,16 +4,22 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { __internal, listPhaseArtifacts, sessionEnd, sessionStart, type ArtifactApplier } from '../session-lifecycle.js'
 import type { RunRecord } from '../../utils/run-record.js'
+import { createMinimalConfig } from '../../utils/minimal-config.js'
 
-const { INTENT_ARTIFACT, OPTIONS_ARTIFACT, CONFIG_SNAPSHOT_ARTIFACT, HASHES_BEFORE_ARTIFACT, RUN_RECORD_ARTIFACT } =
-  __internal
+const {
+  INTENT_ARTIFACT,
+  OPTIONS_ARTIFACT,
+  CONFIG_SNAPSHOT_ARTIFACT,
+  HASHES_BEFORE_ARTIFACT,
+  PLAN_INPUT_ARTIFACT,
+  RUN_RECORD_ARTIFACT,
+} = __internal
 
-const MINIMAL_CONFIG = `export const config = {
-  meta: { name: 'Test', version: '0.1.0' },
-  tokens: { color: {}, typography: {}, spacing: {} },
-  components: [],
-} as const
-`
+// Real `DesignSystemConfig` (zod-valid) so sessionStart can parse it and
+// seed plan-input.json. Previous inline stub was shape-adjacent but failed
+// schema validation, which masked the (now-fixed) missing plan-input.json
+// seeding bug in the skill-mode rail.
+const MINIMAL_CONFIG = `export const config = ${JSON.stringify(createMinimalConfig('Test'), null, 2)} as const\n`
 
 function setupProject(): string {
   const projectRoot = mkdtempSync(join(tmpdir(), 'coherent-session-lifecycle-'))
@@ -49,11 +55,20 @@ describe('sessionStart', () => {
 
     // Raw file contents preserved byte-for-byte.
     const configSnapshot = readFileSync(join(result.sessionDir, CONFIG_SNAPSHOT_ARTIFACT), 'utf-8')
-    expect(configSnapshot).toContain("meta: { name: 'Test'")
+    expect(configSnapshot).toContain('"name": "Test"')
+    expect(configSnapshot).toContain('as const')
 
     // hashes file exists even when no hashes were persisted yet — it's an empty {} snapshot.
     const hashes = JSON.parse(readFileSync(join(result.sessionDir, HASHES_BEFORE_ARTIFACT), 'utf-8'))
     expect(typeof hashes).toBe('object')
+
+    // plan-input.json must be seeded so `coherent _phase prep plan` finds a
+    // real input. Shape: { message: string, config: DesignSystemConfig }.
+    const planInput = JSON.parse(readFileSync(join(result.sessionDir, PLAN_INPUT_ARTIFACT), 'utf-8'))
+    expect(planInput.message).toBe('add pricing page')
+    expect(planInput.config).toBeDefined()
+    expect(planInput.config.name).toBe('Test')
+    expect(Array.isArray(planInput.config.components)).toBe(true)
   })
 
   it('rejects a non-Coherent project', async () => {

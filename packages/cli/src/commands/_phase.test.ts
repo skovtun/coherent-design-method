@@ -5,13 +5,11 @@ import { join } from 'path'
 import { phaseCommand } from './_phase.js'
 import { sessionStart } from '../phase-engine/session-lifecycle.js'
 import { PHASE_ENGINE_PROTOCOL } from '../phase-engine/phase-registry.js'
+import { createMinimalConfig } from '../utils/minimal-config.js'
 
-const MINIMAL_CONFIG = `export const config = {
-  meta: { name: 'Test', version: '0.1.0' },
-  tokens: { color: {}, typography: {}, spacing: {} },
-  components: [],
-} as const
-`
+// sessionStart now parses design-system.config.ts via DesignSystemManager
+// (to seed plan-input.json), so this fixture must match the real schema.
+const MINIMAL_CONFIG = `export const config = ${JSON.stringify(createMinimalConfig('Test'), null, 2)} as const\n`
 
 function setupProject(): string {
   const root = mkdtempSync(join(tmpdir(), 'coherent-phase-cmd-'))

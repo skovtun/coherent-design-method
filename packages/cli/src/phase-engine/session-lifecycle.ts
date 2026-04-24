@@ -20,6 +20,7 @@
 import { existsSync } from 'fs'
 import { readdir, readFile } from 'fs/promises'
 import { join, resolve } from 'path'
+import { DesignSystemManager } from '@getcoherent/core'
 import { acquirePersistentLock, releasePersistentLock } from '../utils/files.js'
 import { loadHashes } from '../utils/file-hashes.js'
 import { writeRunRecordRel } from '../utils/run-record.js'
@@ -93,6 +94,7 @@ const INTENT_ARTIFACT = 'intent.txt'
 const OPTIONS_ARTIFACT = 'options.json'
 const CONFIG_SNAPSHOT_ARTIFACT = 'config-snapshot.json'
 const HASHES_BEFORE_ARTIFACT = 'hashes-before.json'
+const PLAN_INPUT_ARTIFACT = 'plan-input.json'
 const RUN_RECORD_ARTIFACT = 'run-record.json'
 
 /**
@@ -129,6 +131,19 @@ export async function sessionStart(input: SessionStartInput): Promise<SessionSta
 
     const hashes = await loadHashes(projectRoot)
     await store.writeArtifact(meta.uuid, HASHES_BEFORE_ARTIFACT, JSON.stringify(hashes, null, 2))
+
+    // Seed plan-input.json so the first skill-mode call (`coherent _phase prep
+    // plan`) finds a real input. Without this, the skill rail dies on step 1
+    // with `plan: missing required artifact "plan-input.json"`. The plan phase
+    // expects `{ message: string, config: DesignSystemConfig }` — we have both:
+    // `intent` is the user's request, and the config was just snapshotted.
+    // We load the parsed config object here (not the raw file) because
+    // `PlanInput.config` is typed as `DesignSystemConfig`, not a string.
+    const dsm = new DesignSystemManager(configPath)
+    await dsm.load()
+    const parsedConfig = dsm.getConfig()
+    const planInput = { message: intent, config: parsedConfig }
+    await store.writeArtifact(meta.uuid, PLAN_INPUT_ARTIFACT, JSON.stringify(planInput, null, 2))
 
     return {
       uuid: meta.uuid,
@@ -207,6 +222,7 @@ export const __internal = {
   OPTIONS_ARTIFACT,
   CONFIG_SNAPSHOT_ARTIFACT,
   HASHES_BEFORE_ARTIFACT,
+  PLAN_INPUT_ARTIFACT,
   RUN_RECORD_ARTIFACT,
 }
 
@@ -227,6 +243,7 @@ export async function listPhaseArtifacts(projectRoot: string, uuid: string): Pro
     OPTIONS_ARTIFACT,
     CONFIG_SNAPSHOT_ARTIFACT,
     HASHES_BEFORE_ARTIFACT,
+    PLAN_INPUT_ARTIFACT,
     RUN_RECORD_ARTIFACT,
   ])
   return entries.filter(n => !reserved.has(n)).sort()
