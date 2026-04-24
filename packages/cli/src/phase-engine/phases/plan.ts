@@ -22,6 +22,7 @@
 import type { DesignSystemConfig, ModificationRequest } from '@getcoherent/core'
 import type { AiPhase, PhaseContext } from '../phase.js'
 import { buildPlanOnlyPrompt } from '../prompt-builders/plan-only.js'
+import type { AnchorInput } from './anchor.js'
 
 const VALID_NAV_TYPES = new Set(['header', 'sidebar', 'both', 'none'])
 
@@ -117,6 +118,12 @@ export interface PlanPhaseOptions {
   planArtifact?: string
   /** Artifact to merge ConfigDelta into. Default `config-delta.json`. */
   configDeltaArtifact?: string
+  /**
+   * Artifact to seed with AnchorInput so the next phase (`_phase prep anchor`)
+   * finds its input. Default `anchor-input.json`. Set to `null` to suppress
+   * the chain — useful when an upstream caller seeds anchor-input itself.
+   */
+  anchorInputArtifact?: string | null
 }
 
 /**
@@ -164,6 +171,8 @@ export function createPlanPhase(options: PlanPhaseOptions = {}): AiPhase {
   const inputFile = options.inputArtifact ?? 'plan-input.json'
   const planFile = options.planArtifact ?? 'plan.json'
   const deltaFile = options.configDeltaArtifact ?? 'config-delta.json'
+  // `undefined` → default 'anchor-input.json'; `null` → suppress chaining.
+  const anchorInputFile = options.anchorInputArtifact === undefined ? 'anchor-input.json' : options.anchorInputArtifact
 
   async function loadInput(ctx: PhaseContext): Promise<PlanInput> {
     const raw = await ctx.session.readArtifact(ctx.sessionId, inputFile)
@@ -196,6 +205,33 @@ export function createPlanPhase(options: PlanPhaseOptions = {}): AiPhase {
 
       const planArtifact: PlanArtifact = { pageNames, navigationType, appName: planAppName }
       await ctx.session.writeArtifact(ctx.sessionId, planFile, JSON.stringify(planArtifact, null, 2))
+
+      // Chain anchor-input.json so the next skill-mode call (`_phase prep
+      // anchor`) finds its input. Without this the pipeline dies here with
+      // `anchor: missing required artifact "anchor-input.json"` (codex P1 #1
+      // chain — this is part 2/4).
+      //
+      // Skip the write when pageNames is empty — the plan response produced
+      // no add-page requests so there's no homePage to anchor on. The anchor
+      // phase will then fail with its own "missing required artifact" error
+      // if a caller still tries to advance, which correctly signals "plan
+      // produced nothing to anchor on" rather than silently writing garbage.
+      //
+      // `plan: null` is intentional: v0.9.0 skill-mode doesn't run a separate
+      // architecture-plan phase yet, so we don't have an ArchitecturePlan to
+      // hand down. Anchor's prompt builder handles the null case and produces
+      // a generic anchor prompt.
+      if (anchorInputFile !== null && pageNames.length > 0) {
+        const [firstPage] = pageNames
+        const anchorInput: AnchorInput = {
+          homePage: { name: firstPage.name, route: firstPage.route, id: firstPage.id },
+          message: input.message,
+          allPagesList: pageNames.map(p => p.name).join(', '),
+          allRoutes: pageNames.map(p => p.route).join(', '),
+          plan: null,
+        }
+        await ctx.session.writeArtifact(ctx.sessionId, anchorInputFile, JSON.stringify(anchorInput, null, 2))
+      }
 
       const explicitName = extractAppNameFromPrompt(input.message)
       const resolvedName = explicitName ?? (planAppName && input.config.name === 'My App' ? planAppName : undefined)

@@ -280,4 +280,73 @@ describe('createPlanPhase', () => {
     expect(delta.navigationType).toBe('sidebar')
     expect(delta.name).toBe('AdminX')
   })
+
+  describe('anchor-input chain (codex P1 #1, part 2/4)', () => {
+    it('writes anchor-input.json with homePage = first page + all pages/routes', async () => {
+      await writeInput({ message: 'build a CRM', config: baseConfig() })
+      const aiResponse = JSON.stringify({
+        appName: 'PipelineCRM',
+        requests: [
+          { type: 'add-page', changes: { id: 'home', name: 'Home', route: '/' } },
+          { type: 'add-page', changes: { id: 'leads', name: 'Leads', route: '/leads' } },
+          { type: 'add-page', changes: { id: 'deals', name: 'Deals', route: '/deals' } },
+        ],
+        navigation: { type: 'sidebar' },
+      })
+      await createPlanPhase().ingest(aiResponse, { session: store, sessionId })
+
+      const anchorRaw = await store.readArtifact(sessionId, 'anchor-input.json')
+      expect(anchorRaw).not.toBeNull()
+      const anchor = JSON.parse(anchorRaw!)
+      expect(anchor.homePage).toEqual({ name: 'Home', route: '/', id: 'home' })
+      expect(anchor.message).toBe('build a CRM')
+      expect(anchor.allPagesList).toBe('Home, Leads, Deals')
+      expect(anchor.allRoutes).toBe('/, /leads, /deals')
+      // plan: null is intentional — v0.9.0 skill rail has no separate
+      // architecture-plan phase yet. Anchor's prompt builder handles null.
+      expect(anchor.plan).toBeNull()
+    })
+
+    it('skips anchor-input.json when plan produces no add-page requests', async () => {
+      // Empty plans correctly leave the rail at plan — no homePage to anchor on.
+      // The next `_phase prep anchor` call will fail with a "missing artifact"
+      // error that accurately describes the situation.
+      await writeInput({ message: 'just change the color', config: baseConfig() })
+      const aiResponse = JSON.stringify({
+        requests: [],
+        navigation: { type: 'header' },
+      })
+      await createPlanPhase().ingest(aiResponse, { session: store, sessionId })
+
+      expect(await store.readArtifact(sessionId, 'anchor-input.json')).toBeNull()
+    })
+
+    it('suppresses chain when anchorInputArtifact = null', async () => {
+      // Escape hatch for upstream callers that seed anchor-input.json
+      // themselves (e.g. chat rail passing through its own architecture plan).
+      await writeInput({ message: 'build a todo app', config: baseConfig() })
+      const aiResponse = JSON.stringify({
+        requests: [{ type: 'add-page', changes: { id: 'home', name: 'Home', route: '/' } }],
+        navigation: { type: 'header' },
+      })
+      await createPlanPhase({ anchorInputArtifact: null }).ingest(aiResponse, { session: store, sessionId })
+
+      expect(await store.readArtifact(sessionId, 'anchor-input.json')).toBeNull()
+    })
+
+    it('honors a custom anchorInputArtifact name', async () => {
+      await writeInput({ message: 'build a site', config: baseConfig() })
+      const aiResponse = JSON.stringify({
+        requests: [{ type: 'add-page', changes: { id: 'home', name: 'Home', route: '/' } }],
+        navigation: { type: 'header' },
+      })
+      await createPlanPhase({ anchorInputArtifact: 'anchor-input-custom.json' }).ingest(aiResponse, {
+        session: store,
+        sessionId,
+      })
+
+      expect(await store.readArtifact(sessionId, 'anchor-input.json')).toBeNull()
+      expect(await store.readArtifact(sessionId, 'anchor-input-custom.json')).not.toBeNull()
+    })
+  })
 })
