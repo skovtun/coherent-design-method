@@ -12,3 +12,11 @@ export type { AiProvider, GenerateOptions } from './ai-provider.js'
 export { AnthropicProvider } from './anthropic-provider.js'
 export { MockProvider, type MockGenerateCall } from './mock-provider.js'
 export * from './prompt-builders/index.js'
+export * from './phase.js'
+export {
+  extractStyleContext,
+  createExtractStylePhase,
+  type AnchorArtifact,
+  type StyleArtifact,
+  type ExtractStylePhaseOptions,
+} from './phases/extract-style.js'

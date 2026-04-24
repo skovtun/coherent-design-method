@@ -57,6 +57,7 @@ import {
   truncateMemory,
 } from '../../utils/design-memory.js'
 import { validateLayoutIntegrity } from '../../utils/layout-integrity.js'
+import { extractStyleContext } from '../../phase-engine/phases/extract-style.js'
 
 const MAX_EXISTING_PAGES_CONTEXT = 3
 
@@ -122,58 +123,6 @@ function buildExistingPagesContext(config: DesignSystemConfig, forPageType?: str
   }
 
   return ctx
-}
-
-function extractStyleContext(pageCode: string): string {
-  const unique = (arr: string[]) => [...new Set(arr)]
-
-  const cardClasses = (pageCode.match(/className="[^"]*(?:rounded|border|shadow|bg-card)[^"]*"/g) || [])
-    .map(m => m.replace(/className="|"/g, ''))
-    .filter(c => c.includes('rounded') || c.includes('border') || c.includes('card'))
-  const sectionSpacing = unique(pageCode.match(/py-\d+(?:\s+md:py-\d+)?/g) || [])
-  const headingStyles = unique(pageCode.match(/text-(?:\d*xl|lg)\s+font-(?:bold|semibold|medium)/g) || [])
-  const colorPatterns = unique(
-    (
-      pageCode.match(
-        /(?:text|bg|border)-(?:primary|secondary|muted|accent|card|destructive|foreground|background)\S*/g,
-      ) || ([] as string[])
-    ).concat(
-      pageCode.match(
-        /(?:text|bg|border)-(?:emerald|blue|violet|rose|amber|zinc|slate|gray|green|red|orange|indigo|purple|teal|cyan)\S*/g,
-      ) || [],
-    ),
-  )
-  const iconPatterns = unique(pageCode.match(/(?:rounded-\S+\s+)?p-\d+(?:\.\d+)?\s*(?:bg-\S+)?/g) || []).filter(
-    p => p.includes('bg-') || p.includes('rounded'),
-  )
-  const buttonPatterns = unique(
-    (pageCode.match(/className="[^"]*(?:hover:|active:)[^"]*"/g) || [])
-      .map(m => m.replace(/className="|"/g, ''))
-      .filter(c => c.includes('px-') || c.includes('py-') || c.includes('rounded')),
-  )
-  const bgPatterns = unique(pageCode.match(/bg-(?:muted|card|background|zinc|slate|gray)\S*/g) || [])
-  const gapPatterns = unique(pageCode.match(/gap-\d+/g) || [])
-  const gridPatterns = unique(pageCode.match(/grid-cols-\d+|md:grid-cols-\d+|lg:grid-cols-\d+/g) || [])
-  const containerPatterns = unique(pageCode.match(/container\s+max-w-\S+|max-w-\d+xl\s+mx-auto/g) || [])
-
-  const lines: string[] = []
-  if (containerPatterns.length > 0) {
-    lines.push(`Container (MUST match for alignment with header/footer): ${containerPatterns[0]} px-4`)
-  }
-  if (cardClasses.length > 0) lines.push(`Cards: ${unique(cardClasses).slice(0, 4).join(' | ')}`)
-  if (sectionSpacing.length > 0) lines.push(`Section spacing: ${sectionSpacing.join(', ')}`)
-  if (headingStyles.length > 0) lines.push(`Headings: ${headingStyles.join(', ')}`)
-  if (colorPatterns.length > 0) lines.push(`Colors: ${colorPatterns.slice(0, 15).join(', ')}`)
-  if (iconPatterns.length > 0) lines.push(`Icon containers: ${iconPatterns.slice(0, 4).join(' | ')}`)
-  if (buttonPatterns.length > 0) lines.push(`Buttons: ${buttonPatterns.slice(0, 3).join(' | ')}`)
-  if (bgPatterns.length > 0) lines.push(`Section backgrounds: ${bgPatterns.slice(0, 6).join(', ')}`)
-  if (gapPatterns.length > 0) lines.push(`Gaps: ${gapPatterns.join(', ')}`)
-  if (gridPatterns.length > 0) lines.push(`Grids: ${gridPatterns.join(', ')}`)
-
-  if (lines.length === 0) return ''
-
-  return `STYLE CONTEXT (match these patterns exactly for visual consistency with the anchor page):
-${lines.map(l => `  - ${l}`).join('\n')}`
 }
 
 const VALID_NAV_TYPES = new Set(['header', 'sidebar', 'both', 'none'])
