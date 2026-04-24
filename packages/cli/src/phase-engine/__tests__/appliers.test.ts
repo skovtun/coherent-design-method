@@ -271,6 +271,38 @@ describe('createPagesApplier', () => {
     expect(await createPagesApplier().apply(ctx)).toEqual([])
   })
 
+  it('runs autoFixCode on pageCode before writing (codex R2 P2)', async () => {
+    // Raw Tailwind colors (`bg-gray-100`, `text-blue-600`) are a known
+    // generation mistake the chat rail auto-fixes to semantic tokens. The
+    // skill rail must do the same so `coherent check` doesn't immediately
+    // flag skill-generated pages as broken on first open.
+    projectRoot = setupProject()
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    const rawCode = `export default function Home() {
+  return <main className="bg-gray-100 text-blue-600">Hello</main>
+}`
+    await writePageArtifact(store, uuid, {
+      id: 'home',
+      name: 'Home',
+      route: '/',
+      pageType: 'marketing',
+      pageCode: rawCode,
+    })
+
+    const results = await createPagesApplier().apply(ctx)
+    expect(results).toHaveLength(1)
+    // Applied-list surfaces the auto-fix count so the user sees which pages
+    // got corrected.
+    expect(results[0]).toMatch(/auto-fix/)
+
+    const written = readFileSync(join(projectRoot, 'app/page.tsx'), 'utf-8')
+    // Raw colors rewritten to semantic tokens — same transformation as
+    // the chat rail's post-generation pass.
+    expect(written).not.toContain('bg-gray-100')
+    expect(written).not.toContain('text-blue-600')
+    expect(written).toMatch(/bg-muted|bg-background/)
+  })
+
   it('updates an existing page entry in DSM rather than duplicating', async () => {
     projectRoot = setupProject()
     // createMinimalConfig already includes a 'home' page at '/'. Applying

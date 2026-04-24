@@ -39,6 +39,7 @@ import type { ConfigDelta } from './phases/plan.js'
 import type { ComponentsArtifact } from './phases/components.js'
 import type { PageArtifact } from './phases/page.js'
 import { routeToFsPath } from '../commands/chat/utils.js'
+import { autoFixCode, type AutoFixContext } from '../utils/quality-validator.js'
 
 const CONFIG_DELTA_ARTIFACT = 'config-delta.json'
 const COMPONENTS_GENERATED_ARTIFACT = 'components-generated.json'
@@ -142,6 +143,10 @@ export function createPagesApplier(): ArtifactApplier {
       const dsm = new DesignSystemManager(configPath)
       await dsm.load()
 
+      // Collect all pages first so the autoFix step can see the full known-
+      // routes list when resolving link hrefs. Same ordering as before, just
+      // an explicit pre-pass.
+      const pagesQueue: Array<{ page: PageArtifact; pageCode: string }> = []
       const results: string[] = []
       for (const file of pageFiles) {
         const raw = await ctx.store.readArtifact(ctx.uuid, file)
@@ -157,10 +162,24 @@ export function createPagesApplier(): ArtifactApplier {
           results.push(`skipped ${page.id} (empty pageCode)`)
           continue
         }
+        pagesQueue.push({ page, pageCode })
+      }
+
+      const knownRoutes = pagesQueue.map(p => p.page.route)
+
+      for (const { page, pageCode } of pagesQueue) {
+        // Codex R2 P2: run the same auto-fix pass chat rail uses so skill-
+        // generated pages don't ship with known-broken patterns (missing
+        // "use client" on client-only pages, invalid lucide-react icon
+        // renders, HTML entities in JSX, raw-color classnames, etc.). Same
+        // `autoFixCode` function as modification-handler — parity is
+        // literal, not mimicked.
+        const autoFixCtx: AutoFixContext = { currentRoute: page.route, knownRoutes }
+        const { code: fixedCode, fixes } = await autoFixCode(pageCode, autoFixCtx)
 
         const fsPath = routeToFsPath(ctx.projectRoot, page.route, page.pageType === 'auth')
         await mkdir(dirname(fsPath), { recursive: true })
-        await writeFile(fsPath, pageCode, 'utf-8')
+        await writeFile(fsPath, fixedCode, 'utf-8')
 
         // Register the page in DSM so downstream commands (coherent status,
         // coherent check, Design System viewer) see it. Idempotent: if the
@@ -191,7 +210,8 @@ export function createPagesApplier(): ArtifactApplier {
             : [...config.pages, pageDef]
         dsm.updateConfig({ ...config, pages: nextPages, updatedAt: now })
 
-        results.push(`${page.name} (${page.route}) → ${fsPath.replace(ctx.projectRoot + '/', '')}`)
+        const suffix = fixes.length > 0 ? ` (+${fixes.length} auto-fix)` : ''
+        results.push(`${page.name} (${page.route}) → ${fsPath.replace(ctx.projectRoot + '/', '')}${suffix}`)
       }
 
       if (results.some(r => !r.startsWith('skipped'))) {
