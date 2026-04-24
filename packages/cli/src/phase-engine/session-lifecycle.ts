@@ -58,6 +58,15 @@ export interface SessionEndInput {
   appliers?: ArtifactApplier[]
   /** Inject for tests. Defaults to FileBackedSessionStore(projectRoot). */
   store?: SessionStore
+  /**
+   * Skip writing the per-run `.coherent/runs/<timestamp>.yaml` file. Used by
+   * chat-rail dry-runs where the preview-only invocation should not pollute
+   * run history. Applier execution and composition still happen (the session
+   * dir can still contain a composed `run-record.json` for debugging when
+   * `keepSession` is true); only the final disk write to `.coherent/runs/`
+   * is suppressed.
+   */
+  skipRunRecord?: boolean
 }
 
 /**
@@ -165,7 +174,7 @@ export async function sessionStart(input: SessionStartInput): Promise<SessionSta
  * session (throws) but designed to run exactly once per session UUID.
  */
 export async function sessionEnd(input: SessionEndInput): Promise<SessionEndResult> {
-  const { projectRoot, uuid, keepSession = false, appliers = [] } = input
+  const { projectRoot, uuid, keepSession = false, appliers = [], skipRunRecord = false } = input
   const store = input.store ?? new FileBackedSessionStore(projectRoot)
 
   const meta = await store.read(uuid)
@@ -215,7 +224,7 @@ export async function sessionEnd(input: SessionEndInput): Promise<SessionEndResu
       }
     }
 
-    if (runRecordRaw) {
+    if (runRecordRaw && !skipRunRecord) {
       try {
         const parsed = JSON.parse(runRecordRaw) as RunRecord
         const rel = writeRunRecordRel(projectRoot, parsed)

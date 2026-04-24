@@ -189,6 +189,41 @@ describe('sessionEnd', () => {
     expect(existsSync(result.runRecordPath!)).toBe(true)
   })
 
+  it('skips .coherent/runs/ write when skipRunRecord: true (chat dry-run path)', async () => {
+    projectRoot = setupProject()
+    const { uuid, sessionDir } = await sessionStart({ projectRoot })
+
+    // A real run-record artifact exists in the session — normally that would
+    // trigger writeRunRecordRel. skipRunRecord must bypass that write while
+    // still running appliers and cleaning the session dir.
+    const runRecord: RunRecord = {
+      timestamp: '2026-04-24T10:00:00.000Z',
+      coherentVersion: '0.9.0',
+      intent: 'dry-run preview',
+      options: {
+        atmosphere: null,
+        atmosphereOverride: false,
+        page: null,
+        component: null,
+        newComponent: null,
+        dryRun: true,
+      },
+      atmosphere: null,
+      pagesWritten: [],
+      sharedComponentsWritten: [],
+      durationMs: 42,
+      outcome: 'success',
+    }
+    writeFileSync(join(sessionDir, RUN_RECORD_ARTIFACT), JSON.stringify(runRecord))
+
+    const result = await sessionEnd({ projectRoot, uuid, skipRunRecord: true })
+
+    expect(result.runRecordPath).toBeNull()
+    // No YAML under .coherent/runs/ should exist for this session.
+    const runsDir = join(projectRoot, '.coherent', 'runs')
+    expect(existsSync(runsDir)).toBe(false)
+  })
+
   it('keeps session dir when keepSession: true', async () => {
     projectRoot = setupProject()
     const { uuid, sessionDir } = await sessionStart({ projectRoot })
