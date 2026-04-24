@@ -45,6 +45,7 @@ import { undoCommand } from './commands/undo.js'
 import { syncCommand } from './commands/sync.js'
 import { migrateAction } from './commands/migrate.js'
 import { sessionStartCommand, sessionEndCommand } from './commands/session.js'
+import { phaseCommand } from './commands/_phase.js'
 import { checkForUpdates } from './utils/update-notifier.js'
 
 const program = new Command()
@@ -162,6 +163,38 @@ sessionCmd
   .option('--keep', 'Keep the session dir after ending (for debugging)')
   .action((uuid: string, opts: { keep?: boolean }) => sessionEndCommand(uuid, opts))
 program.addCommand(sessionCmd)
+
+// ─── _phase (hidden, skill-mode rail) ──────────────────────────────
+
+const phaseCmd = new Command('_phase').description(
+  'Run a single phase-engine phase (hidden — called by skill-mode orchestrator)',
+)
+phaseCmd
+  .command('prep <name>')
+  .description('Build the phase prompt and write it to stdout (AI phases)')
+  .requiredOption('--session <uuid>', 'Session UUID from `coherent session start`')
+  .option('--protocol <version>', 'Phase-engine protocol version caller was built against')
+  .action((name: string, opts: { session: string; protocol?: string }) =>
+    phaseCommand('prep', name, { session: opts.session, protocol: opts.protocol }),
+  )
+phaseCmd
+  .command('ingest <name>')
+  .description('Read the raw model response from stdin and persist artifacts (AI phases)')
+  .requiredOption('--session <uuid>', 'Session UUID from `coherent session start`')
+  .option('--protocol <version>', 'Phase-engine protocol version caller was built against')
+  .action((name: string, opts: { session: string; protocol?: string }) =>
+    phaseCommand('ingest', name, { session: opts.session, protocol: opts.protocol }),
+  )
+phaseCmd
+  .command('run <name>')
+  .description('Execute a deterministic phase')
+  .requiredOption('--session <uuid>', 'Session UUID from `coherent session start`')
+  .option('--protocol <version>', 'Phase-engine protocol version caller was built against')
+  .action((name: string, opts: { session: string; protocol?: string }) =>
+    phaseCommand('run', name, { session: opts.session, protocol: opts.protocol }),
+  )
+hidden(phaseCmd)
+program.addCommand(phaseCmd)
 
 program.command('preview').description('Launch dev server for preview').action(previewCommand)
 
