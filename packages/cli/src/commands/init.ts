@@ -57,7 +57,7 @@ function printInitHeader(version: string): void {
     console.log('')
     console.log(`  ${chalk.blue('██')} ${chalk.blue.dim('▒▒')}  ${chalk.bold('Coherent')} ${chalk.dim('v' + version)}`)
     console.log(
-      `  ${chalk.blue.dim('▒▒')} ${chalk.blue('██')}  ${chalk.dim('Design once. Stay consistent everywhere.')}`,
+      `  ${chalk.blue.dim('▒▒')} ${chalk.blue('██')}  ${chalk.blue('Design once. Stay consistent everywhere.')}`,
     )
     console.log('')
     return
@@ -74,8 +74,11 @@ function printInitHeader(version: string): void {
   const empty = chalk.dim('│') + ' '.repeat(innerWidth) + chalk.dim('│')
   const logo1 = chalk.blue('██') + ' ' + chalk.blue.dim('▒▒')
   const logo2 = chalk.blue.dim('▒▒') + ' ' + chalk.blue('██')
-  const tag1 = chalk.bold('Design once.')
-  const tag2 = chalk.dim('Stay consistent everywhere.')
+  // Tagline is rendered in a single primary-blue for brand coherence — two
+  // different weights (bold + dim) used to imply a hierarchy the phrase
+  // doesn't actually have. It's one brand statement; treat it as one.
+  const tag1 = chalk.blue('Design once.')
+  const tag2 = chalk.blue('Stay consistent everywhere.')
 
   const row1 =
     chalk.dim('│') + pad(`   ${logo1}   ${tag1}`, 3 + logoTopPlain.length + 3 + 'Design once.'.length) + chalk.dim('│')

@@ -58,34 +58,41 @@ export function showSuccessMessage(projectPath: string = '.', options: SuccessMe
   console.log(`  ${chalk.magenta('✨ Coherent Design Method — Project Initialized')}`)
 
   // Copy matches the getcoherent.design landing page: Describe first, then
-  // Preview. `cd <project>` is only prepended where a shell command actually
-  // needs it — slash-commands inside Claude Code don't, and hint lines
-  // definitely don't.
-  const cdPrefix = options.projectName ? `cd ${options.projectName} && ` : ''
-  const example = '"a fitness studio app with classes, pricing, and contact"'
+  // Preview. Shell commands (coherent chat, coherent preview) need both
+  // quotes around multi-word args and a `cd` into the new project if
+  // `coherent init <name>` created a subdir. Slash commands inside Claude
+  // Code need neither — Claude Code passes the whole rest-of-line as one
+  // argument and runs inside the project the user already has open.
+  const needsCd = !!options.projectName && options.projectName !== '.' && options.projectName !== ''
+  const example = 'a fitness studio app with classes, pricing, and contact'
+  const shellExample = `"${example}"`
   console.log('')
   console.log(chalk.bold('  Next:'))
   console.log('')
 
   if (mode === 'skill') {
-    console.log(chalk.dim('    1. Describe your app') + chalk.dim(' — in Claude Code:'))
+    console.log(chalk.dim('    1. Describe your app — in Claude Code:'))
     console.log(chalk.cyan(`       /coherent-generate ${example}`))
     console.log('')
     console.log(chalk.dim('    2. Preview:'))
-    console.log(chalk.cyan(`       ${cdPrefix}coherent preview`))
+    if (needsCd) console.log(chalk.cyan(`       cd ${options.projectName}`))
+    console.log(chalk.cyan(`       coherent preview`))
   } else if (mode === 'api') {
     console.log(chalk.dim('    1. Describe your app:'))
-    console.log(chalk.cyan(`       ${cdPrefix}coherent chat ${example}`))
+    if (needsCd) console.log(chalk.cyan(`       cd ${options.projectName}`))
+    console.log(chalk.cyan(`       coherent chat ${shellExample}`))
     console.log('')
     console.log(chalk.dim('    2. Preview:'))
-    console.log(chalk.cyan(`       ${cdPrefix}coherent preview`))
+    if (needsCd) console.log(chalk.cyan(`       cd ${options.projectName}`))
+    console.log(chalk.cyan(`       coherent preview`))
   } else {
     console.log(chalk.dim('    1. Describe your app — pick one:'))
     console.log(chalk.dim('       Claude Code:') + chalk.cyan(`  /coherent-generate ${example}`))
-    console.log(chalk.dim('       CLI:') + chalk.cyan(`          ${cdPrefix}coherent chat ${example}`))
+    console.log(chalk.dim('       CLI:') + chalk.cyan(`          coherent chat ${shellExample}`))
     console.log('')
     console.log(chalk.dim('    2. Preview:'))
-    console.log(chalk.cyan(`       ${cdPrefix}coherent preview`))
+    if (needsCd) console.log(chalk.cyan(`       cd ${options.projectName}`))
+    console.log(chalk.cyan(`       coherent preview`))
   }
 
   console.log('')
