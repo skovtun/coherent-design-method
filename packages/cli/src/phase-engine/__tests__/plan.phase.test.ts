@@ -164,9 +164,7 @@ describe('createPlanPhase', () => {
     })
     await createPlanPhase().ingest(aiResponse, { session: store, sessionId })
 
-    const delta = JSON.parse(
-      (await store.readArtifact(sessionId, 'config-delta.json'))!,
-    ) as ConfigDelta
+    const delta = JSON.parse((await store.readArtifact(sessionId, 'config-delta.json'))!) as ConfigDelta
     expect(delta.name).toBe('AdminPortal')
   })
 
@@ -217,9 +215,7 @@ describe('createPlanPhase', () => {
     })
     await createPlanPhase().ingest(aiResponse, { session: store, sessionId })
 
-    const delta = JSON.parse(
-      (await store.readArtifact(sessionId, 'config-delta.json'))!,
-    ) as ConfigDelta
+    const delta = JSON.parse((await store.readArtifact(sessionId, 'config-delta.json'))!) as ConfigDelta
     expect(delta.name).toBe('Override')
     expect(delta.navigationType).toBe('sidebar')
   })
@@ -232,9 +228,7 @@ describe('createPlanPhase', () => {
     })
     await createPlanPhase().ingest(aiResponse, { session: store, sessionId })
 
-    const delta = JSON.parse(
-      (await store.readArtifact(sessionId, 'config-delta.json'))!,
-    ) as ConfigDelta
+    const delta = JSON.parse((await store.readArtifact(sessionId, 'config-delta.json'))!) as ConfigDelta
     expect(delta.navigationType).toBeUndefined()
     expect(delta.name).toBe('Acme')
   })

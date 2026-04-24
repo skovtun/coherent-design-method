@@ -142,9 +142,7 @@ export function parsePlanResponse(raw: string): Record<string, unknown> {
   return parsed as Record<string, unknown>
 }
 
-function derivePageNames(
-  parsed: Record<string, unknown>,
-): Array<{ name: string; id: string; route: string }> {
+function derivePageNames(parsed: Record<string, unknown>): Array<{ name: string; id: string; route: string }> {
   const requests = (parsed.requests as ModificationRequest[] | undefined) ?? []
   return requests
     .filter(r => r?.type === 'add-page')
@@ -174,9 +172,7 @@ export function createPlanPhase(options: PlanPhaseOptions = {}): AiPhase {
     }
     const parsed = JSON.parse(raw) as Partial<PlanInput>
     if (typeof parsed.message !== 'string' || !parsed.config || typeof parsed.config !== 'object') {
-      throw new Error(
-        `plan: artifact ${JSON.stringify(inputFile)} must have a string "message" and an object "config"`,
-      )
+      throw new Error(`plan: artifact ${JSON.stringify(inputFile)} must have a string "message" and an object "config"`)
     }
     return parsed as PlanInput
   }
@@ -196,15 +192,13 @@ export function createPlanPhase(options: PlanPhaseOptions = {}): AiPhase {
 
       const pageNames = derivePageNames(parsed)
       const navigationType = parseNavTypeFromPlan(parsed)
-      const planAppName =
-        typeof parsed.appName === 'string' && parsed.appName ? parsed.appName : null
+      const planAppName = typeof parsed.appName === 'string' && parsed.appName ? parsed.appName : null
 
       const planArtifact: PlanArtifact = { pageNames, navigationType, appName: planAppName }
       await ctx.session.writeArtifact(ctx.sessionId, planFile, JSON.stringify(planArtifact, null, 2))
 
       const explicitName = extractAppNameFromPrompt(input.message)
-      const resolvedName =
-        explicitName ?? (planAppName && input.config.name === 'My App' ? planAppName : undefined)
+      const resolvedName = explicitName ?? (planAppName && input.config.name === 'My App' ? planAppName : undefined)
 
       const newDelta: ConfigDelta = {}
       if (navigationType !== 'header' && input.config.navigation) {
@@ -217,9 +211,7 @@ export function createPlanPhase(options: PlanPhaseOptions = {}): AiPhase {
       if (Object.keys(newDelta).length === 0) return
 
       const existingRaw = await ctx.session.readArtifact(ctx.sessionId, deltaFile)
-      const merged: ConfigDelta = existingRaw
-        ? { ...(JSON.parse(existingRaw) as ConfigDelta), ...newDelta }
-        : newDelta
+      const merged: ConfigDelta = existingRaw ? { ...(JSON.parse(existingRaw) as ConfigDelta), ...newDelta } : newDelta
       await ctx.session.writeArtifact(ctx.sessionId, deltaFile, JSON.stringify(merged, null, 2))
     },
   }

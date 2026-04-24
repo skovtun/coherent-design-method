@@ -74,13 +74,11 @@ ${lines.map(l => `  - ${l}`).join('\n')}`
 }
 
 /**
- * Shape the phase writes/reads. `anchor.json` is produced by the anchor AI
- * phase (future Lane B work) and holds the full anchor pageCode; the phase
- * then emits `style.json` containing the derived style-context string.
+ * `AnchorArtifact` is now defined authoritatively in `./anchor.ts` (the
+ * phase that writes it). Re-exported here so existing imports stay green.
  */
-export interface AnchorArtifact {
-  pageCode: string
-}
+import type { AnchorArtifact } from './anchor.js'
+export type { AnchorArtifact }
 
 export interface StyleArtifact {
   styleContext: string
