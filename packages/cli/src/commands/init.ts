@@ -9,7 +9,6 @@
 
 import chalk from 'chalk'
 import ora from 'ora'
-import prompts from 'prompts'
 import { existsSync, readFileSync, mkdirSync, rmSync, writeFileSync } from 'fs'
 import { basename, join } from 'path'
 import { execSync } from 'child_process'
@@ -65,7 +64,13 @@ function cleanConflictingFiles(projectPath: string): void {
   }
 }
 
-/** Create Next.js app non-interactively. No prompts (React Compiler, import alias, etc.). */
+/**
+ * Create Next.js app non-interactively. No prompts (React Compiler, import alias, etc.).
+ *
+ * Pinned to a CVE-patched 15.x release (CVE-2025-66478 fixed in 15.5.x). The
+ * npm-side noise — funding ads, audit prompts, update-notifier — is silenced
+ * via env vars so the log stays focused on what actually happened.
+ */
 function runCreateNextApp(projectPath: string): void {
   cleanConflictingFiles(projectPath)
 
@@ -74,8 +79,18 @@ function runCreateNextApp(projectPath: string): void {
   if (envBackup !== null) rmSync(envPath, { force: true })
 
   const cmd =
-    'npx --yes create-next-app@15.2.4 . --typescript --tailwind --eslint --app --no-src-dir --no-turbopack --yes'
-  execSync(cmd, { cwd: projectPath, stdio: 'inherit' })
+    'npx --yes create-next-app@15.5.15 . --typescript --tailwind --eslint --app --no-src-dir --no-turbopack --yes'
+  execSync(cmd, {
+    cwd: projectPath,
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      npm_config_fund: 'false',
+      npm_config_audit: 'false',
+      npm_config_update_notifier: 'false',
+      npm_config_loglevel: 'error',
+    },
+  })
 
   if (envBackup !== null) {
     const existing = existsSync(envPath) ? readFileSync(envPath, 'utf-8') : ''
@@ -204,7 +219,11 @@ export async function initCommand(name?: string, options: InitOptions = {}) {
       throw err
     }
 
-    console.log(chalk.cyan('\n🎨 Initializing Coherent Design Method...\n'))
+    const initStartMs = Date.now()
+    const { CLI_VERSION } = await import('@getcoherent/core')
+    console.log('')
+    console.log(chalk.cyan('🎨 Coherent ') + chalk.dim(`v${CLI_VERSION}`))
+    console.log('')
 
     // Step 1: Check if already initialized
     if (await fileExistsAsync('./design-system.config.ts')) {
@@ -237,23 +256,12 @@ export async function initCommand(name?: string, options: InitOptions = {}) {
       usedCreateNextApp = true
     }
 
-    // Step 2.5: Ask about auto-scaffolding (skip in non-interactive / CI mode)
-    let autoScaffoldValue = true
-    if (process.stdin.isTTY) {
-      const { autoScaffold: answer } = await prompts({
-        type: 'select',
-        name: 'autoScaffold',
-        message: 'Auto-create linked pages? (e.g. Login → Sign Up, Forgot Password)',
-        choices: [
-          { title: 'Yes', value: true },
-          { title: 'No', value: false },
-        ],
-        initial: 0,
-      })
-      autoScaffoldValue = answer ?? true
-    }
-
     // Step 3: Create minimal config
+    // NOTE: `settings.autoScaffold` default is false (see minimal-config.ts). The
+    // chat-rail linked-pages feature (`coherent chat` auto-expanding Login → Sign
+    // Up + Forgot Password) is opt-in — users who want it flip the setting in
+    // `design-system.config.ts`. Prompting at init for a chat-only setting that
+    // skill-mode users never see was confusing UX and is removed in v0.9.0.
     let appName: string | undefined
     if (name) {
       appName = toTitleCase(name)
@@ -274,7 +282,6 @@ export async function initCommand(name?: string, options: InitOptions = {}) {
 
     const spinner = ora('Creating design system...').start()
     const config = createMinimalConfig(appName)
-    config.settings.autoScaffold = autoScaffoldValue
     const configContent = generateConfigFile(config)
     await writeFile('./design-system.config.ts', configContent)
     spinner.succeed('Design system created')
@@ -427,10 +434,13 @@ export default config
     }
 
     warnIfVolatile(projectPath)
+    const elapsedMs = Date.now() - initStartMs
     showSuccessMessage('.', {
       mode: resolvedMode,
       detectedEditors: preWriteDetection.detected,
       v2TargetEditors: preWriteDetection.v2Target,
+      elapsedMs,
+      projectName: name,
     })
   } catch (error) {
     console.error(chalk.red('\n❌ Error:'), error instanceof Error ? error.message : 'Unknown error')

@@ -1,8 +1,10 @@
 /**
- * Success Message for coherent init
+ * Success Message for `coherent init`.
  *
- * Displays a professional, informative message after project initialization
- * that explains what was created, the methodology, and next steps.
+ * Modern CLI aesthetic (Vite/Bun/Astro-style): compact, scannable, one hero
+ * emoji, muted gray for context, bright only for signal. No marketing blocks —
+ * that content lives in README/docs. The goal is to get the user to their next
+ * command in 5 seconds.
  *
  * Branches on mode so users land on the CTA that fits their setup:
  *  - skill: /coherent-generate in Claude Code (no API key needed)
@@ -19,71 +21,58 @@ export interface SuccessMessageOptions {
   mode?: SuccessMode
   detectedEditors?: DetectedEditor[]
   v2TargetEditors?: DetectedEditor[]
+  /** ms since `coherent init` began — rendered as "Ready in Xs". */
+  elapsedMs?: number
+  /** User-supplied project name (rendered in Next command when we generated a subdir). */
+  projectName?: string
+}
+
+function formatElapsed(ms: number): string {
+  if (ms < 1000) return `${ms}ms`
+  const s = ms / 1000
+  if (s < 10) return `${s.toFixed(1)}s`
+  return `${Math.round(s)}s`
 }
 
 export function showSuccessMessage(projectPath: string = '.', options: SuccessMessageOptions = {}): void {
   const mode: SuccessMode = options.mode ?? 'api'
+  const tick = chalk.green('✓')
 
-  console.log(chalk.magenta('\n✨ Coherent Design Method — Project Initialized\n'))
-  console.log(chalk.cyan('📁 Location: ') + chalk.white(projectPath) + '\n')
-
-  console.log(chalk.cyan('🎨 What was created:'))
-  console.log(chalk.green('   ✔ Next.js 15 with Tailwind CSS'))
-  console.log(chalk.green('   ✔ Design system configuration'))
-  console.log(chalk.green('   ✔ Home page ready to customize'))
-  console.log(chalk.green('   ✔ Design System viewer (/design-system)'))
-  console.log(chalk.green('   ✔ Documentation pages (/design-system/docs)'))
-  console.log(chalk.green('   ✔ .cursorrules + CLAUDE.md + .claude/ (AI context — commit to git)\n'))
+  console.log('')
+  console.log(`  ${tick} ${chalk.dim('Next.js scaffolded')}`)
+  console.log(`  ${tick} ${chalk.dim('Design system configured')}`)
+  console.log(`  ${tick} ${chalk.dim('Shared components  ')}${chalk.gray('— Header, Footer, DSButton')}`)
+  console.log(`  ${tick} ${chalk.dim('Design System viewer  ')}${chalk.gray('— /design-system')}`)
+  console.log(`  ${tick} ${chalk.dim('AI context  ')}${chalk.gray('— .cursorrules, CLAUDE.md, .claude/')}`)
 
   if (options.v2TargetEditors && options.v2TargetEditors.length > 0) {
     const names = options.v2TargetEditors.map(e => `.${e === 'claude-code' ? 'claude' : e}`).join(', ')
-    console.log(chalk.dim(`   (detected ${names} — native skill adapter for these editors lands in v0.10+)\n`))
+    console.log('')
+    console.log(chalk.dim(`  detected ${names} — native skill adapter lands in v0.10+`))
   }
 
-  console.log(chalk.cyan('📖 What is Coherent Design Method?'))
-  console.log(chalk.gray('   A stateful approach where:'))
-  console.log(chalk.gray('   • Components registered once, reused everywhere'))
-  console.log(chalk.gray('   • Design tokens cascade automatically'))
-  console.log(chalk.gray('   • AI maintains architectural coherence\n'))
-  console.log(chalk.gray('   Created by Sergei Kovtun'))
-  console.log(chalk.blue('   https://github.com/skovtun/coherent-design-method\n'))
+  const elapsed = options.elapsedMs ? ` ${chalk.dim('in')} ${chalk.white(formatElapsed(options.elapsedMs))}` : ''
+  console.log('')
+  console.log(`  ${chalk.green('Ready')}${elapsed}`)
 
-  console.log(chalk.cyan('🚀 Get Started:\n'))
+  const cdLine = options.projectName ? `cd ${options.projectName} && ` : ''
+  console.log('')
+  console.log(chalk.bold('  Next:'))
 
-  let step = 1
-  const nextStep = () => step++
-
-  if (projectPath !== '.') {
-    console.log(chalk.white(`   ${nextStep()}. Navigate to project:`))
-    console.log(chalk.yellow('      $ cd ' + projectPath) + '\n')
+  if (mode === 'skill') {
+    console.log(chalk.cyan(`    ${cdLine}coherent preview`))
+    console.log(chalk.dim(`    ${cdLine}then: `) + chalk.cyan('/coherent-generate "describe your app"'))
+    console.log(chalk.dim('    (in Claude Code — uses your subscription, no API key)'))
+  } else if (mode === 'api') {
+    console.log(chalk.cyan(`    ${cdLine}coherent preview`))
+    console.log(chalk.dim(`    ${cdLine}then: `) + chalk.cyan('coherent chat "add a dashboard"'))
+  } else {
+    console.log(chalk.cyan(`    ${cdLine}coherent preview`))
+    console.log(chalk.dim('    skill mode: ') + chalk.cyan('/coherent-generate "describe your app"'))
+    console.log(chalk.dim('    chat mode:  ') + chalk.cyan('coherent chat "add a dashboard"'))
   }
 
-  console.log(chalk.white(`   ${nextStep()}. Install dependencies:`))
-  console.log(chalk.yellow('      $ npm install') + '\n')
-
-  console.log(chalk.white(`   ${nextStep()}. Start dev server:`))
-  console.log(chalk.yellow('      $ npm run dev'))
-  console.log(chalk.gray('      → Opens http://localhost:3000\n'))
-
-  if (mode === 'skill' || mode === 'both') {
-    console.log(chalk.white(`   ${nextStep()}. Generate with Claude Code (no API key needed):`))
-    console.log(chalk.yellow('      /coherent-generate "describe your app"'))
-    console.log(chalk.gray('      → Uses your Claude subscription — no extra cost.\n'))
-  }
-
-  if (mode === 'api' || mode === 'both') {
-    console.log(chalk.white(`   ${nextStep()}. Customize with AI (requires API key):`))
-    console.log(chalk.yellow('      $ coherent chat "add dashboard with charts"'))
-    console.log(chalk.yellow('      $ coherent chat "make buttons green and rounded"\n'))
-  }
-
-  console.log(chalk.cyan('💡 How it works:'))
-  console.log(chalk.gray('   • Describe what you want in natural language'))
-  console.log(chalk.gray('   • AI generates code using registered components'))
-  console.log(chalk.gray('   • Changes cascade through your design system\n'))
-
-  console.log(chalk.cyan('❓ Questions or issues?'))
-  console.log(chalk.blue('   https://github.com/skovtun/coherent-design-method/issues\n'))
-
-  console.log(chalk.magenta('Happy building! ✨\n'))
+  console.log('')
+  console.log(chalk.dim('  Docs: ') + chalk.dim.underline('https://github.com/skovtun/coherent-design-method'))
+  console.log('')
 }
