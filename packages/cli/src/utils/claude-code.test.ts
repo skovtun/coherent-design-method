@@ -55,7 +55,10 @@ describe('writeClaudeSkills', () => {
 
     // Deterministic phases use `run`
     expect(body).toMatch(/coherent _phase run extract-style/)
-    expect(body).toMatch(/coherent _phase run log-run/)
+    // log-run is NOT called by the skill rail — session end composes the
+    // run-record internally (codex R2 P1 #6). Keep it out of the skill
+    // markdown so users don't hit "missing run-record.json".
+    expect(body).not.toMatch(/coherent _phase run log-run/)
   })
 
   it('orchestrator skill documents the session flow order', () => {
@@ -64,7 +67,7 @@ describe('writeClaudeSkills', () => {
 
     const body = readFileSync(join(projectRoot, '.claude', 'skills', 'coherent-generate', 'SKILL.md'), 'utf-8')
 
-    const order = ['session start', 'plan', 'anchor', 'extract-style', 'components', 'page', 'log-run', 'session end']
+    const order = ['session start', 'plan', 'anchor', 'extract-style', 'components', 'page', 'session end']
     let lastIndex = -1
     for (const marker of order) {
       const idx = body.indexOf(marker, lastIndex + 1)

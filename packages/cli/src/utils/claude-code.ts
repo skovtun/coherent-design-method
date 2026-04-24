@@ -416,8 +416,7 @@ session start
   → extract-style (deterministic: run)
   → components    (AI)
   → page × N      (AI, one prep/ingest per page)
-  → log-run       (deterministic)
-session end
+session end  (applies all artifacts + writes run record)
 \`\`\`
 
 ## Steps
@@ -480,13 +479,7 @@ coherent _phase prep page:<pageId> --session "$UUID" --protocol ${PHASE_ENGINE_P
 coherent _phase ingest page:<pageId> --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL} < /tmp/page-<id>-response.md
 \`\`\`
 
-### 7. Log-run phase (deterministic)
-
-\`\`\`bash
-coherent _phase run log-run --session "$UUID" --protocol ${PHASE_ENGINE_PROTOCOL}
-\`\`\`
-
-### 8. End the session
+### 7. End the session
 
 \`\`\`bash
 coherent session end "$UUID"

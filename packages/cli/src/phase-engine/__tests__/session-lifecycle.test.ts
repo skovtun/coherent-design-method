@@ -192,6 +192,124 @@ describe('sessionEnd', () => {
     projectRoot = setupProject()
     await expect(sessionEnd({ projectRoot, uuid: 'does-not-exist' })).rejects.toThrow(/Session .* not found/)
   })
+
+  describe('run-record composition fallback (codex R2 P1 #6)', () => {
+    it('composes run-record.json from session artifacts when no phase seeded one', async () => {
+      projectRoot = setupProject()
+      const { uuid, sessionDir } = await sessionStart({
+        projectRoot,
+        intent: 'build a landing page',
+        options: { atmosphere: 'swiss-grid', dryRun: false },
+      })
+
+      // Seed one page artifact with real pageCode + one components-generated
+      // entry, mirroring what the 6-phase rail would produce.
+      writeFileSync(
+        join(sessionDir, 'page-home.json'),
+        JSON.stringify({
+          id: 'home',
+          name: 'Home',
+          route: '/',
+          pageType: 'marketing',
+          request: {
+            type: 'add-page',
+            target: 'home',
+            changes: { id: 'home', name: 'Home', route: '/', pageCode: 'export default function Home(){}' },
+          },
+        }),
+      )
+      writeFileSync(
+        join(sessionDir, 'components-generated.json'),
+        JSON.stringify({
+          components: [{ name: 'Hero', code: 'export function Hero(){}', file: 'components/shared/hero.tsx' }],
+        }),
+      )
+
+      // No run-record.json — composeRunRecord should fill the gap.
+      const result = await sessionEnd({ projectRoot, uuid, keepSession: true })
+
+      expect(result.runRecordPath).toBeTruthy()
+      expect(result.runRecordPath!).toMatch(/\.coherent\/runs\//)
+      expect(existsSync(result.runRecordPath!)).toBe(true)
+
+      // Session-dir copy survives the --keep path.
+      const sessionCopy = join(sessionDir, RUN_RECORD_ARTIFACT)
+      expect(existsSync(sessionCopy)).toBe(true)
+      const composed = JSON.parse(readFileSync(sessionCopy, 'utf-8')) as RunRecord
+      expect(composed.intent).toBe('build a landing page')
+      expect(composed.options).toMatchObject({ atmosphere: 'swiss-grid', dryRun: false })
+      expect(composed.pagesWritten).toEqual(['app/page.tsx'])
+      expect(composed.sharedComponentsWritten).toEqual(['components/shared/hero.tsx'])
+      expect(composed.outcome).toBe('success')
+      expect(typeof composed.coherentVersion).toBe('string')
+      expect(composed.durationMs).toBeGreaterThanOrEqual(0)
+    })
+
+    it('still honors a pre-written run-record.json if upstream seeded one', async () => {
+      projectRoot = setupProject()
+      const { uuid, sessionDir } = await sessionStart({ projectRoot })
+
+      const pre: RunRecord = {
+        timestamp: '2026-04-23T20:00:00.000Z',
+        coherentVersion: '0.9.0',
+        intent: 'pre-seeded intent',
+        options: { dryRun: false },
+        atmosphere: null,
+        pagesWritten: ['app/prebuilt/page.tsx'],
+        sharedComponentsWritten: [],
+        durationMs: 42,
+        outcome: 'success',
+      }
+      writeFileSync(join(sessionDir, RUN_RECORD_ARTIFACT), JSON.stringify(pre))
+
+      const result = await sessionEnd({ projectRoot, uuid, keepSession: true })
+
+      expect(result.runRecordPath).toBeTruthy()
+      // The composed-fallback branch should NOT overwrite the pre-seeded
+      // record — composition is strictly a fallback.
+      const sessionCopy = readFileSync(join(sessionDir, RUN_RECORD_ARTIFACT), 'utf-8')
+      expect(JSON.parse(sessionCopy).intent).toBe('pre-seeded intent')
+    })
+
+    it('skips pages with empty pageCode in pagesWritten', async () => {
+      projectRoot = setupProject()
+      const { uuid, sessionDir } = await sessionStart({ projectRoot })
+
+      writeFileSync(
+        join(sessionDir, 'page-home.json'),
+        JSON.stringify({
+          id: 'home',
+          name: 'Home',
+          route: '/',
+          pageType: 'marketing',
+          request: {
+            type: 'add-page',
+            target: 'home',
+            changes: { id: 'home', name: 'Home', route: '/', pageCode: 'export default function Home(){}' },
+          },
+        }),
+      )
+      writeFileSync(
+        join(sessionDir, 'page-empty.json'),
+        JSON.stringify({
+          id: 'empty',
+          name: 'Empty',
+          route: '/empty',
+          pageType: 'app',
+          request: {
+            type: 'add-page',
+            target: 'empty',
+            changes: { id: 'empty', name: 'Empty', route: '/empty', pageCode: '' },
+          },
+        }),
+      )
+
+      const result = await sessionEnd({ projectRoot, uuid, keepSession: true })
+      expect(result.runRecordPath).toBeTruthy()
+      const composed = JSON.parse(readFileSync(join(sessionDir, RUN_RECORD_ARTIFACT), 'utf-8')) as RunRecord
+      expect(composed.pagesWritten).toEqual(['app/page.tsx'])
+    })
+  })
 })
 
 describe('listPhaseArtifacts', () => {

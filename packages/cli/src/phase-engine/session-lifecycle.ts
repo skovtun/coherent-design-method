@@ -20,11 +20,12 @@
 import { existsSync } from 'fs'
 import { readdir, readFile } from 'fs/promises'
 import { join, resolve } from 'path'
-import { DesignSystemManager } from '@getcoherent/core'
+import { CLI_VERSION, DesignSystemManager } from '@getcoherent/core'
 import { acquirePersistentLock, releasePersistentLock } from '../utils/files.js'
 import { loadHashes } from '../utils/file-hashes.js'
 import { writeRunRecordRel } from '../utils/run-record.js'
-import type { RunRecord } from '../utils/run-record.js'
+import type { RunRecord, RunRecordOptions } from '../utils/run-record.js'
+import { routeToFsPath } from '../commands/chat/utils.js'
 import { FileBackedSessionStore } from './file-backed-session-store.js'
 import type { SessionMeta, SessionStore } from './session-store.js'
 
@@ -186,7 +187,23 @@ export async function sessionEnd(input: SessionEndInput): Promise<SessionEndResu
   }
 
   let runRecordPath: string | null = null
-  const runRecordRaw = await store.readArtifact(uuid, RUN_RECORD_ARTIFACT)
+  let runRecordRaw = await store.readArtifact(uuid, RUN_RECORD_ARTIFACT)
+
+  // Codex R2 P1 #6: no phase currently seeds `run-record.json` in the skill
+  // rail, so compose one here from session artifacts when missing. Keeps
+  // `.coherent/runs/<timestamp>.yaml` parity with the chat rail so "did
+  // memory help?" telemetry and run-history tooling see both rails
+  // equivalently.
+  if (!runRecordRaw) {
+    const composed = await composeRunRecord(projectRoot, store, uuid, meta)
+    if (composed) {
+      runRecordRaw = JSON.stringify(composed)
+      // Persist the composed record back to the session dir so the
+      // `--keep` flag preserves a full post-mortem, not a half-empty one.
+      await store.writeArtifact(uuid, RUN_RECORD_ARTIFACT, runRecordRaw)
+    }
+  }
+
   if (runRecordRaw) {
     try {
       const parsed = JSON.parse(runRecordRaw) as RunRecord
@@ -215,6 +232,94 @@ export async function sessionEnd(input: SessionEndInput): Promise<SessionEndResu
 
 function sessionDirPath(projectRoot: string, uuid: string): string {
   return join(projectRoot, '.coherent', 'session', uuid)
+}
+
+/**
+ * Assemble a `RunRecord` from session state when no phase seeded one. Used
+ * as a fallback inside `sessionEnd` so the skill rail still produces a
+ * `.coherent/runs/<timestamp>.yaml` artifact — same shape the chat rail
+ * emits.
+ *
+ * Returns `null` only if the intent artifact is unreadable. Everything else
+ * (pages, components, options, atmosphere) degrades to empty / null so the
+ * record always passes `RunRecord` validation.
+ */
+async function composeRunRecord(
+  projectRoot: string,
+  store: SessionStore,
+  uuid: string,
+  meta: SessionMeta,
+): Promise<RunRecord | null> {
+  const intentRaw = await store.readArtifact(uuid, INTENT_ARTIFACT)
+  if (intentRaw === null) return null
+
+  const optionsRaw = await store.readArtifact(uuid, OPTIONS_ARTIFACT)
+  let options: RunRecordOptions = {}
+  if (optionsRaw) {
+    try {
+      options = JSON.parse(optionsRaw) as RunRecordOptions
+    } catch {
+      // ignore — options is best-effort context
+    }
+  }
+
+  const pagesWritten: string[] = []
+  const sharedComponentsWritten: string[] = []
+
+  const entries = await listPhaseArtifacts(projectRoot, uuid)
+
+  // Derive pagesWritten from page-*.json artifacts whose request carries
+  // a non-empty pageCode. Same gate the pages applier uses to decide what
+  // actually lands on disk.
+  for (const name of entries) {
+    if (!/^page-[^/]+\.json$/.test(name)) continue
+    const raw = await store.readArtifact(uuid, name)
+    if (!raw) continue
+    try {
+      const page = JSON.parse(raw) as {
+        route?: string
+        pageType?: 'marketing' | 'app' | 'auth'
+        request?: { changes?: { pageCode?: string } } | null
+      }
+      const pageCode = page.request?.changes?.pageCode?.trim()
+      if (!pageCode || !page.route) continue
+      const fsPath = routeToFsPath(projectRoot, page.route, page.pageType === 'auth')
+      pagesWritten.push(fsPath.replace(projectRoot + '/', ''))
+    } catch {
+      // malformed page-*.json — skip, don't break run-record composition
+    }
+  }
+
+  // Derive sharedComponentsWritten from components-generated.json.
+  const componentsRaw = await store.readArtifact(uuid, 'components-generated.json')
+  if (componentsRaw) {
+    try {
+      const parsed = JSON.parse(componentsRaw) as {
+        components?: Array<{ name?: string; code?: string; file?: string }>
+      }
+      for (const c of parsed.components ?? []) {
+        if (!c.code || !c.name || !c.file) continue
+        sharedComponentsWritten.push(c.file)
+      }
+    } catch {
+      // malformed — skip
+    }
+  }
+
+  const startedAtMs = Date.parse(meta.createdAt)
+  const durationMs = Number.isFinite(startedAtMs) ? Math.max(0, Date.now() - startedAtMs) : 0
+
+  return {
+    timestamp: meta.createdAt,
+    coherentVersion: CLI_VERSION,
+    intent: intentRaw,
+    options,
+    atmosphere: null,
+    pagesWritten,
+    sharedComponentsWritten,
+    durationMs,
+    outcome: 'success',
+  }
 }
 
 export const __internal = {
