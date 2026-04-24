@@ -17,7 +17,7 @@ npm install
 coherent preview
 ```
 
-Init auto-detects Claude Code and provisions a `.claude/skills/coherent-generate/` skill so you can generate pages **without an API key**. Open the project in Claude Code and run `/coherent-generate "<request>"` — your session drives the phase rail while Coherent enforces constraints. Prefer unattended CLI runs? Pass `coherent init --api-mode` and supply an Anthropic key.
+Init auto-detects your environment and wires the right generation path — skill mode (no API key) when Claude Code is present, or the API-key path otherwise. It prints the exact command to run for your setup; no flags needed unless you want to force `--skill-mode` / `--api-mode` / `--both`.
 
 - **App:** http://localhost:3000  
 - **Design System:** http://localhost:3000/design-system  
@@ -39,15 +39,14 @@ Init auto-detects Claude Code and provisions a `.claude/skills/coherent-generate
 | `coherent status` | Print config summary (pages, components). |
 | `coherent components` | List registered components. |
 
-## Two Workflows
+## Workflows
 
-After `coherent init` you can:
+After `coherent init` there's a generative path (auto-wired based on what init detected) plus the IDE:
 
-1. **Work in Cursor/IDE** — Edit `design-system.config.ts`, `app/`, `components/`; hot reload. Best for fine-grained control.
-2. **Generate via Claude Code skill (no API key)** — in Claude Code, `/coherent-generate "add pricing page"` drives the full phase rail. Best for key-less AI generation.
-3. **Use `coherent chat` (API key)** — e.g. `coherent chat "add pricing page"` for the same pipeline as a standalone command. Best for CI/scripts.
+1. **Generation** — whichever command init printed: `/coherent-generate "add pricing page"` in Claude Code (skill mode, no key) or `coherent chat "add pricing page"` (API-key mode). Same pipeline either way.
+2. **IDE** — edit `design-system.config.ts`, `app/`, `components/` directly; hot reload. Best for fine-grained control.
 
-**Tip:** Use a generative path (2 or 3) for structure, then the IDE for details. Commit before each generate run and `git diff` after.
+**Tip:** Use generation for structure, then the IDE for details. Commit before each generate run and `git diff` after.
 
 ## Examples
 
