@@ -435,13 +435,17 @@ export function cn(...inputs: ClassValue[]) {
 
     // DS FAB as its own client component so it can self-hide on
     // /design-system routes (root layout is a Server Component).
-    await generateSharedComponent(this.projectRoot, {
-      name: 'DSButton',
-      type: 'layout',
-      code: this.pageGenerator.generateDSButtonCode(),
-      description: 'Floating "Design System" button — hides itself on /design-system routes',
-      usedIn: ['app/layout.tsx'],
-    })
+    //
+    // Written DIRECTLY (not via `generateSharedComponent`) because DSButton
+    // is Coherent's dev-time navigation helper, not a user-app component.
+    // Registering it in `coherent.components.json` made it show up in the
+    // user's Design System viewer as "CID-001 DSButton" — confusing, since
+    // the user didn't create it and it gets stripped on `coherent export`.
+    // Plain file write keeps the runtime wiring intact without polluting
+    // the user-facing component registry.
+    const dsButtonPath = join(this.projectRoot, 'components', 'shared', 'ds-button.tsx')
+    await mkdir(dirname(dsButtonPath), { recursive: true })
+    await fsWriteFile(dsButtonPath, this.pageGenerator.generateDSButtonCode(), 'utf-8')
 
     if (this.config.navigation?.enabled && appType === 'multi-page') {
       const navType = this.config.navigation.type || 'header'
@@ -557,23 +561,29 @@ export default function ErrorPage({
   }
 
   private async generateFavicon(): Promise<void> {
-    // Landing-style logo: outlined wireframe container with two filled accent
-    // blocks inside the bottom half. Matches the getcoherent.design landing
-    // page aesthetic (previously green, now switched to primary blue).
+    // 4-square grid logo: readable at small sizes (22px header, 16px footer,
+    // 20px CoherentLogo component). The previous landing-approximation
+    // (outlined wireframe + 2 filled inner blocks) rendered as unreadable
+    // dots below 32px, so we use the 4-square grid for CLI + in-project UI
+    // and let the landing page keep its own high-fidelity SVG.
     // `currentColor` on the logo so Header/Footer can theme it via
     // `text-primary`; favicon hardcodes primary blue since static SVGs can't
     // read CSS custom properties.
     const logoSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
-  <rect x="2" y="2" width="20" height="20" rx="4" stroke="currentColor" stroke-width="2"/>
-  <rect x="6" y="13" width="4.5" height="4.5" rx="1" fill="currentColor"/>
-  <rect x="13.5" y="13" width="4.5" height="4.5" rx="1" fill="currentColor"/>
+  <rect x="1.25" y="1.25" width="21.5" height="21.5" rx="3" stroke="currentColor" stroke-width="2"/>
+  <rect x="5.5" y="5.5" width="6" height="6" rx="1" fill="currentColor"/>
+  <rect x="12.5" y="5.5" width="6" height="6" rx="1" fill="currentColor" opacity="0.45"/>
+  <rect x="5.5" y="12.5" width="6" height="6" rx="1" fill="currentColor" opacity="0.45"/>
+  <rect x="12.5" y="12.5" width="6" height="6" rx="1" fill="currentColor"/>
 </svg>`
     await this.writeFile('public/coherent-logo.svg', logoSvg)
 
     const faviconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <rect x="2.5" y="2.5" width="27" height="27" rx="5" stroke="#3B82F6" stroke-width="2.5"/>
-  <rect x="8" y="17.5" width="6" height="6" rx="1.25" fill="#3B82F6"/>
-  <rect x="18" y="17.5" width="6" height="6" rx="1.25" fill="#3B82F6"/>
+  <rect x="1.75" y="1.75" width="28.5" height="28.5" rx="4" stroke="#3B82F6" stroke-width="2.5"/>
+  <rect x="7.25" y="7.25" width="8" height="8" rx="1.25" fill="#3B82F6"/>
+  <rect x="16.75" y="7.25" width="8" height="8" rx="1.25" fill="#3B82F6" opacity="0.45"/>
+  <rect x="7.25" y="16.75" width="8" height="8" rx="1.25" fill="#3B82F6" opacity="0.45"/>
+  <rect x="16.75" y="16.75" width="8" height="8" rx="1.25" fill="#3B82F6"/>
 </svg>`
     await this.writeFile('public/favicon.svg', faviconSvg)
   }
@@ -1033,9 +1043,11 @@ export function Header() {
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 text-primary">
-              <rect x="2" y="2" width="20" height="20" rx="4" stroke="currentColor" strokeWidth="2"/>
-              <rect x="6" y="13" width="4.5" height="4.5" rx="1" fill="currentColor"/>
-              <rect x="13.5" y="13" width="4.5" height="4.5" rx="1" fill="currentColor"/>
+              <rect x="1.25" y="1.25" width="21.5" height="21.5" rx="3" stroke="currentColor" strokeWidth="2"/>
+              <rect x="5.5" y="5.5" width="6" height="6" rx="1" fill="currentColor"/>
+              <rect x="12.5" y="5.5" width="6" height="6" rx="1" fill="currentColor" opacity="0.45"/>
+              <rect x="5.5" y="12.5" width="6" height="6" rx="1" fill="currentColor" opacity="0.45"/>
+              <rect x="12.5" y="12.5" width="6" height="6" rx="1" fill="currentColor"/>
             </svg>
             <Link href="/" className="text-sm font-semibold text-foreground hover:text-foreground/90 transition-colors">
               Coherent Design Method
@@ -1072,9 +1084,11 @@ export function Footer() {
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-2">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 text-primary">
-                <rect x="2" y="2" width="20" height="20" rx="4" stroke="currentColor" strokeWidth="2"/>
-                <rect x="6" y="13" width="4.5" height="4.5" rx="1" fill="currentColor"/>
-                <rect x="13.5" y="13" width="4.5" height="4.5" rx="1" fill="currentColor"/>
+                <rect x="1.25" y="1.25" width="21.5" height="21.5" rx="3" stroke="currentColor" strokeWidth="2"/>
+                <rect x="5.5" y="5.5" width="6" height="6" rx="1" fill="currentColor"/>
+                <rect x="12.5" y="5.5" width="6" height="6" rx="1" fill="currentColor" opacity="0.45"/>
+                <rect x="5.5" y="12.5" width="6" height="6" rx="1" fill="currentColor" opacity="0.45"/>
+                <rect x="12.5" y="12.5" width="6" height="6" rx="1" fill="currentColor"/>
               </svg>
               <span className="text-sm font-semibold">Coherent Design Method</span>
             </div>
@@ -1093,8 +1107,8 @@ export function Footer() {
           <div>
             <h4 className="mb-3 text-sm font-semibold">Legal</h4>
             <ul className="space-y-2">
-              <li><span className="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors">Terms of Use</span></li>
-              <li><span className="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors">Privacy Policy</span></li>
+              <li><Link href="/terms" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Terms of Use</Link></li>
+              <li><Link href="/privacy" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Privacy Policy</Link></li>
             </ul>
           </div>
           <div>

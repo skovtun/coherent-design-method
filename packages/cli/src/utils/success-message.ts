@@ -41,7 +41,7 @@ export function showSuccessMessage(projectPath: string = '.', options: SuccessMe
   console.log('')
   console.log(`  ${tick} ${chalk.dim('Next.js scaffolded')}`)
   console.log(`  ${tick} ${chalk.dim('Design system configured')}`)
-  console.log(`  ${tick} ${chalk.dim('Shared components  ')}${chalk.gray('— Header, Footer, DSButton')}`)
+  console.log(`  ${tick} ${chalk.dim('Shared components  ')}${chalk.gray('— Header, Footer')}`)
   console.log(`  ${tick} ${chalk.dim('Design System viewer  ')}${chalk.gray('— /design-system')}`)
   console.log(`  ${tick} ${chalk.dim('AI context configured')}`)
 

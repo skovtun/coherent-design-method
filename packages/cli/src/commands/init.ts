@@ -148,6 +148,10 @@ const NOISE_PATTERNS: RegExp[] = [
   /^\s*npm i -g create-next-app\s*$/i,
   /^Initialized a git repository\.\s*$/i,
   /^Success! Created .* at /i,
+  // The heartbeat spinner (see below) covers the "creating a new Next.js app"
+  // moment with a progress UI — letting the raw text through would collide
+  // visually with the animated spinner frame.
+  /^Creating a new Next\.js app in/i,
 ]
 
 function runCreateNextApp(projectPath: string): Promise<void> {
@@ -188,22 +192,15 @@ function runCreateNextApp(projectPath: string): Promise<void> {
     let buffer = ''
     let prevBlank = false
     // Heartbeat spinner bridges the 10-15s silence while create-next-app's
-    // `npm install` is quietly installing 300+ packages. Without it, the
-    // filtered output goes dead after "Creating a new Next.js app in..."
-    // and the user can't tell if it's working or hung. Spinner starts on
-    // the first "Creating a new Next.js app" line and stops the moment any
-    // non-noise line arrives after it (typically "added N packages in Ns").
-    let installSpinner: ReturnType<typeof ora> | null = null
-    const startInstallSpinnerIfNeeded = (line: string): void => {
-      if (!installSpinner && /^Creating a new Next\.js app in/i.test(line)) {
-        installSpinner = ora({ text: 'Installing dependencies (takes ~15s)...', prefixText: ' ' }).start()
-      }
-    }
+    // `npm install` is quietly installing 300+ packages. Starts
+    // unconditionally when the child process starts — doesn't depend on
+    // catching a specific trigger line, which avoided a race that caused
+    // the spinner frame to overwrite the "Creating a new Next.js app..."
+    // line it used to fire on. Stops the moment the first non-noise
+    // line arrives (typically "added N packages in Xs").
+    const installSpinner = ora({ text: 'Installing dependencies (takes ~15s)...', prefixText: ' ' }).start()
     const stopInstallSpinner = (): void => {
-      if (installSpinner) {
-        installSpinner.stop()
-        installSpinner = null
-      }
+      if (installSpinner.isSpinning) installSpinner.stop()
     }
 
     const handleChunk = (chunk: Buffer): void => {
@@ -219,13 +216,10 @@ function runCreateNextApp(projectPath: string): Promise<void> {
           prevBlank = true
         } else {
           prevBlank = false
-          // Any non-noise, non-empty signal means install has progressed —
-          // stop the heartbeat so its dots don't interleave with real output.
-          if (installSpinner && !/^Creating a new Next\.js app in/i.test(line)) {
-            stopInstallSpinner()
-          }
+          // First non-noise, non-empty signal → stop the heartbeat so its
+          // dots don't interleave with the real output.
+          stopInstallSpinner()
         }
-        startInstallSpinnerIfNeeded(line)
         process.stdout.write(line + '\n')
       }
     }
@@ -408,9 +402,8 @@ export async function initCommand(name?: string, options: InitOptions = {}) {
     const hasNext = hasNextInPackageJson(projectPath)
     let usedCreateNextApp = false
     if (!hasNext) {
-      console.log(chalk.dim('Scaffolding Next.js foundation...\n'))
+      console.log(chalk.dim('Scaffolding Next.js foundation...'))
       await runCreateNextApp(projectPath)
-      console.log('')
       usedCreateNextApp = true
     }
 
