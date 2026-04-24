@@ -27,8 +27,19 @@ import { getWelcomeMarkdown, generateWelcomeComponent } from '../utils/welcome-c
 import { setupApiKey, hasApiKey } from '../utils/api-key-setup.js'
 import { writeAllHarnessFiles } from '../utils/harness-context.js'
 import { isTailwindV4, generateV4GlobalsCss } from '../utils/tailwind-version.js'
+import { detectEditors } from '../utils/editor-detection.js'
+import type { SuccessMode } from '../utils/success-message.js'
 import { cwd } from 'process'
 import { toKebabCase, toTitleCase } from '../utils/strings.js'
+
+export interface InitOptions {
+  /** Skip API key prompt; emit skill-mode CTA. */
+  skillMode?: boolean
+  /** Force API key setup; emit chat CTA. */
+  apiMode?: boolean
+  /** API key setup optional; emit both CTAs. */
+  both?: boolean
+}
 
 /** Whether current directory has a package.json with next (dependencies or devDependencies). */
 function hasNextInPackageJson(projectPath: string): boolean {
@@ -132,7 +143,29 @@ export const config = ${jsonString} as const
 `
 }
 
-export async function initCommand(name?: string) {
+/**
+ * Resolve the init mode from user-supplied flags. Precedence: explicit flags
+ * beat auto-detect. `--both` beats `--skill-mode` beats `--api-mode` when the
+ * user passes more than one (same shape as most CLIs on conflicting flags).
+ *
+ * When no flag is set we auto-pick based on two signals:
+ *   - Claude Code detected (`.claude/` in repo) → skill CTA is reachable.
+ *   - API key already in env → chat CTA is reachable.
+ * If both reachable, show both. If only one, show only that one.
+ */
+export function resolveInitMode(
+  options: InitOptions,
+  signals: { hasClaudeCode: boolean; hasApiKey: boolean },
+): SuccessMode {
+  if (options.both) return 'both'
+  if (options.skillMode) return 'skill'
+  if (options.apiMode) return 'api'
+  if (signals.hasClaudeCode && signals.hasApiKey) return 'both'
+  if (signals.hasClaudeCode) return 'skill'
+  return 'api'
+}
+
+export async function initCommand(name?: string, options: InitOptions = {}) {
   try {
     // Step 0: If name provided, create directory and cd into it
     if (name) {
@@ -343,8 +376,13 @@ export default config
       docsSpinner.succeed('Documentation pages created')
     }
 
-    // API key setup (if not already in env)
-    if (!hasApiKey()) {
+    // API key setup. Mode flags decide whether we prompt:
+    //  - skill-mode: never prompt; rely on Claude Code subscription.
+    //  - api-mode:   prompt if no key (existing behavior).
+    //  - both:       prompt optionally; skill path works without key.
+    //  - default:    prompt if no key (existing behavior).
+    const skipApiKey = options.skillMode === true
+    if (!skipApiKey && !hasApiKey()) {
       await setupApiKey(projectPath)
     }
 
@@ -360,9 +398,22 @@ export default config
       if (process.env.COHERENT_DEBUG === '1') console.error(chalk.dim('Could not write .cursorrules / CLAUDE.md:'), e)
     }
 
-    // Step 4: Show professional success message
+    // Step 4: Resolve mode + show success message tailored to the user's setup.
+    // Detection runs AFTER writeAllHarnessFiles so a freshly scaffolded
+    // `.claude/` is visible — we're telling the user what they can do *now*,
+    // not what was true when they invoked the command.
+    const detection = detectEditors(projectPath)
+    const resolvedMode = resolveInitMode(options, {
+      hasClaudeCode: detection.withAdapter.includes('claude-code'),
+      hasApiKey: hasApiKey(),
+    })
+
     warnIfVolatile(projectPath)
-    showSuccessMessage('.')
+    showSuccessMessage('.', {
+      mode: resolvedMode,
+      detectedEditors: detection.detected,
+      v2TargetEditors: detection.v2Target,
+    })
   } catch (error) {
     console.error(chalk.red('\n❌ Error:'), error instanceof Error ? error.message : 'Unknown error')
     process.exit(1)

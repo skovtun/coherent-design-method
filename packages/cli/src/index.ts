@@ -10,7 +10,8 @@ try {
 
 import { Command } from 'commander'
 import { CLI_VERSION } from '@getcoherent/core'
-import { initCommand } from './commands/init.js'
+import { initCommand, type InitOptions } from './commands/init.js'
+import { authStatusCommand, authSetKeyCommand, authUnsetKeyCommand } from './commands/auth.js'
 import { chatCommand } from './commands/chat.js'
 import { promptCommand } from './commands/prompt.js'
 import { memoryShowCommand, memoryDiffCommand } from './commands/memory.js'
@@ -68,7 +69,26 @@ program
   .command('init')
   .argument('[name]', 'Project directory name (created if it does not exist)')
   .description('Initialize a new Coherent project')
-  .action(initCommand)
+  .option('--skill-mode', 'Skip API key setup; expect /coherent-generate in Claude Code')
+  .option('--api-mode', 'Force API key setup; emit coherent chat CTA')
+  .option('--both', 'API key optional; emit CTAs for both skill and chat rails')
+  .action((nameArg: string | undefined, opts: InitOptions) => initCommand(nameArg, opts))
+
+// ─── Auth (AI provider credentials) ─────────────────────────────────
+
+const authCmd = new Command('auth').description('Manage AI provider credentials (writes to project .env)')
+authCmd.command('status').description('Show which AI keys are configured').action(authStatusCommand)
+authCmd
+  .command('set-key <key>')
+  .description('Save an API key to .env (provider inferred from prefix, or pass --provider)')
+  .option('--provider <provider>', 'Force provider: anthropic | openai')
+  .action((key: string, opts: { provider?: string }) => authSetKeyCommand(key, opts))
+authCmd
+  .command('unset-key')
+  .description('Remove an AI key from .env')
+  .option('--provider <provider>', 'Which key to remove: anthropic | openai (required)')
+  .action((opts: { provider?: string }) => authUnsetKeyCommand(opts))
+program.addCommand(authCmd)
 
 program
   .command('chat')
