@@ -21,8 +21,12 @@
 
 import type { AiPhase, PhaseContext } from '../phase.js'
 import type { ArchitecturePlan, GeneratedComponent } from '../../commands/chat/plan-generator.js'
+import type { DesignSystemConfig } from '@getcoherent/core'
 import { buildComponentsBatchPrompt } from '../prompt-builders/components-batch.js'
-import { parsePlanResponse } from './plan.js'
+import { parsePlanResponse, type PlanArtifact, type PlanInput } from './plan.js'
+import type { PageSpec, PagesInputShared } from '../prompt-builders/page.js'
+import type { PagesInput } from './page.js'
+import { getDesignQualityForType, inferPageTypeFromRoute } from '../../agents/design-constraints.js'
 
 /** Input artifact for the components phase. Written by `coherent session start`. */
 export interface ComponentsInput {
@@ -49,6 +53,13 @@ export interface ComponentsPhaseOptions {
   inputArtifact?: string
   /** Artifact to write ComponentsArtifact to. Default `components-generated.json`. */
   outputArtifact?: string
+  /**
+   * Artifact to seed with PagesInput so every subsequent `_phase prep
+   * page:<id>` call finds its input. Default `pages-input.json`. Set to
+   * `null` to suppress the chain (e.g. chat-rail facade that seeds
+   * pages-input from its richer in-process state).
+   */
+  pagesInputArtifact?: string | null
 }
 
 function toKebabCase(name: string): string {
@@ -84,9 +95,82 @@ export function pickGeneratedComponents(
   return out
 }
 
+/**
+ * Constant alignment-rule sentence every page prompt embeds. Matches the
+ * chat rail's phrasing byte-for-byte so parity harness diffs stay clean.
+ */
+const ALIGNMENT_NOTE =
+  'ALIGNMENT: the container class on every page MUST match the home page exactly so headers, footers, and content blocks line up across routes.'
+
+/**
+ * Minimum viable PagesInput composition for v0.9.0 skill-mode. Reads the
+ * plan + plan-input + style artifacts and pre-renders one PageSpec per page
+ * plus a shared block. Fields that depend on chat-rail-only state (layout
+ * groups, reuse planner, design memory, existing-pages scan, project root)
+ * are filled with sensible defaults so the page phase's prompt builder
+ * doesn't crash. The chat-rail facade (future Lane D task) will provide a
+ * richer composition — this path is for skill-mode only.
+ */
+async function seedPagesInputFromSessionArtifacts(
+  ctx: PhaseContext,
+  styleContext: string,
+  artifactName: string,
+): Promise<void> {
+  const planRaw = await ctx.session.readArtifact(ctx.sessionId, 'plan.json')
+  const planInputRaw = await ctx.session.readArtifact(ctx.sessionId, 'plan-input.json')
+  if (planRaw === null || planInputRaw === null) {
+    // Plan or plan-input absent → nothing to compose pages from. Skip the
+    // write; the page phase will surface a clean "missing required artifact"
+    // error if a caller still tries to advance.
+    return
+  }
+
+  const plan = JSON.parse(planRaw) as PlanArtifact
+  const planInput = JSON.parse(planInputRaw) as PlanInput
+  if (plan.pageNames.length === 0) return
+
+  const routeNote = `EXISTING ROUTES in this project: ${plan.pageNames.map(p => p.route).join(', ')}`
+
+  const pages: PageSpec[] = plan.pageNames.map(p => {
+    const pageType = inferPageTypeFromRoute(p.route)
+    return {
+      id: p.id,
+      name: p.name,
+      route: p.route,
+      pageType,
+      atmosphereDirective: '',
+      designConstraints: getDesignQualityForType(pageType),
+      layoutNote: '',
+      reusePlanDirective: '',
+      tieredComponentsPrompt: undefined,
+      authNote: null,
+      planSummary: '',
+      existingPagesContext: '',
+      pageSections: [],
+    }
+  })
+
+  const shared: PagesInputShared = {
+    message: planInput.message,
+    styleContext,
+    existingAppPageNote: '',
+    designMemoryBlock: '',
+    routeNote,
+    alignmentNote: ALIGNMENT_NOTE,
+    config: planInput.config as DesignSystemConfig,
+    componentRegistry: '',
+    sharedComponentsSummary: undefined,
+    projectRoot: null,
+  }
+
+  const pagesInput: PagesInput = { shared, pages }
+  await ctx.session.writeArtifact(ctx.sessionId, artifactName, JSON.stringify(pagesInput, null, 2))
+}
+
 export function createComponentsPhase(options: ComponentsPhaseOptions = {}): AiPhase {
   const inputFile = options.inputArtifact ?? 'components-input.json'
   const outputFile = options.outputArtifact ?? 'components-generated.json'
+  const pagesInputFile = options.pagesInputArtifact === undefined ? 'pages-input.json' : options.pagesInputArtifact
 
   async function loadInput(ctx: PhaseContext): Promise<ComponentsInput> {
     const raw = await ctx.session.readArtifact(ctx.sessionId, inputFile)
@@ -120,6 +204,15 @@ export function createComponentsPhase(options: ComponentsPhaseOptions = {}): AiP
       const components = pickGeneratedComponents(parsed, input.sharedComponents)
       const out: ComponentsArtifact = { components }
       await ctx.session.writeArtifact(ctx.sessionId, outputFile, JSON.stringify(out, null, 2))
+
+      // Chain pages-input.json so `_phase prep page:<id>` finds its input
+      // (codex P1 #1 chain, part 4/4). v0.9.0 skill-mode composes a minimum-
+      // viable PagesInput from plan + style artifacts; the chat-rail facade
+      // (future) will replace this with a richer composition that matches
+      // chat's in-process prompt assembly.
+      if (pagesInputFile !== null) {
+        await seedPagesInputFromSessionArtifacts(ctx, input.styleContext, pagesInputFile)
+      }
     },
   }
 }

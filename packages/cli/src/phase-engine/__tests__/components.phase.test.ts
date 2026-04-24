@@ -235,4 +235,87 @@ describe('createComponentsPhase', () => {
     expect(await store.readArtifact(sessionId, 'components-out-x.json')).not.toBeNull()
     expect(await store.readArtifact(sessionId, 'components-generated.json')).toBeNull()
   })
+
+  describe('pages-input chain (codex P1 #1, part 4/4)', () => {
+    // Helper: seed plan.json + plan-input.json + components-input.json as
+    // every upstream phase would have done by the time components.ingest runs.
+    async function seedUpstreamArtifacts(pages: Array<{ id: string; name: string; route: string }>) {
+      await store.writeArtifact(
+        sessionId,
+        'plan.json',
+        JSON.stringify({ pageNames: pages, navigationType: 'header', appName: null }),
+      )
+      await store.writeArtifact(
+        sessionId,
+        'plan-input.json',
+        JSON.stringify({ message: 'build a CRM', config: { name: 'My App' } }),
+      )
+      await writeInput(baseInput({ sharedComponents: [spec('Hero')], styleContext: 'Container: max-w-6xl' }))
+    }
+
+    it('writes pages-input.json with one PageSpec per planned page', async () => {
+      await seedUpstreamArtifacts([
+        { id: 'home', name: 'Home', route: '/' },
+        { id: 'leads', name: 'Leads', route: '/leads' },
+        { id: 'login', name: 'Login', route: '/login' },
+      ])
+      await createComponentsPhase().ingest(
+        JSON.stringify({
+          requests: [{ type: 'add-page', changes: { name: 'Hero', pageCode: 'export function Hero(){}' } }],
+        }),
+        { session: store, sessionId },
+      )
+
+      const raw = await store.readArtifact(sessionId, 'pages-input.json')
+      expect(raw).not.toBeNull()
+      const pagesInput = JSON.parse(raw!)
+
+      expect(pagesInput.pages).toHaveLength(3)
+      expect(pagesInput.pages[0].id).toBe('home')
+      expect(pagesInput.pages[0].pageType).toBe('marketing')
+      expect(pagesInput.pages[1].id).toBe('leads')
+      expect(pagesInput.pages[1].pageType).toBe('app')
+      // inferPageTypeFromRoute detects /login → auth
+      expect(pagesInput.pages[2].id).toBe('login')
+      expect(pagesInput.pages[2].pageType).toBe('auth')
+
+      expect(pagesInput.shared.message).toBe('build a CRM')
+      expect(pagesInput.shared.styleContext).toBe('Container: max-w-6xl')
+      expect(pagesInput.shared.routeNote).toContain('/')
+      expect(pagesInput.shared.routeNote).toContain('/leads')
+      expect(pagesInput.shared.routeNote).toContain('/login')
+      expect(pagesInput.shared.alignmentNote).toContain('ALIGNMENT')
+    })
+
+    it('skips pages-input.json when plan.json is missing (upstream broken)', async () => {
+      // Only components-input + plan-input exist. plan.json absent.
+      await store.writeArtifact(
+        sessionId,
+        'plan-input.json',
+        JSON.stringify({ message: 'x', config: { name: 'My App' } }),
+      )
+      await writeInput(baseInput({ sharedComponents: [spec('Hero')] }))
+
+      await createComponentsPhase().ingest(JSON.stringify({ requests: [] }), { session: store, sessionId })
+
+      expect(await store.readArtifact(sessionId, 'pages-input.json')).toBeNull()
+    })
+
+    it('skips pages-input.json when plan has no pages', async () => {
+      await seedUpstreamArtifacts([])
+      await createComponentsPhase().ingest(JSON.stringify({ requests: [] }), { session: store, sessionId })
+
+      expect(await store.readArtifact(sessionId, 'pages-input.json')).toBeNull()
+    })
+
+    it('suppresses chain when pagesInputArtifact = null', async () => {
+      await seedUpstreamArtifacts([{ id: 'home', name: 'Home', route: '/' }])
+      await createComponentsPhase({ pagesInputArtifact: null }).ingest(JSON.stringify({ requests: [] }), {
+        session: store,
+        sessionId,
+      })
+
+      expect(await store.readArtifact(sessionId, 'pages-input.json')).toBeNull()
+    })
+  })
 })
