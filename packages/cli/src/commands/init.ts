@@ -455,6 +455,17 @@ export async function initCommand(name?: string, options: InitOptions = {}) {
     const configContent = generateConfigFile(config)
     await writeFile('./design-system.config.ts', configContent)
 
+    // Compute the welcome-page mode EARLY (user-level detection only, since
+    // project-level detectEditors runs on the scaffolded tree which doesn't
+    // exist yet). Passed into generateWelcomeComponent so the scaffolded home
+    // page shows `/coherent-generate` or `coherent chat` in its step examples
+    // to match the user's actual path — otherwise API-mode users would see
+    // slash commands they can't run.
+    const welcomeMode = resolveInitMode(options, {
+      hasClaudeCode: detectClaudeCodeUserLevel(),
+      hasApiKey: hasApiKey(),
+    })
+
     const scaffolder = new ProjectScaffolder(config, projectPath)
 
     // Single compound spinner for the entire Coherent layer setup. The
@@ -512,13 +523,13 @@ export default config
         await createAppRouteGroupLayout(projectPath)
 
         const welcomeMarkdown = getWelcomeMarkdown()
-        const homePageContent = generateWelcomeComponent(welcomeMarkdown)
+        const homePageContent = generateWelcomeComponent(welcomeMarkdown, welcomeMode)
         await writeFile(join(projectPath, 'app', 'page.tsx'), homePageContent)
         await scaffolder.generateDesignSystemPages()
         await scaffolder.generateDocsPages()
       } else {
         const welcomeMarkdown = getWelcomeMarkdown()
-        const homePageContent = generateWelcomeComponent(welcomeMarkdown)
+        const homePageContent = generateWelcomeComponent(welcomeMarkdown, welcomeMode)
         await scaffolder.scaffold({ homePageContent })
 
         try {

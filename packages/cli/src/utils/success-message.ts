@@ -70,29 +70,35 @@ export function showSuccessMessage(projectPath: string = '.', options: SuccessMe
   console.log(chalk.bold('  Next:'))
   console.log('')
 
+  // Command color: `chalk.cyanBright.bold` makes the runnable commands pop
+  // against the `chalk.dim` explanation text around them. Plain cyan was
+  // rendering as a low-contrast muted turquoise in some terminals and got
+  // lost in the scrollback.
+  const cmd = chalk.cyanBright.bold
+
   if (mode === 'skill') {
     console.log(chalk.dim('    1. Describe your app — in Claude Code:'))
-    console.log(chalk.cyan(`       /coherent-generate ${example}`))
+    console.log(cmd(`       /coherent-generate ${example}`))
     console.log('')
     console.log(chalk.dim('    2. Preview:'))
-    if (needsCd) console.log(chalk.cyan(`       cd ${options.projectName}`))
-    console.log(chalk.cyan(`       coherent preview`))
+    if (needsCd) console.log(cmd(`       cd ${options.projectName}`))
+    console.log(cmd(`       coherent preview`))
   } else if (mode === 'api') {
     console.log(chalk.dim('    1. Describe your app:'))
-    if (needsCd) console.log(chalk.cyan(`       cd ${options.projectName}`))
-    console.log(chalk.cyan(`       coherent chat ${shellExample}`))
+    if (needsCd) console.log(cmd(`       cd ${options.projectName}`))
+    console.log(cmd(`       coherent chat ${shellExample}`))
     console.log('')
     console.log(chalk.dim('    2. Preview:'))
-    if (needsCd) console.log(chalk.cyan(`       cd ${options.projectName}`))
-    console.log(chalk.cyan(`       coherent preview`))
+    if (needsCd) console.log(cmd(`       cd ${options.projectName}`))
+    console.log(cmd(`       coherent preview`))
   } else {
     console.log(chalk.dim('    1. Describe your app — pick one:'))
-    console.log(chalk.dim('       Claude Code:') + chalk.cyan(`  /coherent-generate ${example}`))
-    console.log(chalk.dim('       CLI:') + chalk.cyan(`          coherent chat ${shellExample}`))
+    console.log(chalk.dim('       Claude Code:') + cmd(`  /coherent-generate ${example}`))
+    console.log(chalk.dim('       CLI:') + cmd(`          coherent chat ${shellExample}`))
     console.log('')
     console.log(chalk.dim('    2. Preview:'))
-    if (needsCd) console.log(chalk.cyan(`       cd ${options.projectName}`))
-    console.log(chalk.cyan(`       coherent preview`))
+    if (needsCd) console.log(cmd(`       cd ${options.projectName}`))
+    console.log(cmd(`       coherent preview`))
   }
 
   // Shipping + recovery commands are shared between skill and API modes —
@@ -101,19 +107,15 @@ export function showSuccessMessage(projectPath: string = '.', options: SuccessMe
   // but knows where to look when they get there.
   console.log('')
   console.log(chalk.dim('  When your UI is ready and you like it:'))
-  console.log(
-    chalk.cyan('    coherent export') + chalk.dim('  — export as a finished frontend, or hand off to a developer'),
-  )
+  console.log(cmd('    coherent export') + chalk.dim('  — export as a finished frontend, or hand off to a developer'))
 
   console.log('')
   console.log(chalk.dim('  If something is off:'))
-  console.log(
-    chalk.cyan('    coherent fix') + chalk.dim('     — auto-fix common issues (broken imports, missing files)'),
-  )
-  console.log(chalk.cyan('    coherent sync') + chalk.dim('    — re-sync the design system after manual edits'))
+  console.log(cmd('    coherent fix') + chalk.dim('     — auto-fix common issues (broken imports, missing files)'))
+  console.log(cmd('    coherent sync') + chalk.dim('    — re-sync the design system after manual edits'))
 
   console.log('')
-  console.log(chalk.dim('  More commands: ') + chalk.cyan('coherent --help'))
+  console.log(chalk.dim('  More commands: ') + cmd('coherent --help'))
   console.log(chalk.dim('  Docs: ') + chalk.dim.underline('https://github.com/skovtun/coherent-design-method'))
   console.log('')
 }

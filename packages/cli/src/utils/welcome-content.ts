@@ -21,7 +21,29 @@ export function getWelcomeMarkdown(): string {
   return ''
 }
 
-export function generateWelcomeComponent(_markdown: string): string {
+export type WelcomeMode = 'skill' | 'api' | 'both'
+
+export function generateWelcomeComponent(_markdown: string, mode: WelcomeMode = 'both'): string {
+  // Match the immediate-CTA in the CLI init summary: step 1 and step 3 show
+  // the command the user is actually going to run. Skill-mode users get
+  // /coherent-generate (no API key); API-mode users get coherent chat with
+  // quotes (shell needs them); "both" prefers skill since it's zero extra
+  // cost to Claude Code subscribers.
+  const describeCmd =
+    mode === 'api'
+      ? 'coherent chat "Create a fitness studio app with pages: home, classes, pricing, about, and contact. Modern, light theme"'
+      : '/coherent-generate Create a fitness studio app with pages: home, classes, pricing, about, and contact. Modern, light theme'
+  const iterateCmd =
+    mode === 'api'
+      ? 'coherent chat "Change primary color to indigo, add a blog page"'
+      : '/coherent-generate Change primary color to indigo, add a blog page'
+  const describeHint =
+    mode === 'skill'
+      ? 'In Claude Code, no API key needed.'
+      : mode === 'api'
+        ? 'Uses your Anthropic or OpenAI key.'
+        : 'Inside Claude Code use /coherent-generate (no key). Otherwise use coherent chat with an Anthropic or OpenAI key.'
+
   return `'use client'
 
 import { useState } from 'react'
@@ -50,8 +72,8 @@ export default function HomePage() {
     {
       num: 1,
       title: 'Describe your app',
-      desc: 'Tell the AI what to build — pages, sections, and style. Inside Claude Code use /coherent-generate (no API key). Otherwise use coherent chat with an Anthropic or OpenAI key.',
-      cmd: '/coherent-generate "Create a fitness studio app with pages: home, classes, pricing, about, contact. Modern, light theme"',
+      desc: \`Tell the AI what to build — pages, sections, and style. A full multi-page prototype is generated instantly. \${describeHint}\`,
+      cmd: describeCmd,
     },
     {
       num: 2,
@@ -63,7 +85,7 @@ export default function HomePage() {
       num: 3,
       title: 'Iterate',
       desc: 'Change colors, fonts, add pages — each command updates the entire system consistently.',
-      cmd: '/coherent-generate "Change primary color to indigo, add a blog page"',
+      cmd: iterateCmd,
     },
     {
       num: 4,
