@@ -26,7 +26,13 @@
 import chalk from 'chalk'
 import { requireProject } from './chat/utils.js'
 import { FileBackedSessionStore } from '../phase-engine/file-backed-session-store.js'
-import { isAiPhase, type AiPhase, type DeterministicPhase, type Phase, type PhaseContext } from '../phase-engine/phase.js'
+import {
+  isAiPhase,
+  type AiPhase,
+  type DeterministicPhase,
+  type Phase,
+  type PhaseContext,
+} from '../phase-engine/phase.js'
 import { PHASE_ENGINE_PROTOCOL, resolvePhase } from '../phase-engine/phase-registry.js'
 
 export type PhaseAction = 'prep' | 'ingest' | 'run'
