@@ -44,6 +44,7 @@ import { updateCommand } from './commands/update.js'
 import { undoCommand } from './commands/undo.js'
 import { syncCommand } from './commands/sync.js'
 import { migrateAction } from './commands/migrate.js'
+import { sessionStartCommand, sessionEndCommand } from './commands/session.js'
 import { checkForUpdates } from './utils/update-notifier.js'
 
 const program = new Command()
@@ -141,6 +142,26 @@ memoryCmd
   .description('git diff decisions.md vs <ref> (default: HEAD). Shows how memory changed recently.')
   .action((ref: string | undefined, opts: { _throwOnError?: boolean }) => memoryDiffCommand(ref, opts))
 program.addCommand(memoryCmd)
+
+// ─── Session lifecycle (skill-mode rail) ────────────────────────────
+
+const sessionCmd = new Command('session').description(
+  'Skill-mode session lifecycle (acquires project lock at start, applies artifacts at end)',
+)
+sessionCmd
+  .command('start')
+  .description('Start a new session — prints UUID on stdout, human-readable summary on stderr')
+  .option('--intent <message>', 'Raw user intent (persisted as intent.txt)')
+  .option('--options <json>', 'JSON object of caller options (persisted as options.json)')
+  .action((opts: { intent?: string; options?: string }) =>
+    sessionStartCommand({ intent: opts.intent, optionsJson: opts.options }),
+  )
+sessionCmd
+  .command('end <uuid>')
+  .description('End a session — applies artifacts, writes run record, releases lock')
+  .option('--keep', 'Keep the session dir after ending (for debugging)')
+  .action((uuid: string, opts: { keep?: boolean }) => sessionEndCommand(uuid, opts))
+program.addCommand(sessionCmd)
 
 program.command('preview').description('Launch dev server for preview').action(previewCommand)
 

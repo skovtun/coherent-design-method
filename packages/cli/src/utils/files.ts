@@ -123,6 +123,56 @@ export async function acquireProjectLock(projectRoot: string): Promise<() => voi
 }
 
 /**
+ * Persistent variant for skill-mode (`coherent session start`/`end`): the lock must
+ * survive the `start` process exit so a later `_phase` or `session end` process can
+ * find the project still locked by the session owner. Uses the same `.coherent.lock`
+ * filename as `acquireProjectLock` so they are mutually exclusive, but skips the
+ * process.on('exit') auto-release. Staleness + PID-liveness check on the holder still
+ * applies; callers must invoke `releasePersistentLock` explicitly.
+ */
+export function acquirePersistentLock(projectRoot: string): void {
+  const lockPath = join(projectRoot, LOCK_FILENAME)
+
+  if (existsSync(lockPath)) {
+    try {
+      const raw = readFileSync(lockPath, 'utf-8')
+      const data = JSON.parse(raw) as { pid: number; ts: number }
+      const age = Date.now() - data.ts
+
+      if (age < LOCK_STALE_MS) {
+        try {
+          process.kill(data.pid, 0)
+          throw new Error(
+            `Another coherent process (PID ${data.pid}) is running. Wait for it to finish or remove ${LOCK_FILENAME}.`,
+          )
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code !== 'ESRCH') throw e
+        }
+      }
+      unlinkSync(lockPath)
+    } catch (e) {
+      if (e instanceof SyntaxError) unlinkSync(lockPath)
+      else if (e instanceof Error && e.message.includes('Another coherent')) throw e
+    }
+  }
+
+  const lockData = JSON.stringify({ pid: process.pid, ts: Date.now() })
+  writeFileSync(lockPath, lockData, 'utf-8')
+}
+
+/**
+ * Release the persistent lock. Idempotent: missing lockfile is not an error.
+ */
+export function releasePersistentLock(projectRoot: string): void {
+  const lockPath = join(projectRoot, LOCK_FILENAME)
+  try {
+    unlinkSync(lockPath)
+  } catch {
+    /* already released */
+  }
+}
+
+/**
  * Batch write: back up files, write all, and restore on failure.
  * Provides transactional semantics for multi-file operations.
  */
