@@ -40,6 +40,7 @@ import type { ComponentsArtifact } from './phases/components.js'
 import type { PageArtifact } from './phases/page.js'
 import { routeToFsPath } from '../commands/chat/utils.js'
 import { autoFixCode, type AutoFixContext } from '../utils/quality-validator.js'
+import { fixGlobalsCss } from '../utils/fix-globals-css.js'
 
 const CONFIG_DELTA_ARTIFACT = 'config-delta.json'
 const COMPONENTS_GENERATED_ARTIFACT = 'components-generated.json'
@@ -235,6 +236,30 @@ export function createPagesApplier(): ArtifactApplier {
       }
 
       return results
+    },
+  }
+}
+
+/**
+ * Resync `app/globals.css` against the current design-system config. Idempotent:
+ * `fixGlobalsCss` is a no-op when globals.css already matches (or the file
+ * doesn't exist). Runs after pages so any config-delta changes earlier in the
+ * chain are reflected in the emitted CSS tokens.
+ */
+export function createFixGlobalsCssApplier(): ArtifactApplier {
+  return {
+    name: 'fix-globals-css',
+    async apply(ctx: ArtifactApplierContext): Promise<string[]> {
+      const configPath = resolve(ctx.projectRoot, 'design-system.config.ts')
+      const dsm = new DesignSystemManager(configPath)
+      await dsm.load()
+      try {
+        fixGlobalsCss(ctx.projectRoot, dsm.getConfig())
+      } catch {
+        // Best-effort: a stale or unparseable globals.css shouldn't fail the session.
+        return []
+      }
+      return ['globals.css resynced']
     },
   }
 }

@@ -63,6 +63,7 @@ import { savePlan, loadPlan } from './chat/plan-generator.js'
 import { getAtmospherePreset, listAtmospherePresets } from './chat/atmosphere-presets.js'
 import { sessionStart, sessionEnd } from '../phase-engine/session-lifecycle.js'
 import { FileBackedSessionStore } from '../phase-engine/file-backed-session-store.js'
+import { createFixGlobalsCssApplier } from '../phase-engine/appliers.js'
 import {
   markLatestRunOutcome,
   type RunRecord,
@@ -1285,12 +1286,6 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
       console.log(chalk.dim(`  Auto-installed shared deps: ${finalDeps.join(', ')}`))
     }
 
-    try {
-      fixGlobalsCss(projectRoot, updatedConfig)
-    } catch {
-      /* best-effort */
-    }
-
     // Update file hashes for all written files
     try {
       const updatedHashes = { ...storedHashes }
@@ -1564,7 +1559,7 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
         const ended = await sessionEnd({
           projectRoot,
           uuid: sessionUuid,
-          appliers: [],
+          appliers: [createFixGlobalsCssApplier()],
           skipRunRecord: !!options.dryRun,
           store,
         })
