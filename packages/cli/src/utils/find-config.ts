@@ -29,16 +29,19 @@ export function isVolatileDirectory(dir: string): boolean {
 }
 
 /**
- * Print a warning if the project resides in a volatile directory.
+ * Print a warning if the project resides in a volatile directory. Writes to
+ * stderr (not stdout) so machine-readable subcommands — `coherent session start`
+ * prints the session UUID on stdout — don't pollute their contract when a
+ * project happens to live under `/tmp`.
  */
 export function warnIfVolatile(projectRoot: string): void {
   if (isVolatileDirectory(projectRoot)) {
-    console.log('')
-    console.log(chalk.yellow('⚠ WARNING: This project is inside a temporary directory.'))
-    console.log(chalk.yellow('  Your OS may automatically delete files from this location.'))
-    console.log(chalk.dim(`  Project path: ${projectRoot}`))
-    console.log(chalk.dim('  Move your project to a permanent location to avoid data loss:'))
-    console.log(chalk.dim(`  cp -r "${projectRoot}" ~/projects/\n`))
+    console.error('')
+    console.error(chalk.yellow('⚠ WARNING: This project is inside a temporary directory.'))
+    console.error(chalk.yellow('  Your OS may automatically delete files from this location.'))
+    console.error(chalk.dim(`  Project path: ${projectRoot}`))
+    console.error(chalk.dim('  Move your project to a permanent location to avoid data loss:'))
+    console.error(chalk.dim(`  cp -r "${projectRoot}" ~/projects/\n`))
   }
 }
 
