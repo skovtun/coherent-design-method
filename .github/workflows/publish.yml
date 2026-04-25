@@ -32,14 +32,20 @@ jobs:
       - name: Build packages
         run: pnpm build
 
+      # Use `pnpm publish`, not `npm publish`. The packages declare
+      # `workspace:*` deps; npm doesn't resolve that protocol and the
+      # prepublishOnly guard hard-stops it. pnpm rewrites workspace:* into
+      # the resolved version at pack time, so the published tarball has
+      # real version specifiers and `npm install -g @getcoherent/cli`
+      # works downstream.
       - name: Publish @getcoherent/core
         working-directory: ./packages/core
-        run: npm publish --access public
+        run: pnpm publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @getcoherent/cli
         working-directory: ./packages/cli
-        run: npm publish --access public
+        run: pnpm publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
