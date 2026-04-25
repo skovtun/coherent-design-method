@@ -31,6 +31,7 @@ import { pickPrimaryRoute, replaceWelcomeWithPrimary, type PageLite } from '../u
 import { inferPageTypeFromRoute } from '../agents/design-constraints.js'
 import { isPlatformInternalEntry } from '../utils/component-integrity.js'
 import { loadManifest, saveManifest } from '@getcoherent/core'
+import { buildSidebarNavItems } from '../utils/nav-items.js'
 
 interface UpdateReport {
   fromVersion: string | undefined
@@ -43,6 +44,8 @@ interface UpdateReport {
   welcomeReplacedTo: string | null
   /** Names of platform-internal manifest entries scrubbed by v0.11 backfill (DSButton et al). */
   platformEntriesRemoved: string[]
+  /** Number of sidebar nav.items appended by v0.11.1 backfill (multi-turn drop recovery). */
+  sidebarItemsBackfilled: number
 }
 
 export async function updateCommand(opts: { patchGlobals?: boolean }) {
@@ -81,6 +84,7 @@ export async function updateCommand(opts: { patchGlobals?: boolean }) {
       missingCssVars: [],
       welcomeReplacedTo: null,
       platformEntriesRemoved: [],
+      sidebarItemsBackfilled: 0,
     }
 
     // Step 1: Config migrations
@@ -180,6 +184,40 @@ export async function updateCommand(opts: { patchGlobals?: boolean }) {
       // No manifest, unreadable manifest, or write failure — best-effort.
     }
 
+    // Step 9: Sidebar nav.items backfill (v0.11.1).
+    //
+    // The v0.11.0 pages applier sourced sidebar routes from the current
+    // session's pagesQueue instead of the registered config.pages, which
+    // dropped chat-#1 routes whenever a chat-#2 ran on a sidebar-nav
+    // project. Pages were preserved, but navigation.items lost the
+    // earlier entries — sidebar rendered with only the most recently
+    // generated route. This backfill walks every config.pages entry
+    // tagged requiresAuth (the existing app-page proxy) and runs it
+    // through the same `buildSidebarNavItems` helper the applier uses,
+    // append-only and idempotent, so projects that lost items recover
+    // exactly the right set on `coherent update` without any chat.
+    //
+    // Gated on navigation.type ∈ {sidebar, both} so header-nav projects
+    // don't accumulate sidebar entries they wouldn't otherwise have.
+    if (config.navigation && (config.navigation.type === 'sidebar' || config.navigation.type === 'both')) {
+      spinner.text = 'Checking sidebar navigation...'
+      const registeredAppRoutes = (config.pages || [])
+        .filter(p => p.requiresAuth && p.route && p.route !== '/')
+        .map(p => p.route)
+      const before = config.navigation.items?.length ?? 0
+      const nextItems = buildSidebarNavItems(registeredAppRoutes, config.navigation.items)
+      if (nextItems.length !== before) {
+        const next = {
+          ...config,
+          navigation: { ...config.navigation, items: nextItems },
+          updatedAt: new Date().toISOString(),
+        }
+        dsm.updateConfig(next)
+        await dsm.save()
+        report.sidebarItemsBackfilled = nextItems.length - before
+      }
+    }
+
     // Report
     spinner.stop()
     printReport(report)
@@ -217,6 +255,13 @@ function printReport(report: UpdateReport) {
   if (report.platformEntriesRemoved.length > 0) {
     const list = report.platformEntriesRemoved.join(', ')
     console.log(chalk.white(`  ✔ Cleaned platform widgets from shared-components manifest (${list})`))
+  }
+
+  if (report.sidebarItemsBackfilled > 0) {
+    const n = report.sidebarItemsBackfilled
+    console.log(
+      chalk.white(`  ✔ Recovered ${n} dropped sidebar nav ${n === 1 ? 'entry' : 'entries'} (v0.11.1 backfill)`),
+    )
   }
 
   if (report.missingCssVars.length > 0) {

@@ -242,16 +242,32 @@ export function createPagesApplier(): ArtifactApplier {
       // generated routes. Append-only (preserves manual edits), gated on
       // `navigation.type ∈ {sidebar, both}` so header-nav projects don't
       // accumulate sidebar-only entries they wouldn't otherwise have.
-      // Auth + marketing pages are filtered: they have their own layout
-      // chrome, sidebar lives behind the app-shell.
+      //
+      // CRITICAL (v0.11.1 hotfix, codex consult diagnosis): source routes
+      // from `finalConfig.pages` (ALL registered pages), NOT from the
+      // current session's `pagesQueue`. Multi-turn projects must accumulate
+      // — chat #2's session has only the new page artifact, but config.pages
+      // already contains chat #1's routes. Filtering by pagesQueue meant
+      // each subsequent chat saw nav.items as "init-seed [Home]" plus only
+      // the just-added route, dropping all prior chats' sidebar entries.
+      // `buildSidebarNavItems` is idempotent + append-only, so feeding it
+      // the full registered set is safe and self-heals projects that lost
+      // items in v0.11.0 — they recover on next chat.
+      //
+      // `requiresAuth: true` is the existing on-disk proxy for "app page":
+      // `pageDef.requiresAuth = existing?.requiresAuth ?? page.pageType === 'app'`
+      // (see PageDefinition build above). App pages get true; marketing,
+      // auth, and the init-seeded Home all get false. Filtering on
+      // `requiresAuth` therefore mirrors the prior `pageType === 'app'`
+      // intent without re-importing `inferPageTypeFromRoute`.
       const finalConfig = dsm.getConfig()
       const navType = finalConfig.navigation?.type
       if (finalConfig.navigation && (navType === 'sidebar' || navType === 'both')) {
-        const generatedAppRoutes = pagesQueue
-          .filter(({ page }) => page.pageType === 'app' && page.route && page.route !== '/')
-          .map(({ page }) => page.route)
+        const registeredAppRoutes = finalConfig.pages
+          .filter(page => page.requiresAuth && page.route && page.route !== '/')
+          .map(page => page.route)
         const before = finalConfig.navigation.items?.length ?? 0
-        const nextItems = buildSidebarNavItems(generatedAppRoutes, finalConfig.navigation.items)
+        const nextItems = buildSidebarNavItems(registeredAppRoutes, finalConfig.navigation.items)
         if (nextItems.length !== before) {
           dsm.updateConfig({
             ...finalConfig,

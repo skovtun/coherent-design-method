@@ -421,6 +421,229 @@ describe('createPagesApplier', () => {
     expect(items.map((i: { route: string }) => i.route)).toEqual(['/'])
   })
 
+  it('multi-turn (chat #2) preserves chat #1 sidebar nav.items — v0.11.1 hotfix', async () => {
+    // v0.11.0 regression caught by dogfood: the pages applier sourced
+    // sidebar routes from `pagesQueue` (current session only). Chat #2's
+    // session has just the new page artifact, so existing items got reset
+    // to [Home, NewRoute] and chat #1's sidebar entries vanished.
+    //
+    // Fix: source from `finalConfig.pages` (all registered app pages)
+    // filtered by `requiresAuth`. buildSidebarNavItems is append-only +
+    // idempotent, so re-running on a project with all entries already in
+    // place is a no-op.
+    projectRoot = setupProject()
+
+    // Mimic post-chat-#1 state: nav.type=sidebar, config.pages already
+    // contains the 4 chat-#1 app routes registered in DSM, but
+    // navigation.items was NOT populated by the (broken) v0.11.0 applier.
+    const dsmPre = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
+    await dsmPre.load()
+    const cfgPre = dsmPre.getConfig()
+    const now = new Date().toISOString()
+    cfgPre.navigation = { ...cfgPre.navigation!, type: 'sidebar' }
+    cfgPre.pages = [
+      ...cfgPre.pages,
+      // Chat #1 app pages — registered via earlier (broken) applier run
+      // that never added them to nav.items.
+      {
+        id: 'dashboard',
+        name: 'Dashboard',
+        route: '/dashboard',
+        layout: 'centered',
+        sections: [],
+        title: 'Dashboard',
+        description: '',
+        requiresAuth: true,
+        noIndex: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'transactions',
+        name: 'Transactions',
+        route: '/transactions',
+        layout: 'centered',
+        sections: [],
+        title: 'Transactions',
+        description: '',
+        requiresAuth: true,
+        noIndex: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'settings',
+        name: 'Settings',
+        route: '/settings',
+        layout: 'centered',
+        sections: [],
+        title: 'Settings',
+        description: '',
+        requiresAuth: true,
+        noIndex: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'profile',
+        name: 'Profile',
+        route: '/profile',
+        layout: 'centered',
+        sections: [],
+        title: 'Profile',
+        description: '',
+        requiresAuth: true,
+        noIndex: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]
+    dsmPre.updateConfig(cfgPre)
+    await dsmPre.save()
+
+    // Chat #2's session has only ONE page artifact (the new /reports).
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    await writePageArtifact(store, uuid, {
+      id: 'reports',
+      name: 'Reports',
+      route: '/reports',
+      pageType: 'app',
+      pageCode: 'export default function Reports(){ return <div /> }',
+    })
+
+    await createPagesApplier().apply(ctx)
+
+    const dsmPost = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
+    await dsmPost.load()
+    const items = dsmPost.getConfig().navigation?.items ?? []
+    const routes = items.map((i: { route: string }) => i.route).sort()
+
+    // CRITICAL: ALL 4 chat-#1 app routes + the new /reports must be in
+    // sidebar items, plus the init-seeded `/` Home (append-only preserved).
+    // v0.11.0 would have produced ['/', '/reports'] only — this test
+    // would have caught the bug before ship.
+    expect(routes).toEqual(['/', '/dashboard', '/profile', '/reports', '/settings', '/transactions'])
+  })
+
+  it('multi-turn idempotency — re-running on a fully-populated project is a no-op', async () => {
+    // Defensive: if nav.items already contains every registered app
+    // route, the applier should not re-add or reorder anything.
+    projectRoot = setupProject()
+    const dsmPre = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
+    await dsmPre.load()
+    const cfgPre = dsmPre.getConfig()
+    const now = new Date().toISOString()
+    cfgPre.navigation = {
+      ...cfgPre.navigation!,
+      type: 'sidebar',
+      items: [
+        { label: 'Home', route: '/', requiresAuth: false, order: 0 },
+        { label: 'Dashboard', route: '/dashboard', requiresAuth: true, order: 1 },
+      ],
+    }
+    cfgPre.pages = [
+      ...cfgPre.pages,
+      {
+        id: 'dashboard',
+        name: 'Dashboard',
+        route: '/dashboard',
+        layout: 'centered',
+        sections: [],
+        title: 'Dashboard',
+        description: '',
+        requiresAuth: true,
+        noIndex: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]
+    dsmPre.updateConfig(cfgPre)
+    await dsmPre.save()
+
+    // Empty session — no new pages.
+    const { ctx } = await makeContext(projectRoot)
+    const results = await createPagesApplier().apply(ctx)
+    // No "navigation.items: +N" line in results — nothing changed.
+    expect(results.find(r => r.startsWith('navigation.items:'))).toBeUndefined()
+
+    const dsmPost = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
+    await dsmPost.load()
+    const items = dsmPost.getConfig().navigation?.items ?? []
+    expect(items.map((i: { route: string }) => i.route).sort()).toEqual(['/', '/dashboard'])
+  })
+
+  it('multi-turn self-heals dropped chat-#1 items on next chat — v0.11.1', async () => {
+    // Models the exact in-the-wild state after the v0.11.0 dogfood bug:
+    // config.pages has all chat-#1 routes + chat-#2's /reports, but
+    // nav.items contains only [Home, Reports]. The next chat (here:
+    // chat-#3 adds /audit) runs the pages applier with at least one page
+    // artifact, which triggers the nav.items rebuild from finalConfig.pages
+    // and recovers the dropped routes.
+    //
+    // (No-artifact backfill — running the applier on an empty session —
+    // is intentionally skipped; the applier short-circuits on
+    // pageFiles.length===0. That backfill case is covered by
+    // `coherent update` Step 9.)
+    projectRoot = setupProject()
+    const dsmPre = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
+    await dsmPre.load()
+    const cfgPre = dsmPre.getConfig()
+    const now = new Date().toISOString()
+    cfgPre.navigation = {
+      ...cfgPre.navigation!,
+      type: 'sidebar',
+      // The broken state: Home + Reports only, missing chat-#1 routes.
+      items: [
+        { label: 'Home', route: '/', requiresAuth: false, order: 0 },
+        { label: 'Reports', route: '/reports', requiresAuth: true, order: 1 },
+      ],
+    }
+    cfgPre.pages = [
+      ...cfgPre.pages,
+      ...[
+        ['dashboard', '/dashboard'],
+        ['transactions', '/transactions'],
+        ['settings', '/settings'],
+        ['profile', '/profile'],
+        ['reports', '/reports'],
+      ].map(([id, route]) => ({
+        id,
+        name: id.charAt(0).toUpperCase() + id.slice(1),
+        route,
+        layout: 'centered' as const,
+        sections: [],
+        title: id,
+        description: '',
+        requiresAuth: true,
+        noIndex: false,
+        createdAt: now,
+        updatedAt: now,
+      })),
+    ]
+    dsmPre.updateConfig(cfgPre)
+    await dsmPre.save()
+
+    // Chat #3 adds one new page — applier wakes up, rebuilds items from
+    // ALL of finalConfig.pages (including the dropped chat-#1 routes).
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    await writePageArtifact(store, uuid, {
+      id: 'audit',
+      name: 'Audit',
+      route: '/audit',
+      pageType: 'app',
+      pageCode: 'export default function Audit(){ return <div /> }',
+    })
+
+    await createPagesApplier().apply(ctx)
+
+    const dsmPost = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
+    await dsmPost.load()
+    const items = dsmPost.getConfig().navigation?.items ?? []
+    const routes = items.map((i: { route: string }) => i.route).sort()
+    // Healed: all 4 chat-#1 routes + /reports + the new /audit, plus init `/`.
+    expect(routes).toEqual(['/', '/audit', '/dashboard', '/profile', '/reports', '/settings', '/transactions'])
+  })
+
   it('updates an existing page entry in DSM rather than duplicating', async () => {
     projectRoot = setupProject()
     // createMinimalConfig already includes a 'home' page at '/'. Applying

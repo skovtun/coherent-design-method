@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.11.1] — 2026-04-25
+
+### Multi-turn skill-rail nav.items hotfix
+
+v0.11.0 dogfood multi-turn caught a P1 regression in less than an hour. When a user ran a second `/coherent-chat` request on a sidebar-nav project, the skill rail's pages applier read sidebar routes from the current session's page artifacts only — not from the registered `config.pages`. Result: chat #1's sidebar entries (Dashboard, Transactions, Settings, Profile) vanished after chat #2, leaving only the new route plus the init-seeded Home. Pages on disk were intact; only `navigation.items` lost the prior chats' entries. Codex `/codex consult` pinpointed the line: `appliers.ts:250` was filtering `pagesQueue` instead of `finalConfig.pages`.
+
+### Fixed
+
+- **`createPagesApplier` sources sidebar routes from `finalConfig.pages` (`packages/cli/src/phase-engine/appliers.ts:250`).** Filter is now `requiresAuth` (the existing on-disk proxy for "app page": app pages get `requiresAuth: true`, marketing/auth/init-Home get `false`). `buildSidebarNavItems` is append-only + idempotent, so multi-turn chats now correctly accumulate sidebar entries across sessions, and re-running on a fully populated project is a no-op.
+
+### Added
+
+- **`coherent update` Step 9 — sidebar nav.items backfill (`packages/cli/src/commands/update.ts`).** Existing v0.11.0 projects whose nav.items were dropped now self-heal on `coherent update`. Walks every `config.pages` entry tagged `requiresAuth`, runs through `buildSidebarNavItems`, append-only and idempotent. Report line: `✔ Recovered N dropped sidebar nav entries (v0.11.1 backfill)`. Gated on `navigation.type ∈ {sidebar, both}`.
+
+### For Maintainers
+
+- Three new regression tests in `appliers.test.ts`: (1) multi-turn — chat #2 preserves chat #1 sidebar items, (2) idempotency on a fully-populated project, (3) self-heals dropped chat-#1 items on next chat. All would have caught v0.11.0's bug pre-ship. Tests: 1477 passing + 9 todo (1486). Up 3 from v0.11.0.
+- Codex `/codex consult` pre-fix diagnosis attached: 443k tokens, ran git diff `v0.10.0..v0.11.0` to confirm `PageGenerator.ts` was unchanged across the bump (the bug was always at the applier level, not the generator). Same pattern as M14 + M15 cycles — codex caught a P1 fast.
+- Verified end-to-end against the user's actual broken project (`~/test-skill`): `coherent update` reported `Recovered 4 dropped sidebar nav entries (v0.11.1 backfill)` and rebuilt the sidebar with all 6 expected routes.
+
 ## [0.11.0] — 2026-04-25
 
 ### Welcome-scaffold replacement + skill-rail layout parity (M15)
