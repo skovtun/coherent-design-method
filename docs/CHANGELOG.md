@@ -2,6 +2,36 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.11.0] — 2026-04-25
+
+### Welcome-scaffold replacement + skill-rail layout parity (M15)
+
+v0.10.0 dogfood surfaced a real-world break: when the user's first chat plan does not include a `/` route, the init-scaffolded `app/page.tsx` (the marketing-toggle "Describe an app" landing page) survives. The user asked for a dashboard app — but `/` still served the welcome page, and in skill rail the Header/Footer of that scaffold rendered on top of the generated dashboard / settings / transactions pages too. M15 ships a shared replacement helper plus two new appliers so both rails retire the scaffold and redraw layouts the same way.
+
+Also addresses a long-standing skill-rail gap: `navigation.items` was never populated from generated routes, so `<SidebarContent />` rendered empty for sidebar-nav projects. And cleans up `coherent.components.json` so Coherent's own platform widgets (DSButton, AppSidebar) no longer show up in the user's design-system viewer alongside their actual components.
+
+### Added
+
+- **`WELCOME_MARKER` first-line marker (`packages/cli/src/utils/welcome-content.ts`).** Init-scaffolded `app/page.tsx` now starts with `/* @coherent-welcome: v1 */` so detection is exact. Backward-compat substring signatures (`Describe an app.`, `useState<Mode>`, etc.) remain for v0.9–v0.10 backfill.
+- **`replaceWelcomeWithPrimary` helper (`packages/cli/src/utils/welcome-replacement.ts`).** Pure utility shared by both rails. `pickPrimaryRoute` is fed the *generated* pages — never `dsm.config.pages` — so it cannot be short-circuited by the init-seeded `/` Home (codex `/codex consult` P1 #1). `isWelcomeScaffold` is fail-closed: marker OR signature match required, so user-edited home pages are never trampled.
+- **`createReplaceWelcomeApplier` (`packages/cli/src/phase-engine/appliers.ts`).** Reads generated `page-<id>.json` artifacts from the session, picks the primary route, replaces the on-disk scaffold with a `redirect()`, flips `settings.homePagePlaceholder` to `false`. Runs AFTER pages applier, BEFORE layout applier — so when sidebar-nav's route-group movement copies `app/page.tsx` → `app/(public)/page.tsx`, it carries the redirect, not the scaffold (codex P1 #2).
+- **`createLayoutApplier` (`packages/cli/src/phase-engine/appliers.ts`).** Skill rail now redraws Header / Footer / Sidebar / route-group layouts to match the post-applier `navigation` shape. Pre-M15 skill rail skipped this entirely; the welcome scaffold's Header/Footer survived first chat. `navChanged` is computed from `config-snapshot.json` plus the homePagePlaceholder-was-true override so first chats always regenerate.
+- **`buildSidebarNavItems` helper (`packages/cli/src/utils/nav-items.ts`).** Extracted from API rail's `commands/chat/split-generator.ts:580` so the skill rail's pages applier shares the same labelize + append logic. Append-only — preserves user-renamed labels and manual entries. Dynamic routes (`[id]`, `[...slug]`) and auth/marketing pages are filtered (sidebar lives behind app-shell layouts only).
+- **`isPlatformInternalEntry` helper (`packages/cli/src/utils/component-integrity.ts`).** Flags Coherent's platform widgets (DSButton, AppSidebar) in the shared-components manifest. Used by the manifest scanner and `coherent update` backfill.
+- **`coherent update` Steps 7 + 8: lazy backfill for v0.9–v0.10 projects.** Step 7 detects + replaces a leftover welcome scaffold in projects whose first chat predates M15 — only fires when `homePagePlaceholder === true` AND on-disk file passes `isWelcomeScaffold` AND `pickPrimaryRoute(config.pages.filter(p => p.route !== '/'))` returns a route. Step 8 scrubs auto-registered platform widgets from the manifest (only entries with `source: 'extracted'` — user-curated DSButton entries are left alone).
+
+### Changed
+
+- **`defaultAppliers()` order: config-delta → components → pages → replace-welcome → layout → fix-globals-css.** `replace-welcome` runs AFTER pages so it can read generated routes from session artifacts; BEFORE layout so the redirect (not the scaffold) is what sidebar-nav's route-group movement carries.
+- **`createPagesApplier` populates sidebar `navigation.items` after page registration.** Gated on `navigation.type ∈ {sidebar, both}`. App pages only — auth and marketing pages have their own layout chrome.
+- **API rail `chat.ts` welcome-replacement block (was the inline `homePagePlaceholder` flip at chat.ts:984).** Replaced with a call into the shared helper, mirroring the skill-rail applier exactly. Two paths now retire the placeholder: (A) user generated `/` with pageCode (pre-M15 behavior); (B) generated only non-`/` pages, scaffold replaced with redirect.
+- **`findUnregisteredComponents` (`packages/cli/src/utils/component-integrity.ts`).** Filters `PLATFORM_INTERNAL_FILES` and `PLATFORM_INTERNAL_NAMES` (currently `ds-button.tsx` + `DSButton`) so step-6c of `coherent fix` never auto-registers platform widgets in the user's manifest. Keeps the `/design-system` viewer focused on the user's actual components.
+
+### For Maintainers
+
+- New tests: `welcome-replacement.test.ts` (18), `nav-items.test.ts` (12), `component-integrity.test.ts` extensions (5), `appliers.test.ts` extensions (8). Total: 1474 passing + 9 todo (1483). Up 19 from v0.10.0. TypeScript clean. Prettier clean. Build green.
+- Codex `/codex consult` was run on the M15 plan BEFORE implementation (same gate that caught a P1 in the M14 cycle). Two P1 findings landed in the code as written: (1) `pickPrimaryRoute` filters the init-seed `/` Home; (2) explicit regression test for sidebar `app/page.tsx` ↔ `app/(public)/page.tsx` movement. Two P2 findings deferred per codex recommendation: layer-leak between phase-engine and command layer (existing — not new), welcome scaffold strings frozen for v0.11 rollout window.
+
 ## [0.10.0] — 2026-04-25
 
 ### Skill-mode rail — token cost + UX optimization (M14)
