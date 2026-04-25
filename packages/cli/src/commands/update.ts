@@ -29,6 +29,8 @@ import { writeAllHarnessFiles } from '../utils/harness-context.js'
 import { getPendingMigrations, compareSemver } from '../utils/migrations.js'
 import { pickPrimaryRoute, replaceWelcomeWithPrimary, type PageLite } from '../utils/welcome-replacement.js'
 import { inferPageTypeFromRoute } from '../agents/design-constraints.js'
+import { isPlatformInternalEntry } from '../utils/component-integrity.js'
+import { loadManifest, saveManifest } from '@getcoherent/core'
 
 interface UpdateReport {
   fromVersion: string | undefined
@@ -39,6 +41,8 @@ interface UpdateReport {
   missingCssVars: string[]
   /** Set when v0.11 backfill replaced a leftover welcome scaffold. */
   welcomeReplacedTo: string | null
+  /** Names of platform-internal manifest entries scrubbed by v0.11 backfill (DSButton et al). */
+  platformEntriesRemoved: string[]
 }
 
 export async function updateCommand(opts: { patchGlobals?: boolean }) {
@@ -76,6 +80,7 @@ export async function updateCommand(opts: { patchGlobals?: boolean }) {
       rulesUpdated: false,
       missingCssVars: [],
       welcomeReplacedTo: null,
+      platformEntriesRemoved: [],
     }
 
     // Step 1: Config migrations
@@ -150,6 +155,31 @@ export async function updateCommand(opts: { patchGlobals?: boolean }) {
       }
     }
 
+    // Step 8: Scrub Coherent platform widgets from the shared-components
+    // manifest (v0.11). Older `coherent fix` runs auto-registered
+    // `DSButton` (and similar platform internals) into
+    // `coherent.components.json` because the step-6c scanner didn't know
+    // they belonged to the platform overlay. The /design-system viewer
+    // ended up showing them alongside the user's own components. Lazy
+    // backfill: only entries with `source === 'extracted'` (auto-
+    // registered) are removed; any user-curated DSButton entry is left
+    // alone.
+    try {
+      const manifest = await loadManifest(project.root)
+      const before = manifest.shared.length
+      const removed = manifest.shared.filter(isPlatformInternalEntry)
+      if (removed.length > 0) {
+        manifest.shared = manifest.shared.filter(s => !isPlatformInternalEntry(s))
+        await saveManifest(project.root, manifest)
+        report.platformEntriesRemoved = removed.map(r => r.name)
+        if (process.env.COHERENT_DEBUG === '1') {
+          console.log(chalk.dim(`  Scrubbed ${before - manifest.shared.length} platform entries from manifest`))
+        }
+      }
+    } catch {
+      // No manifest, unreadable manifest, or write failure — best-effort.
+    }
+
     // Report
     spinner.stop()
     printReport(report)
@@ -182,6 +212,11 @@ function printReport(report: UpdateReport) {
     console.log(
       chalk.white(`  ✔ Replaced leftover welcome scaffold → redirect("${report.welcomeReplacedTo}") at app/page.tsx`),
     )
+  }
+
+  if (report.platformEntriesRemoved.length > 0) {
+    const list = report.platformEntriesRemoved.join(', ')
+    console.log(chalk.white(`  ✔ Cleaned platform widgets from shared-components manifest (${list})`))
   }
 
   if (report.missingCssVars.length > 0) {
