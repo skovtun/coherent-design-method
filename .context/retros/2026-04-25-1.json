@@ -1,0 +1,71 @@
+{
+  "date": "2026-04-25",
+  "window": "7d",
+  "metrics": {
+    "commits": 80,
+    "contributors": 1,
+    "prs_merged": 39,
+    "insertions": 30064,
+    "deletions": 3668,
+    "net_loc": 26396,
+    "test_loc": 8326,
+    "test_ratio": 0.28,
+    "active_days": 7,
+    "sessions": 22,
+    "deep_sessions": 4,
+    "medium_sessions": 6,
+    "micro_sessions": 12,
+    "avg_session_minutes": 30,
+    "total_active_hours": 11.2,
+    "loc_per_session_hour": 2685,
+    "feat_pct": null,
+    "fix_pct": null,
+    "peak_hour": 15,
+    "ai_assisted_commits": 80,
+    "versions_shipped": 45,
+    "focus_area": "packages/cli",
+    "focus_pct": 0.60
+  },
+  "authors": {
+    "Sergei Kovtun": {
+      "commits": 80,
+      "insertions": 30064,
+      "deletions": 3668,
+      "test_ratio": 0.28,
+      "top_area": "packages/cli"
+    }
+  },
+  "version_range": ["0.6.94", "0.11.0"],
+  "streak_days": 4,
+  "tweetable": "Week of Apr 18: 80 commits, +26.4k/-3.7k LOC, 28% tests, 39 PRs, v0.6.94 → v0.11.0 (45 versions, 3 majors in 36h) | Streak: 4d",
+  "test_health": {
+    "total_test_files": 97,
+    "tests_added_this_period": 29,
+    "regression_test_commits_in_window": 4,
+    "test_files_changed": 47
+  },
+  "notes": {
+    "ship_of_the_week": "v0.9.0 skill-mode parity (10,674 insertions, 91 files) — phase engine + shared lifecycle + error codes foundation",
+    "major_themes": [
+      "M14 + M15 trilogy: v0.9 (rail) → v0.10 (cheap) → v0.11 (correct on first chat) shipped in 36 hours",
+      "Codex pre-implementation gate caught P1s in both M14 and M15 cycles — pattern now codified in feedback memory",
+      "Test ratio 17% → 28% via 'P1 finding → regression test in same PR' discipline",
+      "v0.7.x foundation stack: golden patterns, wiki retrieval, destructive ops, journal/memory loop"
+    ],
+    "fix_chains": [
+      "v0.7.6-0.7.11 destructive ops + DOUBLE_SIGN tiering (6 versions)",
+      "v0.7.16 hotfix (test isolation)",
+      "v0.7.28 hotfix (ERR_UNKNOWN_FILE_EXTENSION on fresh npm install -g)"
+    ],
+    "growth_areas": [
+      "Pre-tag smoke test still missing — recurring growth area from prior retro",
+      "CI publish auth set up but ran manual `pnpm publish` for v0.11.0 — break the manual fallback habit on v0.11.1",
+      "Late-night ship cluster (3 of 4 majors after 22:00) — install personal freeze policy"
+    ],
+    "habits_established": [
+      "Codex /codex consult on plan before implementation for cross-cutting changes",
+      "Pre-flight: tsc + prettier + vitest + build all run in parallel before push",
+      "Squash-merge on majors (v0.9.0 = 91 files in one main commit, bisect-friendly at version-tag level)"
+    ]
+  }
+}

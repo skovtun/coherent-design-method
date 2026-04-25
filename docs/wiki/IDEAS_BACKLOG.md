@@ -107,6 +107,22 @@ Prefix clusters: `F` features · `M` meta-architecture · `N` nice-to-haves · `
 - Inline into existing DESIGN_QUALITY_COMMON / INTERACTION_PATTERNS / RULES_COMPONENTS_MISC blocks — no new exported constants, no new subsystem, no ADR.
 - Origin: jakub.kr/writing/details-that-make-interfaces-feel-better + Nielsen 10 usability heuristics.
 
+#### v0.10.0 — M14 skill-mode token-cost + UX optimization (2026-04-25)
+
+- **Fenced ```tsx schema for anchor + page phases** — kills the JSON-escape failure class (the v0.9.0 dogfood 106-line `pageCode` rewrite). JSON header + ```tsx fenced block, parsed by splitting on the closing fence at end of input.
+- **`PHASE_SKIP_SENTINEL` for empty components phase** — `prep()` writes empty artifact + emits `__COHERENT_PHASE_SKIPPED__\n`; skill body skips Write + ingest. Saves 3 tool calls per typical run.
+- **Parallel page batching in skill body** — N parallel Bash calls per phase batch instead of strictly sequential. 12 turns → 3 turns for a 4-page run.
+- **Progress lines** — `▸ [N/6] …` per phase replaces machine-speak.
+- Bumped `PHASE_ENGINE_PROTOCOL` 1 → 2 (items 1 + 2 wire-incompatible).
+
+#### v0.11.0 — M15 welcome-scaffold replacement + skill-rail layout parity (2026-04-25)
+
+- **Welcome scaffold replaced with redirect** when first-chat plan has no `/` route. Both rails share the `replaceWelcomeWithPrimary` helper. Marker + signature detection, fail-closed on user-edits.
+- **Skill rail Header / Footer / Sidebar redraw** via new `createLayoutApplier` — closes the gap where pre-M15 skill rail left welcome-scaffold chrome on top of generated pages.
+- **Sidebar `navigation.items` populated** from generated app routes via shared `buildSidebarNavItems`. Append-only — preserves user-renamed labels.
+- **Manifest scrub:** DSButton (Coherent platform FAB) no longer auto-registered into `coherent.components.json`. `coherent update` lazy-scrubs leaked entries from existing v0.9–v0.10 projects.
+- Codex `/codex consult` ran on the M15 plan before implementation — caught two P1s that landed in the code as written: (1) `pickPrimaryRoute` filters init-seeded `/`; (2) sidebar route-group movement covered by explicit regression test.
+
 ---
 
 ## Open ideas
@@ -114,13 +130,42 @@ Prefix clusters: `F` features · `M` meta-architecture · `N` nice-to-haves · `
 Each `###` block below is an indexable entry (wiki-index.ts scans `###` headings). Frontmatter above each heading supplies id/status/target/date for retrieval weighting and filtering.
 
 ---
+id: M15F
+type: idea
+status: open
+target: v0.12
+effort: 3h
+date: 2026-04-25
+confidence: medium
+---
+
+### M15F — Carry-forward items from v0.11.0 ship (M15 follow-up)
+
+Surfaced during v0.10/v0.11 dogfood, intentionally cut from M15 to keep the PR focused. Triage candidates for the next milestone.
+
+**1. AppSidebar manifest filter — open product call.** M15 filtered DSButton (Coherent platform FAB) but left `AppSidebar` registered as a shared component. Open question: is AppSidebar "user's component" (they ask for a sidebar, get one — visible in `/design-system` viewer) or "platform widget" (Coherent generates from their config — hidden)? If platform widget, extend `PLATFORM_INTERNAL_NAMES` in `component-integrity.ts`. If user component, document why DSButton was special. Probably the former — AppSidebar represents an actual UI element of the user's app.
+
+**2. Nav-items removal-on-page-delete.** `buildSidebarNavItems` is append-only, mirroring API rail's pre-M15 behavior. Delete a page — its sidebar entry stays until the user hand-edits `design-system.config.ts`. Potential fix: add a sweep step in `coherent fix` that drops items whose route doesn't match any registered page. Risk: trampling user-curated entries. Solve by gating on auto-source markers.
+
+**3. Welcome-scaffold signature substring cleanup.** Current detection in `welcome-replacement.ts` falls back to substring signatures (`Describe an app.`, `useState<Mode>`, etc.) for v0.9–v0.10 backfill. Frozen for the v0.11 rollout window per codex P2 #4. Once v0.11 has propagated for a release window (call it v0.13+), remove the signatures and rely on marker-only detection. Saves ~30 lines of fragile string matching.
+
+**4. Layer leak: phase-engine appliers import command-layer `regenerateLayout`.** Codex P2 #3 — accepted for M15. Long-term clean-up: extract `regenerateLayout` to a layer that both rails own, e.g. `utils/layout-regen.ts`. Not urgent unless future layout work forces it.
+
+**5. CI publish auth verified — first end-to-end test on next release.** v0.11.0 ship added `NPM_TOKEN` Granular Access Token with "Bypass 2FA when publishing" to repo secrets. Verified during the cycle (run 24925811309) — auth works; failed only on "version 0.11.0 already published" because v0.11.0 was hand-published mid-cycle. Next release (v0.11.1 or v0.12.0) is the actual end-to-end CI publish test.
+
+**6. DSButton FAB — product decision still open.** M15 took the manifest-filter option. Two alternatives stay valid for v0.12+: hide DSButton in the `/design-system` viewer (manifest stays clean for new entries but old auto-registered ones still need scrub on update — already shipped); drop the FAB entirely in favor of explicit user navigation to `/design-system`. Worth a 5-min product call before shipping additional manifest hygiene.
+
+**Effort estimate:** 3h split across items. Items 1, 2, 5 are smallest (each ~30 min); items 3, 4, 6 deserve standalone PRs.
+
+---
 id: M14
 type: idea
-status: planned
+status: resolved
+shipped_in: [0.10.0]
 target: v0.10
 effort: 6h
 date: 2026-04-25
-confidence: high
+confidence: verified
 ---
 
 ### M14 — Skill-mode rail token-cost + UX optimization (post-v0.9.0)
