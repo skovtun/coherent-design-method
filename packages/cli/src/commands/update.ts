@@ -27,6 +27,8 @@ import { findConfig, exitNotCoherent } from '../utils/find-config.js'
 import { writeDesignSystemFiles } from '../utils/ds-files.js'
 import { writeAllHarnessFiles } from '../utils/harness-context.js'
 import { getPendingMigrations, compareSemver } from '../utils/migrations.js'
+import { pickPrimaryRoute, replaceWelcomeWithPrimary, type PageLite } from '../utils/welcome-replacement.js'
+import { inferPageTypeFromRoute } from '../agents/design-constraints.js'
 
 interface UpdateReport {
   fromVersion: string | undefined
@@ -35,6 +37,8 @@ interface UpdateReport {
   migrationsApplied: string[]
   rulesUpdated: boolean
   missingCssVars: string[]
+  /** Set when v0.11 backfill replaced a leftover welcome scaffold. */
+  welcomeReplacedTo: string | null
 }
 
 export async function updateCommand(opts: { patchGlobals?: boolean }) {
@@ -71,6 +75,7 @@ export async function updateCommand(opts: { patchGlobals?: boolean }) {
       migrationsApplied: [],
       rulesUpdated: false,
       missingCssVars: [],
+      welcomeReplacedTo: null,
     }
 
     // Step 1: Config migrations
@@ -111,6 +116,40 @@ export async function updateCommand(opts: { patchGlobals?: boolean }) {
       report.missingCssVars = []
     }
 
+    // Step 7: Welcome-scaffold backfill (v0.11).
+    //
+    // Projects scaffolded in v0.9–v0.10 that ran their first chat with a
+    // plan that did not include `/` are stuck on the welcome scaffold +
+    // generated pages mismatch (CLI redraws sidebar/Header per generated
+    // pages, but `/` still serves the marketing-toggle landing). Detect
+    // and fix on update — lazy: only fires when the placeholder flag is
+    // still true AND the on-disk file passes `isWelcomeScaffold` (so user
+    // edits are never trampled).
+    if (config.settings.homePagePlaceholder) {
+      spinner.text = 'Checking welcome scaffold...'
+
+      // Source pages from `config.pages`, filtering the init-seeded `/`
+      // Home so it can't short-circuit `pickPrimaryRoute` (codex P1 #1).
+      // For backfill this is safe: any other `/` entry in config.pages
+      // would mean the user actually generated a `/` page, in which case
+      // `homePagePlaceholder` would already have been flipped on first
+      // chat and we wouldn't be in this branch.
+      const realPages: PageLite[] = config.pages
+        .filter(p => p.route !== '/')
+        .map(p => ({ route: p.route, pageType: inferPageTypeFromRoute(p.route) }))
+
+      const primary = pickPrimaryRoute(realPages)
+      if (primary) {
+        const result = replaceWelcomeWithPrimary({ projectRoot: project.root, primaryRoute: primary })
+        if (result.replaced) {
+          config.settings.homePagePlaceholder = false
+          dsm.updateConfig(config)
+          await dsm.save()
+          report.welcomeReplacedTo = primary
+        }
+      }
+    }
+
     // Report
     spinner.stop()
     printReport(report)
@@ -137,6 +176,12 @@ function printReport(report: UpdateReport) {
 
   if (report.rulesUpdated) {
     console.log(chalk.white('  ✔ Updated .cursorrules and CLAUDE.md'))
+  }
+
+  if (report.welcomeReplacedTo) {
+    console.log(
+      chalk.white(`  ✔ Replaced leftover welcome scaffold → redirect("${report.welcomeReplacedTo}") at app/page.tsx`),
+    )
   }
 
   if (report.missingCssVars.length > 0) {
