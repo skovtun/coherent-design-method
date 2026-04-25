@@ -31,9 +31,17 @@
  */
 
 import { dirname, resolve } from 'path'
-import { mkdir, writeFile } from 'fs/promises'
-import { DesignSystemManager, generateSharedComponent } from '@getcoherent/core'
-import type { DesignSystemConfig, ModificationRequest, PageDefinition } from '@getcoherent/core'
+import { mkdir, writeFile, rm } from 'fs/promises'
+import { existsSync } from 'fs'
+import {
+  ComponentManager,
+  DesignSystemManager,
+  PageManager,
+  generateSharedComponent,
+  loadManifest,
+  saveManifest,
+} from '@getcoherent/core'
+import type { ComponentDefinition, DesignSystemConfig, ModificationRequest, PageDefinition } from '@getcoherent/core'
 import type { ArtifactApplier, ArtifactApplierContext } from './session-lifecycle.js'
 import type { ConfigDelta } from './phases/plan.js'
 import type { ComponentsArtifact } from './phases/components.js'
@@ -44,9 +52,356 @@ import { fixGlobalsCss } from '../utils/fix-globals-css.js'
 import { pickPrimaryRoute, replaceWelcomeWithPrimary, type PageLite } from '../utils/welcome-replacement.js'
 import { takeNavSnapshot, hasNavChanged } from '../utils/nav-snapshot.js'
 import { buildSidebarNavItems } from '../utils/nav-items.js'
+import { createBackup } from '../utils/backup.js'
 
 const CONFIG_DELTA_ARTIFACT = 'config-delta.json'
 const COMPONENTS_GENERATED_ARTIFACT = 'components-generated.json'
+const MODIFICATION_REQUESTS_ARTIFACT = 'modification-requests.json'
+
+/**
+ * v0.11.3 — modification applier. Single switch over `request.type`,
+ * intentionally mirroring API rail's `applyModification` in
+ * `commands/chat/modification-handler.ts`.
+ *
+ * **Why this exists.** Codex consult (2026-04-25) audited the gap between
+ * the two rails after the v0.11.0/v0.11.1 multi-turn nav-items bug
+ * recurred via a different request type. Of the ~12 ModificationRequest
+ * types the API rail handles, only `add-page` had real coverage in the
+ * skill rail (via the per-page phase factory + pages applier). Every
+ * other type — `delete-page`, `delete-component`, `update-token`,
+ * `add-component`, `modify-component`, plus the AI-dependent
+ * `update-page`/`modify-layout-block`/`link-shared`/`promote-and-link`
+ * types — silently fell off the floor at `phases/plan.ts:152` where
+ * `derivePageNames` filtered to add-page only and the rest was lost.
+ *
+ * **What this fixes.** Five no-AI types that can be resolved
+ * deterministically at session-end with no provider involved:
+ *
+ *   - `delete-page`        — remove from DSM + nav.items, delete `.tsx`,
+ *                            mirrors `modification-handler.ts:1111`.
+ *   - `delete-component`   — remove from manifest, delete shared file,
+ *                            mirrors `modification-handler.ts:1213`.
+ *   - `update-token`       — `dsm.updateToken(path, value)`,
+ *                            mirrors `modification-handler.ts:468`.
+ *   - `add-component`      — `cm.register(componentDef)`,
+ *                            mirrors `modification-handler.ts:479`.
+ *   - `modify-component`   — `cm.update(id, changes)`,
+ *                            mirrors `modification-handler.ts:518`.
+ *
+ * **The guard.** The applier collects every request in the artifact and
+ * partitions by type. AI-dependent or unknown types (`update-page`,
+ * `modify-layout-block`, `link-shared`, `promote-and-link`,
+ * `add-layout-block`, anything else) are NOT silently no-op'd — the
+ * applier throws with a clear "skill rail does not yet support these
+ * types; use `coherent chat` instead" message BEFORE the pages applier
+ * runs. This kills the v0.11.2 silent-partial-apply bug class: when
+ * the planner emits `[delete-page X, link-shared Y]`, the user gets a
+ * surfaced error instead of "X deleted, Y silently dropped".
+ *
+ * **Where it sits.** Position 2 in `defaultAppliers()`, BEFORE
+ * `createComponentsApplier` and `createPagesApplier`. Rationale:
+ *  - Deletes happen first so the rename pattern
+ *    `[delete-page transactions, add-page activity]` ends with only
+ *    Activity, never both pages and never neither.
+ *  - The guard fires before AI-generated pages land on disk, so a
+ *    half-applied session is impossible.
+ *  - `update-token` lands before pages so `coherent fix --globals`
+ *    (which the layout applier triggers downstream) sees the new token
+ *    values when regenerating CSS.
+ *
+ * **Backups.** If any destructive request is in the queue
+ * (`delete-page`/`delete-component`), the applier calls `createBackup`
+ * once at the start, mirroring the pre-apply backup the API rail makes
+ * at `chat.ts:915`. Backups land under `.coherent/backups/<timestamp>/`
+ * and `coherent undo` restores them.
+ *
+ * **What this does NOT do** (deferred to M16, see codex audit F-list):
+ *  - AI-dependent types (`update-page`, `modify-layout-block`,
+ *    `link-shared`, `promote-and-link`) — those need new skill phases.
+ *  - Manual-edit hash protection on `regenerateLayout` (codex F #5).
+ *  - Destructive pre-parser parity (codex F #1).
+ *  - Full `add-page` post-processing parity (component install, TS
+ *    fix-loop, pageAnalysis, duplicate audit — codex F #3).
+ *  - `update-navigation` item-level reorder (codex audit P2 gap).
+ */
+export function createModificationApplier(): ArtifactApplier {
+  return {
+    name: 'modification',
+    async apply(ctx: ArtifactApplierContext): Promise<string[]> {
+      const raw = await ctx.store.readArtifact(ctx.uuid, MODIFICATION_REQUESTS_ARTIFACT)
+      if (raw === null) return []
+
+      let parsed: { requests?: ModificationRequest[] }
+      try {
+        parsed = JSON.parse(raw) as { requests?: ModificationRequest[] }
+      } catch {
+        // Malformed artifact — treat as empty, don't crash session-end.
+        return []
+      }
+      const requests = Array.isArray(parsed.requests) ? parsed.requests : []
+      if (requests.length === 0) return []
+
+      // Partition: types we handle here, types deferred to other appliers
+      // (add-page → pages applier; update-navigation → config-delta + nav
+      // population in pages applier), and types we cannot handle at all.
+      const handled: ModificationRequest[] = []
+      const deferred: ModificationRequest[] = []
+      const unsupported: ModificationRequest[] = []
+      for (const req of requests) {
+        const t = req?.type
+        if (
+          t === 'delete-page' ||
+          t === 'delete-component' ||
+          t === 'update-token' ||
+          t === 'add-component' ||
+          t === 'modify-component'
+        ) {
+          handled.push(req)
+        } else if (t === 'add-page' || t === 'update-navigation') {
+          deferred.push(req)
+        } else {
+          unsupported.push(req)
+        }
+      }
+
+      // Guard — reject the whole session before any apply when the planner
+      // emitted a type we can't safely process. Mirrors the v0.7.5
+      // destructive-op design philosophy: never silently drop, always
+      // surface. Pulled to the top because we want the error to fire
+      // before backups are made (no point backing up if nothing's about
+      // to land) and before pages applier writes generated TSX.
+      if (unsupported.length > 0) {
+        const summary = unsupported.map(r => `${r.type}${r.target ? ` "${r.target}"` : ''}`).join(', ')
+        throw new Error(
+          `skill rail does not yet support these request types: ${summary}. ` +
+            `Use \`coherent chat\` (API rail) for these operations, or split the request to remove them. ` +
+            `(See codex audit M16 follow-up — these need new skill phases.)`,
+        )
+      }
+
+      if (handled.length === 0) {
+        // Only deferred types in the queue — let the downstream appliers
+        // handle them. Nothing to do here.
+        return []
+      }
+
+      // Backup BEFORE any destructive op. Idempotent across this applier
+      // run (we only call it once even if multiple destructives are in
+      // the queue). Best-effort — failure is logged but doesn't block
+      // because some test/CI environments restrict file ops outside the
+      // session dir.
+      const hasDestructive = handled.some(r => r.type === 'delete-page' || r.type === 'delete-component')
+      if (hasDestructive) {
+        try {
+          createBackup(ctx.projectRoot)
+        } catch {
+          /* best-effort, see doc-block */
+        }
+      }
+
+      // Open the project's DSM/CM/PM trio. We re-instantiate per applier
+      // to avoid leaking state across appliers; each applier loads from
+      // the on-disk config so it sees the cumulative effect of upstream
+      // appliers.
+      const configPath = resolve(ctx.projectRoot, 'design-system.config.ts')
+      const dsm = new DesignSystemManager(configPath)
+      await dsm.load()
+      const cm = new ComponentManager(dsm.getConfig())
+      const pm = new PageManager(dsm.getConfig())
+
+      const results: string[] = []
+      let dsmDirty = false
+
+      for (const req of handled) {
+        switch (req.type) {
+          case 'delete-page': {
+            const r = await applyDeletePage(req, dsm, ctx.projectRoot)
+            if (r.dsmDirty) dsmDirty = true
+            results.push(r.message)
+            break
+          }
+          case 'delete-component': {
+            const r = await applyDeleteComponent(req, ctx.projectRoot)
+            results.push(r.message)
+            break
+          }
+          case 'update-token': {
+            const r = await dsm.updateToken(req.target ?? '', (req.changes as Record<string, unknown>)?.value)
+            if (r.success) dsmDirty = true
+            results.push(r.success ? `update-token: ${req.target} ✓` : `update-token: ${r.message}`)
+            break
+          }
+          case 'add-component': {
+            const componentData = req.changes as ComponentDefinition
+            const reg = await cm.register(componentData)
+            if (reg.success) {
+              applyManagerResult(dsm, cm, pm, reg.config)
+              dsmDirty = true
+              results.push(`add-component: ${componentData.name ?? componentData.id} ✓`)
+            } else {
+              results.push(`add-component: ${reg.message}`)
+            }
+            break
+          }
+          case 'modify-component': {
+            const upd = await cm.update(req.target ?? '', (req.changes as Record<string, unknown> | undefined) ?? {})
+            if (upd.success) {
+              applyManagerResult(dsm, cm, pm, upd.config)
+              dsmDirty = true
+              results.push(`modify-component: ${req.target} ✓`)
+            } else {
+              results.push(`modify-component: ${upd.message}`)
+            }
+            break
+          }
+          // No default — the partition above guaranteed exhaustive
+          // coverage of `handled`. Adding a request type to the
+          // `handled` partition without adding a case here will fail
+          // the TypeScript exhaustiveness check on the next build.
+        }
+      }
+
+      if (dsmDirty) {
+        await dsm.save()
+      }
+
+      return results
+    },
+  }
+}
+
+/**
+ * Mirrors `applyManagerResult` from `commands/chat/modification-handler.ts:196`.
+ * Keeps the three managers' in-memory configs in lockstep after a mutation
+ * so subsequent reads see the same picture. Tokens are re-attached because
+ * the manager-returned config can drop them in some code paths.
+ */
+function applyManagerResult(
+  dsm: DesignSystemManager,
+  cm: ComponentManager,
+  pm: PageManager,
+  newConfig: DesignSystemConfig,
+): void {
+  const merged: DesignSystemConfig = { ...newConfig, tokens: dsm.getConfig().tokens }
+  dsm.updateConfig(merged)
+  cm.updateConfig(merged)
+  pm.updateConfig(merged)
+}
+
+/**
+ * Resolve a delete-page request against the project's pages + remove the
+ * `.tsx` file on disk + drop the page from `config.pages` and the
+ * matching `navigation.items` entry. Mirrors API rail's case at
+ * `modification-handler.ts:1111`. Returns `dsmDirty: true` when the
+ * caller needs to `await dsm.save()` after.
+ */
+async function applyDeletePage(
+  req: ModificationRequest,
+  dsm: DesignSystemManager,
+  projectRoot: string,
+): Promise<{ message: string; dsmDirty: boolean }> {
+  const target = req.target
+  if (!target) {
+    return { message: 'delete-page: missing target', dsmDirty: false }
+  }
+  const config = dsm.getConfig()
+  const pages = config.pages ?? []
+  const page = pages.find(
+    p =>
+      p.id === target ||
+      p.name?.toLowerCase() === target.toLowerCase() ||
+      p.route === target ||
+      p.route === '/' + target.replace(/^\//, ''),
+  )
+  if (!page) {
+    return {
+      message: `delete-page: no match for "${target}" (pages: ${pages.map(p => p.id).join(', ') || 'none'})`,
+      dsmDirty: false,
+    }
+  }
+  // Refuse to delete `/` — same guard as API rail (modification-handler.ts:1137).
+  // Without a root page the project's routing breaks; users almost never
+  // mean to delete it.
+  if (page.route === '/') {
+    return {
+      message: `delete-page: refusing to delete root page "/" (edit design-system.config.ts manually if you really want this)`,
+      dsmDirty: false,
+    }
+  }
+
+  // Try every route group convention in turn. The page may live under
+  // `app/<slug>/`, `app/(app)/<slug>/`, or `app/(auth)/<slug>/`,
+  // depending on its pageType. Same candidate list as API rail.
+  const relRoute = page.route.replace(/^\//, '')
+  const candidates = [
+    resolve(projectRoot, 'app', relRoute, 'page.tsx'),
+    resolve(projectRoot, 'app', '(app)', relRoute, 'page.tsx'),
+    resolve(projectRoot, 'app', '(auth)', relRoute, 'page.tsx'),
+  ]
+  const filePath = candidates.find(existsSync)
+  if (filePath) {
+    await rm(filePath, { force: true })
+    try {
+      // Best-effort directory cleanup — the dir may still hold a
+      // layout.tsx or sibling pages. If `rm -r` would touch shared
+      // infra, the catch swallows it and we leave the dir intact.
+      await rm(dirname(filePath), { recursive: true, force: true })
+    } catch {
+      /* leave alone */
+    }
+  }
+
+  // Drop from config.pages + matching navigation.items entry in one
+  // atomic update so a partial save can't leave the project in a state
+  // where the page is gone but the nav still 404s into it.
+  const filteredPages = pages.filter(p => p.id !== page.id)
+  const currentNav = config.navigation
+  const updatedNav = currentNav?.items
+    ? { ...currentNav, items: currentNav.items.filter(it => it.route !== page.route) }
+    : currentNav
+  dsm.updateConfig({
+    ...config,
+    pages: filteredPages,
+    ...(updatedNav ? { navigation: updatedNav } : {}),
+    updatedAt: new Date().toISOString(),
+  })
+
+  return { message: `delete-page: ${page.name} (${page.route}) ✓`, dsmDirty: true }
+}
+
+/**
+ * Resolve a delete-component request against the manifest + remove the
+ * shared component file on disk. Mirrors API rail's case at
+ * `modification-handler.ts:1213`. Pages that import the now-deleted
+ * component will break — the API rail surfaces this as a warning;
+ * we follow the same approach.
+ */
+async function applyDeleteComponent(req: ModificationRequest, projectRoot: string): Promise<{ message: string }> {
+  const target = req.target
+  if (!target) {
+    return { message: 'delete-component: missing target' }
+  }
+  let manifest
+  try {
+    manifest = await loadManifest(projectRoot)
+  } catch {
+    return { message: 'delete-component: could not load shared-components manifest' }
+  }
+  const entry = manifest.shared.find(e => e.id === target || e.name.toLowerCase() === target.toLowerCase())
+  if (!entry) {
+    const list = manifest.shared.map(e => `${e.id}/${e.name}`).join(', ') || 'none'
+    return { message: `delete-component: no match for "${target}" (manifest: ${list})` }
+  }
+  const filePath = resolve(projectRoot, entry.file)
+  if (existsSync(filePath)) {
+    await rm(filePath, { force: true })
+  }
+  await saveManifest(projectRoot, {
+    ...manifest,
+    shared: manifest.shared.filter(e => e.id !== entry.id),
+  })
+  return { message: `delete-component: ${entry.id} (${entry.name}) ✓ (pages importing it may need regen)` }
+}
 
 /**
  * Apply `config-delta.json` to the project's design-system.config.ts.
@@ -491,21 +846,28 @@ export function createFixGlobalsCssApplier(): ArtifactApplier {
  *
  *   1. config-delta — name / navigation type land first so subsequent
  *      appliers see the post-delta config.
- *   2. components — shared components on disk before pages can import them.
- *   3. pages — generated pages land in `app/.../page.tsx`.
- *   4. replace-welcome — if the init scaffold survived the chat, replace
+ *   2. modification — v0.11.3 — process every non-AI request type from the
+ *      planner (delete-page, delete-component, update-token, add-component,
+ *      modify-component) AND hard-fail on AI-dependent / unknown types
+ *      BEFORE any pages land. Mirrors API rail's `applyModification` switch.
+ *      Runs BEFORE pages so the rename pattern
+ *      `[delete-page X, add-page Y]` ends with only Y, never both.
+ *   3. components — shared components on disk before pages can import them.
+ *   4. pages — generated add-page artifacts land in `app/.../page.tsx`.
+ *   5. replace-welcome — if the init scaffold survived the chat, replace
  *      `app/page.tsx` with a redirect to the primary generated route.
  *      Runs BEFORE layout so the redirect (not the scaffold) is what
  *      sidebar-nav's route-group movement picks up.
- *   5. layout — Header/Footer/Sidebar redrawn for the post-delta nav.
+ *   6. layout — Header/Footer/Sidebar redrawn for the post-delta nav.
  *      Runs AFTER replace-welcome so when sidebar nav moves
  *      `app/page.tsx` → `app/(public)/page.tsx` it carries the redirect.
- *   6. fix-globals-css — token resync; idempotent so order doesn't matter
+ *   7. fix-globals-css — token resync; idempotent so order doesn't matter
  *      relative to layout, but kept last by convention.
  */
 export function defaultAppliers(): ArtifactApplier[] {
   return [
     createConfigDeltaApplier(),
+    createModificationApplier(),
     createComponentsApplier(),
     createPagesApplier(),
     createReplaceWelcomeApplier(),

@@ -124,6 +124,18 @@ export interface PlanPhaseOptions {
    * the chain — useful when an upstream caller seeds anchor-input itself.
    */
   anchorInputArtifact?: string | null
+  /**
+   * Artifact to persist the FULL list of normalized requests from the plan
+   * response. Default `modification-requests.json`. Set to `null` to suppress.
+   *
+   * Pre-v0.11.3 the plan ingest derived only `pageNames` from `add-page`
+   * requests; every other type (`delete-page`, `update-token`, etc.) went
+   * to /dev/null because no downstream applier read them. The audit
+   * (codex consult, 2026-04-25) found 9+ silent-drop bugs of that class.
+   * Persisting the raw requests gives `createModificationApplier` a single
+   * source of truth that mirrors API rail's `applyModification` switch.
+   */
+  modificationRequestsArtifact?: string | null
 }
 
 /**
@@ -173,6 +185,11 @@ export function createPlanPhase(options: PlanPhaseOptions = {}): AiPhase {
   const deltaFile = options.configDeltaArtifact ?? 'config-delta.json'
   // `undefined` → default 'anchor-input.json'; `null` → suppress chaining.
   const anchorInputFile = options.anchorInputArtifact === undefined ? 'anchor-input.json' : options.anchorInputArtifact
+  // Same `undefined` vs `null` semantics as anchorInputFile above.
+  const modificationRequestsFile =
+    options.modificationRequestsArtifact === undefined
+      ? 'modification-requests.json'
+      : options.modificationRequestsArtifact
 
   async function loadInput(ctx: PhaseContext): Promise<PlanInput> {
     const raw = await ctx.session.readArtifact(ctx.sessionId, inputFile)
@@ -205,6 +222,25 @@ export function createPlanPhase(options: PlanPhaseOptions = {}): AiPhase {
 
       const planArtifact: PlanArtifact = { pageNames, navigationType, appName: planAppName }
       await ctx.session.writeArtifact(ctx.sessionId, planFile, JSON.stringify(planArtifact, null, 2))
+
+      // Persist the full normalized request list for the modification applier
+      // (v0.11.3). `derivePageNames` above filters to add-page only; this
+      // artifact carries delete-page, delete-component, update-token,
+      // modify-component, add-component, and any unsupported types so the
+      // applier can either handle them or hard-fail BEFORE add-pages land.
+      // Skip the write entirely when the option was set to `null` (test or
+      // caller wants to suppress chaining) or when the parsed response
+      // contains no requests at all.
+      if (modificationRequestsFile !== null) {
+        const requests = (parsed.requests as ModificationRequest[] | undefined) ?? []
+        if (requests.length > 0) {
+          await ctx.session.writeArtifact(
+            ctx.sessionId,
+            modificationRequestsFile,
+            JSON.stringify({ requests }, null, 2),
+          )
+        }
+      }
 
       // Chain anchor-input.json so the next skill-mode call (`_phase prep
       // anchor`) finds its input. Without this the pipeline dies here with

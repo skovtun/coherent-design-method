@@ -7,6 +7,7 @@ import { InMemorySessionStore } from '../in-memory-session-store.js'
 import {
   createConfigDeltaApplier,
   createComponentsApplier,
+  createModificationApplier,
   createPagesApplier,
   createReplaceWelcomeApplier,
   defaultAppliers,
@@ -676,8 +677,12 @@ describe('createPagesApplier', () => {
 })
 
 describe('defaultAppliers', () => {
-  it('returns config-delta → components → pages → replace-welcome → layout → fix-globals-css', () => {
+  it('returns config-delta → modification → components → pages → replace-welcome → layout → fix-globals-css', () => {
     // Ordering matters — see appliers.ts `defaultAppliers` doc:
+    //  - modification (v0.11.3) runs BEFORE pages so deletes happen
+    //    first; the rename pattern `[delete X, add Y]` ends with only
+    //    Y. Also runs the hard-fail guard for AI-dependent types
+    //    BEFORE any pages land, killing silent partial-apply.
     //  - replace-welcome runs AFTER pages (sees generated pages on disk
     //    + in artifacts) but BEFORE layout (so sidebar's
     //    app/page.tsx → app/(public)/page.tsx move carries the redirect,
@@ -685,6 +690,7 @@ describe('defaultAppliers', () => {
     const appliers = defaultAppliers()
     expect(appliers.map(a => a.name)).toEqual([
       'config-delta',
+      'modification',
       'components',
       'pages',
       'replace-welcome',
@@ -886,5 +892,264 @@ describe('createReplaceWelcomeApplier', () => {
     expect(results).toHaveLength(1)
     // /settings won, /broken was skipped because its pageCode was empty.
     expect(results[0]).toContain('redirect("/settings")')
+  })
+})
+
+describe('createModificationApplier (v0.11.3)', () => {
+  let projectRoot: string
+  afterEach(() => {
+    if (projectRoot && existsSync(projectRoot)) rmSync(projectRoot, { recursive: true, force: true })
+  })
+
+  async function writeRequests(store: InMemorySessionStore, uuid: string, requests: unknown[]): Promise<void> {
+    await store.writeArtifact(uuid, 'modification-requests.json', JSON.stringify({ requests }))
+  }
+
+  function seedPageInConfig(
+    projectRoot: string,
+    page: { id: string; name: string; route: string; group?: 'app' | 'auth' | 'public' },
+  ): void {
+    // Seed an existing page on disk + in DSM. Mirrors a project's
+    // post-chat-#1 state: page is registered, file exists, nav has
+    // an entry. The test cleans up via tmp dir.
+    const dsm = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
+    return (async () => {
+      await dsm.load()
+      const cfg = dsm.getConfig()
+      const now = new Date().toISOString()
+      cfg.pages = [
+        ...cfg.pages,
+        {
+          id: page.id,
+          name: page.name,
+          route: page.route,
+          layout: 'centered',
+          sections: [],
+          title: page.name,
+          description: '',
+          requiresAuth: page.group !== 'public',
+          noIndex: false,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ]
+      cfg.navigation = {
+        ...cfg.navigation!,
+        items: [
+          ...(cfg.navigation?.items ?? []),
+          { label: page.name, route: page.route, requiresAuth: true, order: cfg.navigation?.items?.length ?? 1 },
+        ],
+      }
+      dsm.updateConfig(cfg)
+      await dsm.save()
+
+      // Page file on disk under the matching route group.
+      const groupSlug = page.group === 'auth' ? '(auth)' : page.group === 'public' ? '' : '(app)'
+      const slug = page.route.replace(/^\//, '')
+      const baseSegments = groupSlug ? ['app', groupSlug, slug] : ['app', slug]
+      const dir = join(projectRoot, ...baseSegments)
+      mkdirSync(dir, { recursive: true })
+      writeFileSync(
+        join(dir, 'page.tsx'),
+        `export default function ${page.name}(){ return <div>${page.name}</div> }\n`,
+        'utf-8',
+      )
+    })() as unknown as void
+  }
+
+  it('is a no-op when modification-requests.json is absent', async () => {
+    projectRoot = setupProject()
+    const { ctx } = await makeContext(projectRoot)
+    expect(await createModificationApplier().apply(ctx)).toEqual([])
+  })
+
+  it('is a no-op when artifact contains only add-page (deferred to pages applier)', async () => {
+    projectRoot = setupProject()
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    await writeRequests(store, uuid, [
+      {
+        type: 'add-page',
+        target: 'new',
+        changes: { id: 'reports', name: 'Reports', route: '/reports' },
+      },
+    ])
+    const results = await createModificationApplier().apply(ctx)
+    expect(results).toEqual([])
+  })
+
+  it('delete-page: removes file, drops from config.pages and nav.items', async () => {
+    projectRoot = setupProject()
+    await seedPageInConfig(projectRoot, { id: 'transactions', name: 'Transactions', route: '/transactions' })
+    // Confirm setup landed.
+    const beforePagePath = join(projectRoot, 'app', '(app)', 'transactions', 'page.tsx')
+    expect(existsSync(beforePagePath)).toBe(true)
+
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    await writeRequests(store, uuid, [{ type: 'delete-page', target: 'transactions' }])
+    const results = await createModificationApplier().apply(ctx)
+
+    expect(results).toHaveLength(1)
+    expect(results[0]).toContain('delete-page: Transactions')
+    expect(existsSync(beforePagePath)).toBe(false)
+
+    const after = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
+    await after.load()
+    const cfg = after.getConfig()
+    expect(cfg.pages.find(p => p.id === 'transactions')).toBeUndefined()
+    expect(cfg.navigation?.items?.find(i => i.route === '/transactions')).toBeUndefined()
+  })
+
+  it('delete-page: refuses to delete the root page "/"', async () => {
+    projectRoot = setupProject()
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    // The init seed already includes a Home page at "/".
+    await writeRequests(store, uuid, [{ type: 'delete-page', target: '/' }])
+    const results = await createModificationApplier().apply(ctx)
+    expect(results).toHaveLength(1)
+    expect(results[0]).toContain('refusing to delete root page')
+
+    // Seeded Home is still in config.
+    const after = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
+    await after.load()
+    expect(after.getConfig().pages.find(p => p.route === '/')).toBeDefined()
+  })
+
+  it('delete-page: clear error when target does not exist', async () => {
+    projectRoot = setupProject()
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    await writeRequests(store, uuid, [{ type: 'delete-page', target: 'nonexistent' }])
+    const results = await createModificationApplier().apply(ctx)
+    expect(results).toHaveLength(1)
+    expect(results[0]).toContain('no match for "nonexistent"')
+  })
+
+  it('delete-component: removes file + manifest entry', async () => {
+    projectRoot = setupProject()
+    // Seed a shared component file + manifest entry.
+    const sharedDir = join(projectRoot, 'components', 'shared')
+    mkdirSync(sharedDir, { recursive: true })
+    writeFileSync(join(sharedDir, 'feature-card.tsx'), 'export function FeatureCard(){ return <div /> }', 'utf-8')
+    writeFileSync(
+      join(projectRoot, 'coherent.components.json'),
+      JSON.stringify(
+        {
+          shared: [
+            {
+              id: 'CID-009',
+              name: 'FeatureCard',
+              type: 'widget',
+              file: 'components/shared/feature-card.tsx',
+              usedIn: [],
+              createdAt: new Date().toISOString(),
+              dependencies: [],
+            },
+          ],
+          nextId: 10,
+        },
+        null,
+        2,
+      ),
+    )
+
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    await writeRequests(store, uuid, [{ type: 'delete-component', target: 'CID-009' }])
+    const results = await createModificationApplier().apply(ctx)
+
+    expect(results).toHaveLength(1)
+    expect(results[0]).toContain('delete-component: CID-009')
+    expect(existsSync(join(sharedDir, 'feature-card.tsx'))).toBe(false)
+
+    const manifestRaw = readFileSync(join(projectRoot, 'coherent.components.json'), 'utf-8')
+    const manifest = JSON.parse(manifestRaw) as { shared: Array<{ id: string }> }
+    expect(manifest.shared.find(e => e.id === 'CID-009')).toBeUndefined()
+  })
+
+  it('rename pattern: [delete-page X, add-page Y] processes the delete; pages applier handles the add', async () => {
+    // The exact bug from the v0.11.2 dogfood report. Plan AI emitted
+    // both requests; pre-v0.11.3 skill rail silently dropped delete-page
+    // and only Activity got added, leaving Transactions on disk.
+    projectRoot = setupProject()
+    await seedPageInConfig(projectRoot, { id: 'transactions', name: 'Transactions', route: '/transactions' })
+
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    await writeRequests(store, uuid, [
+      { type: 'delete-page', target: 'transactions' },
+      { type: 'add-page', target: 'new', changes: { id: 'activity', name: 'Activity', route: '/activity' } },
+    ])
+
+    // Modification applier: handles ONLY the delete (add-page deferred to
+    // pages applier which reads page-<id>.json artifacts written by the
+    // page phase, not the planner request directly).
+    const results = await createModificationApplier().apply(ctx)
+    expect(results).toHaveLength(1)
+    expect(results[0]).toContain('delete-page: Transactions')
+
+    // Verify post-delete state.
+    const after = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
+    await after.load()
+    const cfg = after.getConfig()
+    expect(cfg.pages.find(p => p.id === 'transactions')).toBeUndefined()
+    expect(existsSync(join(projectRoot, 'app', '(app)', 'transactions', 'page.tsx'))).toBe(false)
+  })
+
+  it('GUARD: throws on unsupported request types BEFORE applying handled types', async () => {
+    // Codex audit P1 — silent partial-apply is the failure mode we need
+    // to kill. If the planner emits an AI-dependent type alongside a
+    // simple destructive op, the destructive op MUST NOT proceed because
+    // the user's overall intent (which includes the AI op) cannot be
+    // satisfied. Surface the error early.
+    projectRoot = setupProject()
+    await seedPageInConfig(projectRoot, { id: 'transactions', name: 'Transactions', route: '/transactions' })
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    await writeRequests(store, uuid, [
+      { type: 'delete-page', target: 'transactions' },
+      { type: 'link-shared', target: 'home', changes: { sharedIdOrName: 'CID-003' } },
+    ])
+
+    await expect(createModificationApplier().apply(ctx)).rejects.toThrow(/skill rail does not yet support/)
+
+    // CRITICAL: the delete-page MUST NOT have been applied. The whole
+    // session is reject-on-load — partial apply is what we're killing.
+    const after = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
+    await after.load()
+    expect(after.getConfig().pages.find(p => p.id === 'transactions')).toBeDefined()
+    expect(existsSync(join(projectRoot, 'app', '(app)', 'transactions', 'page.tsx'))).toBe(true)
+  })
+
+  it('GUARD: surfaces every unsupported type in the error message', async () => {
+    projectRoot = setupProject()
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    await writeRequests(store, uuid, [
+      { type: 'update-page', target: 'home', changes: { pageCode: '...' } },
+      { type: 'modify-layout-block', target: 'header' },
+      { type: 'promote-and-link', target: 'home' },
+    ])
+    await expect(createModificationApplier().apply(ctx)).rejects.toThrow(
+      /update-page.*modify-layout-block.*promote-and-link/,
+    )
+  })
+
+  it('handles malformed artifact JSON without crashing the session', async () => {
+    projectRoot = setupProject()
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    await store.writeArtifact(uuid, 'modification-requests.json', '{ this is not json')
+    expect(await createModificationApplier().apply(ctx)).toEqual([])
+  })
+
+  it('update-token: applies the token mutation via dsm.updateToken', async () => {
+    projectRoot = setupProject()
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    // Path format mirrors how the API rail's request-parser produces
+    // update-token: target is the dotted path, changes.value is the new value.
+    await writeRequests(store, uuid, [
+      { type: 'update-token', target: 'colors.light.primary', changes: { value: '#10B981' } },
+    ])
+    const results = await createModificationApplier().apply(ctx)
+    expect(results).toHaveLength(1)
+    expect(results[0]).toMatch(/update-token: colors\.light\.primary/)
+
+    const after = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
+    await after.load()
+    expect(after.getConfig().tokens.colors.light.primary).toBe('#10B981')
   })
 })
