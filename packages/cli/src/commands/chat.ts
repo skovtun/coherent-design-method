@@ -26,7 +26,7 @@ import { messageHasDestructiveIntent } from '../agents/destructive-preparser.js'
 import { isAuthRoute } from '../agents/page-templates.js'
 import { ensureAuthRouteGroup } from '../utils/auth-route-group.js'
 import { setDefaultDarkTheme, ensureThemeToggle } from '../utils/dark-mode.js'
-import { readFile, writeFile, acquireProjectLock } from '../utils/files.js'
+import { readFile, writeFile, releasePersistentLock } from '../utils/files.js'
 import { compareSemver } from '../utils/migrations.js'
 import { appendFile } from 'fs/promises'
 import { appendRecentChanges, type RecentChange } from '../utils/recent-changes.js'
@@ -61,8 +61,10 @@ import { buildReusePlan, buildReusePlanDirective } from '../utils/reuse-planner.
 import { inferPageTypeFromRoute } from '../agents/design-constraints.js'
 import { savePlan, loadPlan } from './chat/plan-generator.js'
 import { getAtmospherePreset, listAtmospherePresets } from './chat/atmosphere-presets.js'
+import { sessionStart, sessionEnd } from '../phase-engine/session-lifecycle.js'
+import { FileBackedSessionStore } from '../phase-engine/file-backed-session-store.js'
+import { createFixGlobalsCssApplier } from '../phase-engine/appliers.js'
 import {
-  writeRunRecordRel,
   markLatestRunOutcome,
   type RunRecord,
   type RunRecordAtmosphere,
@@ -117,7 +119,7 @@ export async function chatCommand(
     console.log(chalk.bold('\nAvailable atmosphere presets:\n'))
     for (const name of names) {
       const preset = getAtmospherePreset(name)!
-      console.log(`  ${chalk.cyan(name.padEnd(20))} ${chalk.dim(preset.moodPhrase)}`)
+      console.log(`  ${chalk.green(name.padEnd(20))} ${chalk.dim(preset.moodPhrase)}`)
     }
     console.log(chalk.dim(`\n  Usage: coherent chat "your request" --atmosphere <name>\n`))
     return
@@ -151,25 +153,28 @@ export async function chatCommand(
     bail('No message provided')
   }
 
-  const spinner = ora('Processing your request...').start()
+  const project = requireProject()
+  const projectRoot = project.root
+  const configPath = project.configPath
+
+  // Spinner streams to stderr so its repaint never collides with regular
+  // stdout output (the "spinner text fused into the next line" bug we hit in
+  // `coherent init` v0.9.0).
+  const spinner = ora({ text: 'Processing your request...', stream: process.stderr }).start()
 
   // Graceful Ctrl+C: stop the spinner, release the project lock, exit 130.
   // Without this, SIGINT leaves the spinner frame stuck in the terminal and
-  // the .coherent/.lock file on disk, blocking subsequent runs.
+  // the .coherent.lock file on disk, blocking subsequent runs.
   const onSigint = () => {
     if (spinner.isSpinning) spinner.fail('Interrupted (Ctrl+C)')
     try {
-      releaseLock?.()
+      releasePersistentLock(projectRoot)
     } catch {
       /* lock already released or never acquired */
     }
     process.exit(130)
   }
   process.once('SIGINT', onSigint)
-
-  const project = requireProject()
-  const projectRoot = project.root
-  const configPath = project.configPath
 
   // Run record — collects outcome data across the chat flow; written in
   // the `finally` block to `.coherent/runs/<timestamp>.yaml`. Mutable
@@ -206,9 +211,16 @@ export async function chatCommand(
 
   const validProviders = ['claude', 'openai', 'auto']
   const provider = (options.provider || 'auto').toLowerCase() as 'claude' | 'openai' | 'auto'
-  let releaseLock: (() => void) | undefined
+  const store = new FileBackedSessionStore(projectRoot)
+  let sessionUuid: string | undefined
   try {
-    releaseLock = await acquireProjectLock(projectRoot)
+    const started = await sessionStart({
+      projectRoot,
+      intent: message ?? '',
+      options: runRecord.options as Record<string, unknown>,
+      store,
+    })
+    sessionUuid = started.uuid
 
     if (!validProviders.includes(provider)) {
       spinner.fail('Invalid provider')
@@ -232,14 +244,18 @@ export async function chatCommand(
             '\n   Running an older CLI on a newer project produces stale output\n   (missing features, broken layouts, missing validator rules).',
           ),
         )
-        console.log(chalk.cyan('\n   👉 Update your global CLI:'))
-        console.log(chalk.white('      npm install -g @getcoherent/cli@latest\n'))
+        console.log(chalk.bold('\n   Update your global CLI:'))
+        console.log('      ' + chalk.green('npm install -g @getcoherent/cli@latest') + '\n')
         process.exit(1)
       }
       console.log(chalk.yellow('\n⚠️  Project is older than CLI\n'))
       console.log(chalk.gray('   Project created with: ') + chalk.white(`v${config.coherentVersion}`))
       console.log(chalk.gray('   Current CLI version:  ') + chalk.white(`v${CLI_VERSION}`))
-      console.log(chalk.cyan('\n   💡 Run `coherent update` to apply latest rules/templates to your project.\n'))
+      console.log(
+        chalk.dim('\n   Run ') +
+          chalk.green('coherent update') +
+          chalk.dim(' to apply latest rules/templates to your project.\n'),
+      )
       console.log(chalk.dim('   Continuing with current project config...\n'))
       spinner.start('Loading design system configuration...')
     }
@@ -311,7 +327,6 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
       const rawCode = (codeMatch?.changes?.pageCode as string) || ''
       if (!rawCode) {
         spinner.fail(`Could not generate component ${componentName}`)
-        releaseLock?.()
         return
       }
       const { code: fixedCode } = await autoFixCode(rawCode)
@@ -358,7 +373,6 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
       }
 
       spinner.succeed(`Created ${genResult.name} (${genResult.id}) at ${genResult.file}`)
-      releaseLock?.()
       return
     }
 
@@ -807,8 +821,10 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
 
     if (missingComponents.length > 0) {
       spinner.stop()
-      console.log(chalk.cyan('\n🔍 Pre-flight check: Installing missing components...\n'))
       const provider = getComponentProvider()
+      const installedNames: string[] = []
+      const failures: string[] = []
+      const unavailable: string[] = []
 
       for (const componentId of missingComponents) {
         if (DEBUG) {
@@ -823,43 +839,39 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
 
             if (result.success && result.componentDef) {
               if (!cm.read(componentId)) {
-                if (DEBUG)
-                  console.log(
-                    chalk.gray(`    [DEBUG] Registering ${result.componentDef.id} (${result.componentDef.name})`),
-                  )
                 const regResult = await cm.register(result.componentDef)
-                if (DEBUG) {
-                  console.log(
-                    chalk.gray(
-                      `    [DEBUG] Register result: ${regResult.success ? 'SUCCESS' : 'FAILED'}${!regResult.success && regResult.message ? ` - ${regResult.message}` : ''}`,
-                    ),
-                  )
-                }
-
                 if (regResult.success) {
                   preflightInstalledIds.push(result.componentDef.id)
-                  console.log(chalk.green(`   ✨ Auto-installed ${result.componentDef.name} component`))
+                  installedNames.push(result.componentDef.name)
                   dsm.updateConfig(regResult.config)
                   cm.updateConfig(regResult.config)
                   pm.updateConfig(regResult.config)
                 }
               } else {
                 preflightInstalledIds.push(result.componentDef.id)
-                console.log(chalk.green(`   ✨ Re-installed ${result.componentDef.name} component (file was missing)`))
+                installedNames.push(result.componentDef.name)
               }
             }
           } catch (error) {
-            console.log(chalk.red(`   ❌ Failed to install ${componentId}:`))
-            console.log(chalk.red(`      ${error instanceof Error ? error.message : error}`))
-            if (error instanceof Error && error.stack) {
-              console.log(chalk.gray(`      ${error.stack.split('\n')[1]}`))
-            }
+            failures.push(`${componentId}: ${error instanceof Error ? error.message : error}`)
           }
         } else {
-          console.log(chalk.yellow(`   ⚠️  Component ${componentId} not available`))
+          unavailable.push(componentId)
         }
       }
-      console.log('')
+
+      // Compact one-line reports. Quiet on the happy path: a successful
+      // install just shows "✓ Components installed: A, B, C" — no header,
+      // no per-line bullets, no trailing "✨".
+      if (installedNames.length > 0) {
+        console.log(chalk.green('  ✓ ') + chalk.dim('Components installed   ') + installedNames.join(', '))
+      }
+      if (unavailable.length > 0) {
+        console.log(chalk.yellow('  ⚠ ') + chalk.dim('Unavailable            ') + unavailable.join(', '))
+      }
+      if (failures.length > 0) {
+        for (const f of failures) console.log(chalk.red('  ✖ ') + f)
+      }
       spinner.start('Applying modifications...')
     }
 
@@ -869,9 +881,12 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
     const toInstallNpm = [...neededPkgs].filter(p => !installedPkgs.has(p))
     if (toInstallNpm.length > 0) {
       spinner.stop()
-      console.log(chalk.cyan(`\n📦 Auto-installing missing dependencies: ${toInstallNpm.join(', ')}\n`))
+      console.log(chalk.green('  ✓ ') + chalk.dim('Dependencies installing  ') + toInstallNpm.join(', '))
       const ok = await installPackages(projectRoot, toInstallNpm)
-      if (!ok) console.log(chalk.yellow(`   Run manually: npm install ${toInstallNpm.join(' ')}\n`))
+      if (!ok)
+        console.log(
+          chalk.yellow('  ⚠ ') + chalk.dim('Run manually: ') + chalk.green(`npm install ${toInstallNpm.join(' ')}`),
+        )
       spinner.start('Applying modifications...')
     }
 
@@ -1065,10 +1080,10 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
       const SCAFFOLD_AI_LIMIT = 10
       if (missingRoutes.length > 0 && missingRoutes.length <= SCAFFOLD_AI_LIMIT) {
         spinner.stop()
-        console.log(chalk.cyan(`\n🔗 Auto-scaffolding ${missingRoutes.length} linked page(s)...`))
+        console.log('\n' + chalk.bold(`Auto-scaffolding ${missingRoutes.length} linked page(s)`))
         console.log(
           chalk.dim(
-            `   (${missingRoutes.length} additional AI call(s) — disable with settings.autoScaffold: false in config)\n`,
+            `  (${missingRoutes.length} additional AI call(s) — disable with settings.autoScaffold: false in config)\n`,
           ),
         )
 
@@ -1142,7 +1157,9 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
           scaffoldedPages.push({ route: linkedRoute, name: `${pageName} (placeholder)` })
         }
         console.log(
-          chalk.cyan(`   Created ${missingRoutes.length} placeholder pages. Use \`coherent chat\` to fill them.\n`),
+          chalk.dim(`  Created ${missingRoutes.length} placeholder pages. Run `) +
+            chalk.green('coherent chat') +
+            chalk.dim(' to fill them.\n'),
         )
         spinner.start('Finalizing...')
       }
@@ -1277,12 +1294,6 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
     const finalDeps = await scanAndInstallSharedDeps(projectRoot)
     if (finalDeps.length > 0) {
       console.log(chalk.dim(`  Auto-installed shared deps: ${finalDeps.join(', ')}`))
-    }
-
-    try {
-      fixGlobalsCss(projectRoot, updatedConfig)
-    } catch {
-      /* best-effort */
     }
 
     // Update file hashes for all written files
@@ -1436,7 +1447,7 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
       changeSummaries.length > 0 &&
       changeSummaries.some(s => s.linesDelta !== 0 || s.importsAdded.length || s.importsRemoved.length)
     ) {
-      console.log(chalk.cyan('\n📊 Change summary:'))
+      console.log(chalk.bold('\nChange summary:'))
       for (const s of changeSummaries) {
         if (s.linesDelta === 0 && s.importsAdded.length === 0 && s.importsRemoved.length === 0) continue
         const delta =
@@ -1458,9 +1469,9 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
 
     if (scaffoldedPages.length > 0) {
       const uniqueScaffolded = [...new Map(scaffoldedPages.map(s => [s.route, s])).values()]
-      console.log(chalk.cyan('🔗 Auto-scaffolded linked pages:'))
+      console.log(chalk.bold('Auto-scaffolded linked pages:'))
       uniqueScaffolded.forEach(({ route, name }) => {
-        console.log(chalk.white(`   ✨ ${name} → ${route}`))
+        console.log(`  ${chalk.green('✓')} ${chalk.white(name)}  ${chalk.dim(route)}`)
       })
       console.log('')
     }
@@ -1477,7 +1488,7 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
           )
         }
         await appendFile(recPath, section)
-        console.log(chalk.cyan('\n📋 UX Recommendations:'))
+        console.log(chalk.bold('\nUX Recommendations:'))
         for (const line of uxRecommendations.split('\n').filter(Boolean)) {
           console.log(chalk.dim(`   ${line}`))
         }
@@ -1503,9 +1514,9 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
       issues.forEach((err: { path: (string | number)[]; message: string }) => {
         console.log(chalk.gray(`   • ${err.path.join('.')}: ${err.message}`))
       })
-      console.log(chalk.cyan('\n💡 Try being more specific, e.g.:'))
-      console.log(chalk.white('   coherent chat "add a dashboard page with hero section using Button component"'))
-      console.log(chalk.white('   coherent chat "add pricing page"'))
+      console.log(chalk.bold('\n  Try being more specific, e.g.:'))
+      console.log('    ' + chalk.green('coherent chat "add a dashboard page with hero section using Button component"'))
+      console.log('    ' + chalk.green('coherent chat "add pricing page"'))
     } else if (error instanceof Error) {
       console.error(chalk.red(error.message))
       if (
@@ -1514,11 +1525,11 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
         (error.message.includes('Failed to parse modification') && error.message.includes('JSON'))
       ) {
         console.log(
-          chalk.yellow('\n💡 The AI response was too large or contained invalid JSON. Try splitting your request:'),
+          chalk.dim('\n  The AI response was too large or contained invalid JSON. Try splitting your request:'),
         )
-        console.log(chalk.white('   coherent chat "add dashboard page with stats and recent activity"'))
-        console.log(chalk.white('   coherent chat "add account page"'))
-        console.log(chalk.white('   coherent chat "add settings page"'))
+        console.log('    ' + chalk.green('coherent chat "add dashboard page with stats and recent activity"'))
+        console.log('    ' + chalk.green('coherent chat "add account page"'))
+        console.log('    ' + chalk.green('coherent chat "add settings page"'))
       } else if (
         error.message.includes('API key not found') ||
         error.message.includes('ANTHROPIC_API_KEY') ||
@@ -1529,16 +1540,16 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
         const envVar = isOpenAI ? 'OPENAI_API_KEY' : 'ANTHROPIC_API_KEY'
         const url = isOpenAI ? 'https://platform.openai.com' : 'https://console.anthropic.com'
 
-        console.log(chalk.yellow('\n💡 Setup Instructions:'))
-        console.log(chalk.dim(`  1. Get your ${providerName} API key from: ${url}`))
-        console.log(chalk.dim('  2. Create a .env file in the current directory:'))
-        console.log(chalk.cyan(`     echo "${envVar}=your_key_here" > .env`))
-        console.log(chalk.dim('  3. Or export it in your shell:'))
-        console.log(chalk.cyan(`     export ${envVar}=your_key_here`))
+        console.log(chalk.bold('\n  Setup:'))
+        console.log(chalk.dim(`    1. Get your ${providerName} API key from: ${url}`))
+        console.log(chalk.dim('    2. Create a .env file in the current directory:'))
+        console.log('       ' + chalk.green(`echo "${envVar}=your_key_here" > .env`))
+        console.log(chalk.dim('    3. Or export it in your shell:'))
+        console.log('       ' + chalk.green(`export ${envVar}=your_key_here`))
 
         if (isOpenAI) {
-          console.log(chalk.dim('\n  Also ensure "openai" package is installed:'))
-          console.log(chalk.cyan('     npm install openai'))
+          console.log(chalk.dim('\n    Also ensure "openai" package is installed:'))
+          console.log('       ' + chalk.green('npm install openai'))
         }
       }
     } else {
@@ -1548,22 +1559,31 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
     if (options._throwOnError) {
       throw error instanceof Error ? error : new Error(String(error))
     }
-    process.exit(1)
+    // Deferred exit: `process.exit(1)` here would kill the event loop and
+    // abandon the finally's `await store.writeArtifact` / `await sessionEnd`,
+    // leaking the persistent lock (60-min stale-sweep window) for every chat
+    // error. Set `process.exitCode` and let finally drain normally; Node exits
+    // non-zero after the event loop empties.
+    process.exitCode = 1
   } finally {
-    // Write run record unless dry-run (journaling dry-runs pollutes the dir
-    // with zero-outcome files). Never let journaling failure block exit.
-    if (!options.dryRun) {
-      runRecord.durationMs = Date.now() - runStartMs
+    runRecord.durationMs = Date.now() - runStartMs
+    process.removeListener('SIGINT', onSigint)
+    if (sessionUuid) {
       try {
-        const rel = writeRunRecordRel(projectRoot, runRecord)
-        if (rel && runRecord.outcome === 'success') {
-          console.log(chalk.dim(`  📝 Run journaled → ${rel}`))
+        await store.writeArtifact(sessionUuid, 'run-record.json', JSON.stringify(runRecord))
+        const ended = await sessionEnd({
+          projectRoot,
+          uuid: sessionUuid,
+          appliers: [createFixGlobalsCssApplier()],
+          skipRunRecord: !!options.dryRun,
+          store,
+        })
+        if (ended.runRecordPath && runRecord.outcome === 'success') {
+          console.log(chalk.dim(`  📝 Run journaled → ${relative(projectRoot, ended.runRecordPath)}`))
         }
       } catch {
-        /* journaling is best-effort */
+        /* sessionEnd releases lock internally even on applier failure */
       }
     }
-    process.removeListener('SIGINT', onSigint)
-    releaseLock?.()
   }
 }

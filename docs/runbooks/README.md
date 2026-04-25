@@ -9,6 +9,7 @@ Contents:
 - [cut-release.md](./cut-release.md) — version bump → test → commit → push → PR → merge → (optional) npm publish
 - [validate-retrieval.md](./validate-retrieval.md) — sanity-check that wiki retrieval works end-to-end
 - [debug-indexing.md](./debug-indexing.md) — when `coherent wiki search` returns nothing or wrong results
+- [skill-parity-dogfood.md](./skill-parity-dogfood.md) — manually walk the v0.9.0 skill-mode phase rail end-to-end
 
 ## How this fits the memory layering
 

@@ -597,9 +597,6 @@ ${navEnabled ? `        ${navRendered}\n        ` : ''}        <div className="f
       ? `<div className="flex items-center gap-1">\n        ${items}\n        </div>`
       : ''
 
-    const COHERENT_LOGO_PATH =
-      'M10 4C10.5523 4 11 4.44772 11 5V13H19C19.5523 13 20 13.4477 20 14V20.4287C19.9999 22.401 18.401 23.9999 16.4287 24H3.57129C1.59895 23.9999 7.5245e-05 22.401 0 20.4287V7.57129C7.53742e-05 5.59895 1.59895 4.00008 3.57129 4H10ZM2 20.4287C2.00008 21.2965 2.70352 21.9999 3.57129 22H9V15H2V20.4287ZM11 22H16.4287C17.2965 21.9999 17.9999 21.2965 18 20.4287V15H11V22ZM3.57129 6C2.70352 6.00008 2.00008 6.70352 2 7.57129V13H9V6H3.57129ZM20.5 0C22.433 0 24 1.567 24 3.5V9.90039C23.9998 10.5076 23.5076 10.9998 22.9004 11H14.0996C13.4924 10.9998 13.0002 10.5076 13 9.90039V1.09961C13.0002 0.492409 13.4924 0.000211011 14.0996 0H20.5ZM15 9H22V3.5C22 2.67157 21.3284 2 20.5 2H15V9Z'
-
     return `'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -608,7 +605,11 @@ import { Fragment, useEffect, useState } from 'react'
 function CoherentLogo({ size = 16, className = '' }: { size?: number; className?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-      <path d="${COHERENT_LOGO_PATH}" fill="currentColor"/>
+      <rect x="1.25" y="1.25" width="21.5" height="21.5" rx="3" stroke="currentColor" strokeWidth="2"/>
+      <rect x="5.5" y="5.5" width="6" height="6" rx="1" fill="currentColor"/>
+      <rect x="12.5" y="5.5" width="6" height="6" rx="1" fill="currentColor" opacity="0.45"/>
+      <rect x="5.5" y="12.5" width="6" height="6" rx="1" fill="currentColor" opacity="0.45"/>
+      <rect x="12.5" y="12.5" width="6" height="6" rx="1" fill="currentColor"/>
     </svg>
   )
 }

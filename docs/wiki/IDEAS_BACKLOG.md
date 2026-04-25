@@ -114,6 +114,72 @@ Prefix clusters: `F` features · `M` meta-architecture · `N` nice-to-haves · `
 Each `###` block below is an indexable entry (wiki-index.ts scans `###` headings). Frontmatter above each heading supplies id/status/target/date for retrieval weighting and filtering.
 
 ---
+id: M14
+type: idea
+status: planned
+target: v0.10
+effort: 6h
+date: 2026-04-25
+confidence: high
+---
+
+### M14 — Skill-mode rail token-cost + UX optimization (post-v0.9.0)
+
+Source: `/ultraplan` proposal validated against codex consult. v0.9.0 dogfood: 4-page generation took 7m42s with 17+ visible Bash calls and a 106-line `page-settings-response.md` rewrite due to JSON-escape failure inside `pageCode`. The four targeted fixes:
+
+**1. TSX out of JSON via fenced ```tsx (biggest win — kills the JSON-escape failure class).**
+- `prompt-builders/page.ts` — change output contract: model returns JSON header (id, name, route, layout, ...) followed by ```tsx fenced code block. No more pageCode-as-escaped-string.
+- `phases/page.ts` ingest() — split rawResponse on `^{...}\n+\`\`\`tsx\n(.*)\n\`\`\`$`, attach TSX as `request.changes.pageCode`. Keep legacy fallback (try JSON.parse first, use as-is if `pageCode` present) for one release so older skill markdown still works.
+- New tests: `page.fenced-tsx.test.ts` covering corner cases (TSX with embedded ``` , leading ```json fence before header, empty TSX).
+
+**2. PHASE_SKIP_SENTINEL for empty components phase.**
+- v0.9.0 already has a one-line prompt when sharedComponents is empty, but the skill body still does Read + Write + ingest (3 wasted tool calls per run). Cleaner: `prep()` writes empty `components-generated.json` and returns `'__COHERENT_PHASE_SKIPPED__\n'` to stdout. Skill body instructs Claude to detect sentinel and skip Write+ingest entirely.
+- `phase-engine/phase.ts` — export the constant.
+- Update SKILL_COHERENT_CHAT step 5: "if first Bash output is exactly the sentinel, jump to step 6".
+
+**3. Parallel page batching in skill body.**
+- Doc-only change. Tell Claude in step 6 to issue N parallel Bash calls for `_phase prep page:<id>` in one message, then N parallel Write calls for response files, then N parallel ingest Bash calls. CLI is already idempotent per-id, no logic change needed. 12 turns → 3 turns for a 4-page run.
+
+**4. Progress lines in skill body.**
+- Pure UX. Mini-section telling Claude to print one line per phase: `▸ [1/6] Planning pages…`, `▸ [4/6] No shared components — skipping`, `▸ [5/6] Generating /balance, /transactions, /settings in parallel…`. Replace current "Plan ingested. Anchor prep." machine-speak.
+
+**Bumps `PHASE_ENGINE_PROTOCOL` 1→2** because items 1+2 are wire-incompatible. Existing projects need `coherent update` to refresh `.claude/skills/coherent-chat/SKILL.md`. The protocol-mismatch error E004 fires on stale skill.
+
+**NOT in this milestone:** dropping the `> *-prompt.md` redirect (codex consult-2 noted Bash stdout truncates large outputs; prompts are 1245+ lines for anchor with full bundle, risky).
+
+**Verification gates before ship:**
+- Real run on the dogfood scenario (4 Russian pages: dashboard/balance/transactions/settings) reproduces the v0.9.0 7m42s baseline → expect ≤ 4 minutes wall time, no Settings JSON retry, ≤ 10 visible Bash calls.
+- Tier 1 parity harness stays green (chat rail + skill rail share `createPagePhase`).
+- `coherent check` after end produces score ≥ existing 78/100.
+- Backward compat: legacy JSON-with-pageCode still ingests via fallback branch.
+
+**Why deferred from v0.9.0:** v0.9.0 is already validated, committed, pushed (PR #40). Shipping it gives a clean baseline to measure M14's actual wall-time + tool-call reduction against. Bundling M14 into v0.9.0 risks regressions on a release that's already proven.
+
+---
+id: M13
+type: idea
+status: deferred
+target: v0.9.x
+effort: 4h
+date: 2026-04-23
+confidence: medium
+---
+
+### M13 — `coherent prompt` rewrite as phase-preps concat
+
+Lane C's original Task 4 called for rewriting `coherent prompt` (the one-shot constraint-bundle command) as a concat of all phase preps. Deferred because phase preps have artifact dependencies: plan.prep reads plan-input.json; anchor.prep reads plan.json (written by plan.ingest); extract-style.run reads anchor.json; etc. "Concat of all preps" requires the upstream phases to have actually run with real AI responses — chicken-and-egg without AI calls inside a non-API command.
+
+Candidate resolutions:
+1. **Skeleton mode** — emit each phase's prep template with `<<artifacts from prior phase>>` placeholders. Honest about the chain without lying about resolved values.
+2. **Plan-only mode** — emit only the plan phase's prep (the one phase with no prior-phase deps). Smaller, accurate, usable.
+3. **--engine flag** — add `--engine` / `--phase <name>` flags. Default keeps old one-shot bundle; `--phase plan` emits just plan's prep; `--phase all` emits skeletons.
+4. **Rename the goal** — Lane D's parity harness proves bundle equivalence. Keep `coherent prompt` as-is (hand-built one-shot), let skill mode use `session start` + `_phase prep/ingest` directly. This effectively retires Task 4 without rewriting.
+
+**Why deferred:** Lane C Task 5 (skill markdown orchestrator) ships the end-of-Lane-C user-visible capability without requiring this rewrite. Revisit after Lane D parity harness shows whether `coherent prompt` still has a role distinct from the skill-mode rail.
+
+**Target:** v0.9.x or later, once Lane D parity data makes the right answer obvious.
+
+---
 id: F11
 type: idea
 status: resolved

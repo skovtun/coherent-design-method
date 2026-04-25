@@ -530,6 +530,25 @@ export function formatForClaude(ctx: ProjectContext): string {
 
 This is a Coherent Design Method project — AI-powered multi-page UI prototype with shared component system.
 
+## Skill routing (READ FIRST)
+
+When the user asks to **create, generate, add, or build** pages / components / a multi-page
+app / UI from a natural-language description — **invoke the \`/coherent-chat\` skill**.
+
+\`/coherent-chat\` runs the Coherent phase engine: plan → anchor → extract-style → components → pages,
+with shared-component reuse, per-page design constraints, and a validator/auto-fix pass at the
+end. Going direct with Write / Edit skips all of that — your pages will look internally OK but
+will drift from Header/Footer, the landing, the design tokens, and the navigation manifest.
+
+**Always \`/coherent-chat\`:** new pages, new components, "create an app with N pages",
+regenerations, whole-theme rewrites, changing the design system.
+
+**Never \`/coherent-chat\` (just edit directly):** typo fixes, copy tweaks in one file, adding
+an import, refactoring a single function, debugging a runtime error, reading code.
+
+If in doubt, prefer \`/coherent-chat\` — wasted skill invocation is cheap; silently bypassing
+the phase engine is not (landing stays stale, shared components drift, no consistency check).
+
 ${ctx.architectureCompact}
 
 ## Shared Components (MUST REUSE)

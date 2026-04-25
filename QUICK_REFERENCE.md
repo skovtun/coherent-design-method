@@ -14,6 +14,9 @@ coherent chat --atmosphere <name> "..."  # Use a named atmosphere preset (see --
 coherent chat --list-atmospheres # Show all 10 atmosphere presets and exit
 coherent prompt "<intent>"       # Emit constraints + intent (no API call — for Claude Code skill mode)
 coherent prompt --list-atmospheres # Same list as chat, but for the skill-mode command
+coherent auth set-key <key>      # Store API key in project .env (auto-detects provider)
+coherent auth set-key <key> --provider anthropic|openai  # Force provider
+coherent auth unset-key --provider anthropic|openai      # Remove API key for a provider
 coherent memory show             # Inspect per-project memory: decisions + components + recent runs
 coherent memory diff [ref]       # git diff decisions.md vs <ref> (default: HEAD)
 coherent wiki adr create <slug>  # Scaffold a new ADR (next number + skeleton sections)

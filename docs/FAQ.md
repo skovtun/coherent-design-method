@@ -19,7 +19,7 @@ Two modes are supported:
 | Mode | When to use | API key? | Command |
 |------|-------------|----------|---------|
 | **Standalone CLI** | Unattended runs (CI, cron), API-spend account. | ✅ Yes | `coherent chat "..."` |
-| **Claude Code skill** | You have Free/Pro/Max subscription, driving from inside Claude Code. | ❌ No | `/coherent-generate` (in Claude Code) |
+| **Claude Code skill** | You have Free/Pro/Max subscription, driving from inside Claude Code. | ❌ No | `/coherent-chat` (in Claude Code) |
 
 In skill mode, your Claude Code session does the generation on your subscription (fully within ToS). Coherent contributes design constraints + deterministic validation (`coherent check`, `coherent fix`). No API key needed on our side.
 
@@ -33,7 +33,7 @@ coherent update
 coherent init
 ```
 
-Then in Claude Code: `/coherent-generate "build a CRM dashboard"`.
+Then in Claude Code: `/coherent-chat "build a CRM dashboard"`.
 
 Shipped in v0.8.0 — see `docs/CHANGELOG.md` for the full writeup.
 

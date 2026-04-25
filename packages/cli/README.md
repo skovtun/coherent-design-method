@@ -17,6 +17,8 @@ npm install
 coherent preview
 ```
 
+Init auto-detects your environment and wires the right generation path — skill mode (no API key) when Claude Code is present, or the API-key path otherwise. It prints the exact command to run for your setup; no flags needed unless you want to force `--skill-mode` / `--api-mode` / `--both`.
+
 - **App:** http://localhost:3000  
 - **Design System:** http://localhost:3000/design-system  
 - **Docs:** http://localhost:3000/design-system/docs  
@@ -37,27 +39,32 @@ coherent preview
 | `coherent status` | Print config summary (pages, components). |
 | `coherent components` | List registered components. |
 
-## Two Workflows
+## Workflows
 
-After `coherent init` you can:
+After `coherent init` there's a generative path (auto-wired based on what init detected) plus the IDE:
 
-1. **Work in Cursor/IDE** — Edit `design-system.config.ts`, `app/`, `components/`; hot reload. Best for fine-grained control.
-2. **Use `coherent chat`** — e.g. `coherent chat "add pricing page"` to scaffold pages/components and sync config/nav. Best for fast generation.
+1. **Generation** — whichever command init printed: `/coherent-generate "add pricing page"` in Claude Code (skill mode, no key) or `coherent chat "add pricing page"` (API-key mode). Same pipeline either way.
+2. **IDE** — edit `design-system.config.ts`, `app/`, `components/` directly; hot reload. Best for fine-grained control.
 
-**Tip:** Use chat for structure, then Cursor for details. Commit before each `coherent chat` and run `git diff` after.
+**Tip:** Use generation for structure, then the IDE for details. Commit before each generate run and `git diff` after.
 
-## Examples (chat)
+## Examples
 
 ```bash
-coherent chat "add dashboard page with stats cards"
+# Skill mode (run from Claude Code chat)
+/coherent-generate "add dashboard page with stats cards"
+/coherent-generate "add contact page with form"
+
+# API-key mode (any shell)
 coherent chat "add Button, Card, Input from shadcn"
-coherent chat "add contact page with form"
 coherent chat "change primary color to #6366f1"
 ```
 
-## API Key
+## API Key (only for `coherent chat`)
 
-For `coherent init` (discovery) and `coherent chat` you need an AI provider key:
+Skill mode (`/coherent-generate`) needs no key — it uses your Claude Code subscription.
+
+For the standalone `coherent chat` path, set one of:
 
 - **Anthropic (default):** `ANTHROPIC_API_KEY`
 - **OpenAI:** `OPENAI_API_KEY`

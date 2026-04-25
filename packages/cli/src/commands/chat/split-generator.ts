@@ -34,7 +34,7 @@ import { pMap } from '../../utils/concurrency.js'
 import { createAIProvider, type AIProvider } from '../../utils/ai-provider.js'
 import { getComponentProvider } from '../../providers/index.js'
 import { autoFixCode } from '../../utils/quality-validator.js'
-import { isAuthRoute, detectPageType } from '../../agents/page-templates.js'
+import { isAuthRoute } from '../../agents/page-templates.js'
 import chalk from 'chalk'
 import { getDesignQualityForType, inferPageTypeFromRoute } from '../../agents/design-constraints.js'
 import type { ArchitecturePlan, Atmosphere } from './plan-generator.js'
@@ -57,6 +57,9 @@ import {
   truncateMemory,
 } from '../../utils/design-memory.js'
 import { validateLayoutIntegrity } from '../../utils/layout-integrity.js'
+import { extractStyleContext } from '../../phase-engine/phases/extract-style.js'
+import { parseNavTypeFromPlan, extractAppNameFromPrompt } from '../../phase-engine/phases/plan.js'
+import { buildAnchorPagePrompt } from '../../phase-engine/phases/anchor.js'
 
 const MAX_EXISTING_PAGES_CONTEXT = 3
 
@@ -122,68 +125,6 @@ function buildExistingPagesContext(config: DesignSystemConfig, forPageType?: str
   }
 
   return ctx
-}
-
-function extractStyleContext(pageCode: string): string {
-  const unique = (arr: string[]) => [...new Set(arr)]
-
-  const cardClasses = (pageCode.match(/className="[^"]*(?:rounded|border|shadow|bg-card)[^"]*"/g) || [])
-    .map(m => m.replace(/className="|"/g, ''))
-    .filter(c => c.includes('rounded') || c.includes('border') || c.includes('card'))
-  const sectionSpacing = unique(pageCode.match(/py-\d+(?:\s+md:py-\d+)?/g) || [])
-  const headingStyles = unique(pageCode.match(/text-(?:\d*xl|lg)\s+font-(?:bold|semibold|medium)/g) || [])
-  const colorPatterns = unique(
-    (
-      pageCode.match(
-        /(?:text|bg|border)-(?:primary|secondary|muted|accent|card|destructive|foreground|background)\S*/g,
-      ) || ([] as string[])
-    ).concat(
-      pageCode.match(
-        /(?:text|bg|border)-(?:emerald|blue|violet|rose|amber|zinc|slate|gray|green|red|orange|indigo|purple|teal|cyan)\S*/g,
-      ) || [],
-    ),
-  )
-  const iconPatterns = unique(pageCode.match(/(?:rounded-\S+\s+)?p-\d+(?:\.\d+)?\s*(?:bg-\S+)?/g) || []).filter(
-    p => p.includes('bg-') || p.includes('rounded'),
-  )
-  const buttonPatterns = unique(
-    (pageCode.match(/className="[^"]*(?:hover:|active:)[^"]*"/g) || [])
-      .map(m => m.replace(/className="|"/g, ''))
-      .filter(c => c.includes('px-') || c.includes('py-') || c.includes('rounded')),
-  )
-  const bgPatterns = unique(pageCode.match(/bg-(?:muted|card|background|zinc|slate|gray)\S*/g) || [])
-  const gapPatterns = unique(pageCode.match(/gap-\d+/g) || [])
-  const gridPatterns = unique(pageCode.match(/grid-cols-\d+|md:grid-cols-\d+|lg:grid-cols-\d+/g) || [])
-  const containerPatterns = unique(pageCode.match(/container\s+max-w-\S+|max-w-\d+xl\s+mx-auto/g) || [])
-
-  const lines: string[] = []
-  if (containerPatterns.length > 0) {
-    lines.push(`Container (MUST match for alignment with header/footer): ${containerPatterns[0]} px-4`)
-  }
-  if (cardClasses.length > 0) lines.push(`Cards: ${unique(cardClasses).slice(0, 4).join(' | ')}`)
-  if (sectionSpacing.length > 0) lines.push(`Section spacing: ${sectionSpacing.join(', ')}`)
-  if (headingStyles.length > 0) lines.push(`Headings: ${headingStyles.join(', ')}`)
-  if (colorPatterns.length > 0) lines.push(`Colors: ${colorPatterns.slice(0, 15).join(', ')}`)
-  if (iconPatterns.length > 0) lines.push(`Icon containers: ${iconPatterns.slice(0, 4).join(' | ')}`)
-  if (buttonPatterns.length > 0) lines.push(`Buttons: ${buttonPatterns.slice(0, 3).join(' | ')}`)
-  if (bgPatterns.length > 0) lines.push(`Section backgrounds: ${bgPatterns.slice(0, 6).join(', ')}`)
-  if (gapPatterns.length > 0) lines.push(`Gaps: ${gapPatterns.join(', ')}`)
-  if (gridPatterns.length > 0) lines.push(`Grids: ${gridPatterns.join(', ')}`)
-
-  if (lines.length === 0) return ''
-
-  return `STYLE CONTEXT (match these patterns exactly for visual consistency with the anchor page):
-${lines.map(l => `  - ${l}`).join('\n')}`
-}
-
-const VALID_NAV_TYPES = new Set(['header', 'sidebar', 'both', 'none'])
-
-export function parseNavTypeFromPlan(planResult: Record<string, unknown>): 'header' | 'sidebar' | 'both' | 'none' {
-  const nav = planResult.navigation as Record<string, unknown> | undefined | null
-  if (nav && typeof nav.type === 'string' && VALID_NAV_TYPES.has(nav.type)) {
-    return nav.type as 'header' | 'sidebar' | 'both' | 'none'
-  }
-  return 'header'
 }
 
 export function buildSharedComponentsSummary(manifest: SharedComponentsManifest): string | undefined {
@@ -408,60 +349,20 @@ export function mergeAtmosphere(input: {
   }
 }
 
-export function buildAnchorPagePrompt(
-  homePage: { name: string; route: string },
-  message: string,
-  allPagesList: string,
-  allRoutes: string,
-  plan: ArchitecturePlan | null,
-): string {
-  const pageType = detectPageType(homePage.name) || detectPageType(homePage.route)
-  const authPageTypes = new Set(['login', 'register', 'reset-password'])
-  const isAuth = isAuthRoute(homePage.route) || isAuthRoute(homePage.name) || authPageTypes.has(pageType || '')
-  const atmosphere = renderAtmosphereDirective(plan?.atmosphere)
-
-  if (isAuth) {
-    return `Create ONE page called "${homePage.name}" at route "${homePage.route}".
-${atmosphere}
-Context: ${message}. This is the application's entry point — a clean, centered authentication form. Generate complete pageCode. Do NOT include site-wide <header>, <nav>, or <footer> — this page has its own minimal layout. Make it visually polished with proper form validation UI — this page sets the design direction for the entire site. Do not generate other pages.`
-  }
-
-  const groupLayout = plan?.groups.find(g => g.pages.includes(homePage.route))?.layout
-
-  if (groupLayout === 'sidebar' || pageType === 'dashboard') {
-    return `Create ONE page called "${homePage.name}" at route "${homePage.route}".
-${atmosphere}
-Context: ${message}. This REPLACES the default placeholder page — generate a complete application page. Generate complete pageCode. Do NOT include a sidebar or top navigation — these are handled by the layout. Focus on the main content area.
-
-DESIGN DIRECTION — this page sets the visual tone for the entire app:
-- Stats: do NOT use 4 identical stat cards — use 2 large + 2 small, or inline metrics with dividers
-- Layout: use asymmetric 2/3 + 1/3 split, not uniform sections
-- Data: show real-feeling content with diverse names and specific numbers
-- Make each section visually distinct — vary density and treatment
-Do not generate other pages.`
-  }
-
-  return `Create ONE page called "${homePage.name}" at route "${homePage.route}".
-${atmosphere}
-Context: ${message}. This REPLACES the default placeholder page — generate a complete, content-rich landing page for the project described above. Generate complete pageCode. Include a branded site-wide <header> with navigation links to ALL these pages: ${allPagesList}. Use these EXACT routes in navigation: ${allRoutes}. Include a <footer> at the bottom.
-
-DESIGN DIRECTION — this page sets the visual tone for the entire site:
-- Hero: choose split layout (text left, visual right) OR centered — not always centered
-- Make it feel designed, not templated. Vary section density, alternate backgrounds
-- Feature section: NOT identical 3-column icon+heading+text cards — vary the treatment
-- Pricing: highlighted tier must stand out clearly (ring-2 ring-primary, scale slightly larger)
-- Testimonials: asymmetric layout, not 3 identical cards
-- Use real-feeling content: diverse names, specific metrics, concrete descriptions
-Do not generate other pages.`
-}
-
 function getGroupLayoutForRoute(route: string, plan: ArchitecturePlan | null): string | undefined {
   if (!plan) return undefined
   const group = plan.groups.find(g => g.pages.includes(route))
   return group?.layout
 }
 
-export { buildExistingPagesContext, extractStyleContext, filterManifestForPage }
+export {
+  buildExistingPagesContext,
+  extractStyleContext,
+  filterManifestForPage,
+  parseNavTypeFromPlan,
+  extractAppNameFromPrompt,
+  buildAnchorPagePrompt,
+}
 
 let manifestLock = Promise.resolve()
 
@@ -1330,44 +1231,4 @@ export async function extractSharedComponents(
 
   const updatedManifest = await loadManifest(projectRoot)
   return { components: results, summary: buildSharedComponentsSummary(updatedManifest) }
-}
-
-export function extractAppNameFromPrompt(prompt: string): string | null {
-  const patterns = [
-    /(?:called|named|app\s+name)\s+["']([^"']+)["']/i,
-    /(?:called|named|app\s+name)\s+(\S+)/i,
-    /\b(?:build|create|make)\s+(?:a\s+)?(\S+)\s+(?:app|platform|tool|dashboard|website|saas)/i,
-  ]
-  for (const re of patterns) {
-    const m = prompt.match(re)
-    if (m && m[1] && m[1].length >= 2 && m[1].length <= 30) {
-      const name = m[1].replace(/[.,;:!?]$/, '')
-      const skip = new Set([
-        'a',
-        'an',
-        'the',
-        'my',
-        'our',
-        'new',
-        'full',
-        'complete',
-        'simple',
-        'modern',
-        'beautiful',
-        'responsive',
-        'fast',
-        'cool',
-        'great',
-        'basic',
-        'quick',
-        'small',
-        'large',
-        'custom',
-        'nice',
-      ])
-      if (skip.has(name.toLowerCase())) continue
-      return name.charAt(0).toUpperCase() + name.slice(1)
-    }
-  }
-  return null
 }

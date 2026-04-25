@@ -21,7 +21,20 @@ export function getWelcomeMarkdown(): string {
   return ''
 }
 
-export function generateWelcomeComponent(_markdown: string): string {
+export type WelcomeMode = 'skill' | 'api' | 'both'
+
+/**
+ * Generate the scaffolded home-page component.
+ *
+ * The `mode` parameter sets the TOGGLE default (skill vs API), but the
+ * generated page is interactive — a segmented control lets the user flip
+ * between Claude Code and CLI at runtime and see the appropriate commands.
+ * This way the welcome page stays useful even if the user later changes
+ * paths (adds an API key after init, or moves from CLI into Claude Code).
+ */
+export function generateWelcomeComponent(_markdown: string, mode: WelcomeMode = 'skill'): string {
+  const initialMode: 'skill' | 'api' = mode === 'api' ? 'api' : 'skill'
+
   return `'use client'
 
 import { useState } from 'react'
@@ -30,14 +43,16 @@ import {
   ClipboardCopy,
   LayoutDashboard,
   LogIn,
-  Monitor,
   Palette,
   Rocket,
   Settings,
   ShoppingBag,
 } from 'lucide-react'
 
+type Mode = 'skill' | 'api'
+
 export default function HomePage() {
+  const [mode, setMode] = useState<Mode>('${initialMode}')
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
 
   const copy = (text: string, idx: number) => {
@@ -46,12 +61,27 @@ export default function HomePage() {
     setTimeout(() => setCopiedIdx(null), 2000)
   }
 
+  const describeDesc =
+    mode === 'skill'
+      ? 'Inside Claude Code — /coherent-chat. Responses come from your Claude Code session, no API key needed.'
+      : 'In your terminal — coherent chat with an Anthropic or OpenAI key. Same engine as skill mode.'
+
+  const describeCmd =
+    mode === 'skill'
+      ? '/coherent-chat Create a fitness studio app with pages: home, classes, pricing, about, and contact. Modern, light theme'
+      : 'coherent chat "Create a fitness studio app with pages: home, classes, pricing, about, and contact. Modern, light theme"'
+
+  const iterateCmd =
+    mode === 'skill'
+      ? '/coherent-chat Change primary color to indigo, add a blog page'
+      : 'coherent chat "Change primary color to indigo, add a blog page"'
+
   const steps = [
     {
       num: 1,
       title: 'Describe your app',
-      desc: 'Tell the AI what to build — pages, sections, and style. A full multi-page prototype is generated instantly.',
-      cmd: 'coherent chat "Create a fitness studio app with pages: home, classes, pricing, about, and contact. Modern, light theme"',
+      desc: describeDesc,
+      cmd: describeCmd,
     },
     {
       num: 2,
@@ -63,13 +93,49 @@ export default function HomePage() {
       num: 3,
       title: 'Iterate',
       desc: 'Change colors, fonts, add pages — each command updates the entire system consistently.',
-      cmd: 'coherent chat "Change primary color to indigo, add a blog page"',
+      cmd: iterateCmd,
     },
     {
       num: 4,
       title: 'Export & deploy',
       desc: 'Get a clean, production-ready Next.js project. Deploy to Vercel, Netlify, or any hosting.',
       cmd: 'coherent export',
+    },
+  ]
+
+  // All-commands reference is API-mode only. Skill-mode users drive
+  // everything through /coherent-chat prompts (or by asking Claude Code to
+  // run bash commands), so a CLI cheat sheet just adds noise for them.
+  const allCommands = [
+    {
+      cmd: 'coherent chat "..."',
+      label: 'Chat',
+      desc: 'Create or modify pages from a natural-language description.',
+    },
+    {
+      cmd: 'coherent preview',
+      label: 'Preview',
+      desc: 'Start the dev server with file-watching and auto-heal.',
+    },
+    {
+      cmd: 'coherent export',
+      label: 'Export',
+      desc: 'Produce a clean, production-ready Next.js build for deploy or handoff.',
+    },
+    {
+      cmd: 'coherent fix',
+      label: 'Fix',
+      desc: 'Auto-fix common issues (broken imports, missing shadcn components, stale CSS).',
+    },
+    {
+      cmd: 'coherent sync',
+      label: 'Sync',
+      desc: 'Re-sync the design system after you edit files manually.',
+    },
+    {
+      cmd: 'coherent --help',
+      label: 'Help',
+      desc: 'See every available command.',
     },
   ]
 
@@ -80,13 +146,13 @@ export default function HomePage() {
       <section className="bg-gradient-to-b from-muted/40 via-background to-background">
         <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-4 py-16 lg:py-24 text-center">
           <h1 className="text-3xl font-bold tracking-tight md:text-4xl lg:text-5xl max-w-2xl">
-            Design once.{' '}
-            <span className="text-primary">Stay consistent everywhere.</span>
+            Describe an app.{' '}
+            <span className="text-primary">Get a product.</span>
           </h1>
           <p className="text-sm text-muted-foreground leading-relaxed max-w-lg">
-            Your project is ready. Describe what you want to build — the AI generates
-            interconnected pages with shared components, tokens, and layouts.
-            Everything stays in sync.
+            Your project is ready. Describe what you want to build — Coherent generates
+            interconnected pages that share components, tokens, and layouts.
+            Change one token; every page follows.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <a
@@ -110,16 +176,65 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Get started — 4 steps */}
+      {/* Get started — 4 steps + mode toggle */}
       <section id="how-it-works" className="border-t bg-background px-4 py-16 lg:py-20 scroll-mt-16">
         <div className="mx-auto max-w-5xl">
-          <div className="text-center mb-10">
+          <div className="text-center mb-8">
             <p className="text-xs font-medium uppercase tracking-widest text-primary mb-3">
               How it works
             </p>
             <h2 className="text-2xl font-bold tracking-tight">
               Four steps. Full design cycle.
             </h2>
+            <p className="mt-6 text-sm font-semibold text-foreground">
+              There are two ways to drive it
+            </p>
+            <p className="mx-auto mt-2 max-w-2xl text-sm text-muted-foreground leading-relaxed">
+              <strong className="font-medium text-foreground">Inside Claude Code:</strong>{' '}
+              run <code className="mx-0.5 rounded bg-muted px-1.5 py-0.5 text-xs font-mono">/coherent-chat</code>{' '}
+              — responses come from your Claude Code session, no API key needed.
+              {' '}
+              <strong className="font-medium text-foreground">Or via CLI:</strong>{' '}
+              <code className="mx-0.5 rounded bg-muted px-1.5 py-0.5 text-xs font-mono">coherent chat</code>{' '}
+              uses your own Anthropic or OpenAI key. Both paths hit the same phase engine — same
+              pages, same tokens, same components on disk.
+            </p>
+          </div>
+
+          {/* Mode toggle — affects generate/iterate commands in steps + reference below */}
+          <div className="mb-8 flex justify-center">
+            <div
+              role="tablist"
+              aria-label="Select mode"
+              className="inline-flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-1"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === 'skill'}
+                onClick={() => setMode('skill')}
+                className={\`px-4 py-1.5 text-xs font-medium rounded-md transition-colors \${
+                  mode === 'skill'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }\`}
+              >
+                Claude Code Skill
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === 'api'}
+                onClick={() => setMode('api')}
+                className={\`px-4 py-1.5 text-xs font-medium rounded-md transition-colors \${
+                  mode === 'api'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }\`}
+              >
+                CLI with API key
+              </button>
+            </div>
           </div>
 
           <div className="grid gap-5 md:grid-cols-2">
@@ -158,27 +273,46 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Also works in Cursor */}
-      <section className="px-4 pb-12">
-        <div className="mx-auto max-w-5xl">
-          <div className="flex items-start gap-4 rounded-xl border bg-muted/30 p-5">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-              <Monitor className="size-5 text-primary" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold mb-1">Works with Cursor &amp; AI editors too</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                After initializing with CLI, you can describe design changes in Cursor or any AI editor —
-                the rules in <code className="mx-0.5 rounded bg-muted px-1.5 py-0.5 text-xs font-mono">.cursorrules</code>{' '}
-                guide the AI to follow your design system.
-                For the best results, we recommend using{' '}
-                <code className="mx-0.5 rounded bg-muted px-1.5 py-0.5 text-xs font-mono">coherent chat</code>{' '}
-                as the primary workflow — it validates code, manages shared components, and keeps everything in sync automatically.
+
+      {/* All commands reference — API mode only. Skill-mode users drive
+          everything through /coherent-chat prompts or by asking Claude Code
+          to run bash commands; a CLI list just adds noise for them. */}
+      {mode === 'api' && (
+        <section className="border-t bg-muted/20 px-4 py-16 lg:py-20">
+          <div className="mx-auto max-w-5xl">
+            <div className="text-center mb-10">
+              <p className="text-xs font-medium uppercase tracking-widest text-primary mb-3">
+                Reference
+              </p>
+              <h2 className="text-2xl font-bold tracking-tight">
+                All commands
+              </h2>
+              <p className="text-sm text-muted-foreground mt-2">
+                Run any of these in your terminal.
               </p>
             </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              {allCommands.map((item) => (
+                <div
+                  key={item.cmd}
+                  className="rounded-lg border bg-background p-4 transition-colors hover:bg-muted/30"
+                >
+                  <div className="mb-1 flex items-center justify-between gap-3">
+                    <code className="font-mono text-xs font-medium text-primary break-all">
+                      {item.cmd}
+                    </code>
+                    <span className="shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {item.label}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{item.desc}</p>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* What you can build */}
       <section className="border-t px-4 py-16 lg:py-20">
@@ -337,15 +471,18 @@ export default function HomePage() {
                 <span className="ml-2 text-muted-foreground transition-transform group-open:rotate-45">+</span>
               </summary>
               <div className="px-6 pb-4 text-sm text-muted-foreground leading-relaxed">
-                Open source and free. You need your own API key (Anthropic or OpenAI)
-                for AI generation, which has its own usage costs.
+                The CLI is open source and free. For AI generation you have two options:
+                use <code className="mx-0.5 rounded bg-muted px-1.5 py-0.5 text-xs font-mono">/coherent-chat</code>{' '}
+                inside Claude Code (responses come from your existing Claude Code subscription — no extra charge), or
+                run <code className="mx-0.5 rounded bg-muted px-1.5 py-0.5 text-xs font-mono">coherent chat</code>{' '}
+                with your own Anthropic or OpenAI key (pay-per-use, your usage stays on your account).
               </div>
             </details>
           </div>
         </div>
       </section>
 
-      
+
     </div>
   )
 }

@@ -417,6 +417,10 @@ function launchWithMonitoring(projectRoot: string, restarts: number): Promise<vo
         if (!browserOpened) {
           browserOpened = true
           setTimeout(() => openBrowser(url).catch(() => {}), 1500)
+          // Promote the Design System viewer. It's arguably the product's
+          // single most differentiated artifact, and in the default flow
+          // users land on the home page (/) with no obvious path to see it.
+          process.stdout.write(chalk.dim('\n  → Your live design system: ') + chalk.cyan(`${url}/design-system`) + '\n')
         }
         if (output.includes('Ready in') && !healthCheckDone) {
           healthCheckDone = true
@@ -568,7 +572,9 @@ export async function previewCommand() {
 
     spinner.text = 'Checking dependencies...'
 
-    // Step 2: Install dependencies if needed
+    // Step 2: Install dependencies if needed. Silent when already installed —
+    // re-surfacing "✔ Dependencies installed" on every preview run (especially
+    // right after init, when of course they are) clutters the transcript.
     if (!checkDependenciesInstalled(projectRoot)) {
       spinner.warn('Dependencies not installed')
       const pm = getPackageManager(projectRoot)
@@ -581,8 +587,6 @@ export async function previewCommand() {
         process.exit(1)
       }
       console.log(chalk.green('\n✅ Dependencies installed\n'))
-    } else {
-      spinner.succeed('Dependencies installed')
     }
 
     // Step 2.5: Fix globals.css if needed (auto-fix old format)
@@ -614,15 +618,17 @@ export async function previewCommand() {
       }
     }
 
-    // Step 2.6: Pre-flight deps, clear cache, validate syntax
+    // Step 2.6: Pre-flight deps, clear cache, validate syntax. Spinner stops
+    // silently — the user ran `coherent preview` to see a dev server, not to
+    // receive commentary on all the pre-flight steps that went green. The
+    // next thing on their screen is the Next.js dev-server banner.
     spinner.text = 'Pre-flight: dependencies and syntax...'
     await preflightDependencyCheck(projectRoot)
     clearStaleCache(projectRoot)
     await validateSyntax(projectRoot)
     await fixMissingComponentExports(projectRoot)
     await backfillPageAnalysis(projectRoot)
-    spinner.succeed('Project ready')
-    console.log(chalk.dim('  💡 Edited files manually? Run `coherent sync` to update the Design System.\n'))
+    spinner.stop()
 
     // Step 3: Start dev server with error monitoring and health check
     console.log(chalk.blue('\n🚀 Starting Next.js dev server...\n'))

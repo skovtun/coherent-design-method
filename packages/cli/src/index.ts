@@ -10,7 +10,8 @@ try {
 
 import { Command } from 'commander'
 import { CLI_VERSION } from '@getcoherent/core'
-import { initCommand } from './commands/init.js'
+import { initCommand, type InitOptions } from './commands/init.js'
+import { authStatusCommand, authSetKeyCommand, authUnsetKeyCommand } from './commands/auth.js'
 import { chatCommand } from './commands/chat.js'
 import { promptCommand } from './commands/prompt.js'
 import { memoryShowCommand, memoryDiffCommand } from './commands/memory.js'
@@ -43,6 +44,8 @@ import { updateCommand } from './commands/update.js'
 import { undoCommand } from './commands/undo.js'
 import { syncCommand } from './commands/sync.js'
 import { migrateAction } from './commands/migrate.js'
+import { sessionStartCommand, sessionEndCommand } from './commands/session.js'
+import { phaseCommand } from './commands/_phase.js'
 import { checkForUpdates } from './utils/update-notifier.js'
 
 const program = new Command()
@@ -68,7 +71,26 @@ program
   .command('init')
   .argument('[name]', 'Project directory name (created if it does not exist)')
   .description('Initialize a new Coherent project')
-  .action(initCommand)
+  .option('--skill-mode', 'Skip API key setup; expect /coherent-chat in Claude Code')
+  .option('--api-mode', 'Force API key setup; emit coherent chat CTA')
+  .option('--both', 'API key optional; emit CTAs for both skill and chat rails')
+  .action((nameArg: string | undefined, opts: InitOptions) => initCommand(nameArg, opts))
+
+// ─── Auth (AI provider credentials) ─────────────────────────────────
+
+const authCmd = new Command('auth').description('Manage AI provider credentials (writes to project .env)')
+authCmd.command('status').description('Show which AI keys are configured').action(authStatusCommand)
+authCmd
+  .command('set-key <key>')
+  .description('Save an API key to .env (provider inferred from prefix, or pass --provider)')
+  .option('--provider <provider>', 'Force provider: anthropic | openai')
+  .action((key: string, opts: { provider?: string }) => authSetKeyCommand(key, opts))
+authCmd
+  .command('unset-key')
+  .description('Remove an AI key from .env')
+  .option('--provider <provider>', 'Which key to remove: anthropic | openai (required)')
+  .action((opts: { provider?: string }) => authUnsetKeyCommand(opts))
+program.addCommand(authCmd)
 
 program
   .command('chat')
@@ -121,6 +143,58 @@ memoryCmd
   .description('git diff decisions.md vs <ref> (default: HEAD). Shows how memory changed recently.')
   .action((ref: string | undefined, opts: { _throwOnError?: boolean }) => memoryDiffCommand(ref, opts))
 program.addCommand(memoryCmd)
+
+// ─── Session lifecycle (skill-mode rail) ────────────────────────────
+
+const sessionCmd = new Command('session').description(
+  'Skill-mode session lifecycle (acquires project lock at start, applies artifacts at end)',
+)
+sessionCmd
+  .command('start')
+  .description('Start a new session — prints UUID on stdout, human-readable summary on stderr')
+  .option('--intent <message>', 'Raw user intent (persisted as intent.txt)')
+  .option('--options <json>', 'JSON object of caller options (persisted as options.json)')
+  .action((opts: { intent?: string; options?: string }) =>
+    sessionStartCommand({ intent: opts.intent, optionsJson: opts.options }),
+  )
+sessionCmd
+  .command('end <uuid>')
+  .description('End a session — applies artifacts, writes run record, releases lock')
+  .option('--keep', 'Keep the session dir after ending (for debugging)')
+  .action((uuid: string, opts: { keep?: boolean }) => sessionEndCommand(uuid, opts))
+program.addCommand(sessionCmd)
+
+// ─── _phase (hidden, skill-mode rail) ──────────────────────────────
+
+const phaseCmd = new Command('_phase').description(
+  'Run a single phase-engine phase (hidden — called by skill-mode orchestrator)',
+)
+phaseCmd
+  .command('prep <name>')
+  .description('Build the phase prompt and write it to stdout (AI phases)')
+  .requiredOption('--session <uuid>', 'Session UUID from `coherent session start`')
+  .option('--protocol <version>', 'Phase-engine protocol version caller was built against')
+  .action((name: string, opts: { session: string; protocol?: string }) =>
+    phaseCommand('prep', name, { session: opts.session, protocol: opts.protocol }),
+  )
+phaseCmd
+  .command('ingest <name>')
+  .description('Read the raw model response from stdin and persist artifacts (AI phases)')
+  .requiredOption('--session <uuid>', 'Session UUID from `coherent session start`')
+  .option('--protocol <version>', 'Phase-engine protocol version caller was built against')
+  .action((name: string, opts: { session: string; protocol?: string }) =>
+    phaseCommand('ingest', name, { session: opts.session, protocol: opts.protocol }),
+  )
+phaseCmd
+  .command('run <name>')
+  .description('Execute a deterministic phase')
+  .requiredOption('--session <uuid>', 'Session UUID from `coherent session start`')
+  .option('--protocol <version>', 'Phase-engine protocol version caller was built against')
+  .action((name: string, opts: { session: string; protocol?: string }) =>
+    phaseCommand('run', name, { session: opts.session, protocol: opts.protocol }),
+  )
+hidden(phaseCmd)
+program.addCommand(phaseCmd)
 
 program.command('preview').description('Launch dev server for preview').action(previewCommand)
 
