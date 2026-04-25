@@ -2,6 +2,47 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.11.3] — 2026-04-25
+
+### Skill-rail parity audit + modification applier (kills silent partial-apply class)
+
+v0.11.2 dogfood (`/coherent-chat rename Transactions to Activity`) caught the second instance of a wider class of bug: the planner correctly emitted `[delete-page transactions, add-page activity]` but the skill rail silently dropped delete-page and only the add executed. This is the same shape as v0.11.0's nav.items wipe — skill rail handling a SUBSET of what API rail handles.
+
+A codex `/codex consult` audit (1.4M tokens, 2026-04-25) mapped EVERY ModificationRequest type the API rail handles against the skill rail, producing a 12-row matrix. Result: only `add-page` had real coverage. Nine other types were silently dropped at `phases/plan.ts:152` where `derivePageNames` filtered to add-page and the rest evaporated. v0.11.3 ships a single `createModificationApplier` mirroring API rail's `applyModification` switch + a hard-fail guard on AI-dependent / unknown types.
+
+### Added
+
+- **`createModificationApplier` (`packages/cli/src/phase-engine/appliers.ts`)** — single switch over `request.type`, intentionally mirroring API rail's `applyModification`. Handles five no-AI types end-to-end:
+  - `delete-page` — removes from `config.pages`, drops matching `navigation.items` entry, deletes `.tsx` file (mirrors `modification-handler.ts:1111`). Refuses to delete the root `/` page.
+  - `delete-component` — removes manifest entry, deletes shared component file (mirrors `modification-handler.ts:1213`).
+  - `update-token` — calls `dsm.updateToken(path, value)`, mirrors `modification-handler.ts:468`.
+  - `add-component` — calls `cm.register(componentDef)`, mirrors `modification-handler.ts:479`.
+  - `modify-component` — calls `cm.update(id, changes)`, mirrors `modification-handler.ts:518`.
+- **Hard-fail guard** — when the planner emits a request type the skill rail can't handle (`update-page`, `modify-layout-block`, `link-shared`, `promote-and-link`, `add-layout-block`, or anything unknown), the applier throws BEFORE any other applier writes to disk. The error message lists every unsupported type and points the user at the API rail. This kills the v0.11.2 silent-partial-apply bug class: `[delete X, link-shared Y]` no longer ends with X deleted and Y dropped — it ends with the whole session aborted, the user surfaced a clear "use coherent chat for these" message, and the project untouched.
+- **Pre-apply backup for destructive ops** — when any `delete-page` or `delete-component` is in the queue, the applier calls `createBackup(projectRoot)` once at the start. Mirrors API rail's pre-apply backup at `chat.ts:915`. Restored via `coherent undo`.
+- **`modification-requests.json` artifact (`packages/cli/src/phase-engine/phases/plan.ts`)** — plan ingest now persists the FULL list of normalized requests, not just the derived `pageNames`. This is the single source of truth `createModificationApplier` reads from, plus future appliers can extend without touching the plan parser.
+
+### Changed
+
+- **`defaultAppliers()` order** — `config-delta → modification → components → pages → replace-welcome → layout → fix-globals-css`. The new modification applier sits at position 2, BEFORE pages. Rationale: deletes happen first so the rename pattern `[delete X, add Y]` ends with only Y, never both. The guard fires before AI-generated pages land on disk so a half-applied session is impossible. `update-token` lands before pages so downstream CSS regen sees the new token values.
+
+### Codex consult — full audit attached
+
+The audit identified **6 OTHER architectural drifts** between rails beyond the request-type-coverage class. Filed for M16:
+
+1. Destructive safety drift — API rail has `messageHasDestructiveIntent` pre-parser + safety guard; skill rail bypasses both.
+2. Normalization drift — API runs `applyDefaults`/`normalizeRequest` on every request; skill rail does not.
+3. Validation/autofix drift — skill rail's pages applier runs `autoFixCode` only; API also does component install, TS fix-loop, wrapper normalization, layout stripping, pageAnalysis, duplicate audit, quality loops.
+4. Known-routes drift — skill autofix sees only the current session's routes; API includes the full config.
+5. Manual-edit protection drift — skill `regenerateLayout` runs without stored hashes, can overwrite manually-edited shared files.
+6. Backup drift — API creates backups before AND after apply (`chat.ts:915` + `:1430`); skill's session-end has none. v0.11.3 adds the pre-apply hook for destructive ops only — full parity is M16.
+
+### For Maintainers
+
+- 11 new tests in `appliers.test.ts` covering: artifact-absent no-op, add-page-only deferred, delete-page (success / root-guard / target-not-found), delete-component file+manifest removal, rename pattern (the v0.11.2 bug repro), guard rejecting unsupported types BEFORE applying anything, guard surfacing all unsupported types in the error, malformed JSON tolerated, update-token mutates DSM correctly. Total: 1508 passing + 9 todo (1517). Up 11 from v0.11.2.
+- Manual cleanup of `~/test-skill` (Transactions page artifact left over from the v0.11.2 dogfood) — removed from `config.pages`, `navigation.items`, and `app/(app)/transactions/`. Project is now in a coherent state ready for chat #4 (delete-page) dogfood test.
+- Audit memory — codex pre-implementation gate has now caught real bugs in M14, M15, v0.11.1, and v0.11.3. The pattern is load-bearing for cross-rail refactors. See `~/.claude/projects/-Users-sergeipro-coherent-design-method/memory/feedback_codex_pre_implementation.md`.
+
 ## [0.11.2] — 2026-04-25
 
 ### Update-notifier ordering fix + opt-outs
