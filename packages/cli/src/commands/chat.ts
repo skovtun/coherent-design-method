@@ -32,6 +32,7 @@ import { appendFile } from 'fs/promises'
 import { appendRecentChanges, type RecentChange } from '../utils/recent-changes.js'
 import { createBackup, logBackupCreated } from '../utils/backup.js'
 import { needsGlobalsFix, fixGlobalsCss } from '../utils/fix-globals-css.js'
+import { pickPrimaryRoute, replaceWelcomeWithPrimary, type PageLite } from '../utils/welcome-replacement.js'
 import { getComponentProvider } from '../providers/index.js'
 import {
   installPackages,
@@ -981,20 +982,58 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
       results.push(result)
     }
 
-    // Flip homePagePlaceholder after home page is generated
-    for (const request of normalizedRequests) {
-      const changes = request.changes as Record<string, unknown>
-      if (
-        (request.type === 'add-page' || request.type === 'update-page') &&
-        changes?.route === '/' &&
-        changes?.pageCode
-      ) {
-        const cfg = dsm.getConfig()
-        if (cfg.settings.homePagePlaceholder) {
-          cfg.settings.homePagePlaceholder = false
-          dsm.updateConfig(cfg)
+    // Welcome-scaffold replacement (M15, parity with skill rail's
+    // `createReplaceWelcomeApplier`).
+    //
+    // Two cases retire `homePagePlaceholder`:
+    //
+    //   A. The user explicitly generated `/` with pageCode — pre-M15
+    //      behaviour. The scaffold has been overwritten by the new home
+    //      page; just flip the flag.
+    //
+    //   B. The user generated only non-`/` pages (e.g. "dashboard,
+    //      settings"). Plan never produced `/`, so the scaffold survives
+    //      `applyModification`. Replace `app/page.tsx` (or the post-
+    //      sidebar `app/(public)/page.tsx`) with a redirect to the
+    //      primary generated route. `pickPrimaryRoute` is fed the
+    //      *generated requests*, NOT `dsm.config.pages` — codex P1 #1.
+    //
+    // Either way: flip `homePagePlaceholder` to `false` on success so the
+    // welcome scaffold never resurfaces.
+    if (dsm.getConfig().settings.homePagePlaceholder) {
+      const generatedPages: PageLite[] = []
+      let generatedRootWithCode = false
+      for (const request of normalizedRequests) {
+        if (request.type !== 'add-page' && request.type !== 'update-page') continue
+        const changes = request.changes as Record<string, unknown>
+        const route = typeof changes.route === 'string' ? changes.route : ''
+        const pageCode = typeof changes.pageCode === 'string' ? changes.pageCode.trim() : ''
+        if (!route || !pageCode) continue
+        if (route === '/') generatedRootWithCode = true
+        generatedPages.push({ route, pageType: inferPageTypeFromRoute(route) })
+      }
+
+      let shouldFlipFlag = false
+      if (generatedRootWithCode) {
+        // Case A — landing page was generated, scaffold already overwritten.
+        shouldFlipFlag = true
+      } else {
+        // Case B — only non-`/` pages, scaffold still on disk.
+        const primary = pickPrimaryRoute(generatedPages)
+        if (primary) {
+          const result = replaceWelcomeWithPrimary({ projectRoot, primaryRoute: primary })
+          if (result.replaced) {
+            shouldFlipFlag = true
+            console.log(chalk.dim(`  Replaced welcome scaffold → redirect("${primary}") at ${result.path}`))
+            if (result.path) runRecord.pagesWritten.push(result.path)
+          }
         }
-        break
+      }
+
+      if (shouldFlipFlag) {
+        const cfg = dsm.getConfig()
+        cfg.settings.homePagePlaceholder = false
+        dsm.updateConfig(cfg)
       }
     }
 

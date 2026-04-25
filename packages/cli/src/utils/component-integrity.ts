@@ -134,7 +134,23 @@ export function isUsedInLayout(projectRoot: string, componentName: string): stri
 }
 
 /**
+ * Files + names that belong to Coherent's platform overlay, not the
+ * user's design system. Auto-registering them in the shared-components
+ * manifest pollutes the user's `/design-system` viewer with platform
+ * widgets (the floating "Design System" FAB, the AppSidebar harness)
+ * that they didn't create. They still live on disk under
+ * `components/shared/` because they need to be importable from generated
+ * pages — but they should not show up as "your shared components".
+ */
+const PLATFORM_INTERNAL_FILES = new Set(['components/shared/ds-button.tsx'])
+const PLATFORM_INTERNAL_NAMES = new Set(['DSButton'])
+
+/**
  * Find component files in components/ (excluding ui/) that are NOT in the manifest.
+ *
+ * Coherent's own platform widgets (see `PLATFORM_INTERNAL_*`) are filtered
+ * out — they're written to disk by `coherent fix` step 4e but are not
+ * part of the user's design system, so the manifest scanner skips them.
  */
 export function findUnregisteredComponents(
   projectRoot: string,
@@ -156,11 +172,13 @@ export function findUnregisteredComponents(
   for (const absPath of files) {
     const relFile = relative(projectRoot, absPath)
     if (registeredFiles.has(relFile)) continue
+    if (PLATFORM_INTERNAL_FILES.has(relFile)) continue
     try {
       const code = readFileSync(absPath, 'utf-8')
       const exports = extractExportedComponentNames(code)
       for (const name of exports) {
         if (registeredNames.has(name)) continue
+        if (PLATFORM_INTERNAL_NAMES.has(name)) continue
         const type = inferComponentType(name, code)
         const usedIn = findPagesImporting(projectRoot, name, relFile)
         results.push({ name, file: relFile, type, usedIn })
@@ -171,6 +189,20 @@ export function findUnregisteredComponents(
   }
 
   return results
+}
+
+/**
+ * True when an existing manifest entry is a Coherent platform widget
+ * that drifted into the registry from a prior `coherent fix` run before
+ * the v0.11 filter landed. Used by `coherent update` to scrub these
+ * back out lazily — same lazy-backfill pattern the welcome-replacement
+ * helper uses, gated on `source === 'extracted'` so user-curated
+ * entries (where the user genuinely wanted DSButton in their DS) are
+ * never removed.
+ */
+export function isPlatformInternalEntry(entry: { name: string; file: string; source?: string }): boolean {
+  if (entry.source !== 'extracted') return false
+  return PLATFORM_INTERNAL_NAMES.has(entry.name) || PLATFORM_INTERNAL_FILES.has(entry.file)
 }
 
 /**

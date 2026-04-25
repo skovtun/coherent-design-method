@@ -24,6 +24,35 @@ export function getWelcomeMarkdown(): string {
 export type WelcomeMode = 'skill' | 'api' | 'both'
 
 /**
+ * Marker injected as the first line of the scaffolded `app/page.tsx`.
+ *
+ * `replaceWelcomeWithPrimary` (M15) uses an exact string match on this
+ * marker as the primary signal that the file is still Coherent's welcome
+ * scaffold (not user-edited). Substring-based detection (`describe an app`,
+ * `useState<Mode>`, etc.) is the backfill path for projects scaffolded
+ * before v0.11 — those files do not carry the marker.
+ *
+ * Bump the version suffix when the scaffold changes shape in a way that
+ * makes the previous detection unreliable; older markers should remain in
+ * `WELCOME_MARKERS_LEGACY` for one release window so `coherent update`
+ * still finds and replaces them.
+ */
+export const WELCOME_MARKER = '/* @coherent-welcome: v1 */'
+
+/**
+ * Backward-compat substring signatures. ANY of these present in the file
+ * (case-sensitive) is treated as "still the scaffold" when the marker is
+ * absent. Frozen for the v0.11 rollout window — see codex P2 #4.
+ */
+export const WELCOME_SIGNATURES: readonly string[] = [
+  'Describe an app.',
+  'Get a product.',
+  'useState<Mode>',
+  "setMode('skill')",
+  '[copiedIdx, setCopiedIdx]',
+] as const
+
+/**
  * Generate the scaffolded home-page component.
  *
  * The `mode` parameter sets the TOGGLE default (skill vs API), but the
@@ -35,7 +64,8 @@ export type WelcomeMode = 'skill' | 'api' | 'both'
 export function generateWelcomeComponent(_markdown: string, mode: WelcomeMode = 'skill'): string {
   const initialMode: 'skill' | 'api' = mode === 'api' ? 'api' : 'skill'
 
-  return `'use client'
+  return `${WELCOME_MARKER}
+'use client'
 
 import { useState } from 'react'
 import {

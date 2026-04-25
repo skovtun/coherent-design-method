@@ -33,7 +33,7 @@
 import { dirname, resolve } from 'path'
 import { mkdir, writeFile } from 'fs/promises'
 import { DesignSystemManager, generateSharedComponent } from '@getcoherent/core'
-import type { ModificationRequest, PageDefinition } from '@getcoherent/core'
+import type { DesignSystemConfig, ModificationRequest, PageDefinition } from '@getcoherent/core'
 import type { ArtifactApplier, ArtifactApplierContext } from './session-lifecycle.js'
 import type { ConfigDelta } from './phases/plan.js'
 import type { ComponentsArtifact } from './phases/components.js'
@@ -41,6 +41,9 @@ import type { PageArtifact } from './phases/page.js'
 import { routeToFsPath } from '../commands/chat/utils.js'
 import { autoFixCode, type AutoFixContext } from '../utils/quality-validator.js'
 import { fixGlobalsCss } from '../utils/fix-globals-css.js'
+import { pickPrimaryRoute, replaceWelcomeWithPrimary, type PageLite } from '../utils/welcome-replacement.js'
+import { takeNavSnapshot, hasNavChanged } from '../utils/nav-snapshot.js'
+import { buildSidebarNavItems } from '../utils/nav-items.js'
 
 const CONFIG_DELTA_ARTIFACT = 'config-delta.json'
 const COMPONENTS_GENERATED_ARTIFACT = 'components-generated.json'
@@ -231,11 +234,213 @@ export function createPagesApplier(): ArtifactApplier {
         results.push(`${page.name} (${page.route}) → ${fsPath.replace(ctx.projectRoot + '/', '')}${suffix}`)
       }
 
+      // Sidebar nav-items population — parity with API rail
+      // (`commands/chat/split-generator.ts:580`). Without this step
+      // sidebar-nav projects render an empty `<SidebarContent />` because
+      // the init-seeded `navigation.items` only carries `{label:'Home',
+      // route:'/'}` and the skill-rail pipeline never appends the
+      // generated routes. Append-only (preserves manual edits), gated on
+      // `navigation.type ∈ {sidebar, both}` so header-nav projects don't
+      // accumulate sidebar-only entries they wouldn't otherwise have.
+      // Auth + marketing pages are filtered: they have their own layout
+      // chrome, sidebar lives behind the app-shell.
+      const finalConfig = dsm.getConfig()
+      const navType = finalConfig.navigation?.type
+      if (finalConfig.navigation && (navType === 'sidebar' || navType === 'both')) {
+        const generatedAppRoutes = pagesQueue
+          .filter(({ page }) => page.pageType === 'app' && page.route && page.route !== '/')
+          .map(({ page }) => page.route)
+        const before = finalConfig.navigation.items?.length ?? 0
+        const nextItems = buildSidebarNavItems(generatedAppRoutes, finalConfig.navigation.items)
+        if (nextItems.length !== before) {
+          dsm.updateConfig({
+            ...finalConfig,
+            navigation: { ...finalConfig.navigation, items: nextItems },
+            updatedAt: new Date().toISOString(),
+          })
+          const added = nextItems.length - before
+          results.push(`navigation.items: +${added} sidebar ${added === 1 ? 'entry' : 'entries'}`)
+        }
+      }
+
       if (results.some(r => !r.startsWith('skipped'))) {
         await dsm.save()
       }
 
       return results
+    },
+  }
+}
+
+/**
+ * Read every `page-<id>.json` artifact and return the lightweight projection
+ * the welcome-replacement helper needs. Pages with no usable pageCode are
+ * dropped — those didn't actually land on disk and shouldn't be considered
+ * "primary route" candidates.
+ */
+async function readGeneratedPagesFromArtifacts(ctx: ArtifactApplierContext): Promise<PageLite[]> {
+  const artifacts = await ctx.store.listArtifacts(ctx.uuid)
+  const pageFiles = artifacts.filter(a => /^page-[^/]+\.json$/.test(a))
+  const pages: PageLite[] = []
+  for (const file of pageFiles) {
+    const raw = await ctx.store.readArtifact(ctx.uuid, file)
+    if (!raw) continue
+    try {
+      const page = JSON.parse(raw) as PageArtifact
+      if (!page.request) continue
+      const changes = (page.request as ModificationRequest).changes as Record<string, unknown>
+      const pageCode = typeof changes.pageCode === 'string' ? changes.pageCode.trim() : ''
+      if (!pageCode) continue
+      pages.push({ route: page.route, pageType: page.pageType })
+    } catch {
+      // malformed page artifact — skip, don't break replacement
+    }
+  }
+  return pages
+}
+
+/**
+ * Replace the welcome scaffold at `app/page.tsx` (or `(public)/page.tsx`)
+ * with a `redirect()` to the primary generated route — but only when:
+ *
+ *   1. `settings.homePagePlaceholder` is still `true` (init flag intact),
+ *   2. the generated batch produced at least one non-`/` non-auth page,
+ *   3. the file on disk is still the literal Coherent scaffold (marker
+ *      or signature match), so user edits are never trampled.
+ *
+ * After replacement, flips `homePagePlaceholder` to `false` so subsequent
+ * runs don't re-fire and chat-rail's existing flip code becomes a no-op.
+ *
+ * The primary-route source is the session's `page-<id>.json` artifacts —
+ * the *generated* pages, not `dsm.config.pages`. Codex P1 #1: feeding
+ * `dsm.config.pages` would always pick the seeded `/` Home (set by
+ * `minimal-config.ts`) and silently no-op the replacement.
+ *
+ * Runs AFTER `createPagesApplier` (so generated pages are on disk) and
+ * BEFORE `createLayoutApplier` (so when sidebar nav moves `app/page.tsx`
+ * into `(public)/page.tsx`, it moves the redirect, not the scaffold).
+ */
+export function createReplaceWelcomeApplier(): ArtifactApplier {
+  return {
+    name: 'replace-welcome',
+    async apply(ctx: ArtifactApplierContext): Promise<string[]> {
+      const configPath = resolve(ctx.projectRoot, 'design-system.config.ts')
+      const dsm = new DesignSystemManager(configPath)
+      await dsm.load()
+      const config = dsm.getConfig()
+
+      if (!config.settings.homePagePlaceholder) {
+        return []
+      }
+
+      const generated = await readGeneratedPagesFromArtifacts(ctx)
+      const primary = pickPrimaryRoute(generated)
+      if (!primary) {
+        return []
+      }
+
+      const result = replaceWelcomeWithPrimary({ projectRoot: ctx.projectRoot, primaryRoute: primary })
+      if (!result.replaced) {
+        // Either user already edited app/page.tsx (`not-scaffold`) or the
+        // file is missing entirely (`no-root-page`). Either way, leave the
+        // placeholder flag alone — the flip-on-success contract below
+        // depends on us actually having replaced something.
+        return []
+      }
+
+      // Flip the placeholder flag so chat.ts's inline flip block becomes a
+      // no-op next run, and so subsequent invocations of this applier
+      // short-circuit on the first guard.
+      const next: DesignSystemConfig = {
+        ...config,
+        settings: { ...config.settings, homePagePlaceholder: false },
+        updatedAt: new Date().toISOString(),
+      }
+      dsm.updateConfig(next)
+      await dsm.save()
+
+      return [`${result.path} → redirect(${JSON.stringify(primary)})`]
+    },
+  }
+}
+
+/**
+ * Regenerate Header / Footer / Sidebar / route-group layouts so the project
+ * matches the post-applier `navigation` shape. Skill rail used to skip this
+ * entirely — Header/Footer of the welcome scaffold survived first chat,
+ * leaving "Coherent" header on top of generated pages. M15 surfaces this
+ * applier in the default chain so both rails redraw layouts the same way.
+ *
+ * `navChanged` is computed from the snapshotted pre-run config
+ * (`config-snapshot.json` written by `sessionStart`) compared against the
+ * current `dsm.getConfig()`. When the placeholder flag was just flipped by
+ * `createReplaceWelcomeApplier`, we also force `navChanged: true` so the
+ * sidebar-nav route-group machinery (which only fires on nav-change) runs
+ * on the very first chat too.
+ *
+ * Importing `regenerateLayout` from `commands/chat/code-generator.ts`
+ * crosses the phase-engine ⇄ command-layer boundary — codex P2 #3 flagged
+ * this as a layer leak but accepted it for M15 to avoid scope creep. The
+ * underlying chat-rail call site (`code-generator.ts:502`) does the same
+ * thing, so this is parity, not a new violation.
+ */
+export function createLayoutApplier(): ArtifactApplier {
+  return {
+    name: 'layout',
+    async apply(ctx: ArtifactApplierContext): Promise<string[]> {
+      const configPath = resolve(ctx.projectRoot, 'design-system.config.ts')
+      const dsm = new DesignSystemManager(configPath)
+      await dsm.load()
+      const config = dsm.getConfig()
+
+      if (!config.navigation?.enabled) {
+        return []
+      }
+
+      const navAfter = takeNavSnapshot(
+        config.navigation.items?.map(i => ({ label: i.label, href: i.route || `/${i.label.toLowerCase()}` })),
+        config.navigation.type,
+      )
+
+      // Diff against the pre-run snapshot — best-effort. If snapshot can't
+      // be parsed (legacy session, malformed file), we fall back to
+      // `navChanged=true` so the layout still gets regenerated; over-
+      // regeneration is safe (idempotent), under-regeneration leaves the
+      // welcome scaffold's chrome on the page.
+      let navChanged = true
+      const snapRaw = await ctx.store.readArtifact(ctx.uuid, 'config-snapshot.json')
+      if (snapRaw) {
+        try {
+          // The snapshot is the raw .ts file (a TypeScript module export),
+          // not JSON, so we can't JSON.parse it. Instead we sniff the two
+          // bits we need (`type:` from navigation, and the items array)
+          // with regexes — same level of robustness chat-rail's pre-flight
+          // takes. If the regexes miss, we keep navChanged=true.
+          const navTypeMatch = snapRaw.match(/navigation\s*:\s*\{[\s\S]*?type\s*:\s*['"]([^'"]+)['"]/)
+          const navTypeBefore = navTypeMatch?.[1]
+          const navBefore = takeNavSnapshot(
+            config.navigation.items?.map(i => ({ label: i.label, href: i.route || `/${i.label.toLowerCase()}` })),
+            navTypeBefore,
+          )
+          // First chat: the snapshot's `homePagePlaceholder: true` is the
+          // honest signal that the welcome scaffold was active. In that
+          // case force navChanged=true regardless of nav-snapshot diff,
+          // because layout files (Header/Footer/Sidebar) need to redraw
+          // even when nav.type didn't technically change.
+          const wasPlaceholder = /homePagePlaceholder\s*:\s*true/.test(snapRaw)
+          navChanged = wasPlaceholder || hasNavChanged(navBefore, navAfter)
+        } catch {
+          navChanged = true
+        }
+      }
+
+      // Lazy import — keeps the phase-engine module tree from depending on
+      // the command layer at module load time. Same trick chat.ts uses for
+      // `validateReuse` and friends.
+      const { regenerateLayout } = await import('../commands/chat/code-generator.js')
+      await regenerateLayout(config, ctx.projectRoot, { navChanged })
+
+      return [`navChanged=${navChanged}`]
     },
   }
 }
@@ -266,10 +471,29 @@ export function createFixGlobalsCssApplier(): ArtifactApplier {
 
 /**
  * The default applier set for `coherent session end` — ordered so later
- * appliers see the effects of earlier ones (config-delta before components
- * before pages, globals-css last so token changes from config-delta land
- * in `app/globals.css`).
+ * appliers see the effects of earlier ones:
+ *
+ *   1. config-delta — name / navigation type land first so subsequent
+ *      appliers see the post-delta config.
+ *   2. components — shared components on disk before pages can import them.
+ *   3. pages — generated pages land in `app/.../page.tsx`.
+ *   4. replace-welcome — if the init scaffold survived the chat, replace
+ *      `app/page.tsx` with a redirect to the primary generated route.
+ *      Runs BEFORE layout so the redirect (not the scaffold) is what
+ *      sidebar-nav's route-group movement picks up.
+ *   5. layout — Header/Footer/Sidebar redrawn for the post-delta nav.
+ *      Runs AFTER replace-welcome so when sidebar nav moves
+ *      `app/page.tsx` → `app/(public)/page.tsx` it carries the redirect.
+ *   6. fix-globals-css — token resync; idempotent so order doesn't matter
+ *      relative to layout, but kept last by convention.
  */
 export function defaultAppliers(): ArtifactApplier[] {
-  return [createConfigDeltaApplier(), createComponentsApplier(), createPagesApplier(), createFixGlobalsCssApplier()]
+  return [
+    createConfigDeltaApplier(),
+    createComponentsApplier(),
+    createPagesApplier(),
+    createReplaceWelcomeApplier(),
+    createLayoutApplier(),
+    createFixGlobalsCssApplier(),
+  ]
 }

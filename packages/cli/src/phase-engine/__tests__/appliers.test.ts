@@ -1,11 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
-import { join } from 'path'
+import { join, resolve } from 'path'
 import { DesignSystemManager } from '@getcoherent/core'
 import { InMemorySessionStore } from '../in-memory-session-store.js'
-import { createConfigDeltaApplier, createComponentsApplier, createPagesApplier, defaultAppliers } from '../appliers.js'
+import {
+  createConfigDeltaApplier,
+  createComponentsApplier,
+  createPagesApplier,
+  createReplaceWelcomeApplier,
+  defaultAppliers,
+} from '../appliers.js'
 import { createMinimalConfig } from '../../utils/minimal-config.js'
+import { generateWelcomeComponent, WELCOME_MARKER } from '../../utils/welcome-content.js'
 import type { ArtifactApplierContext } from '../session-lifecycle.js'
 import type { SessionMeta } from '../session-store.js'
 
@@ -332,6 +339,88 @@ describe('createPagesApplier', () => {
     expect(written).toMatch(/bg-muted|bg-background/)
   })
 
+  it('populates sidebar nav.items from generated app pages when navigation.type is sidebar', async () => {
+    // The original v0.10 skill-rail bug surfaced by M15: sidebar layout
+    // rendered with empty `<SidebarContent />` because nav.items stayed
+    // at the init-seed `[{label:'Home', route:'/'}]` and no phase
+    // appended generated routes. Pages applier now mirrors API rail's
+    // append logic from `commands/chat/split-generator.ts:580`.
+    projectRoot = setupProject()
+    // Flip nav.type to sidebar (mimics what config-delta applier does
+    // earlier in the chain when the plan emits navigationType:'sidebar').
+    const dsmPre = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
+    await dsmPre.load()
+    const cfgPre = dsmPre.getConfig()
+    cfgPre.navigation = { ...cfgPre.navigation!, type: 'sidebar' }
+    dsmPre.updateConfig(cfgPre)
+    await dsmPre.save()
+
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    await writePageArtifact(store, uuid, {
+      id: 'dashboard',
+      name: 'Dashboard',
+      route: '/dashboard',
+      pageType: 'app',
+      pageCode: 'export default function Dashboard(){ return <div /> }',
+    })
+    await writePageArtifact(store, uuid, {
+      id: 'transactions',
+      name: 'Transactions',
+      route: '/transactions',
+      pageType: 'app',
+      pageCode: 'export default function Transactions(){ return <div /> }',
+    })
+    // Auth + marketing pages should NOT land in the sidebar — they have
+    // their own layout chrome.
+    await writePageArtifact(store, uuid, {
+      id: 'login',
+      name: 'Login',
+      route: '/login',
+      pageType: 'auth',
+      pageCode: 'export default function Login(){ return <div /> }',
+    })
+    await writePageArtifact(store, uuid, {
+      id: 'pricing',
+      name: 'Pricing',
+      route: '/pricing',
+      pageType: 'marketing',
+      pageCode: 'export default function Pricing(){ return <div /> }',
+    })
+
+    const results = await createPagesApplier().apply(ctx)
+    expect(results.some(r => r.startsWith('navigation.items:'))).toBe(true)
+
+    const dsmPost = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
+    await dsmPost.load()
+    const items = dsmPost.getConfig().navigation?.items ?? []
+    const routes = items.map((i: { route: string }) => i.route).sort()
+    // Init seed `/` survives (append-only); /login + /pricing filtered out.
+    expect(routes).toEqual(['/', '/dashboard', '/transactions'])
+  })
+
+  it('does not touch nav.items when navigation.type is header', async () => {
+    projectRoot = setupProject()
+    // Default nav.type from createMinimalConfig is 'header', no flip needed.
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    await writePageArtifact(store, uuid, {
+      id: 'dashboard',
+      name: 'Dashboard',
+      route: '/dashboard',
+      pageType: 'app',
+      pageCode: 'export default function Dashboard(){ return <div /> }',
+    })
+
+    const results = await createPagesApplier().apply(ctx)
+    // No nav.items entry in results.
+    expect(results.find(r => r.startsWith('navigation.items:'))).toBeUndefined()
+
+    const dsmPost = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
+    await dsmPost.load()
+    // Init seed alone — `/` only.
+    const items = dsmPost.getConfig().navigation?.items ?? []
+    expect(items.map((i: { route: string }) => i.route)).toEqual(['/'])
+  })
+
   it('updates an existing page entry in DSM rather than duplicating', async () => {
     projectRoot = setupProject()
     // createMinimalConfig already includes a 'home' page at '/'. Applying
@@ -364,8 +453,215 @@ describe('createPagesApplier', () => {
 })
 
 describe('defaultAppliers', () => {
-  it('returns config-delta, components, pages, fix-globals-css — in that order', () => {
+  it('returns config-delta → components → pages → replace-welcome → layout → fix-globals-css', () => {
+    // Ordering matters — see appliers.ts `defaultAppliers` doc:
+    //  - replace-welcome runs AFTER pages (sees generated pages on disk
+    //    + in artifacts) but BEFORE layout (so sidebar's
+    //    app/page.tsx → app/(public)/page.tsx move carries the redirect,
+    //    not the welcome scaffold).
     const appliers = defaultAppliers()
-    expect(appliers.map(a => a.name)).toEqual(['config-delta', 'components', 'pages', 'fix-globals-css'])
+    expect(appliers.map(a => a.name)).toEqual([
+      'config-delta',
+      'components',
+      'pages',
+      'replace-welcome',
+      'layout',
+      'fix-globals-css',
+    ])
+  })
+})
+
+describe('createReplaceWelcomeApplier', () => {
+  let projectRoot: string
+  afterEach(() => {
+    if (projectRoot && existsSync(projectRoot)) rmSync(projectRoot, { recursive: true, force: true })
+  })
+
+  async function writeGeneratedPage(
+    store: InMemorySessionStore,
+    uuid: string,
+    page: {
+      id: string
+      name: string
+      route: string
+      pageType: 'marketing' | 'app' | 'auth'
+      pageCode: string
+    },
+  ) {
+    const request = {
+      type: 'add-page' as const,
+      target: page.id,
+      changes: { id: page.id, name: page.name, route: page.route, pageCode: page.pageCode },
+    }
+    await store.writeArtifact(
+      uuid,
+      `page-${page.id}.json`,
+      JSON.stringify({
+        id: page.id,
+        name: page.name,
+        route: page.route,
+        pageType: page.pageType,
+        request,
+      }),
+    )
+  }
+
+  function writeRoot(root: string, rel: string, content: string): void {
+    const abs = resolve(root, rel)
+    mkdirSync(resolve(abs, '..'), { recursive: true })
+    writeFileSync(abs, content, 'utf-8')
+  }
+
+  it('codex P1 #1 — replaces scaffold and picks /dashboard even though config seeds Home at "/"', async () => {
+    // The bug this guards: createMinimalConfig seeds a placeholder page
+    // {id:'home', route:'/'} into config.pages. If the applier sourced
+    // its primary route from config.pages, it would always see `/` first
+    // and the replacement would silently no-op. The applier must read
+    // generated pages from page-<id>.json artifacts instead.
+    projectRoot = setupProject()
+    writeRoot(projectRoot, 'app/page.tsx', generateWelcomeComponent('', 'skill'))
+
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    // Only one generated page, /dashboard — no `/` in the AI output.
+    await writeGeneratedPage(store, uuid, {
+      id: 'dashboard',
+      name: 'Dashboard',
+      route: '/dashboard',
+      pageType: 'app',
+      pageCode: 'export default function Dashboard(){ return <div /> }',
+    })
+
+    const results = await createReplaceWelcomeApplier().apply(ctx)
+    expect(results).toHaveLength(1)
+    expect(results[0]).toContain('redirect("/dashboard")')
+
+    // app/page.tsx is now a redirect, not the scaffold.
+    const after = readFileSync(join(projectRoot, 'app/page.tsx'), 'utf-8')
+    expect(after).toContain('redirect("/dashboard")')
+    expect(after).toContain(WELCOME_MARKER) // marker preserved on redirect output
+    expect(after).not.toContain('useState<Mode>')
+
+    // homePagePlaceholder is flipped to false.
+    const dsm = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
+    await dsm.load()
+    expect(dsm.getConfig().settings.homePagePlaceholder).toBe(false)
+  })
+
+  it('codex P1 #2 — replaces scaffold at app/(public)/page.tsx after sidebar move', async () => {
+    // Models the second-chat scenario or a project where regenerateLayout
+    // already moved app/page.tsx → app/(public)/page.tsx for sidebar nav.
+    // Replace-welcome must rewrite the (public) location, not look only at
+    // app/page.tsx and miss the scaffold.
+    projectRoot = setupProject()
+    writeRoot(projectRoot, 'app/(public)/page.tsx', generateWelcomeComponent('', 'skill'))
+
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    await writeGeneratedPage(store, uuid, {
+      id: 'dashboard',
+      name: 'Dashboard',
+      route: '/dashboard',
+      pageType: 'app',
+      pageCode: 'export default function Dashboard(){ return <div /> }',
+    })
+
+    const results = await createReplaceWelcomeApplier().apply(ctx)
+    expect(results).toHaveLength(1)
+    expect(results[0]).toContain('app/(public)/page.tsx')
+    expect(readFileSync(join(projectRoot, 'app/(public)/page.tsx'), 'utf-8')).toContain('redirect("/dashboard")')
+
+    // No app/page.tsx was created — sidebar layout uses (public)/page.tsx
+    // for `/`. Exactly one `/` route handler exists.
+    expect(existsSync(join(projectRoot, 'app/page.tsx'))).toBe(false)
+  })
+
+  it('is a no-op when homePagePlaceholder is already false', async () => {
+    projectRoot = setupProject()
+    // Manually flip the flag in the project config.
+    const dsm = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
+    await dsm.load()
+    const cfg = dsm.getConfig()
+    cfg.settings.homePagePlaceholder = false
+    dsm.updateConfig(cfg)
+    await dsm.save()
+
+    writeRoot(projectRoot, 'app/page.tsx', generateWelcomeComponent('', 'skill'))
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    await writeGeneratedPage(store, uuid, {
+      id: 'dashboard',
+      name: 'Dashboard',
+      route: '/dashboard',
+      pageType: 'app',
+      pageCode: 'export default function Dashboard(){ return <div /> }',
+    })
+
+    const results = await createReplaceWelcomeApplier().apply(ctx)
+    expect(results).toEqual([])
+    // File untouched.
+    expect(readFileSync(join(projectRoot, 'app/page.tsx'), 'utf-8')).toContain('useState<Mode>')
+  })
+
+  it('is a no-op when the generated batch produced no usable pages', async () => {
+    projectRoot = setupProject()
+    writeRoot(projectRoot, 'app/page.tsx', generateWelcomeComponent('', 'skill'))
+    // No page-*.json artifacts at all.
+    const { ctx } = await makeContext(projectRoot)
+
+    const results = await createReplaceWelcomeApplier().apply(ctx)
+    expect(results).toEqual([])
+    // Scaffold preserved.
+    expect(readFileSync(join(projectRoot, 'app/page.tsx'), 'utf-8')).toContain('useState<Mode>')
+  })
+
+  it('does not trample a user-edited home page', async () => {
+    projectRoot = setupProject()
+    const userPage = `export default function HomePage(){ return <main>my page</main> }\n`
+    writeRoot(projectRoot, 'app/page.tsx', userPage)
+
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    await writeGeneratedPage(store, uuid, {
+      id: 'dashboard',
+      name: 'Dashboard',
+      route: '/dashboard',
+      pageType: 'app',
+      pageCode: 'export default function Dashboard(){ return <div /> }',
+    })
+
+    const results = await createReplaceWelcomeApplier().apply(ctx)
+    expect(results).toEqual([])
+    // User content untouched.
+    expect(readFileSync(join(projectRoot, 'app/page.tsx'), 'utf-8')).toBe(userPage)
+    // Flag NOT flipped — flip-on-success contract: only flips when we
+    // actually replaced a scaffold. User-edited project keeps the flag
+    // as-is so future runs can still react if the user reverts.
+    const dsm = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
+    await dsm.load()
+    expect(dsm.getConfig().settings.homePagePlaceholder).toBe(true)
+  })
+
+  it('skips pages with empty pageCode when picking the primary route', async () => {
+    projectRoot = setupProject()
+    writeRoot(projectRoot, 'app/page.tsx', generateWelcomeComponent('', 'skill'))
+
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    // Empty page artifact — should be ignored by the primary picker.
+    await writeGeneratedPage(store, uuid, {
+      id: 'broken',
+      name: 'Broken',
+      route: '/broken',
+      pageType: 'app',
+      pageCode: '',
+    })
+    await writeGeneratedPage(store, uuid, {
+      id: 'settings',
+      name: 'Settings',
+      route: '/settings',
+      pageType: 'app',
+      pageCode: 'export default function Settings(){ return <div /> }',
+    })
+
+    const results = await createReplaceWelcomeApplier().apply(ctx)
+    expect(results).toHaveLength(1)
+    // /settings won, /broken was skipped because its pageCode was empty.
+    expect(results[0]).toContain('redirect("/settings")')
   })
 })
