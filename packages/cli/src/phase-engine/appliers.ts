@@ -43,6 +43,7 @@ import { autoFixCode, type AutoFixContext } from '../utils/quality-validator.js'
 import { fixGlobalsCss } from '../utils/fix-globals-css.js'
 import { pickPrimaryRoute, replaceWelcomeWithPrimary, type PageLite } from '../utils/welcome-replacement.js'
 import { takeNavSnapshot, hasNavChanged } from '../utils/nav-snapshot.js'
+import { buildSidebarNavItems } from '../utils/nav-items.js'
 
 const CONFIG_DELTA_ARTIFACT = 'config-delta.json'
 const COMPONENTS_GENERATED_ARTIFACT = 'components-generated.json'
@@ -231,6 +232,35 @@ export function createPagesApplier(): ArtifactApplier {
 
         const suffix = fixes.length > 0 ? ` (+${fixes.length} auto-fix)` : ''
         results.push(`${page.name} (${page.route}) → ${fsPath.replace(ctx.projectRoot + '/', '')}${suffix}`)
+      }
+
+      // Sidebar nav-items population — parity with API rail
+      // (`commands/chat/split-generator.ts:580`). Without this step
+      // sidebar-nav projects render an empty `<SidebarContent />` because
+      // the init-seeded `navigation.items` only carries `{label:'Home',
+      // route:'/'}` and the skill-rail pipeline never appends the
+      // generated routes. Append-only (preserves manual edits), gated on
+      // `navigation.type ∈ {sidebar, both}` so header-nav projects don't
+      // accumulate sidebar-only entries they wouldn't otherwise have.
+      // Auth + marketing pages are filtered: they have their own layout
+      // chrome, sidebar lives behind the app-shell.
+      const finalConfig = dsm.getConfig()
+      const navType = finalConfig.navigation?.type
+      if (finalConfig.navigation && (navType === 'sidebar' || navType === 'both')) {
+        const generatedAppRoutes = pagesQueue
+          .filter(({ page }) => page.pageType === 'app' && page.route && page.route !== '/')
+          .map(({ page }) => page.route)
+        const before = finalConfig.navigation.items?.length ?? 0
+        const nextItems = buildSidebarNavItems(generatedAppRoutes, finalConfig.navigation.items)
+        if (nextItems.length !== before) {
+          dsm.updateConfig({
+            ...finalConfig,
+            navigation: { ...finalConfig.navigation, items: nextItems },
+            updatedAt: new Date().toISOString(),
+          })
+          const added = nextItems.length - before
+          results.push(`navigation.items: +${added} sidebar ${added === 1 ? 'entry' : 'entries'}`)
+        }
       }
 
       if (results.some(r => !r.startsWith('skipped'))) {

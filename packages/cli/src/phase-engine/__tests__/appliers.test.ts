@@ -339,6 +339,88 @@ describe('createPagesApplier', () => {
     expect(written).toMatch(/bg-muted|bg-background/)
   })
 
+  it('populates sidebar nav.items from generated app pages when navigation.type is sidebar', async () => {
+    // The original v0.10 skill-rail bug surfaced by M15: sidebar layout
+    // rendered with empty `<SidebarContent />` because nav.items stayed
+    // at the init-seed `[{label:'Home', route:'/'}]` and no phase
+    // appended generated routes. Pages applier now mirrors API rail's
+    // append logic from `commands/chat/split-generator.ts:580`.
+    projectRoot = setupProject()
+    // Flip nav.type to sidebar (mimics what config-delta applier does
+    // earlier in the chain when the plan emits navigationType:'sidebar').
+    const dsmPre = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
+    await dsmPre.load()
+    const cfgPre = dsmPre.getConfig()
+    cfgPre.navigation = { ...cfgPre.navigation!, type: 'sidebar' }
+    dsmPre.updateConfig(cfgPre)
+    await dsmPre.save()
+
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    await writePageArtifact(store, uuid, {
+      id: 'dashboard',
+      name: 'Dashboard',
+      route: '/dashboard',
+      pageType: 'app',
+      pageCode: 'export default function Dashboard(){ return <div /> }',
+    })
+    await writePageArtifact(store, uuid, {
+      id: 'transactions',
+      name: 'Transactions',
+      route: '/transactions',
+      pageType: 'app',
+      pageCode: 'export default function Transactions(){ return <div /> }',
+    })
+    // Auth + marketing pages should NOT land in the sidebar — they have
+    // their own layout chrome.
+    await writePageArtifact(store, uuid, {
+      id: 'login',
+      name: 'Login',
+      route: '/login',
+      pageType: 'auth',
+      pageCode: 'export default function Login(){ return <div /> }',
+    })
+    await writePageArtifact(store, uuid, {
+      id: 'pricing',
+      name: 'Pricing',
+      route: '/pricing',
+      pageType: 'marketing',
+      pageCode: 'export default function Pricing(){ return <div /> }',
+    })
+
+    const results = await createPagesApplier().apply(ctx)
+    expect(results.some(r => r.startsWith('navigation.items:'))).toBe(true)
+
+    const dsmPost = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
+    await dsmPost.load()
+    const items = dsmPost.getConfig().navigation?.items ?? []
+    const routes = items.map((i: { route: string }) => i.route).sort()
+    // Init seed `/` survives (append-only); /login + /pricing filtered out.
+    expect(routes).toEqual(['/', '/dashboard', '/transactions'])
+  })
+
+  it('does not touch nav.items when navigation.type is header', async () => {
+    projectRoot = setupProject()
+    // Default nav.type from createMinimalConfig is 'header', no flip needed.
+    const { ctx, store, uuid } = await makeContext(projectRoot)
+    await writePageArtifact(store, uuid, {
+      id: 'dashboard',
+      name: 'Dashboard',
+      route: '/dashboard',
+      pageType: 'app',
+      pageCode: 'export default function Dashboard(){ return <div /> }',
+    })
+
+    const results = await createPagesApplier().apply(ctx)
+    // No nav.items entry in results.
+    expect(results.find(r => r.startsWith('navigation.items:'))).toBeUndefined()
+
+    const dsmPost = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
+    await dsmPost.load()
+    // Init seed alone — `/` only.
+    const items = dsmPost.getConfig().navigation?.items ?? []
+    expect(items.map((i: { route: string }) => i.route)).toEqual(['/'])
+  })
+
   it('updates an existing page entry in DSM rather than duplicating', async () => {
     projectRoot = setupProject()
     // createMinimalConfig already includes a 'home' page at '/'. Applying
