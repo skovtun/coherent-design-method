@@ -46,7 +46,7 @@ import { syncCommand } from './commands/sync.js'
 import { migrateAction } from './commands/migrate.js'
 import { sessionStartCommand, sessionEndCommand } from './commands/session.js'
 import { phaseCommand } from './commands/_phase.js'
-import { checkForUpdates } from './utils/update-notifier.js'
+import { maybePrintUpdateBanner, refreshUpdateCacheAsync } from './utils/update-notifier.js'
 
 const program = new Command()
 
@@ -64,6 +64,14 @@ program
     'Coherent Design Method — AI-powered design system generator\nby Sergei Kovtun · https://www.linkedin.com/in/sergeikovtun/',
   )
   .version(CLI_VERSION)
+  // Update-notifier opt-out (v0.11.2). Suppresses the npm-version-newer
+  // banner. Same effect as `COHERENT_NO_UPDATE_CHECK=1`. Per-invocation,
+  // not persisted; for permanent opt-out use the env var. Registered at
+  // the program level so it's accepted on every subcommand without
+  // commander complaining about unknown options. The flag is read out of
+  // process.argv by `shouldSkipUpdateCheck`, not via commander's option
+  // parsing, since it has to apply BEFORE `program.parse()`.
+  .option('--no-update-check', 'Skip the npm version check banner')
 
 // ─── Core workflow commands ─────────────────────────────────────────
 
@@ -395,8 +403,15 @@ hidden(
     .action((opts: { json?: boolean }) => auditCommand(opts)),
 )
 
-program.parse()
+// Update notice — synchronous cache read + fire-and-forget refresh.
+//
+// Print BEFORE program.parse() so the banner lands above command output
+// (spinner, status text, AI streaming) instead of getting interleaved
+// mid-flow. The cache is updated by the previous invocation's
+// fire-and-forget refresh, so first run on a fresh install has no banner;
+// the second run does. See update-notifier.ts file-level docblock for the
+// trade-off rationale.
+maybePrintUpdateBanner()
+refreshUpdateCacheAsync()
 
-checkForUpdates().catch(e => {
-  if (process.env.COHERENT_DEBUG === '1') console.error('Update check failed:', e)
-})
+program.parse()

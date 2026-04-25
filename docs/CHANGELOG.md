@@ -2,6 +2,33 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.11.2] — 2026-04-25
+
+### Update-notifier ordering fix + opt-outs
+
+The pre-v0.11.2 update-check fired AFTER `program.parse()`, which meant the "newer version available" banner printed mid-command — interleaved with a chat spinner, generation status, or AI streaming output. Functional but visually disruptive. v0.11.2 splits the check into two phases: synchronous cache read BEFORE `program.parse()` (banner lands above command output) + fire-and-forget background refresh that writes the cache for next time. The current command never blocks on a network call.
+
+This is also the first release where users on v0.11.0 (with the multi-turn nav.items P1 fixed in v0.11.1) get an actionable in-CLI signal that an upgrade exists.
+
+### Added
+
+- **`maybePrintUpdateBanner` (`packages/cli/src/utils/update-notifier.ts`)** — synchronous cache read + banner print. No network. Called BEFORE `program.parse()`. Returns `false` (no banner) when the cache is missing, the cached version isn't newer, or the user opted out.
+- **`refreshUpdateCacheAsync`** — fire-and-forget npm registry fetch when the 24h cache is stale. Writes to `~/.coherent/update-check.json` for next invocation. Never awaits, never blocks the current command.
+- **`shouldSkipUpdateCheck`** — central skip logic. Skips on `_phase` (skill-rail stdout contract), `--version` / `-V`, `--help` / `-h`, `COHERENT_NO_UPDATE_CHECK=1` env, and `--no-update-check` flag.
+- **`--no-update-check` global flag** — registered at the program level so it's accepted on every subcommand. Per-invocation opt-out; for permanent suppression use the env var.
+- **`isNewer` (exported)** — semver-ish comparison restricted to plain numeric `MAJOR.MINOR.PATCH`. Prerelease tags / suffixes return `false` to avoid bogus downgrade prompts on RC builds.
+
+### Changed
+
+- **`checkForUpdates` (legacy entry point)** — now a thin wrapper that calls `maybePrintUpdateBanner` + `refreshUpdateCacheAsync`. Backward-compatible for any external import that referenced it.
+- **`packages/cli/src/index.ts`** — banner check moved BEFORE `program.parse()` so the notice prints first. Refresh fires in parallel.
+
+### For Maintainers
+
+- 20 new tests in `update-notifier.test.ts` covering: `isNewer` positive/negative/prerelease cases, `shouldSkipUpdateCheck` argv + env detection, banner cache-read scenarios (no cache, current, newer, dismissed, malformed JSON), and the env opt-out path. Total: 1497 passing + 9 todo (1506). Up 20 from v0.11.1.
+- Disk cache shape: `{ latest: string, checkedAt: number, dismissedFor?: string }`. The `dismissedFor` field is reserved for a future "stop telling me about this version" UX (currently always undefined).
+- Smoke verified: synthetic cache claiming v99.0.0 → banner printed correctly on `coherent status`; `--no-update-check` and `COHERENT_NO_UPDATE_CHECK=1` both suppressed it; `--help` skipped it without manual flag.
+
 ## [0.11.1] — 2026-04-25
 
 ### Multi-turn skill-rail nav.items hotfix
