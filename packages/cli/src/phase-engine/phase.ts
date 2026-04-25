@@ -49,6 +49,28 @@ export function isAiPhase(phase: Phase): phase is AiPhase {
   return phase.kind === 'ai'
 }
 
+/**
+ * Sentinel an AiPhase's `prep()` may return when there's no model work to
+ * do — the phase already wrote its output artifact deterministically and
+ * the skill-rail orchestrator should SKIP the Write+ingest pair entirely.
+ *
+ * Example: components phase with `sharedComponents.length === 0`. The phase
+ * writes an empty `components-generated.json` and seeds `pages-input.json`
+ * in `prep()`, then returns the sentinel so Claude doesn't burn tokens on
+ * a prompt that always resolves to `{requests: []}`.
+ *
+ * Newline-terminated so it's easy to detect even when the skill orchestrator
+ * piped stdout into a file with `> file.md` — the first line is exactly the
+ * sentinel.
+ */
+export const PHASE_SKIP_SENTINEL = '__COHERENT_PHASE_SKIPPED__\n'
+
+/** True when a `prep()` output is the skip sentinel (with or without trailing newline). */
+export function isSkipSentinel(output: string): boolean {
+  const trimmed = output.trim()
+  return trimmed === PHASE_SKIP_SENTINEL.trim()
+}
+
 export function isDeterministicPhase(phase: Phase): phase is DeterministicPhase {
   return phase.kind === 'deterministic'
 }

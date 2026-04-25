@@ -2,6 +2,39 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.10.0] — 2026-04-25
+
+### Skill-mode rail — token cost + UX optimization (M14)
+
+v0.9.0 dogfood baseline: 4-page generation took 7m42s with 17+ visible Bash calls and a 106-line `page-settings-response.md` rewrite when the AI double-escaped `\\n` inside a JSON-string `pageCode`. M14 ships four targeted fixes validated against `/codex` consult and `/ultraplan`.
+
+**Bumps `PHASE_ENGINE_PROTOCOL` 1 → 2.** Existing projects need `coherent update` to refresh `.claude/skills/coherent-chat/SKILL.md` so the skill markdown matches the CLI's protocol. Mismatch surfaces as `[COHERENT_E004]` on first `_phase ingest`. Legacy JSON-with-pageCode still ingests via fallback for one release; will be removed in v0.11.
+
+### Added
+
+- **Fenced ```tsx response schema for anchor + page phases (`packages/cli/src/phase-engine/phases/anchor.ts`, `packages/cli/src/phase-engine/phases/page.ts`).** Anchor and page responses are now JSON header + ```tsx fenced block. The TSX is read verbatim — no JSON escaping. This kills the failure class observed in v0.9.0 dogfood where Claude wrote `\\\\n` (double-backslash) instead of `\\n` (single-backslash) inside a 106-line `pageCode` string and broke `JSON.parse` on the entire response. The fenced parser anchors on a closing ` ``` ` line at end of input, so embedded backticks inside template literals or JSX are fine.
+- **`PHASE_SKIP_SENTINEL` (`packages/cli/src/phase-engine/phase.ts`).** When an `AiPhase`'s `prep()` has no AI work to do, it can write its output artifact deterministically and return `__COHERENT_PHASE_SKIPPED__` on stdout. The skill orchestrator detects the sentinel and skips the Write+ingest pair entirely. Currently fires on the components phase when `sharedComponents.length === 0` (the typical "no shared components needed" case). Saves 3 visible tool calls per skill run.
+- **Parallel page batching in skill body (`packages/cli/src/utils/claude-code.ts`).** `SKILL_COHERENT_CHAT` and `coherent-chat.md` now tell Claude to fire N parallel Bash tool calls per phase batch instead of strictly sequential. 12 turns (4 pages × 3 steps) → 3 batches. CLI is already idempotent per-id, so this is a doc-only change with no logic impact.
+- **Progress lines in skill body.** Mini-section telling Claude to print `▸ [N/6] …` before each phase, replacing the v0.9.0 "Plan ingested. Anchor prep." machine-speak with concrete user-readable progress.
+- **`docs/wiki/IDEAS_BACKLOG.md` M14 entry retained as historical record.** Source of truth for what shipped in 0.10.0.
+
+### Changed
+
+- **Components phase `prep()` writes artifacts in the empty-shared-components fast path (`packages/cli/src/phase-engine/phases/components.ts`).** When the plan declared zero shared components, `prep()` now writes empty `components-generated.json` AND seeds `pages-input.json` directly, then returns `PHASE_SKIP_SENTINEL`. `ingest()` tolerates the sentinel as input for back-compat with v0.9.0 skill markdown that doesn't yet detect it.
+- **Anchor phase `prep()` appends fenced ```tsx output-format override (`packages/cli/src/phase-engine/phases/anchor.ts`).** Same trick page builder uses — JSON header + ```tsx body. Ingest uses `parseAnchorOrPageResponse` (also exported and reused by `phases/page.ts`) which tries fenced first, falls back to legacy JSON-with-pageCode.
+- **Page builder appends fenced ```tsx output-format override (`packages/cli/src/phase-engine/prompt-builders/page.ts`).** Same pattern as anchor. Override appears AFTER the `buildModificationPrompt` wrapper so it supersedes the wrapper's pageCode-as-JSON-string instructions.
+- **Skill markdown response-format section unified (`packages/cli/src/utils/claude-code.ts`).** v0.9.0's "JSON escape rules" section is replaced by "Response format per phase" with explicit rules: plan and components stay JSON-only; anchor and page use JSON header + fenced ```tsx body.
+
+### Fixed
+
+- **`parseAnchorOrPageResponse` swallows `parsePlanResponse` syntax errors (`packages/cli/src/phase-engine/phases/anchor.ts`).** Garbage input no longer bubbles `SyntaxError` up to the runner — falls through to `null` so the runner can re-prompt.
+
+### For Maintainers
+
+- New tests: `page.phase.test.ts` "M14 fenced ```tsx response schema" describe block — 5 tests covering header + fence stitching, embedded backticks, legacy fallback, malformed-fence fallback, and null on garbage. `components.phase.test.ts` "M14 PHASE_SKIP_SENTINEL fast path" describe block — 3 tests covering sentinel emission, ingest tolerance, and full-prep no-sentinel.
+- Tests: 1431 passing + 9 todo (1440 total). Up 8 from v0.9.0. TypeScript clean. Prettier clean.
+- Codex review on the v0.9.0 baseline (recorded in M14 IDEAS_BACKLOG entry) flagged "drop the `> *-prompt.md` redirect" as token-saving but risky — Bash stdout truncates large outputs and anchor prompts run 1245+ lines after the buildModificationPrompt wrap. NOT in this milestone; file-based artifacts stay.
+
 ## [0.9.0] — 2026-04-24
 
 ### Skill-mode parity — phase engine, shared lifecycle, error codes

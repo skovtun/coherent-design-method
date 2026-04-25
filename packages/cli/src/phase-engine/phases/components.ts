@@ -19,7 +19,7 @@
  * if needed.
  */
 
-import type { AiPhase, PhaseContext } from '../phase.js'
+import { type AiPhase, type PhaseContext, PHASE_SKIP_SENTINEL, isSkipSentinel } from '../phase.js'
 import type { ArchitecturePlan, GeneratedComponent } from '../../commands/chat/plan-generator.js'
 import type { DesignSystemConfig } from '@getcoherent/core'
 import { buildComponentsBatchPrompt } from '../prompt-builders/components-batch.js'
@@ -209,11 +209,37 @@ export function createComponentsPhase(options: ComponentsPhaseOptions = {}): AiP
 
     async prep(ctx: PhaseContext): Promise<string> {
       const input = await loadInput(ctx)
+
+      // Skip-sentinel fast path (M14, PHASE_ENGINE_PROTOCOL=2): when the plan
+      // declared no shared components, the AI roundtrip always resolves to
+      // `{requests: []}` — pure waste. Write the empty artifact +
+      // pages-input.json deterministically and tell the skill orchestrator
+      // (via PHASE_SKIP_SENTINEL on stdout) to skip the Write+ingest pair.
+      // Saves ~3 visible tool calls + a few hundred tokens of round-trip.
+      // ingest() also handles the sentinel input as a no-op for backward
+      // compat with skill markdown that doesn't yet detect it.
+      if (input.sharedComponents.length === 0) {
+        const out: ComponentsArtifact = { components: [] }
+        await ctx.session.writeArtifact(ctx.sessionId, outputFile, JSON.stringify(out, null, 2))
+        if (pagesInputFile !== null) {
+          await seedPagesInputFromSessionArtifacts(ctx, input.styleContext, pagesInputFile)
+        }
+        return PHASE_SKIP_SENTINEL
+      }
+
       return buildComponentsBatchPrompt(input.sharedComponents, input.styleContext)
     },
 
     async ingest(rawResponse: string, ctx: PhaseContext): Promise<void> {
       const input = await loadInput(ctx)
+
+      // M14: tolerate the skip sentinel as input. Older skill markdown that
+      // doesn't yet detect the sentinel will pipe it through to ingest;
+      // prep() already wrote the artifacts, so we just no-op.
+      if (isSkipSentinel(rawResponse)) {
+        return
+      }
+
       const parsed = parsePlanResponse(rawResponse)
       const components = pickGeneratedComponents(parsed, input.sharedComponents)
       const out: ComponentsArtifact = { components }

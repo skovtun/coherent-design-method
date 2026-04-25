@@ -23,8 +23,20 @@ import type { Phase } from './phase.js'
 /**
  * Bump when the on-disk artifact shape or CLI contract changes incompatibly.
  * `coherent _phase --protocol N` must match this value or the command bails.
+ *
+ * History:
+ *   1 — Initial release (v0.9.0 skill-mode parity).
+ *   2 — v0.10.0 / M14:
+ *       • Page-phase response uses fenced ```tsx body, NOT pageCode-as-string.
+ *         (`phases/page.ts` `parsePageResponse` keeps a legacy fallback so
+ *         protocol-1 markdown still ingests for one release.)
+ *       • Components phase emits `PHASE_SKIP_SENTINEL` from prep() when
+ *         `sharedComponents.length === 0`. Protocol-1 skill markdown that
+ *         doesn't detect the sentinel still works — ingest() tolerates it.
+ *       • Plan and components phases write `pages-input.json` excluding the
+ *         anchor page (no double-generation). Inherited from v0.9.0.
  */
-export const PHASE_ENGINE_PROTOCOL = 1
+export const PHASE_ENGINE_PROTOCOL = 2
 
 export type SingleFactoryName = 'plan' | 'anchor' | 'extract-style' | 'components' | 'log-run'
 

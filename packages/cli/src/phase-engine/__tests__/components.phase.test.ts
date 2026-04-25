@@ -165,6 +165,55 @@ describe('createComponentsPhase', () => {
     )
   })
 
+  // M14 (PHASE_ENGINE_PROTOCOL=2): when there are no shared components to
+  // generate, prep writes the empty artifact deterministically and returns
+  // a sentinel telling the skill orchestrator to skip Write+ingest.
+  describe('M14 PHASE_SKIP_SENTINEL fast path', () => {
+    it('returns the sentinel and writes empty components-generated.json when sharedComponents is empty', async () => {
+      // Seed plan + plan-input so the pages-input chain can also seed.
+      await store.writeArtifact(
+        sessionId,
+        'plan.json',
+        JSON.stringify({
+          pageNames: [{ id: 'home', name: 'Home', route: '/' }],
+          navigationType: 'header',
+          appName: null,
+        }),
+      )
+      await store.writeArtifact(
+        sessionId,
+        'plan-input.json',
+        JSON.stringify({ message: 'build', config: { name: 'My App' } }),
+      )
+      await writeInput(baseInput({ sharedComponents: [], styleContext: 'tokens' }))
+
+      const out = await createComponentsPhase().prep({ session: store, sessionId })
+      expect(out).toContain('__COHERENT_PHASE_SKIPPED__')
+
+      const generated = JSON.parse(
+        (await store.readArtifact(sessionId, 'components-generated.json'))!,
+      ) as ComponentsArtifact
+      expect(generated.components).toEqual([])
+    })
+
+    it('ingest tolerates the sentinel as input (back-compat for older skill markdown)', async () => {
+      await writeInput(baseInput({ sharedComponents: [], styleContext: 'tokens' }))
+      // Pre-fill the artifact (as prep would have).
+      await store.writeArtifact(sessionId, 'components-generated.json', JSON.stringify({ components: [] }))
+      // Calling ingest with the sentinel should be a no-op — the artifact is preserved.
+      await createComponentsPhase().ingest('__COHERENT_PHASE_SKIPPED__\n', { session: store, sessionId })
+      const out = JSON.parse((await store.readArtifact(sessionId, 'components-generated.json'))!) as ComponentsArtifact
+      expect(out.components).toEqual([])
+    })
+
+    it('full prep cycle (with components) does NOT return the sentinel', async () => {
+      await writeInput(baseInput({ sharedComponents: [spec('Hero')] }))
+      const out = await createComponentsPhase().prep({ session: store, sessionId })
+      expect(out).not.toContain('__COHERENT_PHASE_SKIPPED__')
+      expect(out).toContain('Hero')
+    })
+  })
+
   it('ingest writes components-generated.json with code per spec', async () => {
     await writeInput(
       baseInput({
