@@ -71,7 +71,7 @@ program
   .command('init')
   .argument('[name]', 'Project directory name (created if it does not exist)')
   .description('Initialize a new Coherent project')
-  .option('--skill-mode', 'Skip API key setup; expect /coherent-generate in Claude Code')
+  .option('--skill-mode', 'Skip API key setup; expect /coherent-chat in Claude Code')
   .option('--api-mode', 'Force API key setup; emit coherent chat CTA')
   .option('--both', 'API key optional; emit CTAs for both skill and chat rails')
   .action((nameArg: string | undefined, opts: InitOptions) => initCommand(nameArg, opts))

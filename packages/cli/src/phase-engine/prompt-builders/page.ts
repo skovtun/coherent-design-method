@@ -152,5 +152,10 @@ export function buildPagePrompt(spec: PageSpec, shared: PagesInputShared): strin
     reusePlanDirective: spec.reusePlanDirective || undefined,
     pageSections: spec.pageSections,
     projectRoot: shared.projectRoot ?? undefined,
+    // Pass the plan-resolved pageType through so the design-quality block
+    // matches the page (marketing/app/auth) instead of falling back to "app"
+    // because route inference can't read the route out of the wrapped inline
+    // prompt. Codex /codex review P2 #2.
+    pageType: spec.pageType,
   })
 }

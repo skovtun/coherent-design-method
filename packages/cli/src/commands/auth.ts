@@ -36,7 +36,7 @@ export async function authStatusCommand(): Promise<void> {
     console.log(chalk.dim('  coherent auth set-key sk-ant-...     # Anthropic Claude'))
     console.log(chalk.dim('  coherent auth set-key sk-proj-...    # OpenAI'))
     console.log(
-      chalk.dim('  /coherent-generate "..." in Claude Code       # no key needed if you have a Claude subscription'),
+      chalk.dim('  /coherent-chat "..." in Claude Code           # no key needed if you have a Claude subscription'),
     )
   }
   console.log('')

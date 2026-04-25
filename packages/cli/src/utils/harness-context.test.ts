@@ -165,7 +165,7 @@ describe('writeAllHarnessFiles', () => {
     await writeAllHarnessFiles(tempDir)
     expect(existsSync(join(tempDir, '.claude', 'commands', 'check.md'))).toBe(true)
     expect(existsSync(join(tempDir, '.claude', 'commands', 'fix.md'))).toBe(true)
-    expect(existsSync(join(tempDir, '.claude', 'skills', 'coherent-project', 'SKILL.md'))).toBe(true)
+    expect(existsSync(join(tempDir, '.claude', 'skills', 'coherent-chat', 'SKILL.md'))).toBe(true)
     expect(existsSync(join(tempDir, '.claude', 'settings.json'))).toBe(true)
   })
 

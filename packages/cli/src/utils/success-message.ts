@@ -7,7 +7,7 @@
  * command in 5 seconds.
  *
  * Branches on mode so users land on the CTA that fits their setup:
- *  - skill: /coherent-generate in Claude Code (no API key needed)
+ *  - skill: /coherent-chat in Claude Code (no API key needed)
  *  - api:   coherent chat (uses an Anthropic/OpenAI key)
  *  - both:  show both
  */
@@ -74,28 +74,62 @@ export function showSuccessMessage(projectPath: string = '.', options: SuccessMe
   // terminals, not bold (bold felt heavy in real-terminal testing).
   const cmd = chalk.green
 
+  // Detect whether this `coherent init` ran from inside an active Claude
+  // Code session (its Bash tool executing our binary). In that case the
+  // user cannot just "launch claude" — they're already in one, but it's
+  // anchored to the parent workdir, not the freshly-scaffolded subdir. The
+  // slash command lives in `.claude/commands/coherent-chat.md` of the new
+  // project, so the current session can't see it. They need to exit and
+  // relaunch Claude inside the new project dir. Communicate that honestly.
+  const insideClaudeCode = !process.stdout.isTTY || !!process.env.CLAUDE_CODE_SESSION || !!process.env.CLAUDECODE
+
   if (mode === 'skill') {
-    console.log(chalk.dim('    1. Describe your app — in Claude Code:'))
-    console.log(cmd(`       /coherent-generate ${example}`))
-    console.log('')
-    console.log(chalk.dim('    2. Preview:'))
-    if (needsCd) console.log(cmd(`       cd ${options.projectName}`))
-    console.log(cmd(`       coherent preview`))
+    if (insideClaudeCode && needsCd) {
+      console.log(chalk.dim("    You're already in Claude Code — but it's anchored to this folder."))
+      console.log(chalk.dim('    To use the skill in the new project:'))
+      console.log('')
+      console.log(chalk.dim('    1. Exit this Claude Code session:'))
+      console.log(cmd(`       /exit`))
+      console.log('')
+      console.log(chalk.dim('    2. Re-open Claude Code in the project:'))
+      console.log(cmd(`       cd ${options.projectName}`))
+      console.log(cmd(`       claude`))
+      console.log('')
+      console.log(chalk.dim('    3. Inside Claude Code, describe your app:'))
+      console.log(cmd(`       /coherent-chat ${example}`))
+      console.log('')
+      console.log(chalk.dim('    4. Preview:'))
+      console.log(cmd(`       coherent preview`))
+    } else {
+      console.log(chalk.dim('    1. Open the project in Claude Code:'))
+      if (needsCd) console.log(cmd(`       cd ${options.projectName}`))
+      console.log(cmd(`       claude`))
+      console.log('')
+      console.log(chalk.dim('    2. Inside Claude Code, describe your app:'))
+      console.log(cmd(`       /coherent-chat ${example}`))
+      console.log('')
+      console.log(chalk.dim('    3. Preview:'))
+      console.log(cmd(`       coherent preview`))
+    }
   } else if (mode === 'api') {
     console.log(chalk.dim('    1. Describe your app:'))
     if (needsCd) console.log(cmd(`       cd ${options.projectName}`))
     console.log(cmd(`       coherent chat ${shellExample}`))
     console.log('')
     console.log(chalk.dim('    2. Preview:'))
-    if (needsCd) console.log(cmd(`       cd ${options.projectName}`))
     console.log(cmd(`       coherent preview`))
   } else {
-    console.log(chalk.dim('    1. Describe your app — pick one:'))
-    console.log(chalk.dim('       Claude Code:') + cmd(`  /coherent-generate ${example}`))
-    console.log(chalk.dim('       CLI:') + cmd(`          coherent chat ${shellExample}`))
+    console.log(chalk.dim('    1. Describe your app — pick one path:'))
+    if (needsCd) console.log(cmd(`       cd ${options.projectName}`))
+    console.log('')
+    console.log(chalk.dim('       Claude Code (no API key):'))
+    console.log(cmd(`         claude`) + chalk.dim('   # opens Claude Code in this project'))
+    console.log(cmd(`         /coherent-chat ${example}`) + chalk.dim('   # inside Claude Code'))
+    console.log('')
+    console.log(chalk.dim('       CLI (with API key):'))
+    console.log(cmd(`         coherent chat ${shellExample}`))
     console.log('')
     console.log(chalk.dim('    2. Preview:'))
-    if (needsCd) console.log(cmd(`       cd ${options.projectName}`))
     console.log(cmd(`       coherent preview`))
   }
 

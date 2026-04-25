@@ -79,7 +79,7 @@ export async function phaseCommand(action: PhaseAction, name: string, options: P
           code: COHERENT_ERROR_CODES.E004_PROTOCOL_MISMATCH,
           message: `Protocol mismatch: --protocol ${options.protocol}, expected ${PHASE_ENGINE_PROTOCOL}`,
           cause: 'The skill markdown and the installed CLI disagree on the phase-engine protocol version.',
-          fix: 'Run `coherent update` in the project to refresh `.claude/skills/coherent-generate/SKILL.md`, or upgrade the CLI.',
+          fix: 'Run `coherent update` in the project to refresh `.claude/skills/coherent-chat/SKILL.md`, or upgrade the CLI.',
         }),
       )
     }

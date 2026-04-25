@@ -6,7 +6,7 @@ import { delimiter, join } from 'path'
  * Editors/IDEs whose presence (via a config directory at the project root)
  * changes what `coherent init` installs.
  *
- * In v0.9.0 only `claude-code` has a real skill-mode adapter (`/coherent-generate`).
+ * In v0.9.0 only `claude-code` has a real skill-mode adapter (`/coherent-chat`).
  * The others are detected so we can log a "v2 target" hint without dropping
  * them silently — also keeps the detection contract stable for when those
  * adapters land.
@@ -76,7 +76,7 @@ export function editorLabel(editor: DetectedEditor): string {
  * current project dir). `coherent init my-app` runs in a brand-new directory
  * that has no `.claude/` yet, so project-local detection always returns
  * `false` on first init. This function answers the orthogonal question
- * "would the user be able to invoke `/coherent-generate`?" by checking the
+ * "would the user be able to invoke `/coherent-chat`?" by checking the
  * user's global Claude Code install plus the `claude` binary in PATH.
  *
  * Signals (any one is sufficient):

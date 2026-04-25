@@ -119,7 +119,7 @@ export async function chatCommand(
     console.log(chalk.bold('\nAvailable atmosphere presets:\n'))
     for (const name of names) {
       const preset = getAtmospherePreset(name)!
-      console.log(`  ${chalk.cyan(name.padEnd(20))} ${chalk.dim(preset.moodPhrase)}`)
+      console.log(`  ${chalk.green(name.padEnd(20))} ${chalk.dim(preset.moodPhrase)}`)
     }
     console.log(chalk.dim(`\n  Usage: coherent chat "your request" --atmosphere <name>\n`))
     return
@@ -157,7 +157,10 @@ export async function chatCommand(
   const projectRoot = project.root
   const configPath = project.configPath
 
-  const spinner = ora('Processing your request...').start()
+  // Spinner streams to stderr so its repaint never collides with regular
+  // stdout output (the "spinner text fused into the next line" bug we hit in
+  // `coherent init` v0.9.0).
+  const spinner = ora({ text: 'Processing your request...', stream: process.stderr }).start()
 
   // Graceful Ctrl+C: stop the spinner, release the project lock, exit 130.
   // Without this, SIGINT leaves the spinner frame stuck in the terminal and
@@ -241,14 +244,18 @@ export async function chatCommand(
             '\n   Running an older CLI on a newer project produces stale output\n   (missing features, broken layouts, missing validator rules).',
           ),
         )
-        console.log(chalk.cyan('\n   👉 Update your global CLI:'))
-        console.log(chalk.white('      npm install -g @getcoherent/cli@latest\n'))
+        console.log(chalk.bold('\n   Update your global CLI:'))
+        console.log('      ' + chalk.green('npm install -g @getcoherent/cli@latest') + '\n')
         process.exit(1)
       }
       console.log(chalk.yellow('\n⚠️  Project is older than CLI\n'))
       console.log(chalk.gray('   Project created with: ') + chalk.white(`v${config.coherentVersion}`))
       console.log(chalk.gray('   Current CLI version:  ') + chalk.white(`v${CLI_VERSION}`))
-      console.log(chalk.cyan('\n   💡 Run `coherent update` to apply latest rules/templates to your project.\n'))
+      console.log(
+        chalk.dim('\n   Run ') +
+          chalk.green('coherent update') +
+          chalk.dim(' to apply latest rules/templates to your project.\n'),
+      )
       console.log(chalk.dim('   Continuing with current project config...\n'))
       spinner.start('Loading design system configuration...')
     }
@@ -814,8 +821,10 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
 
     if (missingComponents.length > 0) {
       spinner.stop()
-      console.log(chalk.cyan('\n🔍 Pre-flight check: Installing missing components...\n'))
       const provider = getComponentProvider()
+      const installedNames: string[] = []
+      const failures: string[] = []
+      const unavailable: string[] = []
 
       for (const componentId of missingComponents) {
         if (DEBUG) {
@@ -830,43 +839,39 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
 
             if (result.success && result.componentDef) {
               if (!cm.read(componentId)) {
-                if (DEBUG)
-                  console.log(
-                    chalk.gray(`    [DEBUG] Registering ${result.componentDef.id} (${result.componentDef.name})`),
-                  )
                 const regResult = await cm.register(result.componentDef)
-                if (DEBUG) {
-                  console.log(
-                    chalk.gray(
-                      `    [DEBUG] Register result: ${regResult.success ? 'SUCCESS' : 'FAILED'}${!regResult.success && regResult.message ? ` - ${regResult.message}` : ''}`,
-                    ),
-                  )
-                }
-
                 if (regResult.success) {
                   preflightInstalledIds.push(result.componentDef.id)
-                  console.log(chalk.green(`   ✨ Auto-installed ${result.componentDef.name} component`))
+                  installedNames.push(result.componentDef.name)
                   dsm.updateConfig(regResult.config)
                   cm.updateConfig(regResult.config)
                   pm.updateConfig(regResult.config)
                 }
               } else {
                 preflightInstalledIds.push(result.componentDef.id)
-                console.log(chalk.green(`   ✨ Re-installed ${result.componentDef.name} component (file was missing)`))
+                installedNames.push(result.componentDef.name)
               }
             }
           } catch (error) {
-            console.log(chalk.red(`   ❌ Failed to install ${componentId}:`))
-            console.log(chalk.red(`      ${error instanceof Error ? error.message : error}`))
-            if (error instanceof Error && error.stack) {
-              console.log(chalk.gray(`      ${error.stack.split('\n')[1]}`))
-            }
+            failures.push(`${componentId}: ${error instanceof Error ? error.message : error}`)
           }
         } else {
-          console.log(chalk.yellow(`   ⚠️  Component ${componentId} not available`))
+          unavailable.push(componentId)
         }
       }
-      console.log('')
+
+      // Compact one-line reports. Quiet on the happy path: a successful
+      // install just shows "✓ Components installed: A, B, C" — no header,
+      // no per-line bullets, no trailing "✨".
+      if (installedNames.length > 0) {
+        console.log(chalk.green('  ✓ ') + chalk.dim('Components installed   ') + installedNames.join(', '))
+      }
+      if (unavailable.length > 0) {
+        console.log(chalk.yellow('  ⚠ ') + chalk.dim('Unavailable            ') + unavailable.join(', '))
+      }
+      if (failures.length > 0) {
+        for (const f of failures) console.log(chalk.red('  ✖ ') + f)
+      }
       spinner.start('Applying modifications...')
     }
 
@@ -876,9 +881,12 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
     const toInstallNpm = [...neededPkgs].filter(p => !installedPkgs.has(p))
     if (toInstallNpm.length > 0) {
       spinner.stop()
-      console.log(chalk.cyan(`\n📦 Auto-installing missing dependencies: ${toInstallNpm.join(', ')}\n`))
+      console.log(chalk.green('  ✓ ') + chalk.dim('Dependencies installing  ') + toInstallNpm.join(', '))
       const ok = await installPackages(projectRoot, toInstallNpm)
-      if (!ok) console.log(chalk.yellow(`   Run manually: npm install ${toInstallNpm.join(' ')}\n`))
+      if (!ok)
+        console.log(
+          chalk.yellow('  ⚠ ') + chalk.dim('Run manually: ') + chalk.green(`npm install ${toInstallNpm.join(' ')}`),
+        )
       spinner.start('Applying modifications...')
     }
 
@@ -1072,10 +1080,10 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
       const SCAFFOLD_AI_LIMIT = 10
       if (missingRoutes.length > 0 && missingRoutes.length <= SCAFFOLD_AI_LIMIT) {
         spinner.stop()
-        console.log(chalk.cyan(`\n🔗 Auto-scaffolding ${missingRoutes.length} linked page(s)...`))
+        console.log('\n' + chalk.bold(`Auto-scaffolding ${missingRoutes.length} linked page(s)`))
         console.log(
           chalk.dim(
-            `   (${missingRoutes.length} additional AI call(s) — disable with settings.autoScaffold: false in config)\n`,
+            `  (${missingRoutes.length} additional AI call(s) — disable with settings.autoScaffold: false in config)\n`,
           ),
         )
 
@@ -1149,7 +1157,9 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
           scaffoldedPages.push({ route: linkedRoute, name: `${pageName} (placeholder)` })
         }
         console.log(
-          chalk.cyan(`   Created ${missingRoutes.length} placeholder pages. Use \`coherent chat\` to fill them.\n`),
+          chalk.dim(`  Created ${missingRoutes.length} placeholder pages. Run `) +
+            chalk.green('coherent chat') +
+            chalk.dim(' to fill them.\n'),
         )
         spinner.start('Finalizing...')
       }
@@ -1437,7 +1447,7 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
       changeSummaries.length > 0 &&
       changeSummaries.some(s => s.linesDelta !== 0 || s.importsAdded.length || s.importsRemoved.length)
     ) {
-      console.log(chalk.cyan('\n📊 Change summary:'))
+      console.log(chalk.bold('\nChange summary:'))
       for (const s of changeSummaries) {
         if (s.linesDelta === 0 && s.importsAdded.length === 0 && s.importsRemoved.length === 0) continue
         const delta =
@@ -1459,9 +1469,9 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
 
     if (scaffoldedPages.length > 0) {
       const uniqueScaffolded = [...new Map(scaffoldedPages.map(s => [s.route, s])).values()]
-      console.log(chalk.cyan('🔗 Auto-scaffolded linked pages:'))
+      console.log(chalk.bold('Auto-scaffolded linked pages:'))
       uniqueScaffolded.forEach(({ route, name }) => {
-        console.log(chalk.white(`   ✨ ${name} → ${route}`))
+        console.log(`  ${chalk.green('✓')} ${chalk.white(name)}  ${chalk.dim(route)}`)
       })
       console.log('')
     }
@@ -1478,7 +1488,7 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
           )
         }
         await appendFile(recPath, section)
-        console.log(chalk.cyan('\n📋 UX Recommendations:'))
+        console.log(chalk.bold('\nUX Recommendations:'))
         for (const line of uxRecommendations.split('\n').filter(Boolean)) {
           console.log(chalk.dim(`   ${line}`))
         }
@@ -1504,9 +1514,9 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
       issues.forEach((err: { path: (string | number)[]; message: string }) => {
         console.log(chalk.gray(`   • ${err.path.join('.')}: ${err.message}`))
       })
-      console.log(chalk.cyan('\n💡 Try being more specific, e.g.:'))
-      console.log(chalk.white('   coherent chat "add a dashboard page with hero section using Button component"'))
-      console.log(chalk.white('   coherent chat "add pricing page"'))
+      console.log(chalk.bold('\n  Try being more specific, e.g.:'))
+      console.log('    ' + chalk.green('coherent chat "add a dashboard page with hero section using Button component"'))
+      console.log('    ' + chalk.green('coherent chat "add pricing page"'))
     } else if (error instanceof Error) {
       console.error(chalk.red(error.message))
       if (
@@ -1515,11 +1525,11 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
         (error.message.includes('Failed to parse modification') && error.message.includes('JSON'))
       ) {
         console.log(
-          chalk.yellow('\n💡 The AI response was too large or contained invalid JSON. Try splitting your request:'),
+          chalk.dim('\n  The AI response was too large or contained invalid JSON. Try splitting your request:'),
         )
-        console.log(chalk.white('   coherent chat "add dashboard page with stats and recent activity"'))
-        console.log(chalk.white('   coherent chat "add account page"'))
-        console.log(chalk.white('   coherent chat "add settings page"'))
+        console.log('    ' + chalk.green('coherent chat "add dashboard page with stats and recent activity"'))
+        console.log('    ' + chalk.green('coherent chat "add account page"'))
+        console.log('    ' + chalk.green('coherent chat "add settings page"'))
       } else if (
         error.message.includes('API key not found') ||
         error.message.includes('ANTHROPIC_API_KEY') ||
@@ -1530,16 +1540,16 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
         const envVar = isOpenAI ? 'OPENAI_API_KEY' : 'ANTHROPIC_API_KEY'
         const url = isOpenAI ? 'https://platform.openai.com' : 'https://console.anthropic.com'
 
-        console.log(chalk.yellow('\n💡 Setup Instructions:'))
-        console.log(chalk.dim(`  1. Get your ${providerName} API key from: ${url}`))
-        console.log(chalk.dim('  2. Create a .env file in the current directory:'))
-        console.log(chalk.cyan(`     echo "${envVar}=your_key_here" > .env`))
-        console.log(chalk.dim('  3. Or export it in your shell:'))
-        console.log(chalk.cyan(`     export ${envVar}=your_key_here`))
+        console.log(chalk.bold('\n  Setup:'))
+        console.log(chalk.dim(`    1. Get your ${providerName} API key from: ${url}`))
+        console.log(chalk.dim('    2. Create a .env file in the current directory:'))
+        console.log('       ' + chalk.green(`echo "${envVar}=your_key_here" > .env`))
+        console.log(chalk.dim('    3. Or export it in your shell:'))
+        console.log('       ' + chalk.green(`export ${envVar}=your_key_here`))
 
         if (isOpenAI) {
-          console.log(chalk.dim('\n  Also ensure "openai" package is installed:'))
-          console.log(chalk.cyan('     npm install openai'))
+          console.log(chalk.dim('\n    Also ensure "openai" package is installed:'))
+          console.log('       ' + chalk.green('npm install openai'))
         }
       }
     } else {

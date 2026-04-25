@@ -19,7 +19,7 @@ The CLI renders errors with the full layout inline — code, one-line problem, w
 1. **Use Claude Code skill mode instead (no API key required).** If you already pay for Claude Pro/Max/Free via the subscription, open this project in Claude Code and type:
 
    ```
-   /coherent-generate "describe your app"
+   /coherent-chat "describe your app"
    ```
 
    Your Claude Code session does the generation. Coherent contributes constraints + validation. Nothing is billed on Coherent's side.
@@ -32,7 +32,7 @@ The CLI renders errors with the full layout inline — code, one-line problem, w
 
    The key is stored in the project's `.env` (already in `.gitignore`). Re-run `coherent chat`.
 
-**Related:** [COHERENT_E002](#coherent_e002--another-coherent-session-is-active) (session locked), `/coherent-generate` skill at `.claude/skills/coherent-generate/SKILL.md`.
+**Related:** [COHERENT_E002](#coherent_e002--another-coherent-session-is-active) (session locked), `/coherent-chat` skill at `.claude/skills/coherent-chat/SKILL.md`.
 
 ---
 
@@ -81,9 +81,9 @@ The lock is automatically released when `session end` completes — even on appl
    coherent _phase ingest plan --session "$UUID" < /tmp/plan-response.md
    ```
 
-2. **Inside Claude Code**, the `/coherent-generate` skill handles this automatically. If you hit E003 there, the skill wrote an empty response file — regenerate the phase's prep output and try again.
+2. **Inside Claude Code**, the `/coherent-chat` skill handles this automatically. If you hit E003 there, the skill wrote an empty response file — regenerate the phase's prep output and try again.
 
-**Related:** [COHERENT_E004](#coherent_e004--phase-engine-protocol-mismatch) (protocol mismatch — a common cause of a phase producing no output), skill markdown at `.claude/skills/coherent-generate/SKILL.md`.
+**Related:** [COHERENT_E004](#coherent_e004--phase-engine-protocol-mismatch) (protocol mismatch — a common cause of a phase producing no output), skill markdown at `.claude/skills/coherent-chat/SKILL.md`.
 
 ---
 
@@ -91,7 +91,7 @@ The lock is automatically released when `session end` completes — even on appl
 
 **When you see it:** running `coherent _phase` with a `--protocol N` value that differs from the CLI's current `PHASE_ENGINE_PROTOCOL`.
 
-**Why:** The skill markdown (`.claude/skills/coherent-generate/SKILL.md`) embeds the protocol version it was written against. The CLI's phase-engine advances its protocol when the contract changes. Mismatch means the skill and the CLI disagree on artifact shapes, command output, or ingest parsers — running anyway would silently corrupt the session.
+**Why:** The skill markdown (`.claude/skills/coherent-chat/SKILL.md`) embeds the protocol version it was written against. The CLI's phase-engine advances its protocol when the contract changes. Mismatch means the skill and the CLI disagree on artifact shapes, command output, or ingest parsers — running anyway would silently corrupt the session.
 
 **Fix options:**
 
@@ -101,7 +101,7 @@ The lock is automatically released when `session end` completes — even on appl
    coherent update
    ```
 
-   Writes the latest `.claude/skills/coherent-generate/SKILL.md` and `.claude/commands/coherent-generate.md` into the project. Start a new session.
+   Writes the latest `.claude/skills/coherent-chat/SKILL.md` and `.claude/commands/coherent-chat.md` into the project. Start a new session.
 
 2. **Upgrade the CLI globally if the markdown is newer than your install:**
 

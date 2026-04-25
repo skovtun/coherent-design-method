@@ -12,11 +12,12 @@
  * caller — this phase only owns the prompt cycle.
  */
 
-import type { ModificationRequest } from '@getcoherent/core'
+import type { DesignSystemConfig, ModificationRequest } from '@getcoherent/core'
 import type { AiPhase, PhaseContext } from '../phase.js'
 import { isAuthRoute, detectPageType } from '../../agents/page-templates.js'
 import type { ArchitecturePlan } from '../../commands/chat/plan-generator.js'
 import { renderAtmosphereDirective } from '../../commands/chat/plan-generator.js'
+import { buildModificationPrompt } from '../prompt-builders/modification.js'
 import { parsePlanResponse } from './plan.js'
 
 /**
@@ -77,6 +78,15 @@ export interface AnchorInput {
   allPagesList: string
   allRoutes: string
   plan: ArchitecturePlan | null
+  /**
+   * Project config — needed to wrap the short anchor directive with the full
+   * modification prompt (CORE_CONSTRAINTS + JSON response schema). Without
+   * the wrapper, the AI sees a 9-line directive with no output-format
+   * instructions and falls back to ad-hoc exploration. Optional for
+   * backward-compat with older session.json files; missing config falls
+   * back to the bare directive.
+   */
+  config?: DesignSystemConfig
 }
 
 /**
@@ -136,6 +146,7 @@ export function createAnchorPhase(options: AnchorPhaseOptions = {}): AiPhase {
       allPagesList: parsed.allPagesList,
       allRoutes: parsed.allRoutes,
       plan: (parsed.plan as ArchitecturePlan | null | undefined) ?? null,
+      config: parsed.config as DesignSystemConfig | undefined,
     }
   }
 
@@ -145,10 +156,42 @@ export function createAnchorPhase(options: AnchorPhaseOptions = {}): AiPhase {
 
     async prep(ctx: PhaseContext): Promise<string> {
       const input = await loadInput(ctx)
-      return buildAnchorPagePrompt(input.homePage, input.message, input.allPagesList, input.allRoutes, input.plan)
+      const directive = buildAnchorPagePrompt(
+        input.homePage,
+        input.message,
+        input.allPagesList,
+        input.allRoutes,
+        input.plan,
+      )
+      // Wrap the short anchor directive with the full modification prompt so
+      // Claude receives CORE_CONSTRAINTS + the JSON output schema. Without the
+      // wrapper, the AI sees a ~9-line directive with no format instructions
+      // and either guesses the schema or falls into ad-hoc source-tree
+      // exploration (`find`, `grep`) — and exploration triggers permission
+      // prompts on every step. Chat rail does the same wrap by passing the
+      // anchor directive through `parseModification` → `buildModificationPrompt`.
+      // Falls back to the bare directive when config isn't present (older
+      // session.json from a prior CLI version).
+      if (!input.config) return directive
+      const detected = detectPageType(input.homePage.name) || detectPageType(input.homePage.route)
+      const isAuth =
+        isAuthRoute(input.homePage.route) ||
+        isAuthRoute(input.homePage.name) ||
+        new Set(['login', 'register', 'reset-password']).has(detected || '')
+      const pageType: 'marketing' | 'app' | 'auth' = isAuth
+        ? 'auth'
+        : detected === 'landing' ||
+            detected === 'pricing' ||
+            detected === 'about' ||
+            detected === 'contact' ||
+            detected === 'blog'
+          ? 'marketing'
+          : 'app'
+      return buildModificationPrompt(directive, input.config, '', { pageType })
     },
 
     async ingest(rawResponse: string, ctx: PhaseContext): Promise<void> {
+      const input = await loadInput(ctx)
       const parsed = parsePlanResponse(rawResponse)
       const request = pickAddPageRequest(parsed)
       const pageCode =
@@ -158,6 +201,43 @@ export function createAnchorPhase(options: AnchorPhaseOptions = {}): AiPhase {
 
       const out: AnchorArtifact = { pageCode, request }
       await ctx.session.writeArtifact(ctx.sessionId, anchorFile, JSON.stringify(out, null, 2))
+
+      // Also emit a `page-<anchorId>.json` so the session-end pages applier
+      // writes the anchor page to disk via the same path as every other
+      // generated page. Without this, anchor.json never reaches disk: the
+      // skill rail used to re-generate the same anchor page in the page
+      // phase a second time (codex /codex P2 #3 — skill rail duplicate).
+      // Falls through silently when anchorId or request is missing —
+      // session-end applier will simply have one fewer page to apply.
+      const anchorId = input.homePage.id
+      if (anchorId && request) {
+        const changes = (request.changes as Record<string, unknown> | undefined) ?? {}
+        const route =
+          typeof changes.route === 'string' && changes.route ? (changes.route as string) : input.homePage.route
+        const name = typeof changes.name === 'string' && changes.name ? (changes.name as string) : input.homePage.name
+        const detected = detectPageType(input.homePage.name) || detectPageType(input.homePage.route)
+        const isAuth =
+          isAuthRoute(input.homePage.route) ||
+          isAuthRoute(input.homePage.name) ||
+          new Set(['login', 'register', 'reset-password']).has(detected || '')
+        const pageType: 'marketing' | 'app' | 'auth' = isAuth
+          ? 'auth'
+          : detected === 'landing' ||
+              detected === 'pricing' ||
+              detected === 'about' ||
+              detected === 'contact' ||
+              detected === 'blog'
+            ? 'marketing'
+            : 'app'
+        const pagePayload = {
+          id: anchorId,
+          name,
+          route,
+          pageType,
+          request,
+        }
+        await ctx.session.writeArtifact(ctx.sessionId, `page-${anchorId}.json`, JSON.stringify(pagePayload, null, 2))
+      }
     },
   }
 }

@@ -4,7 +4,7 @@ Walk the full skill-mode phase rail end-to-end with the `coherent` CLI, feeding
 prompts to your model by hand. Use this before the Tier 1 parity harness lands
 (Lane D) to confirm the rail actually works on a real project.
 
-This is the human-driven equivalent of what the `coherent-generate` Claude
+This is the human-driven equivalent of what the `coherent-chat` Claude
 Code skill does automatically.
 
 ## Prerequisites
@@ -161,7 +161,7 @@ the journaling trail.
 
 ## See also
 
-- `.claude/skills/coherent-generate/SKILL.md` — the Claude Code skill that
+- `.claude/skills/coherent-chat/SKILL.md` — the Claude Code skill that
   automates this runbook end-to-end.
 - `docs/wiki/ADR/` — architectural decisions behind the phase rail.
 - `docs/runbooks/cut-release.md` — how to ship a CLI version bump.

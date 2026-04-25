@@ -2,6 +2,7 @@ import { resolve, dirname } from 'path'
 import { mkdir, rm } from 'fs/promises'
 import { existsSync } from 'fs'
 import chalk from 'chalk'
+import type { DesignSystemConfig } from '@getcoherent/core'
 import {
   DesignSystemManager,
   ComponentManager,
@@ -32,7 +33,7 @@ import {
 import { getComponentProvider } from '../../providers/index.js'
 import {
   validatePageQuality,
-  formatIssues,
+  summarizeIssuesCompact,
   autoFixCode,
   checkDesignConsistency,
   verifyIncrementalEdit,
@@ -177,6 +178,33 @@ function normalizePageWrapper(code: string): { code: string; fixed: boolean } {
   return { code: result, fixed }
 }
 
+/**
+ * cm/pm operations return their own copy of the config, which they assembled
+ * from their internal state at load time. If `dsm.updateToken` mutated tokens
+ * earlier in the same chat run, that mutation is NOT reflected in cm's or
+ * pm's snapshot — assigning their result straight back via `dsm.updateConfig`
+ * silently rolls the tokens back to the on-load values.
+ *
+ * The fix is to merge: take the new structural fields (components, pages,
+ * navigation) from the cm/pm result but preserve dsm's authoritative tokens.
+ * dsm is the source of truth for tokens; cm and pm don't update them.
+ *
+ * Without this helper, `coherent chat "change primary color and edit a page"`
+ * would persist the page edit but silently revert the color change because
+ * the page modification's dsm.updateConfig overwrites the token mutation.
+ */
+function applyManagerResult(
+  dsm: DesignSystemManager,
+  cm: ComponentManager,
+  pm: PageManager,
+  newConfig: DesignSystemConfig,
+): void {
+  const merged: DesignSystemConfig = { ...newConfig, tokens: dsm.getConfig().tokens }
+  dsm.updateConfig(merged)
+  cm.updateConfig(merged)
+  pm.updateConfig(merged)
+}
+
 export async function applyModification(
   request: ModificationRequest,
   dsm: DesignSystemManager,
@@ -222,10 +250,6 @@ export async function applyModification(
       }
       const newCode = await ai.editSharedComponentCode(currentCode, instruction, resolved.name)
       const { fixedCode, fixes } = await validateAndFixGeneratedCode(projectRoot, newCode, { isPage: false })
-      if (fixes.length > 0) {
-        console.log(chalk.dim('  🔧 Post-generation fixes:'))
-        fixes.forEach(f => console.log(chalk.dim(`     ${f}`)))
-      }
       // Color validation gate: warn about remaining color issues after auto-fix
       const colorIssueTypes = ['raw-color', 'inline-style-color', 'arbitrary-color', 'svg-raw-color', 'color-prop']
       const colorIssues = validatePageQuality(fixedCode).filter(
@@ -312,10 +336,6 @@ export async function applyModification(
       }
       const newPageCode = await ai.replaceInlineWithShared(pageCode, sharedCode, resolved.name, changes?.blockHint)
       const { fixedCode, fixes } = await validateAndFixGeneratedCode(projectRoot, newPageCode, { isPage: true })
-      if (fixes.length > 0) {
-        console.log(chalk.dim('  🔧 Post-generation fixes:'))
-        fixes.forEach(f => console.log(chalk.dim(`     ${f}`)))
-      }
       await writeFile(pageFilePath, fixedCode)
       const manifest = await loadManifest(projectRoot)
       const usedIn = manifest.shared.find(e => e.id === resolved.id)?.usedIn ?? []
@@ -421,10 +441,6 @@ export async function applyModification(
         if (!ai.replaceInlineWithShared) continue
         const newCode = await ai.replaceInlineWithShared(linkPageCode, sharedCode, created.name, blockHint)
         const { fixedCode, fixes } = await validateAndFixGeneratedCode(projectRoot, newCode, { isPage: true })
-        if (fixes.length > 0) {
-          console.log(chalk.dim('  🔧 Post-generation fixes:'))
-          fixes.forEach(f => console.log(chalk.dim(`     ${f}`)))
-        }
         await writeFile(fullPath, fixedCode)
         usedInFiles.push(relPath)
       }
@@ -478,9 +494,7 @@ export async function applyModification(
           }
           const regResult = await cm.register(mergedData)
           if (regResult.success) {
-            dsm.updateConfig(regResult.config)
-            cm.updateConfig(regResult.config)
-            pm.updateConfig(regResult.config)
+            applyManagerResult(dsm, cm, pm, regResult.config)
           }
           return {
             success: regResult.success,
@@ -492,9 +506,7 @@ export async function applyModification(
 
       const result = await cm.register(componentData)
       if (result.success) {
-        dsm.updateConfig(result.config)
-        cm.updateConfig(result.config)
-        pm.updateConfig(result.config)
+        applyManagerResult(dsm, cm, pm, result.config)
       }
       return {
         success: result.success,
@@ -509,9 +521,7 @@ export async function applyModification(
 
       const result = await cm.update(componentId, changes ?? {})
       if (result.success) {
-        dsm.updateConfig(result.config)
-        cm.updateConfig(result.config)
-        pm.updateConfig(result.config)
+        applyManagerResult(dsm, cm, pm, result.config)
       }
       return {
         success: result.success,
@@ -578,9 +588,7 @@ export async function applyModification(
         result = await pm.update(pageForConfig.id, pageForConfig)
       }
       if (result.success) {
-        dsm.updateConfig(result.config)
-        cm.updateConfig(result.config)
-        pm.updateConfig(result.config)
+        applyManagerResult(dsm, cm, pm, result.config)
         if (finalPageCode) {
           const neededIds = extractComponentIdsFromCode(finalPageCode)
           const { installed } = await ensureComponentsInstalled(neededIds, cm, dsm, pm, projectRoot)
@@ -642,10 +650,6 @@ export async function applyModification(
           }
           const allFixes = [...postFixes, ...autoFixes]
           if (stripped.length > 0) allFixes.push(`stripped inline ${stripped.join(', ')} (layout owns these)`)
-          if (allFixes.length > 0) {
-            console.log(chalk.dim('  🔧 Post-generation fixes:'))
-            allFixes.forEach(f => console.log(chalk.dim(`     ${f}`)))
-          }
           await writeFile(filePath, codeToWrite)
 
           // ─── tsc validation ───────────────────────────────────
@@ -718,9 +722,7 @@ export async function applyModification(
           if (pageIdx !== -1) {
             const cfg = dsm.getConfig()
             ;(cfg.pages[pageIdx] as any).pageAnalysis = analyzePageCode(codeToWrite)
-            dsm.updateConfig(cfg)
-            cm.updateConfig(cfg)
-            pm.updateConfig(cfg)
+            applyManagerResult(dsm, cm, pm, cfg)
           }
 
           const manifestForAudit = await loadManifest(projectRoot)
@@ -795,16 +797,15 @@ export async function applyModification(
           }
           issues = validatePageQuality(codeToWrite, undefined, qualityPageType)
 
-          const report = formatIssues(issues)
-          if (report) {
-            console.log(chalk.yellow(`\n🔍 Quality check for ${page.name || page.id}:`))
-            console.log(chalk.dim(report))
+          const summary = summarizeIssuesCompact(issues)
+          if (summary) {
+            console.log(chalk.dim(`     · ${summary}`))
           }
 
           const consistency = checkDesignConsistency(codeToWrite)
           if (consistency.length > 0) {
-            console.log(chalk.yellow(`\n🎨 Design consistency for ${page.name || page.id}:`))
-            consistency.forEach(w => console.log(chalk.dim(`   ⚠ [${w.type}] ${w.message}`)))
+            const types = [...new Set(consistency.map(w => w.type))]
+            console.log(chalk.dim(`     · consistency: ${consistency.length} [${types.join(', ')}]`))
           }
         }
       }
@@ -837,9 +838,7 @@ export async function applyModification(
 
       const result = await pm.update(pageId, configChanges as Partial<PageDefinition>)
       if (result.success) {
-        dsm.updateConfig(result.config)
-        cm.updateConfig(result.config)
-        pm.updateConfig(result.config)
+        applyManagerResult(dsm, cm, pm, result.config)
         const config = dsm.getConfig()
         const pageDef = config.pages.find(
           p => p.id === pageId || p.name?.toLowerCase() === String(pageId).toLowerCase(),
@@ -860,7 +859,10 @@ export async function applyModification(
             if (currentCode) {
               const ai = await createAIProvider(aiProvider ?? 'auto')
               if (ai.editPageCode) {
-                console.log(chalk.dim('  ✏️  Applying changes to existing page...'))
+                // No status log here — the active spinner ("Applying
+                // modifications...") on stderr already conveys it. A console.log
+                // on stdout collides with the spinner's repaint and produces
+                // duplicate-line artifacts.
                 const coreRules = CORE_CONSTRAINTS
                 const pageRoute = pageDef.route || `/${pageDef.id}`
                 const pageType = inferPageTypeFromRoute(pageRoute)
@@ -899,9 +901,7 @@ export async function applyModification(
                 updatedConfig.pages[pageIdx] as PageDefinition & { generatedWithPageCode?: boolean }
               ).generatedWithPageCode = true
               updatedConfig.pages[pageIdx].sections = []
-              dsm.updateConfig(updatedConfig)
-              cm.updateConfig(updatedConfig)
-              pm.updateConfig(updatedConfig)
+              applyManagerResult(dsm, cm, pm, updatedConfig)
             }
 
             const neededIds = extractComponentIdsFromCode(resolvedPageCode)
@@ -958,19 +958,13 @@ export async function applyModification(
             }
             const allFixes = [...postFixes, ...autoFixes]
             if (stripped.length > 0) allFixes.push(`stripped inline ${stripped.join(', ')} (layout owns these)`)
-            if (allFixes.length > 0) {
-              console.log(chalk.dim('  🔧 Post-generation fixes:'))
-              allFixes.forEach(f => console.log(chalk.dim(`     ${f}`)))
-            }
             await writeFile(absPath, codeToWrite)
 
             const updatePageIdx = dsm.getConfig().pages.findIndex(p => p.id === pageDef.id)
             if (updatePageIdx !== -1) {
               const cfg = dsm.getConfig()
               ;(cfg.pages[updatePageIdx] as any).pageAnalysis = analyzePageCode(codeToWrite)
-              dsm.updateConfig(cfg)
-              cm.updateConfig(cfg)
-              pm.updateConfig(cfg)
+              applyManagerResult(dsm, cm, pm, cfg)
             }
 
             const manifestForAudit = await loadManifest(projectRoot)
@@ -1041,16 +1035,15 @@ export async function applyModification(
               }
             }
             issues = validatePageQuality(codeToWrite, undefined, qualityPageType2)
-            const report = formatIssues(issues)
-            if (report) {
-              console.log(chalk.yellow(`\n🔍 Quality check for ${pageDef.name || pageDef.id}:`))
-              console.log(chalk.dim(report))
+            const summary = summarizeIssuesCompact(issues)
+            if (summary) {
+              console.log(chalk.dim(`     · ${summary}`))
             }
 
             const consistency = checkDesignConsistency(codeToWrite)
             if (consistency.length > 0) {
-              console.log(chalk.yellow(`\n🎨 Design consistency for ${pageDef.name || pageDef.id}:`))
-              consistency.forEach(w => console.log(chalk.dim(`   ⚠ [${w.type}] ${w.message}`)))
+              const types = [...new Set(consistency.map(w => w.type))]
+              console.log(chalk.dim(`     · consistency: ${consistency.length} [${types.join(', ')}]`))
             }
           } else {
             try {
@@ -1070,8 +1063,7 @@ export async function applyModification(
               if (fixes.length > 0) {
                 code = fixed
                 await writeFile(absPath, code)
-                console.log(chalk.dim('  🔧 Auto-fixes applied:'))
-                fixes.forEach(f => console.log(chalk.dim(`     ${f}`)))
+                // Fix count rolls up onto the page line via printPostGenerationReport.
               }
               const relFilePath = routeToRelPath(route, isAuth)
               const manifest = await loadManifest(projectRoot)
@@ -1091,10 +1083,9 @@ export async function applyModification(
                 ? getPageType(route, currentPlanForQuality)
                 : inferPageTypeFromRoute(route)
               const issues = validatePageQuality(code, undefined, pageTypeForQuality)
-              const report = formatIssues(issues)
-              if (report) {
-                console.log(chalk.yellow(`\n🔍 Quality check for ${pageDef.name || pageDef.id}:`))
-                console.log(chalk.dim(report))
+              const summary = summarizeIssuesCompact(issues)
+              if (summary) {
+                console.log(chalk.dim(`     · ${summary}`))
               }
             } catch {
               // file may not exist if update only touched config
@@ -1181,9 +1172,7 @@ export async function applyModification(
         pages: filteredPages,
         ...(updatedNav ? { navigation: updatedNav } : {}),
       }
-      dsm.updateConfig(updated as any)
-      cm.updateConfig(updated as any)
-      pm.updateConfig(updated as any)
+      applyManagerResult(dsm, cm, pm, updated as any)
 
       // Regen shared Header / Sidebar so stale nav links can't 404.
       try {

@@ -229,6 +229,12 @@ export function createPlanPhase(options: PlanPhaseOptions = {}): AiPhase {
           allPagesList: pageNames.map(p => p.name).join(', '),
           allRoutes: pageNames.map(p => p.route).join(', '),
           plan: null,
+          // Carry the project config through so anchor.prep() can wrap the
+          // short anchor directive with `buildModificationPrompt` (which adds
+          // CORE_CONSTRAINTS + the JSON output schema). Without it, the AI
+          // sees a ~9-line directive with no format instructions and starts
+          // exploring the source tree, triggering permission prompts.
+          config: input.config,
         }
         await ctx.session.writeArtifact(ctx.sessionId, anchorInputFile, JSON.stringify(anchorInput, null, 2))
       }

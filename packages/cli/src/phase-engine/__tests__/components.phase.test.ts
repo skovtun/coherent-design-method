@@ -253,7 +253,10 @@ describe('createComponentsPhase', () => {
       await writeInput(baseInput({ sharedComponents: [spec('Hero')], styleContext: 'Container: max-w-6xl' }))
     }
 
-    it('writes pages-input.json with one PageSpec per planned page', async () => {
+    it('writes pages-input.json with PageSpec per page minus the anchor (codex P2 #3)', async () => {
+      // First page in plan.pageNames is the anchor — anchor phase has already
+      // generated its full pageCode and emitted page-<anchorId>.json, so
+      // pages-input.json drops it to avoid duplicate per-page generation.
       await seedUpstreamArtifacts([
         { id: 'home', name: 'Home', route: '/' },
         { id: 'leads', name: 'Leads', route: '/leads' },
@@ -270,21 +273,30 @@ describe('createComponentsPhase', () => {
       expect(raw).not.toBeNull()
       const pagesInput = JSON.parse(raw!)
 
-      expect(pagesInput.pages).toHaveLength(3)
-      expect(pagesInput.pages[0].id).toBe('home')
-      expect(pagesInput.pages[0].pageType).toBe('marketing')
-      expect(pagesInput.pages[1].id).toBe('leads')
-      expect(pagesInput.pages[1].pageType).toBe('app')
+      expect(pagesInput.pages).toHaveLength(2)
+      expect(pagesInput.pages.map((p: { id: string }) => p.id)).toEqual(['leads', 'login'])
+      expect(pagesInput.pages[0].pageType).toBe('app')
       // inferPageTypeFromRoute detects /login → auth
-      expect(pagesInput.pages[2].id).toBe('login')
-      expect(pagesInput.pages[2].pageType).toBe('auth')
+      expect(pagesInput.pages[1].pageType).toBe('auth')
 
       expect(pagesInput.shared.message).toBe('build a CRM')
       expect(pagesInput.shared.styleContext).toBe('Container: max-w-6xl')
+      // routeNote still shows ALL planned routes — they're already on disk
+      // so per-page generation should be aware of the full nav.
       expect(pagesInput.shared.routeNote).toContain('/')
       expect(pagesInput.shared.routeNote).toContain('/leads')
       expect(pagesInput.shared.routeNote).toContain('/login')
       expect(pagesInput.shared.alignmentNote).toContain('ALIGNMENT')
+    })
+
+    it('skips pages-input.json entirely when only the anchor is planned (single-page app)', async () => {
+      // One-page plan → after dropping the anchor, nothing remains to write.
+      // pages-input.json is omitted; page phase has nothing to drive.
+      await seedUpstreamArtifacts([{ id: 'home', name: 'Home', route: '/' }])
+      await createComponentsPhase().ingest(JSON.stringify({ requests: [] }), { session: store, sessionId })
+
+      const raw = await store.readArtifact(sessionId, 'pages-input.json')
+      expect(raw).toBeNull()
     })
 
     it('skips pages-input.json when plan.json is missing (upstream broken)', async () => {

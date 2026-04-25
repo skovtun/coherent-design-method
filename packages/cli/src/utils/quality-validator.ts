@@ -2446,6 +2446,32 @@ export function formatIssues(issues: QualityIssue[]): string {
   return lines.join('\n')
 }
 
+/**
+ * One-line summary of quality issues for streaming chat output. Aggregates
+ * by severity and inlines the unique rule types so the user knows what's
+ * flagged without a multi-line block per page. Returns empty string when
+ * there are no issues — caller should branch on truthiness.
+ *
+ * Example: `1 warning [NO_EMPTY_STATE] · 2 hints [SM_BREAKPOINT, INLINE_MOCK_DATA]`
+ */
+export function summarizeIssuesCompact(issues: QualityIssue[]): string {
+  if (issues.length === 0) return ''
+  const errors = issues.filter(i => i.severity === 'error')
+  const warnings = issues.filter(i => i.severity === 'warning')
+  const infos = issues.filter(i => i.severity === 'info')
+
+  const parts: string[] = []
+  const fmt = (label: string, list: QualityIssue[]) => {
+    if (list.length === 0) return
+    const types = [...new Set(list.map(i => i.type))]
+    parts.push(`${list.length} ${label} [${types.join(', ')}]`)
+  }
+  fmt(errors.length === 1 ? 'error' : 'errors', errors)
+  fmt(warnings.length === 1 ? 'warning' : 'warnings', warnings)
+  fmt(infos.length === 1 ? 'hint' : 'hints', infos)
+  return parts.join(' · ')
+}
+
 // ============================================================================
 // DESIGN SYSTEM CONSISTENCY
 // ============================================================================

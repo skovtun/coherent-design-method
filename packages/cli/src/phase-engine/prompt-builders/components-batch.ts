@@ -15,6 +15,15 @@ export function buildComponentsBatchPrompt(
   sharedComponents: ArchitecturePlan['sharedComponents'],
   styleContext: string,
 ): string {
+  // No-shared-components fast path: emit a one-line prompt instead of the
+  // full constraint bundle. Claude reads ~30 tokens, writes ~5 tokens,
+  // saves ~3-4K tokens of context window vs the full prompt that always
+  // resolves to `{requests: []}` anyway. Skill-rail-only optimization —
+  // chat rail doesn't go through this builder.
+  if (sharedComponents.length === 0) {
+    return `No shared components to generate. Return: { "requests": [] }`
+  }
+
   const componentSpecs = sharedComponents
     .map(
       c =>

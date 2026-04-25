@@ -2,12 +2,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import {
-  COHERENT_GENERATE_SKILL_BODY,
-  readSkillProtocol,
-  writeClaudeCommands,
-  writeClaudeSkills,
-} from './claude-code.js'
+import { COHERENT_CHAT_SKILL_BODY, readSkillProtocol, writeClaudeCommands, writeClaudeSkills } from './claude-code.js'
 import { PHASE_ENGINE_PROTOCOL } from '../phase-engine/phase-registry.js'
 
 describe('writeClaudeSkills', () => {
@@ -18,31 +13,33 @@ describe('writeClaudeSkills', () => {
     }
   })
 
-  it('writes three skills: coherent-project, frontend-ux, coherent-generate', () => {
+  it('writes two skills: frontend-ux, coherent-chat', () => {
     projectRoot = mkdtempSync(join(tmpdir(), 'coherent-claude-code-'))
     writeClaudeSkills(projectRoot)
 
     const skillsRoot = join(projectRoot, '.claude', 'skills')
-    expect(existsSync(join(skillsRoot, 'coherent-project', 'SKILL.md'))).toBe(true)
     expect(existsSync(join(skillsRoot, 'frontend-ux', 'SKILL.md'))).toBe(true)
-    expect(existsSync(join(skillsRoot, 'coherent-generate', 'SKILL.md'))).toBe(true)
+    expect(existsSync(join(skillsRoot, 'coherent-chat', 'SKILL.md'))).toBe(true)
+    // Legacy skills must be cleaned up on refresh.
+    expect(existsSync(join(skillsRoot, 'coherent-project'))).toBe(false)
+    expect(existsSync(join(skillsRoot, 'coherent-generate'))).toBe(false)
   })
 
   it('orchestrator skill markdown has correct frontmatter', () => {
     projectRoot = mkdtempSync(join(tmpdir(), 'coherent-claude-code-'))
     writeClaudeSkills(projectRoot)
 
-    const body = readFileSync(join(projectRoot, '.claude', 'skills', 'coherent-generate', 'SKILL.md'), 'utf-8')
+    const body = readFileSync(join(projectRoot, '.claude', 'skills', 'coherent-chat', 'SKILL.md'), 'utf-8')
     expect(body.startsWith('---\n')).toBe(true)
-    expect(body).toMatch(/^name: coherent-generate$/m)
-    expect(body).toMatch(/^description:.*phase-engine.*$/m)
+    expect(body).toMatch(/^name: coherent-chat$/m)
+    expect(body).toMatch(/^description:.*Coherent Design Method.*$/m)
   })
 
   it('orchestrator skill references all 6 phase-engine CLI invocations', () => {
     projectRoot = mkdtempSync(join(tmpdir(), 'coherent-claude-code-'))
     writeClaudeSkills(projectRoot)
 
-    const body = readFileSync(join(projectRoot, '.claude', 'skills', 'coherent-generate', 'SKILL.md'), 'utf-8')
+    const body = readFileSync(join(projectRoot, '.claude', 'skills', 'coherent-chat', 'SKILL.md'), 'utf-8')
 
     // Lifecycle
     expect(body).toMatch(/coherent session start/)
@@ -70,7 +67,7 @@ describe('writeClaudeSkills', () => {
     projectRoot = mkdtempSync(join(tmpdir(), 'coherent-claude-code-'))
     writeClaudeSkills(projectRoot)
 
-    const body = readFileSync(join(projectRoot, '.claude', 'skills', 'coherent-generate', 'SKILL.md'), 'utf-8')
+    const body = readFileSync(join(projectRoot, '.claude', 'skills', 'coherent-chat', 'SKILL.md'), 'utf-8')
 
     const order = ['session start', 'plan', 'anchor', 'extract-style', 'components', 'page', 'session end']
     let lastIndex = -1
@@ -84,7 +81,7 @@ describe('writeClaudeSkills', () => {
 
 describe('skill-markdown protocol embed (R5)', () => {
   it('declares phase_engine_protocol in frontmatter', () => {
-    expect(COHERENT_GENERATE_SKILL_BODY).toMatch(
+    expect(COHERENT_CHAT_SKILL_BODY).toMatch(
       new RegExp(`^phase_engine_protocol:\\s*${PHASE_ENGINE_PROTOCOL}\\s*$`, 'm'),
     )
   })
@@ -92,7 +89,7 @@ describe('skill-markdown protocol embed (R5)', () => {
   it('every `coherent _phase` invocation carries --protocol <N>', () => {
     // Strip backtick-fenced lines that document the flag contract (so we
     // only inspect actual bash invocations, not the explanatory prose).
-    const invocations = COHERENT_GENERATE_SKILL_BODY.split('\n').filter(line => /^coherent _phase /.test(line.trim()))
+    const invocations = COHERENT_CHAT_SKILL_BODY.split('\n').filter(line => /^coherent _phase /.test(line.trim()))
     expect(invocations.length, 'expected at least one _phase invocation').toBeGreaterThan(0)
 
     const missing = invocations.filter(line => !new RegExp(`--protocol\\s+${PHASE_ENGINE_PROTOCOL}\\b`).test(line))
@@ -100,7 +97,7 @@ describe('skill-markdown protocol embed (R5)', () => {
   })
 
   it('readSkillProtocol parses a well-formed frontmatter value', () => {
-    expect(readSkillProtocol(COHERENT_GENERATE_SKILL_BODY)).toBe(PHASE_ENGINE_PROTOCOL)
+    expect(readSkillProtocol(COHERENT_CHAT_SKILL_BODY)).toBe(PHASE_ENGINE_PROTOCOL)
   })
 
   it('readSkillProtocol returns null when frontmatter lacks the key', () => {
@@ -112,7 +109,7 @@ describe('skill-markdown protocol embed (R5)', () => {
   })
 })
 
-describe('slash command coherent-generate (codex R3 P1 #7)', () => {
+describe('slash command coherent-chat (codex R3 P1 #7)', () => {
   let projectRoot: string
   afterEach(() => {
     if (projectRoot && existsSync(projectRoot)) {
@@ -123,7 +120,7 @@ describe('slash command coherent-generate (codex R3 P1 #7)', () => {
   function readCommand(): string {
     projectRoot = mkdtempSync(join(tmpdir(), 'coherent-claude-code-'))
     writeClaudeCommands(projectRoot)
-    return readFileSync(join(projectRoot, '.claude', 'commands', 'coherent-generate.md'), 'utf-8')
+    return readFileSync(join(projectRoot, '.claude', 'commands', 'coherent-chat.md'), 'utf-8')
   }
 
   it('drives the new phase-engine rail, not the legacy `coherent prompt` flow', () => {
@@ -139,11 +136,18 @@ describe('slash command coherent-generate (codex R3 P1 #7)', () => {
 
   it('allowed-tools grant the new-rail CLI subcommands', () => {
     const body = readCommand()
-    expect(body).toMatch(/allowed-tools:.*coherent session/)
-    expect(body).toMatch(/allowed-tools:.*coherent _phase/)
+    // Single broad `coherent *` pattern covers `coherent session`,
+    // `coherent _phase`, `coherent check`, `coherent fix` — and most
+    // importantly, also matches when Claude Code occasionally chains a
+    // pipe or redirection. Earlier per-subcommand patterns gated every
+    // step behind a "Do you want to proceed?" prompt because the matcher
+    // takes the full command string literally.
+    expect(body).toMatch(/allowed-tools:.*Bash\(coherent \*\)/)
     // No longer needs direct Write for TSX files — session end does that.
     // Still grants Read (for session/plan.json inspection) and Write (for
     // response-file piping) — both retained.
+    expect(body).toMatch(/allowed-tools:.*Read/)
+    expect(body).toMatch(/allowed-tools:.*Write/)
   })
 
   it('every `coherent _phase` call carries --protocol <N>', () => {
@@ -165,18 +169,18 @@ describe('writeClaudeSkills refresh notice (R5)', () => {
 
   it('logs a refresh notice when existing markdown declares an older protocol', () => {
     projectRoot = mkdtempSync(join(tmpdir(), 'coherent-claude-code-'))
-    const dirGenerate = join(projectRoot, '.claude', 'skills', 'coherent-generate')
-    mkdirSync(dirGenerate, { recursive: true })
+    const dirChat = join(projectRoot, '.claude', 'skills', 'coherent-chat')
+    mkdirSync(dirChat, { recursive: true })
     const older = PHASE_ENGINE_PROTOCOL - 1
     writeFileSync(
-      join(dirGenerate, 'SKILL.md'),
-      `---\nname: coherent-generate\nphase_engine_protocol: ${older}\n---\n`,
+      join(dirChat, 'SKILL.md'),
+      `---\nname: coherent-chat\nphase_engine_protocol: ${older}\n---\n`,
       'utf-8',
     )
 
     const log = vi.spyOn(console, 'log').mockImplementation(() => {})
     writeClaudeSkills(projectRoot)
-    const notices = log.mock.calls.map(call => call.join(' ')).filter(msg => /Refreshing coherent-generate/.test(msg))
+    const notices = log.mock.calls.map(call => call.join(' ')).filter(msg => /Refreshing coherent-chat/.test(msg))
     log.mockRestore()
 
     expect(notices.length).toBe(1)
@@ -197,5 +201,22 @@ describe('writeClaudeSkills refresh notice (R5)', () => {
 
     expect(firstBatch).toEqual([])
     expect(secondBatch).toEqual([])
+  })
+
+  it('cleans up legacy coherent-project and coherent-generate skill directories', () => {
+    projectRoot = mkdtempSync(join(tmpdir(), 'coherent-claude-code-'))
+    const skillsRoot = join(projectRoot, '.claude', 'skills')
+    mkdirSync(join(skillsRoot, 'coherent-project'), { recursive: true })
+    writeFileSync(join(skillsRoot, 'coherent-project', 'SKILL.md'), 'stale', 'utf-8')
+    mkdirSync(join(skillsRoot, 'coherent-generate'), { recursive: true })
+    writeFileSync(join(skillsRoot, 'coherent-generate', 'SKILL.md'), 'stale', 'utf-8')
+    mkdirSync(join(projectRoot, '.claude', 'commands'), { recursive: true })
+    writeFileSync(join(projectRoot, '.claude', 'commands', 'coherent-generate.md'), 'stale', 'utf-8')
+
+    writeClaudeSkills(projectRoot)
+
+    expect(existsSync(join(skillsRoot, 'coherent-project'))).toBe(false)
+    expect(existsSync(join(skillsRoot, 'coherent-generate'))).toBe(false)
+    expect(existsSync(join(projectRoot, '.claude', 'commands', 'coherent-generate.md'))).toBe(false)
   })
 })

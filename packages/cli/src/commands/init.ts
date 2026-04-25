@@ -9,6 +9,7 @@
 
 import chalk from 'chalk'
 import ora from 'ora'
+import prompts from 'prompts'
 import { existsSync, readFileSync, mkdirSync, rmSync, writeFileSync } from 'fs'
 import { basename, join } from 'path'
 import { execSync, spawn } from 'child_process'
@@ -53,10 +54,16 @@ function printInitHeader(version: string): void {
   const logoTopPlain = '██ ▒▒'
   const logoBotPlain = '▒▒ ██'
 
-  if (cols < 60) {
+  // Non-TTY (Claude Code's Bash tool, CI, piped output) gets a single-line
+  // header. The boxed banner relies on stable Unicode box-drawing alignment
+  // and a fixed column count — both of which break in buffered/captured
+  // output displays. Top-tier CLIs (Vite/Bun/shadcn) start with a one-liner
+  // anyway; we only earn the box when there's a real terminal raster.
+  if (!process.stdout.isTTY || cols < 60) {
     console.log('')
-    console.log(`  ${chalk.blue('██')} ${chalk.blue.dim('▒▒')}  ${chalk.bold('Coherent')} ${chalk.dim('v' + version)}`)
-    console.log(`  ${chalk.blue.dim('▒▒')} ${chalk.blue('██')}  ${chalk.blue('Describe an app. Get a product.')}`)
+    console.log(
+      `  ${chalk.bold('Coherent')} ${chalk.dim('v' + version)}  ${chalk.dim('— Describe an app. Get a product.')}`,
+    )
     console.log('')
     return
   }
@@ -339,6 +346,11 @@ export const config = ${jsonString} as const
  *   - Claude Code detected (`.claude/` in repo) → skill CTA is reachable.
  *   - API key already in env → chat CTA is reachable.
  * If both reachable, show both. If only one, show only that one.
+ *
+ * For the no-flag, no-key case we now prompt interactively in `initCommand`
+ * (see `promptForMode`) — this resolver is the synchronous fallback / auto-
+ * decide path used when prompting is impossible (CI, non-TTY) or the user
+ * passed an explicit flag.
  */
 export function resolveInitMode(
   options: InitOptions,
@@ -350,6 +362,50 @@ export function resolveInitMode(
   if (signals.hasClaudeCode && signals.hasApiKey) return 'both'
   if (signals.hasClaudeCode) return 'skill'
   return 'api'
+}
+
+/**
+ * Interactive picker shown when neither flag nor env key gives us a clear
+ * answer. We always offer all three options regardless of detection — even a
+ * Claude Code user might want API mode for CI / scripts / batch generation,
+ * and an API user might still want the skill installed for ad-hoc Claude Code
+ * sessions later. Default cursor lands on the cheapest path: skill if Claude
+ * Code is detected (free with subscription), api otherwise.
+ *
+ * Returns the auto-decide value when prompts is suppressed (non-TTY / CI) so
+ * `coherent init` never hangs in scripted contexts.
+ */
+async function promptForMode(hasClaudeCode: boolean): Promise<SuccessMode> {
+  const fallback: SuccessMode = hasClaudeCode ? 'skill' : 'api'
+  if (!process.stdout.isTTY) return fallback
+
+  const response = await prompts(
+    {
+      type: 'select',
+      name: 'mode',
+      message: 'How do you want to drive Coherent?',
+      choices: [
+        {
+          title: 'Claude Code skill — no API key (free with Claude subscription)',
+          value: 'skill',
+          description: 'Generation runs inside Claude Code via /coherent-chat',
+        },
+        {
+          title: 'CLI with API key — Anthropic or OpenAI (pay per call)',
+          value: 'api',
+          description: 'Generation runs from your terminal via `coherent chat "..."`',
+        },
+        {
+          title: 'Both — set up API key, also install the Claude Code skill',
+          value: 'both',
+          description: 'Useful if you might use either path or run CI/scripts',
+        },
+      ],
+      initial: hasClaudeCode ? 0 : 1,
+    },
+    { onCancel: () => process.exit(0) },
+  )
+  return (response.mode as SuccessMode | undefined) ?? fallback
 }
 
 export async function initCommand(name?: string, options: InitOptions = {}) {
@@ -379,13 +435,13 @@ export async function initCommand(name?: string, options: InitOptions = {}) {
       if (err?.code === 'ENOENT' || err?.message === 'ENOENT') {
         console.error(chalk.red('\n❌ Current directory is not accessible.\n'))
         console.log(chalk.dim('The directory may have been deleted or moved.'))
-        console.log(chalk.cyan('\n💡 Fix:'))
-        console.log(chalk.white('   1. Open a new terminal'))
-        console.log(chalk.white('   2. Go to a valid directory:'))
-        console.log(chalk.yellow('      $ cd ~'))
-        console.log(chalk.yellow('      $ mkdir my-project && cd my-project'))
-        console.log(chalk.white('   3. Run:'))
-        console.log(chalk.yellow('      $ coherent init\n'))
+        console.log(chalk.bold('\n  Fix:'))
+        console.log(chalk.dim('    1. Open a new terminal'))
+        console.log(chalk.dim('    2. Go to a valid directory:'))
+        console.log('       ' + chalk.green('cd ~'))
+        console.log('       ' + chalk.green('mkdir my-project && cd my-project'))
+        console.log(chalk.dim('    3. Run:'))
+        console.log('       ' + chalk.green('coherent init') + '\n')
         process.exit(1)
       }
       throw err
@@ -397,22 +453,19 @@ export async function initCommand(name?: string, options: InitOptions = {}) {
 
     // Step 1: Check if already initialized
     if (await fileExistsAsync('./design-system.config.ts')) {
-      console.log(chalk.green('\n✨ Project already initialized!\n'))
-      console.log('Your Coherent design system is ready at:')
-      console.log(chalk.cyan('📁 ./design-system.config.ts\n'))
-      console.log(chalk.cyan('🚀 What you can do now:\n'))
-      console.log(chalk.white('   1. Continue building:'))
-      console.log(chalk.yellow('      $ coherent chat "add a dashboard page"'))
-      console.log(chalk.yellow('      $ coherent chat "make buttons rounded"\n'))
-      console.log(chalk.white('   2. Start dev server:'))
-      console.log(chalk.yellow('      $ npm run dev'))
-      console.log(chalk.gray('      → Preview at http://localhost:3000\n'))
-      console.log(chalk.white('   3. Deploy to production:'))
-      console.log(chalk.yellow('      $ coherent export\n'))
-      console.log(chalk.cyan('💡 Want to start fresh?'))
-      console.log(chalk.yellow('   $ rm design-system.config.ts'))
-      console.log(chalk.yellow('   $ coherent init\n'))
-      console.log(chalk.blue('📖 Learn more: https://github.com/skovtun/coherent-design-method\n'))
+      console.log(`\n  ${chalk.magenta('✨ Project already initialized')}\n`)
+      console.log(chalk.dim('  Config: ') + './design-system.config.ts\n')
+      console.log(chalk.bold('  Continue building:'))
+      console.log('    ' + chalk.green('coherent chat "add a dashboard page"'))
+      console.log('    ' + chalk.green('coherent chat "make buttons rounded"') + '\n')
+      console.log(chalk.bold('  Preview:'))
+      console.log('    ' + chalk.green('coherent preview') + chalk.dim('   → http://localhost:3000') + '\n')
+      console.log(chalk.bold('  Ship it:'))
+      console.log('    ' + chalk.green('coherent export') + '\n')
+      console.log(chalk.dim('  Start fresh: ') + chalk.green('rm design-system.config.ts && coherent init'))
+      console.log(
+        chalk.dim('  Docs: ') + chalk.dim.underline('https://github.com/skovtun/coherent-design-method') + '\n',
+      )
       process.exit(0)
     }
 
@@ -458,7 +511,7 @@ export async function initCommand(name?: string, options: InitOptions = {}) {
     // Compute the welcome-page mode EARLY (user-level detection only, since
     // project-level detectEditors runs on the scaffolded tree which doesn't
     // exist yet). Passed into generateWelcomeComponent so the scaffolded home
-    // page shows `/coherent-generate` or `coherent chat` in its step examples
+    // page shows `/coherent-chat` or `coherent chat` in its step examples
     // to match the user's actual path — otherwise API-mode users would see
     // slash commands they can't run.
     const welcomeMode = resolveInitMode(options, {
@@ -597,7 +650,23 @@ export default config
     // the final answer. Previously we auto-detected AFTER the API key
     // prompt fired, so the skill flow was unreachable in practice (codex
     // R2 P1 #4).
-    const resolvedMode = resolveInitMode(options, { hasClaudeCode, hasApiKey: hasApiKey() })
+    //
+    // Decision tree:
+    //   1. Explicit flag (`--skill-mode` / `--api-mode` / `--both`) wins — no prompt.
+    //   2. API key already in env / .env — auto-pick based on Claude Code signal.
+    //   3. Otherwise — ask the user. Skill is only "free" when Claude Code is
+    //      installed AND the user wants to drive it from there; many users
+    //      have Claude Code but want API for CI / scripts / batch. Asking is
+    //      more honest than silently defaulting to skill.
+    const flagPassed = options.skillMode || options.apiMode || options.both
+    const keyPresent = hasApiKey()
+    const resolvedMode: SuccessMode = flagPassed
+      ? resolveInitMode(options, { hasClaudeCode, hasApiKey: keyPresent })
+      : keyPresent
+        ? hasClaudeCode
+          ? 'both'
+          : 'api'
+        : await promptForMode(hasClaudeCode)
 
     // API key setup. Skip the prompt entirely for skill mode — the whole
     // point of the no-key flow is that the user doesn't need one. Both /

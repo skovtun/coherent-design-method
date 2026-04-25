@@ -35,59 +35,16 @@ export interface PostGenerationReportOpts {
 }
 
 export function printPostGenerationReport(opts: PostGenerationReportOpts): void {
-  const {
-    action,
-    pageTitle,
-    filePath,
-    code,
-    route,
-    postFixes = [],
-    layoutShared = [],
-    allShared = [],
-    groupLayout,
-  } = opts
-  const uiComponents = extractImportsFrom(code, '@/components/ui')
-  const sharedImportNames = extractImportsFrom(code, '@/components/shared/')
-  const inCodeShared = allShared.filter(s => sharedImportNames.some(n => n === s.name))
-  const iconCount = extractImportsFrom(code, 'lucide-react').length
-  const hasInstalled = postFixes.some(f => f.startsWith('Installed:'))
-  const syntaxStatus =
-    postFixes.length > 0
-      ? postFixes.some(f => f.includes('metadata'))
-        ? 'fixed (escaped metadata quotes) ✔'
-        : 'fixed ✔'
-      : 'valid ✔'
-
-  console.log(chalk.green(`\n✅ Page "${pageTitle}" ${action} at ${filePath}\n`))
-  if (uiComponents.length > 0) {
-    console.log(chalk.dim(`  Components:  ${uiComponents.join(', ')} (from @/components/ui)`))
-  }
-  if (inCodeShared.length > 0) {
-    console.log(chalk.dim(`  Shared:      ${inCodeShared.map(s => `${s.id} (${s.name})`).join(', ')}`))
-  }
-  const isAuthPage =
-    route &&
-    (/^\/(login|signin|signup|register|forgot-password|reset-password)\b/.test(route) || filePath.includes('(auth)'))
-  const isSidebarPage = groupLayout === 'sidebar' || filePath.includes('(app)')
-  const filteredLayout = isAuthPage
-    ? []
-    : isSidebarPage
-      ? layoutShared.filter(l => /sidebar/i.test(l.name))
-      : layoutShared
-  if (filteredLayout.length > 0) {
-    console.log(chalk.dim(`  Layout:      ${filteredLayout.map(l => `${l.id} (${l.name})`).join(', ')} via layout.tsx`))
-  }
-  if (iconCount > 0) {
-    console.log(chalk.dim(`  Icons:       ${iconCount} from lucide-react`))
-  }
-  if (hasInstalled) {
-    console.log(chalk.dim('  Dependencies: installed ✔'))
-  }
-  console.log(chalk.dim(`  Syntax:      ${syntaxStatus}`))
-  if (route) {
-    console.log(chalk.cyan(`\n  Preview: http://localhost:3000${route}`))
-  }
-  console.log('')
+  // Compact one-liner per page. Components/Icons/Shared/Layout/Syntax/Preview
+  // were noise — the manifest, the imports in the file, and the lack of an
+  // error already convey them. Everything important rides on the same line:
+  // verb glyph, page name, route, and an optional fix count when auto-fix
+  // touched the output.
+  const { action, pageTitle, route, postFixes = [] } = opts
+  const verb = action === 'created' ? '✓' : '↻'
+  const routePart = route ? `  ${chalk.dim(route)}` : ''
+  const fixPart = postFixes.length > 0 ? chalk.dim(`  ↻ ${postFixes.length} auto-fix`) : ''
+  console.log(`  ${chalk.green(verb)} ${chalk.white(pageTitle)}${routePart}${fixPart}`)
 }
 
 export function printSharedComponentReport(opts: {
@@ -97,16 +54,9 @@ export function printSharedComponentReport(opts: {
   instruction?: string
   postFixes?: string[]
 }): void {
-  const { id, name, file, instruction, postFixes = [] } = opts
-  const syntaxStatus = postFixes.length > 0 ? 'fixed ✔' : 'valid ✔'
-  console.log(chalk.green(`\n✅ Updated ${id} (${name}) at ${file}\n`))
-  if (instruction) {
-    const snippet = instruction.length > 60 ? instruction.slice(0, 57) + '...' : instruction
-    console.log(chalk.dim(`  Changed:     ${snippet}`))
-  }
-  console.log(chalk.dim('  Affects:    all pages via layout.tsx'))
-  console.log(chalk.dim(`  Syntax:     ${syntaxStatus}`))
-  console.log('')
+  const { id, name, file, postFixes = [] } = opts
+  const fixPart = postFixes.length > 0 ? chalk.dim(`  ↻ ${postFixes.length} auto-fix`) : ''
+  console.log(`  ${chalk.green('↻')} ${chalk.white(`${id} ${name}`)}  ${chalk.dim(file)}${fixPart}`)
 }
 
 export function printLinkSharedReport(opts: {
@@ -116,12 +66,11 @@ export function printLinkSharedReport(opts: {
   route: string
   postFixes?: string[]
 }): void {
-  const { sharedId, sharedName, pageTarget, route, postFixes = [] } = opts
-  const syntaxStatus = postFixes.length > 0 ? 'fixed ✔' : 'valid ✔'
-  console.log(chalk.green(`\n✅ Linked ${sharedId} (${sharedName}) to page "${pageTarget}"\n`))
-  console.log(chalk.dim(`  Syntax:     ${syntaxStatus}`))
-  console.log(chalk.cyan(`  Preview: http://localhost:3000${route}`))
-  console.log('')
+  const { sharedId, sharedName, pageTarget, postFixes = [] } = opts
+  const fixPart = postFixes.length > 0 ? chalk.dim(`  ↻ ${postFixes.length} auto-fix`) : ''
+  console.log(
+    `  ${chalk.green('↻')} ${chalk.dim('linked')} ${chalk.white(`${sharedId} ${sharedName}`)} ${chalk.dim('→')} ${chalk.white(pageTarget)}${fixPart}`,
+  )
 }
 
 export function printPromoteAndLinkReport(opts: {
@@ -132,11 +81,10 @@ export function printPromoteAndLinkReport(opts: {
   postFixes?: string[]
 }): void {
   const { id, name, file, usedInFiles, postFixes = [] } = opts
-  const syntaxStatus = postFixes.length > 0 ? 'fixed ✔' : 'valid ✔'
-  console.log(chalk.green(`\n✅ Created ${id} (${name}) at ${file}\n`))
-  console.log(chalk.dim(`  Linked to:  ${usedInFiles.length} page(s)`))
-  console.log(chalk.dim(`  Syntax:     ${syntaxStatus}`))
-  console.log('')
+  const fixPart = postFixes.length > 0 ? chalk.dim(`  ↻ ${postFixes.length} auto-fix`) : ''
+  console.log(
+    `  ${chalk.green('✓')} ${chalk.white(`${id} ${name}`)}  ${chalk.dim(file)}  ${chalk.dim(`(${usedInFiles.length} page${usedInFiles.length === 1 ? '' : 's'})`)}${fixPart}`,
+  )
 }
 
 export function showPreview(
@@ -145,135 +93,50 @@ export function showPreview(
   config: DesignSystemConfig,
   preflightInstalledNames?: string[],
 ): void {
+  // Compact summary. Per-page lines were already streamed during execution
+  // (printPostGenerationReport), and pre-flight component installs were
+  // already streamed in chat.ts, so this block only emits signal the user
+  // couldn't see in the stream: "Modified" entries (token / component / page
+  // edits as opposed to creates), failures, the success count, and a single
+  // "Next: coherent preview" pointer.
   const pairs = requests.map((req, i) => ({ request: req, result: results[i] }))
   const successfulPairs = pairs.filter(({ result }) => result.success)
   const failedPairs = pairs.filter(({ result }) => !result.success)
 
-  const addedPages = successfulPairs.filter(({ request }) => request.type === 'add-page')
-  const addedComponents = successfulPairs.filter(
-    ({ request }) =>
-      request.type === 'add-component' && (request.changes as Record<string, unknown>)?.source === 'shadcn',
+  const modifiedAll = successfulPairs.filter(({ request }) =>
+    ['modify-component', 'modify-layout-block', 'update-page', 'update-token'].includes(request.type),
   )
-  const customComponents = successfulPairs.filter(
-    ({ request }) =>
-      request.type === 'add-component' && (request.changes as Record<string, unknown>)?.source !== 'shadcn',
-  )
-  const modifiedComponents = successfulPairs.filter(({ request }) => request.type === 'modify-component')
-  const modifiedSharedComponents = successfulPairs.filter(({ request }) => request.type === 'modify-layout-block')
-  const modifiedPages = successfulPairs.filter(({ request }) => request.type === 'update-page')
-  const tokenChanges = successfulPairs.filter(({ request }) => request.type === 'update-token')
-
-  console.log(chalk.bold.cyan('\n📋 Changes Applied:\n'))
-
-  if (preflightInstalledNames && preflightInstalledNames.length > 0) {
-    console.log(chalk.cyan('🔍 Pre-flight check: Installed missing components:'))
-    preflightInstalledNames.forEach(name => {
-      console.log(chalk.green(`   ✨ Auto-installed ${name}`))
-    })
+  if (modifiedAll.length > 0) {
     console.log('')
-  }
-
-  if (addedComponents.length > 0) {
-    const names = addedComponents.map(({ request }) => (request.changes as ComponentDefinition).name).filter(Boolean)
-    console.log(chalk.green('📦 Components:'))
-    console.log(chalk.white(`   ✨ Auto-installed: ${names.join(', ')}`))
-  }
-
-  if (customComponents.length > 0) {
-    const names = customComponents.map(({ request }) => (request.changes as ComponentDefinition).name).filter(Boolean)
-    if (addedComponents.length === 0) console.log(chalk.green('📦 Components:'))
-    console.log(chalk.white(`   ✨ Created: ${names.join(', ')}`))
-  }
-
-  const usedComponentIds = new Set<string>()
-  addedPages.forEach(({ request }) => {
-    const page = request.changes as PageDefinition
-    page.sections?.forEach((s: { componentId?: string }) => {
-      if (s.componentId) usedComponentIds.add(s.componentId)
-    })
-  })
-  const newComponentIds = new Set<string>([
-    ...addedComponents.map(({ request }) => (request.changes as ComponentDefinition).id),
-    ...customComponents.map(({ request }) => (request.changes as ComponentDefinition).id),
-  ])
-  const reusedIds = [...usedComponentIds].filter(id => !newComponentIds.has(id))
-
-  if (reusedIds.length > 0) {
-    if (addedComponents.length === 0 && customComponents.length === 0) console.log(chalk.green('📦 Components:'))
-    console.log(chalk.white(`   🔄 Reused: ${reusedIds.join(', ')}`))
-  }
-
-  if (addedComponents.length > 0 || customComponents.length > 0 || reusedIds.length > 0) {
-    console.log('')
-  }
-
-  if (addedPages.length > 0) {
-    console.log(chalk.green('📄 Pages Created:'))
-    addedPages.forEach(({ request }) => {
-      const page = request.changes as PageDefinition
-      const route = page.route || '/'
-      console.log(chalk.white(`   ✨ ${page.name || 'Page'}`))
-      console.log(chalk.gray(`      Route: ${route}`))
-      const configPage = config.pages?.find((p: any) => p.id === page.id || p.route === (page.route || '/'))
-      const sectionCount = (configPage as any)?.pageAnalysis?.sections?.length ?? page.sections?.length ?? 0
-      console.log(chalk.gray(`      Sections: ${sectionCount}`))
-    })
-    console.log('')
-  }
-
-  if (
-    modifiedComponents.length > 0 ||
-    modifiedSharedComponents.length > 0 ||
-    modifiedPages.length > 0 ||
-    tokenChanges.length > 0
-  ) {
-    console.log(chalk.yellow('🔧 Modified:'))
-    modifiedComponents.forEach(({ result }) => {
-      console.log(chalk.white(`   • ${result.message}`))
-    })
-    modifiedSharedComponents.forEach(({ result }) => {
-      console.log(chalk.white(`   • ${result.message}`))
-    })
-    modifiedPages.forEach(({ result }) => {
-      console.log(chalk.white(`   • ${result.message}`))
-    })
-    tokenChanges.forEach(({ result }) => {
-      console.log(chalk.white(`   • ${result.message}`))
-    })
-    console.log('')
+    for (const { result } of modifiedAll) {
+      console.log(`  ${chalk.green('↻')} ${chalk.white(result.message)}`)
+    }
   }
 
   if (failedPairs.length > 0) {
-    console.log(chalk.red('❌ Failed modifications:'))
-    failedPairs.forEach(({ result }) => {
-      console.log(chalk.gray(`   ✖ ${result.message}`))
-    })
     console.log('')
+    for (const { result } of failedPairs) {
+      console.log(`  ${chalk.red('✖')} ${chalk.dim(result.message)}`)
+    }
   }
 
   const successCount = successfulPairs.length
   const totalCount = results.length
+  console.log('')
   if (successCount === totalCount) {
-    console.log(chalk.green.bold(`✅ Success! ${successCount} modification(s) applied\n`))
+    console.log(
+      `  ${chalk.green('✓')} ${chalk.dim(`${successCount} modification${successCount === 1 ? '' : 's'} applied`)}`,
+    )
   } else {
-    console.log(chalk.yellow.bold(`⚠️  Partial success: ${successCount}/${totalCount} modification(s) applied\n`))
+    console.log(`  ${chalk.yellow('⚠')} ${chalk.dim(`${successCount}/${totalCount} modifications applied`)}`)
   }
 
-  if (addedPages.length > 0) {
-    const firstPage = addedPages[0].request.changes as PageDefinition
-    const route = firstPage?.route || '/'
-    console.log(chalk.cyan("🚀 What's next:\n"))
-    console.log(chalk.white('   📺 View in browser:'))
-    console.log(chalk.cyan('      coherent preview'))
-    console.log(chalk.gray(`      → Opens http://localhost:3000${route}\n`))
-    console.log(chalk.white('   🎨 Customize:'))
-    console.log(chalk.cyan('      coherent chat "make buttons rounded"'))
-    console.log(chalk.cyan(`      coherent chat "add hero section to ${firstPage?.name ?? 'page'}"`))
+  // Next: single CTA. The wider command list lives in `coherent --help` —
+  // first-time chat output should not enumerate it.
+  if (successCount > 0) {
     console.log('')
-  } else if (successCount > 0) {
-    console.log(chalk.cyan("🚀 What's next:\n"))
-    console.log(chalk.white('   📺 Preview changes:'))
-    console.log(chalk.cyan('      coherent preview\n'))
+    console.log(chalk.bold('  Next:'))
+    console.log(`    ${chalk.green('coherent preview')}   ${chalk.dim('→ http://localhost:3000')}`)
   }
 }
 

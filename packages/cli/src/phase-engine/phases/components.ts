@@ -129,9 +129,23 @@ async function seedPagesInputFromSessionArtifacts(
   const planInput = JSON.parse(planInputRaw) as PlanInput
   if (plan.pageNames.length === 0) return
 
+  // The first page in plan.pageNames is the anchor — anchor phase has already
+  // generated its full pageCode and emitted `page-<anchorId>.json` (see
+  // anchor.ts ingest). Skipping it from pages-input.json prevents a second
+  // wasted prep cycle that would regenerate the same page from scratch
+  // (codex /codex P2 #3 — skill rail duplicate).
+  const anchorPage = plan.pageNames[0]
+  const pageNamesForGeneration = plan.pageNames.slice(1)
   const routeNote = `EXISTING ROUTES in this project: ${plan.pageNames.map(p => p.route).join(', ')}`
 
-  const pages: PageSpec[] = plan.pageNames.map(p => {
+  // Empty after dropping the anchor — single-page plan, anchor covers it.
+  // Skip writing pages-input.json so page phase has nothing to run.
+  if (pageNamesForGeneration.length === 0) {
+    void anchorPage
+    return
+  }
+
+  const pages: PageSpec[] = pageNamesForGeneration.map(p => {
     const pageType = inferPageTypeFromRoute(p.route)
     return {
       id: p.id,

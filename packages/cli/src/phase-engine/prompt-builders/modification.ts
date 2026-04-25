@@ -21,6 +21,18 @@ export interface BuildModificationPromptOptions {
   reusePlanDirective?: string
   pageSections?: string[]
   projectRoot?: string
+  /**
+   * Caller-known page type. When provided, used directly for the per-page
+   * design-quality block. When absent, falls back to
+   * `inferPageTypeFromRoute(message)` — but the message here is the *full*
+   * inline prompt ("Create ONE page... at route X"), so route inference
+   * almost always returns "app" even for marketing/auth pages, and rules
+   * like marketing-style typography or auth-page centering get dropped.
+   * Skill rail's per-page builder passes this from the plan; chat rail
+   * leaves it off because its message tends to be short enough that route
+   * inference works correctly there.
+   */
+  pageType?: 'marketing' | 'app' | 'auth'
 }
 
 /**
@@ -62,8 +74,10 @@ For editing an existing shared component use type "modify-layout-block" with tar
 
   const designThinking = DESIGN_THINKING
   const coreRules = CORE_CONSTRAINTS
-  // Use type-specific quality rules instead of legacy DESIGN_QUALITY composite
-  const pageType = inferPageTypeFromRoute(message)
+  // Use type-specific quality rules instead of legacy DESIGN_QUALITY composite.
+  // Prefer caller-supplied pageType (skill rail passes it from the plan); fall
+  // back to route inference when absent (chat rail's short-message case).
+  const pageType = options?.pageType ?? inferPageTypeFromRoute(message)
   const designQuality = `${DESIGN_QUALITY_COMMON}\n${getDesignQualityForType(pageType)}`
   const visualDepth = VISUAL_DEPTH
   const contextualRules = selectContextualRules(message, options?.pageSections)
