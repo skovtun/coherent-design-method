@@ -26,8 +26,7 @@
 import type { ModificationRequest } from '@getcoherent/core'
 import type { AiPhase, PhaseContext } from '../phase.js'
 import { buildPagePrompt, type PageSpec, type PagesInputShared } from '../prompt-builders/page.js'
-import { parsePlanResponse } from './plan.js'
-import { pickAddPageRequest } from './anchor.js'
+import { parseAnchorOrPageResponse } from './anchor.js'
 
 /** Input artifact shape. Written by `coherent session start` or by caller. */
 export interface PagesInput {
@@ -101,8 +100,7 @@ export function createPagePhase(pageId: string, options: PagePhaseOptions = {}):
     async ingest(rawResponse: string, ctx: PhaseContext): Promise<void> {
       const input = await loadInput(ctx)
       const spec = assertSpec(input, pageId)
-      const parsed = parsePlanResponse(rawResponse)
-      const request = pickAddPageRequest(parsed)
+      const request = parseAnchorOrPageResponse(rawResponse)
 
       const out: PageArtifact = {
         id: spec.id,

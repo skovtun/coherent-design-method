@@ -87,16 +87,56 @@ session end  (applies all artifacts + writes run record)
 coherent fix    (auto-install shadcn primitives, fix imports, cleanup)
 \`\`\`
 
-## JSON escape rules for response files (read once, follow exactly)
+## Response format per phase (read once, follow exactly)
 
-Response files are JSON. The big trap is escaping the \`pageCode\` string value:
+Each phase's prompt file describes the schema in detail; the rules below are the cross-phase summary.
 
-- Newlines in TSX → write as \`\\n\` (single backslash + n). NOT \`\\\\n\` (double backslash). \`\\\\n\` parses to literal backslash-n in the string, breaks the file.
-- Embedded double quotes → \`\\"\`. NOT \`\\\\"\`.
-- Backticks, single quotes, dollar signs in TSX → no escaping needed in JSON.
-- The JSON string must be on one line. Use \`\\n\` everywhere TSX would have a real newline.
+- **Plan, components** — plain JSON. Match the schema printed in the prompt verbatim.
+- **Anchor, page** — JSON header followed by a \`\`\`tsx fenced block. NO \`pageCode\` string in the JSON. The TSX is read VERBATIM by the CLI parser — no escaping needed.
 
-Quick smell test: if you wrote \`\\\\n\` anywhere in pageCode, you double-escaped. Change to \`\\n\`.
+Anchor and page response shape:
+
+\`\`\`
+{
+  "type": "add-page",
+  "target": "new",
+  "changes": {
+    "id": "balance",
+    "name": "Balance",
+    "route": "/balance",
+    "layout": "centered",
+    ...
+  }
+}
+
+\`\`\`tsx
+import { Card } from "@/components/ui/card"
+export default function BalancePage() {
+  return <div className="space-y-6">...</div>
+}
+\`\`\`
+\`\`\`
+
+DO NOT put \`pageCode\` inside the JSON. Embedded backticks inside template literals or JSX are fine — only a fence-only line at the very end closes the block. This format kills the JSON-escape failure class on long pageCode (M14, PHASE_ENGINE_PROTOCOL=2).
+
+## Skip sentinel
+
+When a \`prep\` Bash output is exactly \`__COHERENT_PHASE_SKIPPED__\` (one line, optional trailing newline), the phase has no AI work to do — it already wrote its output artifact deterministically. **Do NOT Write a response file. Do NOT call \`_phase ingest\` for that phase.** Move on to the next step.
+
+This currently fires on the components phase when the plan has zero shared components.
+
+## Progress reporting
+
+Before each phase's Bash call, print one line so the user sees what's happening:
+
+- \`▸ [1/6] Planning pages…\`
+- \`▸ [2/6] Generating anchor page (Dashboard)…\`
+- \`▸ [3/6] Extracting design tokens…\`
+- \`▸ [4/6] No shared components — skipping\` (when sentinel fires)
+- \`▸ [5/6] Generating /balance, /transactions, /settings in parallel…\`
+- \`▸ [6/6] Applying to disk…\`
+
+One line per phase, plain text. The user reads these between Bash spinners.
 
 ## Steps
 
@@ -152,21 +192,23 @@ Read the prompt, produce the response file, then ingest in a separate Bash call:
 coherent _phase ingest components --session <UUID> --protocol ${PHASE_ENGINE_PROTOCOL} < .coherent/session/<UUID>/components-response.md
 \`\`\`
 
-### 6. Page phase (AI, repeat per page)
+### 6. Page phase (AI, parallel per page)
 
-Read \`.coherent/session/<UUID>/pages-input.json\` and run page phase for **each \`pageId\` in \`pages[].id\`**. The first page in \`plan.pageNames\` is the anchor — it was already generated in step 3 — so \`pages-input.json\` deliberately does NOT include it. Iterate \`pages-input.json\` (not \`plan.json\`) to avoid regenerating the anchor.
+Read \`.coherent/session/<UUID>/pages-input.json\` and run page phase for every \`pageId\` in \`pages[].id\`. The first page in \`plan.pageNames\` is the anchor — generated in step 3 — so \`pages-input.json\` deliberately does NOT include it.
 
-For each page: run prep, then produce the response file, then ingest. Each in its own Bash call — never combine.
+**Run pages in parallel.** All page generations are independent after extract-style. Issue calls in 3 batches of N parallel tool calls per message (cap at 6 per batch for very wide plans):
+
+- **Batch 1 — parallel prep:** one Claude message, N parallel Bash calls, one per page id, each writing to \`page-<id>-prompt.md\`.
+- **Batch 2 — parallel response writes:** read each prompt file, generate the response (JSON header + \`\`\`tsx fence per the format spec above), Write each \`page-<id>-response.md\`. One message, N parallel Write calls.
+- **Batch 3 — parallel ingest:** one message, N parallel Bash calls, each piping its \`page-<id>-response.md\` into \`coherent _phase ingest page:<id>\`.
+
+Example single Bash call within a batch:
 
 \`\`\`bash
-coherent _phase prep page:<pageId> --session <UUID> --protocol ${PHASE_ENGINE_PROTOCOL} > .coherent/session/<UUID>/page-<id>-prompt.md
+coherent _phase prep page:<pageId> --session <UUID> --protocol ${PHASE_ENGINE_PROTOCOL} > .coherent/session/<UUID>/page-<pageId>-prompt.md
 \`\`\`
 
-Then ingest:
-
-\`\`\`bash
-coherent _phase ingest page:<pageId> --session <UUID> --protocol ${PHASE_ENGINE_PROTOCOL} < .coherent/session/<UUID>/page-<id>-response.md
-\`\`\`
+This collapses what would be 12 sequential turns (4 pages × 3 steps) into 3 parallel batches.
 
 ### 7. End the session
 
@@ -266,16 +308,56 @@ session end  (applies all artifacts + writes run record)
 coherent fix    (auto-install shadcn primitives, fix imports, cleanup)
 \`\`\`
 
-## JSON escape rules for response files (read once, follow exactly)
+## Response format per phase (read once, follow exactly)
 
-Response files are JSON. The big trap is escaping the \`pageCode\` string value:
+Each phase's prompt file describes the schema in detail; the rules below are the cross-phase summary.
 
-- Newlines in TSX → write as \`\\n\` (single backslash + n). NOT \`\\\\n\` (double backslash). \`\\\\n\` parses to literal backslash-n in the string, breaks the file.
-- Embedded double quotes → \`\\"\`. NOT \`\\\\"\`.
-- Backticks, single quotes, dollar signs in TSX → no escaping needed in JSON.
-- The JSON string must be on one line. Use \`\\n\` everywhere TSX would have a real newline.
+- **Plan, components** — plain JSON. Match the schema printed in the prompt verbatim.
+- **Anchor, page** — JSON header followed by a \`\`\`tsx fenced block. NO \`pageCode\` string in the JSON. The TSX is read VERBATIM by the CLI parser — no escaping needed.
 
-Quick smell test: if you wrote \`\\\\n\` anywhere in pageCode, you double-escaped. Change to \`\\n\`.
+Anchor and page response shape:
+
+\`\`\`
+{
+  "type": "add-page",
+  "target": "new",
+  "changes": {
+    "id": "balance",
+    "name": "Balance",
+    "route": "/balance",
+    "layout": "centered",
+    ...
+  }
+}
+
+\`\`\`tsx
+import { Card } from "@/components/ui/card"
+export default function BalancePage() {
+  return <div className="space-y-6">...</div>
+}
+\`\`\`
+\`\`\`
+
+DO NOT put \`pageCode\` inside the JSON. Embedded backticks inside template literals or JSX are fine — only a fence-only line at the very end closes the block. This format kills the JSON-escape failure class on long pageCode (M14, PHASE_ENGINE_PROTOCOL=2).
+
+## Skip sentinel
+
+When a \`prep\` Bash output is exactly \`__COHERENT_PHASE_SKIPPED__\` (one line, optional trailing newline), the phase has no AI work to do — it already wrote its output artifact deterministically. **Do NOT Write a response file. Do NOT call \`_phase ingest\` for that phase.** Move on to the next step.
+
+This currently fires on the components phase when the plan has zero shared components.
+
+## Progress reporting
+
+Before each phase's Bash call, print one line so the user sees what's happening:
+
+- \`▸ [1/6] Planning pages…\`
+- \`▸ [2/6] Generating anchor page (Dashboard)…\`
+- \`▸ [3/6] Extracting design tokens…\`
+- \`▸ [4/6] No shared components — skipping\` (when sentinel fires)
+- \`▸ [5/6] Generating /balance, /transactions, /settings in parallel…\`
+- \`▸ [6/6] Applying to disk…\`
+
+One line per phase, plain text. The user reads these between Bash spinners.
 
 ## How to invoke each Bash call (read this once, applies to every step)
 
@@ -353,26 +435,37 @@ Read the prompt, Write the response file, then ingest in a SEPARATE Bash call:
 coherent _phase ingest components --session <UUID> --protocol ${PHASE_ENGINE_PROTOCOL} < .coherent/session/<UUID>/components-response.md
 \`\`\`
 
-### 6. Page phase (AI, repeat per page)
+### 6. Page phase (AI, parallel per page)
 
-Read \`.coherent/session/<UUID>/pages-input.json\` and run page phase for **each
-\`pageId\` in \`pages[].id\`**. The first page in \`plan.pageNames\` is the
-anchor — it was already generated in step 3 (anchor) — so
-\`pages-input.json\` deliberately does NOT include it. Iterate
-\`pages-input.json\` (not \`plan.json\`) to avoid regenerating the anchor.
+Read \`.coherent/session/<UUID>/pages-input.json\` and run page phase for every
+\`pageId\` in \`pages[].id\`. The first page in \`plan.pageNames\` is the
+anchor — generated in step 3 — so \`pages-input.json\` deliberately does NOT
+include it.
 
-For each page: run prep, then Write the response file, then ingest. Each in
-its own separate Bash call — never combine.
+**Run pages in parallel.** Pages are independent after extract-style. Issue
+calls in 3 batches of N parallel tool calls per message (cap at 6 per batch
+for very wide plans):
+
+- **Batch 1 — parallel prep:** one message, N parallel Bash calls, one per
+  page id, each writing to \`page-<id>-prompt.md\`.
+- **Batch 2 — parallel response writes:** read each prompt file, generate
+  the response (JSON header + \`\`\`tsx fence per the format spec above),
+  Write each \`page-<id>-response.md\`. One message, N parallel Write calls.
+- **Batch 3 — parallel ingest:** one message, N parallel Bash calls, each
+  piping its \`page-<id>-response.md\` into \`coherent _phase ingest
+  page:<id>\`.
+
+Example Bash calls within batches (substitute literal page id, e.g. \`page:balance\`):
 
 \`\`\`bash
-coherent _phase prep page:<pageId> --session <UUID> --protocol ${PHASE_ENGINE_PROTOCOL} > .coherent/session/<UUID>/page-<id>-prompt.md
+coherent _phase prep page:<pageId> --session <UUID> --protocol ${PHASE_ENGINE_PROTOCOL} > .coherent/session/<UUID>/page-<pageId>-prompt.md
 \`\`\`
-
-Then:
 
 \`\`\`bash
-coherent _phase ingest page:<pageId> --session <UUID> --protocol ${PHASE_ENGINE_PROTOCOL} < .coherent/session/<UUID>/page-<id>-response.md
+coherent _phase ingest page:<pageId> --session <UUID> --protocol ${PHASE_ENGINE_PROTOCOL} < .coherent/session/<UUID>/page-<pageId>-response.md
 \`\`\`
+
+This collapses 12 sequential turns (4 pages × 3 steps) into 3 parallel batches.
 
 ### 7. End the session
 

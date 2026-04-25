@@ -118,6 +118,75 @@ export function pickAddPageRequest(parsed: Record<string, unknown>): Modificatio
   return requests.find(r => r?.type === 'add-page') ?? null
 }
 
+/**
+ * Parse an anchor- or page-phase response into a ModificationRequest.
+ *
+ * M14 (PHASE_ENGINE_PROTOCOL=2): supports two formats. Tries fenced TSX first;
+ * falls back to legacy JSON-with-pageCode for one release so older skill
+ * markdown still ingests.
+ *
+ * Fenced TSX shape:
+ *
+ *     { "type": "add-page", "target": "new", "changes": { "id": "...", ... } }
+ *
+ *     ```tsx
+ *     import ...
+ *     export default function ...() { ... }
+ *     ```
+ *
+ * Returns null when neither format yields a usable add-page request.
+ *
+ * Lives in anchor.ts (not page.ts) to avoid a circular import — page.ts
+ * already imports `pickAddPageRequest` from here.
+ */
+export function parseAnchorOrPageResponse(rawResponse: string): ModificationRequest | null {
+  const trimmed = rawResponse.trim()
+
+  const fencedMatch = trimmed.match(/^(\{[\s\S]*?\})\s*\n\s*```tsx\s*\n([\s\S]*?)\n```\s*$/)
+  if (fencedMatch) {
+    const headerJson = fencedMatch[1]
+    const tsxBody = fencedMatch[2]
+    try {
+      const header = JSON.parse(headerJson) as Record<string, unknown>
+      let headerRequest: ModificationRequest | null = null
+      if (header.type === 'add-page') {
+        headerRequest = header as unknown as ModificationRequest
+      } else if (Array.isArray(header.requests)) {
+        const found = (header.requests as ModificationRequest[]).find(r => r?.type === 'add-page')
+        if (found) headerRequest = found
+      }
+      if (!headerRequest) return null
+      const headerChanges = (headerRequest.changes as Record<string, unknown> | undefined) ?? {}
+      // When the header was a `{requests: [...]}` envelope, `headerChanges`
+      // holds the inner request's changes. When the header was a flat
+      // add-page object, the top-level header IS the changes-equivalent.
+      const baseChanges = Object.keys(headerChanges).length > 0 ? headerChanges : (header as Record<string, unknown>)
+      const merged: ModificationRequest = {
+        ...headerRequest,
+        type: 'add-page',
+        target: headerRequest.target ?? 'new',
+        changes: {
+          ...baseChanges,
+          pageCode: tsxBody,
+        },
+      }
+      return merged
+    } catch {
+      // Fall through to legacy parse — header JSON was malformed.
+    }
+  }
+
+  // Legacy fallback. parsePlanResponse throws SyntaxError on non-JSON or on
+  // missing closing brace; treat that as "no add-page request available" and
+  // return null instead of bubbling up. The runner can then re-prompt.
+  try {
+    const parsed = parsePlanResponse(rawResponse)
+    return pickAddPageRequest(parsed)
+  } catch {
+    return null
+  }
+}
+
 export function createAnchorPhase(options: AnchorPhaseOptions = {}): AiPhase {
   const inputFile = options.inputArtifact ?? 'anchor-input.json'
   const anchorFile = options.anchorArtifact ?? 'anchor.json'
@@ -187,13 +256,56 @@ export function createAnchorPhase(options: AnchorPhaseOptions = {}): AiPhase {
             detected === 'blog'
           ? 'marketing'
           : 'app'
-      return buildModificationPrompt(directive, input.config, '', { pageType })
+      const wrapped = buildModificationPrompt(directive, input.config, '', { pageType })
+
+      // M14 (PHASE_ENGINE_PROTOCOL=2): append the fenced ```tsx output-format
+      // override. Same trick page.ts uses — kills the JSON-escape failure
+      // class on the long anchor pageCode. Legacy JSON-with-pageCode still
+      // ingests via the fallback in the parser below.
+      const className = (input.homePage.name || 'Anchor').replace(/[^a-zA-Z0-9]/g, '') || 'AnchorPage'
+      return `${wrapped}
+
+## Output format (overrides the pageCode-as-JSON-string instructions above)
+
+Return TWO sections separated by a blank line:
+
+1. **JSON header** — everything about the anchor page EXCEPT the pageCode body:
+
+\`\`\`
+{
+  "type": "add-page",
+  "target": "new",
+  "changes": {
+    "id": "${input.homePage.id ?? 'home'}",
+    "name": "${input.homePage.name}",
+    "route": "${input.homePage.route}",
+    "layout": "centered",
+    "title": "...",
+    "description": "...",
+    "createdAt": "ISO8601",
+    "updatedAt": "ISO8601",
+    "requiresAuth": false,
+    "noIndex": false
+  }
+}
+\`\`\`
+
+2. **TSX body in a \`\`\`tsx fenced block** — raw TSX, no JSON escaping:
+
+\`\`\`tsx
+import { Card } from "@/components/ui/card"
+// ... full page.tsx content, plain TSX, no \\n or \\" escaping
+export default function ${className}() {
+  return <div>...</div>
+}
+\`\`\`
+
+DO NOT put pageCode inside the JSON. The TSX goes in the fenced block ONLY.`
     },
 
     async ingest(rawResponse: string, ctx: PhaseContext): Promise<void> {
       const input = await loadInput(ctx)
-      const parsed = parsePlanResponse(rawResponse)
-      const request = pickAddPageRequest(parsed)
+      const request = parseAnchorOrPageResponse(rawResponse)
       const pageCode =
         request && typeof (request.changes as Record<string, unknown>)?.pageCode === 'string'
           ? ((request.changes as Record<string, unknown>).pageCode as string)

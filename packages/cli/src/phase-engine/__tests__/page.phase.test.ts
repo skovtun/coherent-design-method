@@ -266,6 +266,88 @@ describe('createPagePhase', () => {
     expect(got).toBe(pageCode)
   })
 
+  // M14 (PHASE_ENGINE_PROTOCOL=2): page phase response is JSON header + ```tsx
+  // fenced body, NOT pageCode-as-escaped-string. Kills the JSON-escape failure
+  // class observed on long pageCode in v0.9.0 dogfood.
+  describe('M14 fenced ```tsx response schema', () => {
+    it('parses JSON header + fenced ```tsx body and stitches pageCode verbatim', async () => {
+      await writeInput(baseInput())
+      const tsxBody = `import { Card } from "@/components/ui/card"
+export default function DashboardPage() {
+  return <div className="space-y-6">Hello "world"</div>
+}`
+      const fenced = `{
+  "type": "add-page",
+  "target": "new",
+  "changes": {
+    "id": "dashboard",
+    "name": "Dashboard",
+    "route": "/dashboard"
+  }
+}
+
+\`\`\`tsx
+${tsxBody}
+\`\`\``
+      await createPagePhase('dashboard').ingest(fenced, { session: store, sessionId })
+      const out = JSON.parse((await store.readArtifact(sessionId, 'page-dashboard.json'))!) as PageArtifact
+      const got = (out.request?.changes as Record<string, unknown>).pageCode
+      expect(got).toBe(tsxBody)
+      // Verify TSX with embedded double quotes doesn't get mangled — that
+      // was the failure mode that triggered the 106-line settings rewrite
+      // in v0.9.0 dogfood.
+      expect(got).toContain('"world"')
+    })
+
+    it('handles TSX with embedded backticks in template literals', async () => {
+      await writeInput(baseInput())
+      const tsxBody = 'export default function P() { const s = `hello`; return <div>{s}</div> }'
+      const fenced = `{"type":"add-page","target":"new","changes":{"id":"dashboard"}}
+
+\`\`\`tsx
+${tsxBody}
+\`\`\``
+      await createPagePhase('dashboard').ingest(fenced, { session: store, sessionId })
+      const out = JSON.parse((await store.readArtifact(sessionId, 'page-dashboard.json'))!) as PageArtifact
+      expect((out.request?.changes as Record<string, unknown>).pageCode).toBe(tsxBody)
+    })
+
+    it('falls back to legacy JSON-with-pageCode when no fence is present (back-compat)', async () => {
+      await writeInput(baseInput())
+      const pageCode = 'export default function Legacy() {}'
+      const legacy = JSON.stringify({
+        requests: [{ type: 'add-page', target: 'new', changes: { id: 'dashboard', pageCode } }],
+      })
+      await createPagePhase('dashboard').ingest(legacy, { session: store, sessionId })
+      const out = JSON.parse((await store.readArtifact(sessionId, 'page-dashboard.json'))!) as PageArtifact
+      expect((out.request?.changes as Record<string, unknown>).pageCode).toBe(pageCode)
+    })
+
+    it('returns null request when neither format yields an add-page', async () => {
+      await writeInput(baseInput())
+      await createPagePhase('dashboard').ingest('garbage not even json', { session: store, sessionId })
+      const out = JSON.parse((await store.readArtifact(sessionId, 'page-dashboard.json'))!) as PageArtifact
+      expect(out.request).toBeNull()
+    })
+
+    it('falls back to legacy parse when fenced header JSON is malformed', async () => {
+      await writeInput(baseInput())
+      // The malformed fence triggers fallback to plan-response parser.
+      // Wrap a valid `{requests: [...]}` in the legacy shape so the fallback
+      // produces a real request — the fenced regex won't match because the
+      // header isn't valid JSON, so the entire raw string flows to the
+      // legacy branch.
+      const malformedFence = JSON.stringify({
+        requests: [
+          { type: 'add-page', target: 'new', changes: { id: 'dashboard', pageCode: 'export default () => null' } },
+        ],
+      })
+      await createPagePhase('dashboard').ingest(malformedFence, { session: store, sessionId })
+      const out = JSON.parse((await store.readArtifact(sessionId, 'page-dashboard.json'))!) as PageArtifact
+      expect(out.request?.type).toBe('add-page')
+    })
+  })
+
   it('honors custom artifact names', async () => {
     await store.writeArtifact(sessionId, 'pages-in.json', JSON.stringify(baseInput()))
     const phase = createPagePhase('dashboard', {

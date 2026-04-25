@@ -145,7 +145,7 @@ export function buildPagePrompt(spec: PageSpec, shared: PagesInputShared): strin
     }
   }
 
-  return buildModificationPrompt(enhancedMessage, shared.config, shared.componentRegistry, {
+  const wrappedPrompt = buildModificationPrompt(enhancedMessage, shared.config, shared.componentRegistry, {
     isExpandedPageRequest,
     sharedComponentsSummary: shared.sharedComponentsSummary,
     tieredComponentsPrompt: spec.tieredComponentsPrompt,
@@ -158,4 +158,59 @@ export function buildPagePrompt(spec: PageSpec, shared: PagesInputShared): strin
     // prompt. Codex /codex review P2 #2.
     pageType: spec.pageType,
   })
+
+  // Output-format override for page phase (M14, PHASE_ENGINE_PROTOCOL=2).
+  //
+  // The wrapped prompt above tells Claude to return JSON with `pageCode` as
+  // an escaped string. That's the chat-rail/legacy contract. The skill rail
+  // hits a JSON-escape failure class on long pageCode (the v0.9.0 dogfood
+  // 106-line page-settings retry) — every embedded `\n` or `"` is an
+  // opportunity for the model to double-escape and break JSON.parse.
+  //
+  // For PHASE_ENGINE_PROTOCOL=2 we replace the pageCode-as-string convention
+  // with a JSON header followed by a ```tsx fenced block. The TSX is read
+  // verbatim — no escaping. `phases/page.ts` `parsePageResponse` splits the
+  // fence and stitches the body into `request.changes.pageCode`.
+  //
+  // We APPEND this override at the end so it supersedes the wrapped prompt's
+  // JSON instructions. The model reads the prompt linearly; trailing
+  // instructions win over earlier ones.
+  return `${wrappedPrompt}
+
+## Output format (overrides the pageCode-as-JSON-string instructions above)
+
+Return TWO sections separated by a blank line:
+
+1. **JSON header** — everything about the page EXCEPT the pageCode body:
+
+\`\`\`
+{
+  "type": "add-page",
+  "target": "new",
+  "changes": {
+    "id": "${spec.id}",
+    "name": "${spec.name}",
+    "route": "${spec.route}",
+    "layout": "centered",
+    "title": "...",
+    "description": "...",
+    "createdAt": "ISO8601",
+    "updatedAt": "ISO8601",
+    "requiresAuth": false,
+    "noIndex": false
+  }
+}
+\`\`\`
+
+2. **TSX body in a \`\`\`tsx fenced block** — raw TSX, no JSON escaping:
+
+\`\`\`tsx
+import { Card } from "@/components/ui/card"
+// ... full page.tsx content, plain TSX, no \\n or \\" escaping
+export default function ${spec.name.replace(/[^a-zA-Z0-9]/g, '')}Page() {
+  return <div className="space-y-6">...</div>
+}
+\`\`\`
+
+DO NOT put pageCode inside the JSON. The TSX goes in the fenced block ONLY. This is parsed by the CLI's fenced-tsx splitter; embedded backticks inside template literals or JSX are fine — only a fence-only line at the very end closes the block.`
 }
