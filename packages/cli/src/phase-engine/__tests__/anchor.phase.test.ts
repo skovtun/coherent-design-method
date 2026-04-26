@@ -108,10 +108,14 @@ describe('createAnchorPhase', () => {
     expect(prompt).toContain('site-wide <header>')
   })
 
-  it('prep throws when anchor-input.json missing', async () => {
-    await expect(createAnchorPhase().prep({ session: store, sessionId })).rejects.toThrow(
-      /missing required artifact "anchor-input.json"/,
-    )
+  it('prep emits PHASE_SKIP_SENTINEL when anchor-input.json is missing (v0.11.4)', async () => {
+    // Pre-v0.11.4 this threw — `❌ anchor prep failed: anchor: missing
+    // required artifact "anchor-input.json"`. That was a benign case
+    // (plan emitted only delete-page / update-token requests, no anchor
+    // page needed) but the CLI shouted FAILED at the user. v0.11.4 emits
+    // the skip sentinel cleanly, mirroring the components phase pattern.
+    const result = await createAnchorPhase().prep({ session: store, sessionId })
+    expect(result).toMatch(/__COHERENT_PHASE_SKIPPED__/)
   })
 
   it('prep throws when anchor-input.json is malformed', async () => {

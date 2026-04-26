@@ -152,10 +152,14 @@ describe('createComponentsPhase', () => {
     expect(prompt).toContain('Style context: default')
   })
 
-  it('prep throws when input missing', async () => {
-    await expect(createComponentsPhase().prep({ session: store, sessionId })).rejects.toThrow(
-      /missing required artifact "components-input.json"/,
-    )
+  it('prep emits PHASE_SKIP_SENTINEL when input is missing (v0.11.4)', async () => {
+    // Pre-v0.11.4 this threw → CLI exit 1 → user saw `❌ components
+    // prep failed`. Now: when components-input.json is absent (because
+    // extract-style was skipped because anchor was skipped because plan
+    // had no add-page), prep() emits the skip sentinel cleanly. CLI
+    // exits 0; skill body detects sentinel and skips Write+ingest.
+    const result = await createComponentsPhase().prep({ session: store, sessionId })
+    expect(result).toMatch(/__COHERENT_PHASE_SKIPPED__/)
   })
 
   it('prep throws on malformed input', async () => {
