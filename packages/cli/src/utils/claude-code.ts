@@ -262,16 +262,23 @@ For plan-only sessions (delete-page, update-token, etc.) \`needsFix\` is \`false
 
 ## Completion signal
 
-After step 7 (and step 8 when \`needsFix\`), print ONE final line:
+After step 7 (and step 8 when \`needsFix\`), print ONE final line.
 
-- \`✅ Done. Applied: <comma-separated summary from session end>. Run \\\`coherent preview\\\` to see it.\`
+**Format — no backticks anywhere on this line.** Claude Code renders inline code as gray-on-light text; on the highlighted ✅ Done plate the contrast collapses to invisible (the v0.11.4 dogfood showed "Run \`coherent preview\` to see it" with the command literally unreadable). Use plain text:
 
-The summary comes from the \`session end\` output — read its \`Applied:\` block and condense to a one-liner. Examples:
+> ✅ Done. Applied: <comma-separated summary from session end>. Preview: coherent preview
 
-- Plan-only delete: \`✅ Done. Applied: delete-page Profile. Run \\\`coherent preview\\\` to see it.\`
-- Full add-page: \`✅ Done. Applied: 4 pages, 2 components, layout regen. Run \\\`coherent preview\\\` to see it.\`
+The summary comes from the \`session end\` output — read its \`Applied:\` block and condense to a one-liner. Examples (verbatim, plain text):
 
-If \`session end\` errored (non-zero exit, error in output) — say what failed instead, e.g. \`❌ Session end failed: <error>. Project unchanged. See .coherent/session/<UUID>/ for state.\` Do NOT print the green Done line.
+> ✅ Done. Applied: delete-page Profile. Preview: coherent preview
+
+> ✅ Done. Applied: 4 pages, 2 components, layout regen. Preview: coherent preview
+
+If \`session end\` errored (non-zero exit, error in output) — say what failed instead, plain text:
+
+> ❌ Session end failed: <error message verbatim>. Project unchanged. See .coherent/session/<UUID>/ for state.
+
+Do NOT print the green Done line on failure.
 
 ## Report back
 
@@ -565,16 +572,23 @@ For plan-only sessions (delete-page, update-token, etc.) \`needsFix\` is \`false
 
 ## Completion signal
 
-After step 7 (and step 8 when \`needsFix\`), print ONE final line:
+After step 7 (and step 8 when \`needsFix\`), print ONE final line.
 
-- \`✅ Done. Applied: <comma-separated summary from session end>. Run \\\`coherent preview\\\` to see it.\`
+**Format — no backticks anywhere on this line.** Claude Code renders inline code as gray-on-light text; on the highlighted ✅ Done plate the contrast collapses to invisible (the v0.11.4 dogfood showed "Run \`coherent preview\` to see it" with the command literally unreadable). Use plain text:
 
-The summary comes from the \`session end\` output — read its \`Applied:\` block and condense to a one-liner. Examples:
+> ✅ Done. Applied: <comma-separated summary from session end>. Preview: coherent preview
 
-- Plan-only delete: \`✅ Done. Applied: delete-page Profile. Run \\\`coherent preview\\\` to see it.\`
-- Full add-page: \`✅ Done. Applied: 4 pages, 2 components, layout regen. Run \\\`coherent preview\\\` to see it.\`
+The summary comes from the \`session end\` output — read its \`Applied:\` block and condense to a one-liner. Examples (verbatim, plain text):
 
-If \`session end\` errored (non-zero exit, error in output) — say what failed instead, e.g. \`❌ Session end failed: <error>. Project unchanged. See .coherent/session/<UUID>/ for state.\` Do NOT print the green Done line.
+> ✅ Done. Applied: delete-page Profile. Preview: coherent preview
+
+> ✅ Done. Applied: 4 pages, 2 components, layout regen. Preview: coherent preview
+
+If \`session end\` errored (non-zero exit, error in output) — say what failed instead, plain text:
+
+> ❌ Session end failed: <error message verbatim>. Project unchanged. See .coherent/session/<UUID>/ for state.
+
+Do NOT print the green Done line on failure.
 
 ## Error recovery
 

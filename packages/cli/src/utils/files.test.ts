@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { acquirePersistentLock, releasePersistentLock } from './files.js'
@@ -45,6 +45,64 @@ describe('acquirePersistentLock', () => {
     expect(err.message).toMatch(/Another coherent session is active/)
     expect(err.fix).toMatch(/coherent session end/)
     expect(err.docsUrl).toBe('https://getcoherent.design/errors/E002')
+  })
+
+  it('v0.11.5 — collision fix message includes the active session UUID when one session dir exists', () => {
+    // The skill rail writes one session dir under .coherent/session/<uuid>/
+    // per active session. The lock file itself doesn't carry the UUID, so
+    // pre-v0.11.5 the recovery hint was literal `<uuid>` and the user (or
+    // agent) had to figure out which session was blocking. Now we look up
+    // the dir and bake the actual UUID into the fix message.
+    root = mkdtempSync(join(tmpdir(), 'coherent-lock-uuid-'))
+    const fakeUuid = '4f2adb4a-bec4-4760-a5b5-e67e1bc447b7'
+    mkdirSync(join(root, '.coherent', 'session', fakeUuid), { recursive: true })
+    acquirePersistentLock(root)
+    let caught: CoherentError | null = null
+    try {
+      acquirePersistentLock(root)
+    } catch (e) {
+      caught = e as CoherentError
+    }
+    expect(caught).not.toBeNull()
+    expect(caught!.fix).toContain(`coherent session end ${fakeUuid} --keep`)
+  })
+
+  it('v0.11.5 — fix message picks most-recent session UUID when multiple dirs exist', async () => {
+    root = mkdtempSync(join(tmpdir(), 'coherent-lock-multi-'))
+    const oldUuid = 'old-aaaa-bbbb-cccc-dddddddddddd'
+    const newUuid = 'new-eeee-ffff-aaaa-bbbbbbbbbbbb'
+    mkdirSync(join(root, '.coherent', 'session', oldUuid), { recursive: true })
+    // Sleep 10ms so the second dir has a measurably newer mtime.
+    await new Promise(r => setTimeout(r, 10))
+    mkdirSync(join(root, '.coherent', 'session', newUuid), { recursive: true })
+    acquirePersistentLock(root)
+    let caught: CoherentError | null = null
+    try {
+      acquirePersistentLock(root)
+    } catch (e) {
+      caught = e as CoherentError
+    }
+    expect(caught).not.toBeNull()
+    expect(caught!.fix).toContain(newUuid)
+    expect(caught!.fix).not.toContain(oldUuid)
+  })
+
+  it('v0.11.5 — falls back to <uuid> placeholder when no session dirs exist (orphan lock)', () => {
+    // Edge case: lock file exists but no session dir. User probably
+    // killed the session externally or .coherent/session/ was deleted.
+    // Don't lie about a UUID we don't have — fall back to the original
+    // placeholder + an `ls` hint so the user can confirm.
+    root = mkdtempSync(join(tmpdir(), 'coherent-lock-orphan-'))
+    acquirePersistentLock(root)
+    let caught: CoherentError | null = null
+    try {
+      acquirePersistentLock(root)
+    } catch (e) {
+      caught = e as CoherentError
+    }
+    expect(caught).not.toBeNull()
+    expect(caught!.fix).toContain('<uuid>')
+    expect(caught!.fix).toContain('ls .coherent/session')
   })
 
   it('regression (codex P1 #3): second acquire does NOT reclaim lock when PID is absent', () => {

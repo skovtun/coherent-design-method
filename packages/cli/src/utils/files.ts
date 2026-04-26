@@ -6,7 +6,7 @@
 
 import { readFile as fsReadFile, writeFile as fsWriteFile, mkdir, rename, unlink, copyFile, access } from 'fs/promises'
 import { dirname, join } from 'path'
-import { existsSync, writeFileSync, unlinkSync, readFileSync } from 'fs'
+import { existsSync, readdirSync, statSync, writeFileSync, unlinkSync, readFileSync } from 'fs'
 import { randomBytes } from 'crypto'
 import { COHERENT_ERROR_CODES, CoherentError } from '../errors/index.js'
 
@@ -69,6 +69,59 @@ export async function fileExistsAsync(path: string): Promise<boolean> {
 
 const LOCK_FILENAME = '.coherent.lock'
 const LOCK_STALE_MS = 5 * 60 * 1000
+const SESSION_DIR_REL = '.coherent/session'
+
+/**
+ * v0.11.5 — when the persistent lock is held, surface the actual UUID
+ * of the active session so the recovery command in the error message is
+ * copy-pasteable. The lock file itself doesn't carry the UUID; we look
+ * for live session directories under `.coherent/session/<uuid>/` and
+ * pick the most recently modified one.
+ *
+ * Returns the UUID string when exactly one or more session dirs exist
+ * (most-recent wins on ties — matches how a user would identify "the
+ * session blocking me right now"), or null when no session dirs exist
+ * (orphan lock without a session — user should just delete the lock).
+ *
+ * Best-effort: any FS error returns null, so this never throws into the
+ * lock-acquire error path.
+ */
+function findActiveSessionUuid(projectRoot: string): string | null {
+  try {
+    const sessionRoot = join(projectRoot, SESSION_DIR_REL)
+    if (!existsSync(sessionRoot)) return null
+    const entries = readdirSync(sessionRoot)
+    // UUID dirs only. Skip files, dotfiles, malformed entries.
+    const candidates = entries.filter(name => {
+      if (name.startsWith('.')) return false
+      try {
+        return statSync(join(sessionRoot, name)).isDirectory()
+      } catch {
+        return false
+      }
+    })
+    if (candidates.length === 0) return null
+    if (candidates.length === 1) return candidates[0]
+    // Multiple — return most recent by mtime so the error points at
+    // the one most likely blocking the user right now.
+    let best = candidates[0]
+    let bestMtime = 0
+    for (const name of candidates) {
+      try {
+        const m = statSync(join(sessionRoot, name)).mtimeMs
+        if (m > bestMtime) {
+          best = name
+          bestMtime = m
+        }
+      } catch {
+        /* ignore unreadable */
+      }
+    }
+    return best
+  } catch {
+    return null
+  }
+}
 // Persistent locks outlive the CLI process that acquired them (skill-mode's
 // `coherent session start` exits seconds after writing the lock, but the
 // session can span many minutes or hours between `_phase` calls). 60 min is
@@ -163,12 +216,23 @@ export function acquirePersistentLock(projectRoot: string): void {
       if (data.kind === 'persistent') {
         // Persistent lock held by another session. Staleness = timestamp only.
         if (age < PERSISTENT_LOCK_STALE_MS) {
+          // v0.11.5 — surface the actual active UUID + ready-to-paste
+          // recovery command. Pre-v0.11.5 the fix said "coherent session
+          // end <uuid>" with the literal `<uuid>` placeholder; users had
+          // to know which UUID to use, and the dogfood log on v0.11.4
+          // showed the agent had to manually `ls .coherent/session/` to
+          // figure it out. The lock file itself doesn't store the UUID —
+          // we get it by listing the active session dirs.
+          const activeUuid = findActiveSessionUuid(projectRoot)
+          const recoveryCmd = activeUuid
+            ? `coherent session end ${activeUuid} --keep`
+            : `coherent session end <uuid> --keep   (find <uuid> via: ls .coherent/session)`
           throw new CoherentError({
             code: COHERENT_ERROR_CODES.E002_SESSION_LOCKED,
             message: `Another coherent session is active (lock age: ${Math.round(age / 1000)}s)`,
             cause:
               'Coherent holds a project-wide lock between session start and session end so two runs cannot corrupt shared state.',
-            fix: `Finish the active session with \`coherent session end <uuid>\`, or delete ${LOCK_FILENAME} if the session is abandoned.`,
+            fix: `Run: ${recoveryCmd}\n  (or delete ${LOCK_FILENAME} if you're sure the session is abandoned and you don't need its artifacts.)`,
           })
         }
         // Stale persistent lock: reclaim.
