@@ -159,6 +159,94 @@ describe('slash command coherent-chat (codex R3 P1 #7)', () => {
   })
 })
 
+describe('skill bodies — v0.11.4 session-shape gating (both bodies)', () => {
+  let projectRoot: string
+  afterEach(() => {
+    if (projectRoot && existsSync(projectRoot)) rmSync(projectRoot, { recursive: true, force: true })
+  })
+
+  function readBoth(): { slashCommand: string; installedSkill: string } {
+    projectRoot = mkdtempSync(join(tmpdir(), 'coherent-claude-code-shape-'))
+    writeClaudeCommands(projectRoot)
+    writeClaudeSkills(projectRoot)
+    return {
+      slashCommand: readFileSync(join(projectRoot, '.claude', 'commands', 'coherent-chat.md'), 'utf-8'),
+      installedSkill: readFileSync(join(projectRoot, '.claude', 'skills', 'coherent-chat', 'SKILL.md'), 'utf-8'),
+    }
+  }
+
+  // The dogfood log on v0.11.3 (delete-page Profile) showed two visible
+  // problems the codex audit traced to skill body being hardcoded for the
+  // full add-page flow:
+  //   1. `[1/6]` counter wrong for plan-only (only 2 phases needed)
+  //   2. Anchor prep errored "missing required artifact" — skill agent
+  //      then guessed at runtime what to do.
+  // v0.11.4 ships dynamic gating via session-shape.json. These assertions
+  // catch any future regression to "everything hardcoded for 6 phases."
+
+  it('both bodies tell the orchestrator to read session-shape.json after plan ingest', () => {
+    const { slashCommand, installedSkill } = readBoth()
+    expect(slashCommand).toMatch(/session-shape\.json/)
+    expect(installedSkill).toMatch(/session-shape\.json/)
+  })
+
+  it('both bodies gate steps 3-6 on shape.hasAddPage', () => {
+    const { slashCommand, installedSkill } = readBoth()
+    for (const body of [slashCommand, installedSkill]) {
+      // Anchor + extract-style + components + page each marked with the
+      // "only if hasAddPage" gate. Don't be strict about exact prose
+      // (other UX wording may evolve) — just that the gate is present
+      // for each phase.
+      const gates = (body.match(/only if `?shape\.hasAddPage`?/gi) ?? []).length
+      expect(gates, 'expected gate on each of anchor / extract-style / components / page').toBeGreaterThanOrEqual(4)
+    }
+  })
+
+  it('both bodies gate `coherent fix` on shape.needsFix', () => {
+    const { slashCommand, installedSkill } = readBoth()
+    expect(slashCommand).toMatch(/only if `?shape\.needsFix/i)
+    expect(installedSkill).toMatch(/only if `?shape\.needsFix/i)
+  })
+
+  it('both bodies describe the plan-only fast path with concrete examples', () => {
+    const { slashCommand, installedSkill } = readBoth()
+    for (const body of [slashCommand, installedSkill]) {
+      expect(body).toMatch(/plan-only/i)
+      // The example sequence shape — plan → apply, no anchor / extract /
+      // components / page in between. Caught the v0.11.3 dogfood bug.
+      expect(body).toMatch(/session start.*plan.*session end/s)
+    }
+  })
+
+  it('both bodies describe the structured completion signal', () => {
+    const { slashCommand, installedSkill } = readBoth()
+    for (const body of [slashCommand, installedSkill]) {
+      // The "✅ Done. Applied: ... Run coherent preview ..." signal
+      // structure. Don't pin exact text — just that the recipe + the
+      // failure branch are both documented.
+      expect(body).toMatch(/✅ Done\. Applied:/)
+      expect(body).toMatch(/Run.*coherent preview/i)
+      expect(body).toMatch(/❌ Session end failed/)
+    }
+  })
+
+  it('both bodies still document the skip sentinel for components and now anchor', () => {
+    const { slashCommand, installedSkill } = readBoth()
+    for (const body of [slashCommand, installedSkill]) {
+      expect(body).toMatch(/__COHERENT_PHASE_SKIPPED__/)
+      // The expanded sentinel cases — anchor was added in v0.11.4.
+      expect(body).toMatch(/Anchor.*plan has no/i)
+    }
+  })
+
+  it('both bodies use shape.phases.length for the dynamic counter, not hardcoded 6', () => {
+    const { slashCommand, installedSkill } = readBoth()
+    for (const body of [slashCommand, installedSkill]) {
+      expect(body).toMatch(/shape\.phases\.length/)
+    }
+  })
+})
+
 describe('writeClaudeSkills refresh notice (R5)', () => {
   let projectRoot: string
   afterEach(() => {

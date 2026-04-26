@@ -71,9 +71,16 @@ describe('createExtractStylePhase', () => {
     expect(style.styleContext).toBe('')
   })
 
-  it('throws when anchor artifact is missing', async () => {
+  it('gracefully no-ops when anchor artifact is missing (v0.11.4)', async () => {
+    // Pre-v0.11.4 this threw → CLI exited 1 → user saw `❌ extract-style
+    // run failed`. Plan-only sessions (delete-page, update-token, etc.)
+    // legitimately have no anchor.json because anchor's prep() emitted
+    // PHASE_SKIP_SENTINEL — extract-style following silently no-ops
+    // instead of cascading the failure.
     const phase = createExtractStylePhase()
-    await expect(phase.run({ session: store, sessionId })).rejects.toThrow(/missing required artifact "anchor.json"/)
+    await expect(phase.run({ session: store, sessionId })).resolves.toBeUndefined()
+    // No style artifact was written.
+    expect(await store.readArtifact(sessionId, 'style.json')).toBeNull()
   })
 
   it('throws when anchor artifact has wrong shape', async () => {

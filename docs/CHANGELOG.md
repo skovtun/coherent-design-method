@@ -2,6 +2,56 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.11.4] — 2026-04-25
+
+### Skill-rail orchestration drift — `[1/6]` lies + spurious "Error" lines
+
+v0.11.3 dogfood (`/coherent-chat delete the Profile page`) showed three UX problems even though the underlying applier worked correctly:
+
+1. The skill body printed `▸ [1/6] Planning…` — but plan-only ops only need 2 phases (plan + apply). The hardcoded counter was lying about the workflow shape.
+2. Anchor prep ran unconditionally and exited code 1 with `❌ anchor prep failed: anchor: missing required artifact "anchor-input.json"`. The skill agent then guessed at runtime to skip anchor / extract-style / components — correct guess but it shouldn't be a guess.
+3. No structured "done" signal. Long log, user uncertain if it's safe to run `coherent preview`.
+
+Codex `/codex consult` audit (572k tokens, 2026-04-25) confirmed the same parity-drift class as v0.11.3 — applied to phase-execution coverage instead of request-type coverage. The skill body was hardcoded for the v0.9 full-add-page workflow; nothing communicated session shape from plan ingest down to the orchestrator.
+
+### Added
+
+- **`SessionShape` interface + `computeSessionShape` pure helper (`packages/cli/src/phase-engine/phases/plan.ts`)** — explicit orchestration shape with fields:
+  - `requestTypes: string[]` — sorted unique list (diagnostics + tests)
+  - `hasAddPage: boolean` — gates anchor / extract-style / components / page phases
+  - `hasOnlyNoAiRequests: boolean` — true when every request is in `{delete-page, delete-component, update-token, add-component, modify-component}`; the modification applier handles them deterministically without AI
+  - `phases: SessionPhaseName[]` — explicit ordered list, drives the dynamic `[N/M]` counter
+  - `needsFix: boolean` — gates the post-apply `coherent fix` invocation; for plan-only ops fix is noisy and risks mutating unrelated state
+- **`session-shape.json` artifact** — plan ingest writes it after the requests artifact. Single source of truth for the skill body's branching decisions. Codex audit explicitly recommended a separate artifact (rather than overloading `modification-requests.json`) so applier input and orchestrator input stay cleanly separated.
+
+### Changed
+
+- **Both skill bodies (`packages/cli/src/utils/claude-code.ts`)** updated — slash command body (`COMMANDS['coherent-chat.md']`) and installed body (`COHERENT_CHAT_SKILL_BODY`) now share identical conditional flow:
+  - Read `session-shape.json` after plan ingest (new "Step 2.5" section).
+  - Steps 3–6 (anchor / extract-style / components / page) marked "only if `shape.hasAddPage`".
+  - Step 8 (`coherent fix`) marked "only if `shape.needsFix`".
+  - Progress reporting uses `shape.phases.length` for the `[N/M]` counter, not hardcoded `/6`.
+  - New "Completion signal" section: `✅ Done. Applied: <summary>. Run \`coherent preview\` to see it.` Sourced from session end's `Applied:` block. Failure branch (`❌ Session end failed`) explicitly documented.
+- **Anchor phase (`packages/cli/src/phase-engine/phases/anchor.ts`)** — `prep()` now emits `PHASE_SKIP_SENTINEL` when `anchor-input.json` is missing instead of throwing. CLI exits 0; user no longer sees `❌ anchor prep failed` for what is a benign plan-only flow. Mirrors the components phase pattern from M14.
+- **Extract-style phase (`packages/cli/src/phase-engine/phases/extract-style.ts`)** — `run()` gracefully no-ops when `anchor.json` is missing instead of throwing. Defense-in-depth alongside the new skill body gate.
+- **Components phase (`packages/cli/src/phase-engine/phases/components.ts`)** — `prep()` and `ingest()` tolerate missing `components-input.json` (returns sentinel / no-ops). Same plan-only-flow defense as above.
+
+### For Maintainers
+
+- 19 new tests across `plan.phase.test.ts` (15) and `claude-code.test.ts` (7): SessionShape semantics for empty / plan-only / add-page / hybrid / multi-no-AI / update-navigation / unknown types; plan ingest writes the artifact under custom names + suppression; both skill bodies contain session-shape gating language. Updated 3 existing tests that asserted "throws on missing input" → now "returns sentinel / no-ops". Total: 1527 passing + 9 todo (1536). Up 19 from v0.11.3.
+- The codex audit explicitly flagged that this fix does NOT close the deeper architectural question (continue parity-engine pattern vs collapse skill rail to a thin wrapper over `applyModification`). That question is captured in `docs/plans/2026-04-25-skill-rail-architecture-review.md` for `/plan-eng-review` to evaluate independently.
+
+### Codex audit — what this DOESN'T fix
+
+Per codex's CHANGELOG_HONESTY recommendation:
+
+- AI-dependent request types (`update-page`, `modify-layout-block`, `link-shared`, `promote-and-link`) still hard-fail in skill rail. Need new skill phases to bridge.
+- Shared-component generation in skill mode is still mostly theatrical — `extract-style` seeds `sharedComponents: []` unconditionally so `components` phase rarely produces real output. Full chat-rail parity is M16+ scope.
+- `update-navigation` item-level reorder is still ambiguous (only `nav.type` mutates via `config-delta`).
+- Full add-page post-processing (component install, TS fix-loop, pageAnalysis, duplicate audit) still depends on `coherent fix` running afterward.
+- `coherent fix` itself can mutate unrelated project state (layout files, globals.css). The `needsFix` gate reduces invocation count but doesn't prevent the mutation surface when fix DOES run.
+- 6 architectural drifts from the v0.11.3 codex audit remain open: destructive pre-parser, normalization, validation/autofix coverage, known-routes, manual-edit hash protection, full backup parity.
+
 ## [0.11.3] — 2026-04-25
 
 ### Skill-rail parity audit + modification applier (kills silent partial-apply class)

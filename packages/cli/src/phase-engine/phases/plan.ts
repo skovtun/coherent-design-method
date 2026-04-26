@@ -111,6 +111,106 @@ export interface ConfigDelta {
   name?: string
 }
 
+/**
+ * v0.11.4 — explicit orchestration shape for the skill rail to branch on.
+ *
+ * Pre-v0.11.4 the skill body in `utils/claude-code.ts` was hardcoded for the
+ * full 6-phase add-page workflow. Plan-only ops (delete-page, update-token,
+ * etc.) still went through anchor → extract-style → components → page even
+ * though those phases had nothing to do; anchor errored out with "missing
+ * required artifact 'anchor-input.json'", and the skill agent learned to
+ * recover via runtime guess. That is exactly the parity-drift bug class
+ * codex flagged in the v0.11.3 audit (request-type subset coverage), but
+ * applied to phase-execution coverage instead of request-type coverage.
+ *
+ * `SessionShape` is computed ONCE at plan time and consumed by the skill
+ * body to branch deterministically:
+ *
+ *   - `requestTypes`        — sorted unique list, for diagnostics + tests
+ *   - `hasAddPage`          — true when at least one add-page request lands;
+ *                             gates anchor / extract-style / components /
+ *                             page phases
+ *   - `hasOnlyNoAiRequests` — true when every request is in the no-AI set
+ *                             handled by createModificationApplier; the
+ *                             skill body skips directly to session end
+ *   - `phases`              — explicit ordered list of phases needed for
+ *                             this session, e.g. `['plan', 'apply']` or
+ *                             `['plan', 'anchor', 'extract-style',
+ *                             'components', 'page', 'apply']`. Drives the
+ *                             dynamic `[N/M]` counter in the skill body.
+ *   - `needsFix`            — true when generated TSX or shared components
+ *                             land on disk; gates the post-apply
+ *                             `coherent fix` invocation. For plan-only ops
+ *                             the post-apply fix is noisy and can mutate
+ *                             unrelated state.
+ *
+ * Codex `/codex consult` 2026-04-25 audit flagged that `update-navigation`
+ * is currently classified as deferred-not-applied (only `navigation.type`
+ * via config-delta works; item-level reorder is unsupported). This shape
+ * keeps `update-navigation` OUT of `hasOnlyNoAiRequests` so the skill body
+ * doesn't claim a successful plan-only completion when the actual nav
+ * mutation was silently skipped.
+ */
+export interface SessionShape {
+  requestTypes: string[]
+  hasAddPage: boolean
+  hasOnlyNoAiRequests: boolean
+  phases: SessionPhaseName[]
+  needsFix: boolean
+}
+
+export type SessionPhaseName = 'plan' | 'anchor' | 'extract-style' | 'components' | 'page' | 'apply'
+
+/**
+ * Request types that `createModificationApplier` handles deterministically
+ * at session-end without an AI call. Frozen list matched against codex
+ * audit's GAP_LIST. New no-AI types added to the applier MUST also be added
+ * here so `hasOnlyNoAiRequests` correctly classifies them.
+ */
+const NO_AI_REQUEST_TYPES = new Set<string>([
+  'delete-page',
+  'delete-component',
+  'update-token',
+  'add-component',
+  'modify-component',
+])
+
+/**
+ * Pure: compute the session shape from the planner's normalized requests.
+ *
+ * Empty `requests` returns the minimum-effort shape (just plan + apply,
+ * `hasOnlyNoAiRequests: false` because there is nothing to apply at all
+ * — the skill body should NOT short-circuit to session end on empty input,
+ * it should run the full pipeline and let the appliers no-op).
+ *
+ * Mixed sessions where add-page coexists with delete-page (e.g. rename)
+ * always need the full add-page pipeline; `hasOnlyNoAiRequests` is `false`
+ * even though the deletes ARE no-AI, because the adds are not.
+ */
+export function computeSessionShape(requests: ModificationRequest[]): SessionShape {
+  const requestTypes = Array.from(new Set(requests.map(r => r.type))).sort()
+  const hasAddPage = requests.some(r => r.type === 'add-page')
+  const allNoAi = requests.length > 0 && requests.every(r => NO_AI_REQUEST_TYPES.has(r.type))
+  const phases: SessionPhaseName[] = ['plan']
+  if (hasAddPage) {
+    phases.push('anchor', 'extract-style', 'components', 'page')
+  }
+  phases.push('apply')
+  return {
+    requestTypes,
+    hasAddPage,
+    hasOnlyNoAiRequests: allNoAi,
+    phases,
+    // `coherent fix` only matters when generated TSX / shared components
+    // landed on disk — i.e. there's an add-page in the queue. Pure
+    // delete/token/component-config mutations don't produce new code that
+    // could be broken in the typical fix-target ways (TS errors, raw
+    // colors, missing imports, broken nav links). For those, fix is
+    // noisy and risks mutating unrelated state — codex audit F-list.
+    needsFix: hasAddPage,
+  }
+}
+
 export interface PlanPhaseOptions {
   /** Artifact to read PlanInput from. Default `plan-input.json`. */
   inputArtifact?: string
@@ -136,6 +236,18 @@ export interface PlanPhaseOptions {
    * source of truth that mirrors API rail's `applyModification` switch.
    */
   modificationRequestsArtifact?: string | null
+  /**
+   * Artifact to persist the computed `SessionShape` for the skill body
+   * to read and branch on. Default `session-shape.json`. Set to `null`
+   * to suppress.
+   *
+   * v0.11.4 — codex consult flagged that overloading
+   * `modification-requests.json` with orchestration policy spreads
+   * decisions into prose and rots. A separate shape artifact keeps the
+   * applier's input (`modification-requests.json`) and the orchestrator's
+   * input (`session-shape.json`) cleanly separated.
+   */
+  sessionShapeArtifact?: string | null
 }
 
 /**
@@ -190,6 +302,8 @@ export function createPlanPhase(options: PlanPhaseOptions = {}): AiPhase {
     options.modificationRequestsArtifact === undefined
       ? 'modification-requests.json'
       : options.modificationRequestsArtifact
+  const sessionShapeFile =
+    options.sessionShapeArtifact === undefined ? 'session-shape.json' : options.sessionShapeArtifact
 
   async function loadInput(ctx: PhaseContext): Promise<PlanInput> {
     const raw = await ctx.session.readArtifact(ctx.sessionId, inputFile)
@@ -231,15 +345,30 @@ export function createPlanPhase(options: PlanPhaseOptions = {}): AiPhase {
       // Skip the write entirely when the option was set to `null` (test or
       // caller wants to suppress chaining) or when the parsed response
       // contains no requests at all.
-      if (modificationRequestsFile !== null) {
-        const requests = (parsed.requests as ModificationRequest[] | undefined) ?? []
-        if (requests.length > 0) {
-          await ctx.session.writeArtifact(
-            ctx.sessionId,
-            modificationRequestsFile,
-            JSON.stringify({ requests }, null, 2),
-          )
-        }
+      const rawRequests = (parsed.requests as ModificationRequest[] | undefined) ?? []
+      if (modificationRequestsFile !== null && rawRequests.length > 0) {
+        await ctx.session.writeArtifact(
+          ctx.sessionId,
+          modificationRequestsFile,
+          JSON.stringify({ requests: rawRequests }, null, 2),
+        )
+      }
+
+      // v0.11.4 — compute and persist the session shape for the skill body
+      // to branch on. Always written when there's at least one request,
+      // even when the modification-requests artifact is suppressed; the
+      // shape doubles as the orchestrator's source of truth for
+      // anchor/extract-style/components/page gating + the dynamic
+      // `[N/M]` counter + the `coherent fix` decision.
+      //
+      // Empty `parsed.requests` skips the write — the skill body falls
+      // through to the existing path which lets the applier chain
+      // no-op gracefully. Codex audit point: don't claim
+      // `hasOnlyNoAiRequests: true` on empty input — let the appliers
+      // each decide whether they have work.
+      if (sessionShapeFile !== null && rawRequests.length > 0) {
+        const shape = computeSessionShape(rawRequests)
+        await ctx.session.writeArtifact(ctx.sessionId, sessionShapeFile, JSON.stringify(shape, null, 2))
       }
 
       // Chain anchor-input.json so the next skill-mode call (`_phase prep

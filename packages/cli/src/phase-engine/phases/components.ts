@@ -186,11 +186,15 @@ export function createComponentsPhase(options: ComponentsPhaseOptions = {}): AiP
   const outputFile = options.outputArtifact ?? 'components-generated.json'
   const pagesInputFile = options.pagesInputArtifact === undefined ? 'pages-input.json' : options.pagesInputArtifact
 
-  async function loadInput(ctx: PhaseContext): Promise<ComponentsInput> {
+  async function loadInputOrNull(ctx: PhaseContext): Promise<ComponentsInput | null> {
     const raw = await ctx.session.readArtifact(ctx.sessionId, inputFile)
-    if (raw === null) {
-      throw new Error(`components: missing required artifact ${JSON.stringify(inputFile)}`)
-    }
+    // v0.11.4 — graceful skip when components-input.json wasn't written
+    // (extract-style was skipped because anchor was skipped because plan
+    // had no add-page). Pre-v0.11.4 this threw → CLI exited 1 → user saw
+    // `❌ components prep failed`. Now: return null so prep() can emit
+    // PHASE_SKIP_SENTINEL cleanly. Defense-in-depth — the skill body's
+    // session-shape gate skips this phase entirely for plan-only sessions.
+    if (raw === null) return null
     const parsed = JSON.parse(raw) as Partial<ComponentsInput>
     if (!Array.isArray(parsed.sharedComponents) || typeof parsed.styleContext !== 'string') {
       throw new Error(
@@ -208,7 +212,12 @@ export function createComponentsPhase(options: ComponentsPhaseOptions = {}): AiP
     name: 'components',
 
     async prep(ctx: PhaseContext): Promise<string> {
-      const input = await loadInput(ctx)
+      const input = await loadInputOrNull(ctx)
+      // v0.11.4 — input absent (extract-style skipped because no anchor
+      // because no add-page in plan). Emit sentinel so CLI exit 0 + skill
+      // body skips Write+ingest. Same shape as anchor's missing-input
+      // handler, same shape as components' empty-shared fast path below.
+      if (input === null) return PHASE_SKIP_SENTINEL
 
       // Skip-sentinel fast path (M14, PHASE_ENGINE_PROTOCOL=2): when the plan
       // declared no shared components, the AI roundtrip always resolves to
@@ -231,14 +240,15 @@ export function createComponentsPhase(options: ComponentsPhaseOptions = {}): AiP
     },
 
     async ingest(rawResponse: string, ctx: PhaseContext): Promise<void> {
-      const input = await loadInput(ctx)
+      // v0.11.4 — sentinel-first guard: when prep() emitted PHASE_SKIP_SENTINEL
+      // (either because input was missing or because sharedComponents was
+      // empty), there's nothing for ingest() to do. Older skill markdown
+      // that doesn't yet detect the sentinel will pipe it through to
+      // ingest; same outcome — no-op.
+      if (isSkipSentinel(rawResponse)) return
 
-      // M14: tolerate the skip sentinel as input. Older skill markdown that
-      // doesn't yet detect the sentinel will pipe it through to ingest;
-      // prep() already wrote the artifacts, so we just no-op.
-      if (isSkipSentinel(rawResponse)) {
-        return
-      }
+      const input = await loadInputOrNull(ctx)
+      if (input === null) return
 
       const parsed = parsePlanResponse(rawResponse)
       const components = pickGeneratedComponents(parsed, input.sharedComponents)

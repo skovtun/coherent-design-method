@@ -13,7 +13,7 @@
  */
 
 import type { DesignSystemConfig, ModificationRequest } from '@getcoherent/core'
-import type { AiPhase, PhaseContext } from '../phase.js'
+import { type AiPhase, type PhaseContext, PHASE_SKIP_SENTINEL, isSkipSentinel } from '../phase.js'
 import { isAuthRoute, detectPageType } from '../../agents/page-templates.js'
 import type { ArchitecturePlan } from '../../commands/chat/plan-generator.js'
 import { renderAtmosphereDirective } from '../../commands/chat/plan-generator.js'
@@ -191,11 +191,17 @@ export function createAnchorPhase(options: AnchorPhaseOptions = {}): AiPhase {
   const inputFile = options.inputArtifact ?? 'anchor-input.json'
   const anchorFile = options.anchorArtifact ?? 'anchor.json'
 
-  async function loadInput(ctx: PhaseContext): Promise<AnchorInput> {
+  /**
+   * Returns `null` when the input artifact is missing — the plan phase
+   * intentionally suppresses `anchor-input.json` when no add-page was
+   * requested (codex P1 #1 from M14, see plan.ts:224). v0.11.4: callers
+   * use `null` to mean "graceful skip" via PHASE_SKIP_SENTINEL instead of
+   * throwing → the CLI no longer prints `❌ anchor prep failed` for what
+   * is a legitimate plan-only flow.
+   */
+  async function loadInputOrNull(ctx: PhaseContext): Promise<AnchorInput | null> {
     const raw = await ctx.session.readArtifact(ctx.sessionId, inputFile)
-    if (raw === null) {
-      throw new Error(`anchor: missing required artifact ${JSON.stringify(inputFile)}`)
-    }
+    if (raw === null) return null
     const parsed = JSON.parse(raw) as Partial<AnchorInput>
     if (
       !parsed.homePage ||
@@ -224,7 +230,16 @@ export function createAnchorPhase(options: AnchorPhaseOptions = {}): AiPhase {
     name: 'anchor',
 
     async prep(ctx: PhaseContext): Promise<string> {
-      const input = await loadInput(ctx)
+      const input = await loadInputOrNull(ctx)
+      // v0.11.4 — plan-only sessions (delete-page, update-token, etc.)
+      // produce no anchor-input.json. Pre-v0.11.4 we threw "missing
+      // required artifact" → CLI exit 1 → user saw `❌ anchor prep
+      // failed`. The skill agent at runtime then guessed "Plan-only
+      // delete — skipping anchor/components". v0.11.4 emits the skip
+      // sentinel cleanly so the CLI exits 0 and the skill body can
+      // detect via `isSkipSentinel` and skip Write+ingest. Components
+      // phase has used this exact pattern since M14.
+      if (input === null) return PHASE_SKIP_SENTINEL
       const directive = buildAnchorPagePrompt(
         input.homePage,
         input.message,
@@ -304,7 +319,19 @@ DO NOT put pageCode inside the JSON. The TSX goes in the fenced block ONLY.`
     },
 
     async ingest(rawResponse: string, ctx: PhaseContext): Promise<void> {
-      const input = await loadInput(ctx)
+      // v0.11.4 — tolerate the skip sentinel as input. Older skill markdown
+      // that doesn't yet detect the sentinel will pipe it through to ingest;
+      // prep() emitted it because there was no add-page in the plan, so
+      // there's nothing to ingest. No-op.
+      if (isSkipSentinel(rawResponse)) return
+
+      const input = await loadInputOrNull(ctx)
+      // The sentinel guard above covers the "prep emitted skip → ingest
+      // sees sentinel" path. The branch below covers the rare "ingest
+      // called without a matching prep" case (e.g. from a custom test or
+      // a partial skill body). Same outcome — no-op rather than throw.
+      if (input === null) return
+
       const request = parseAnchorOrPageResponse(rawResponse)
       const pageCode =
         request && typeof (request.changes as Record<string, unknown>)?.pageCode === 'string'

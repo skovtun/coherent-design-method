@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import type { DesignSystemConfig } from '@getcoherent/core'
+import type { DesignSystemConfig, ModificationRequest } from '@getcoherent/core'
 import { InMemorySessionStore } from '../in-memory-session-store.js'
 import {
+  computeSessionShape,
   createPlanPhase,
   parsePlanResponse,
   parseNavTypeFromPlan,
@@ -9,6 +10,7 @@ import {
   type ConfigDelta,
   type PlanArtifact,
   type PlanInput,
+  type SessionShape,
 } from '../phases/plan.js'
 
 const baseConfig = (overrides: Partial<DesignSystemConfig> = {}): DesignSystemConfig =>
@@ -348,5 +350,174 @@ describe('createPlanPhase', () => {
       expect(await store.readArtifact(sessionId, 'anchor-input.json')).toBeNull()
       expect(await store.readArtifact(sessionId, 'anchor-input-custom.json')).not.toBeNull()
     })
+  })
+})
+
+describe('computeSessionShape (v0.11.4 — pure)', () => {
+  function req(type: string, changes: Record<string, unknown> = {}): ModificationRequest {
+    return { type, target: 'x', changes } as ModificationRequest
+  }
+
+  it('empty input → minimum shape, hasOnlyNoAiRequests=false (no claim of work)', () => {
+    const shape = computeSessionShape([])
+    expect(shape).toEqual<SessionShape>({
+      requestTypes: [],
+      hasAddPage: false,
+      hasOnlyNoAiRequests: false,
+      phases: ['plan', 'apply'],
+      needsFix: false,
+    })
+  })
+
+  it('plan-only delete → 2-phase shape, hasOnlyNoAiRequests=true, needsFix=false', () => {
+    const shape = computeSessionShape([req('delete-page')])
+    expect(shape).toEqual<SessionShape>({
+      requestTypes: ['delete-page'],
+      hasAddPage: false,
+      hasOnlyNoAiRequests: true,
+      phases: ['plan', 'apply'],
+      needsFix: false,
+    })
+  })
+
+  it('full add-page → 6-phase shape, hasAddPage=true, needsFix=true', () => {
+    const shape = computeSessionShape([req('add-page')])
+    expect(shape).toEqual<SessionShape>({
+      requestTypes: ['add-page'],
+      hasAddPage: true,
+      hasOnlyNoAiRequests: false,
+      phases: ['plan', 'anchor', 'extract-style', 'components', 'page', 'apply'],
+      needsFix: true,
+    })
+  })
+
+  it('rename pattern [delete-page X, add-page Y] → full pipeline (because of add-page)', () => {
+    const shape = computeSessionShape([req('delete-page'), req('add-page')])
+    // Mixed sessions need add-page generation; the deletes are handled
+    // by the modification applier in step 7. hasOnlyNoAiRequests is
+    // false even though delete-page IS no-AI — adds are not.
+    expect(shape.hasAddPage).toBe(true)
+    expect(shape.hasOnlyNoAiRequests).toBe(false)
+    expect(shape.phases).toEqual(['plan', 'anchor', 'extract-style', 'components', 'page', 'apply'])
+    expect(shape.needsFix).toBe(true)
+    expect(shape.requestTypes).toEqual(['add-page', 'delete-page']) // sorted unique
+  })
+
+  it('multiple no-AI types → still plan-only, requestTypes deduped + sorted', () => {
+    const shape = computeSessionShape([
+      req('delete-page'),
+      req('delete-component'),
+      req('update-token'),
+      req('delete-page'), // duplicate
+    ])
+    expect(shape.requestTypes).toEqual(['delete-component', 'delete-page', 'update-token'])
+    expect(shape.hasOnlyNoAiRequests).toBe(true)
+    expect(shape.phases).toEqual(['plan', 'apply'])
+    expect(shape.needsFix).toBe(false)
+  })
+
+  it('codex P1 — update-navigation is NOT classified as no-AI plan-only', () => {
+    // The applier marks update-navigation as deferred, but item-level
+    // changes are not actually applied (only nav.type via config-delta).
+    // If we claimed hasOnlyNoAiRequests=true, the skill body would
+    // surface a successful completion when the actual nav mutation was
+    // silently skipped. Codex audit point.
+    const shape = computeSessionShape([req('update-navigation')])
+    expect(shape.hasOnlyNoAiRequests).toBe(false)
+  })
+
+  it('unknown type alone → also NOT classified as no-AI (modification applier will hard-fail)', () => {
+    // The modification applier throws on unsupported types like
+    // update-page / link-shared. If we claimed plan-only success and
+    // skipped to session end, the throw would surface as "session end
+    // failed" — which IS the right outcome, but we'd prefer the skill
+    // body to surface the unsupported-type error before invoking session
+    // end. Either way: hasOnlyNoAiRequests=false because some applier
+    // can't apply this.
+    const shape = computeSessionShape([req('update-page')])
+    expect(shape.hasOnlyNoAiRequests).toBe(false)
+    // hasAddPage stays false too — update-page is not add-page.
+    expect(shape.hasAddPage).toBe(false)
+  })
+})
+
+describe('plan ingest writes session-shape.json (v0.11.4)', () => {
+  let store: InMemorySessionStore
+  let sessionId: string
+  beforeEach(async () => {
+    store = new InMemorySessionStore()
+    const meta = await store.create()
+    sessionId = meta.uuid
+    await store.writeArtifact(
+      sessionId,
+      'plan-input.json',
+      JSON.stringify({ message: 'rename Transactions to Activity', config: baseConfig() }),
+    )
+  })
+
+  it('writes shape derived from plan response requests', async () => {
+    const aiResponse = JSON.stringify({
+      requests: [
+        { type: 'delete-page', target: 'transactions' },
+        { type: 'add-page', changes: { id: 'activity', name: 'Activity', route: '/activity' } },
+      ],
+      navigation: { type: 'header' },
+    })
+    await createPlanPhase().ingest(aiResponse, { session: store, sessionId })
+
+    const raw = await store.readArtifact(sessionId, 'session-shape.json')
+    expect(raw).not.toBeNull()
+    const shape = JSON.parse(raw!) as SessionShape
+    expect(shape.hasAddPage).toBe(true)
+    expect(shape.hasOnlyNoAiRequests).toBe(false)
+    expect(shape.phases).toEqual(['plan', 'anchor', 'extract-style', 'components', 'page', 'apply'])
+    expect(shape.requestTypes).toEqual(['add-page', 'delete-page'])
+  })
+
+  it('writes plan-only shape for pure delete-page', async () => {
+    const aiResponse = JSON.stringify({
+      requests: [{ type: 'delete-page', target: 'profile' }],
+      navigation: { type: 'header' },
+    })
+    await createPlanPhase().ingest(aiResponse, { session: store, sessionId })
+
+    const raw = await store.readArtifact(sessionId, 'session-shape.json')
+    expect(raw).not.toBeNull()
+    const shape = JSON.parse(raw!) as SessionShape
+    expect(shape).toEqual<SessionShape>({
+      requestTypes: ['delete-page'],
+      hasAddPage: false,
+      hasOnlyNoAiRequests: true,
+      phases: ['plan', 'apply'],
+      needsFix: false,
+    })
+  })
+
+  it('skips writing shape when plan response has no requests', async () => {
+    const aiResponse = JSON.stringify({ requests: [], navigation: { type: 'header' } })
+    await createPlanPhase().ingest(aiResponse, { session: store, sessionId })
+    expect(await store.readArtifact(sessionId, 'session-shape.json')).toBeNull()
+  })
+
+  it('honors custom sessionShapeArtifact name', async () => {
+    const aiResponse = JSON.stringify({
+      requests: [{ type: 'delete-page', target: 'profile' }],
+      navigation: { type: 'header' },
+    })
+    await createPlanPhase({ sessionShapeArtifact: 'shape-custom.json' }).ingest(aiResponse, {
+      session: store,
+      sessionId,
+    })
+    expect(await store.readArtifact(sessionId, 'session-shape.json')).toBeNull()
+    expect(await store.readArtifact(sessionId, 'shape-custom.json')).not.toBeNull()
+  })
+
+  it('null sessionShapeArtifact → no shape file written', async () => {
+    const aiResponse = JSON.stringify({
+      requests: [{ type: 'delete-page', target: 'profile' }],
+      navigation: { type: 'header' },
+    })
+    await createPlanPhase({ sessionShapeArtifact: null }).ingest(aiResponse, { session: store, sessionId })
+    expect(await store.readArtifact(sessionId, 'session-shape.json')).toBeNull()
   })
 })

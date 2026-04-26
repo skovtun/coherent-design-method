@@ -115,9 +115,14 @@ export function createExtractStylePhase(options: ExtractStylePhaseOptions = {}):
     name: 'extract-style',
     async run(ctx: PhaseContext): Promise<void> {
       const anchorRaw = await ctx.session.readArtifact(ctx.sessionId, anchorFile)
-      if (anchorRaw === null) {
-        throw new Error(`extract-style: missing required artifact ${JSON.stringify(anchorFile)}`)
-      }
+      // v0.11.4 — graceful skip when anchor was skipped (plan-only flow,
+      // no add-page in the plan → anchor's prep() emitted PHASE_SKIP_SENTINEL
+      // → no anchor.json on disk). Pre-v0.11.4 this threw → CLI exited 1
+      // → user saw `❌ extract-style run failed`. The skill body's session-
+      // shape gate now skips this phase entirely for plan-only sessions,
+      // but we keep this defense-in-depth in case the skill body is older
+      // or a custom orchestrator forgets to gate.
+      if (anchorRaw === null) return
       const anchor = JSON.parse(anchorRaw) as AnchorArtifact
       if (typeof anchor.pageCode !== 'string') {
         throw new Error(`extract-style: artifact ${JSON.stringify(anchorFile)} must have a string "pageCode" field`)

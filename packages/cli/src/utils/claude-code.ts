@@ -76,16 +76,20 @@ If a Bash call legitimately fails, the tool result already includes the stderr �
 
 ## Flow overview
 
+The flow is **dynamic** — phases are gated by \`session-shape.json\` written by the plan phase. After plan ingest, read \`session-shape.json\` and follow only the phases listed in \`shape.phases\`.
+
+Two common shapes:
+
 \`\`\`
-session start
-  → plan          (AI: prep → respond → ingest)
-  → anchor        (AI)
-  → extract-style (deterministic: run)
-  → components    (AI)
-  → page × N      (AI, one prep/ingest per page)
-session end  (applies all artifacts + writes run record)
-coherent fix    (auto-install shadcn primitives, fix imports, cleanup)
+Plan-only (delete-page, update-token, add-component, etc.):
+  session start → plan → session end                          (2 steps)
+
+Full add-page generation:
+  session start → plan → anchor → extract-style → components
+                       → page × N → session end → coherent fix (8 steps)
 \`\`\`
+
+A rename like "rename Transactions to Activity" decomposes into \`[delete-page X, add-page Y]\` and uses the FULL flow because of the add-page. A pure \`[delete-page X]\` uses the plan-only flow and skips anchor / extract-style / components / page entirely.
 
 ## Response format per phase (read once, follow exactly)
 
@@ -123,18 +127,33 @@ DO NOT put \`pageCode\` inside the JSON. Embedded backticks inside template lite
 
 When a \`prep\` Bash output is exactly \`__COHERENT_PHASE_SKIPPED__\` (one line, optional trailing newline), the phase has no AI work to do — it already wrote its output artifact deterministically. **Do NOT Write a response file. Do NOT call \`_phase ingest\` for that phase.** Move on to the next step.
 
-This currently fires on the components phase when the plan has zero shared components.
+Common cases (v0.11.4):
+- **Components** when the plan has zero shared components.
+- **Anchor** when the plan has no \`add-page\` request (plan-only flows).
+- **Components** when extract-style was skipped (no \`components-input.json\` to read).
+
+If you forget to skip and call \`_phase ingest\` after a sentinel, ingest also no-ops gracefully — but you'll have wasted a Write+Bash turn.
 
 ## Progress reporting
 
-Before each phase's Bash call, print one line so the user sees what's happening:
+Use the \`session-shape.json\` to size your progress counters. Total = \`shape.phases.length\` (2 for plan-only, 8 for full add-page generation). Position = the phase you're about to run.
 
-- \`▸ [1/6] Planning pages…\`
-- \`▸ [2/6] Generating anchor page (Dashboard)…\`
-- \`▸ [3/6] Extracting design tokens…\`
-- \`▸ [4/6] No shared components — skipping\` (when sentinel fires)
-- \`▸ [5/6] Generating /balance, /transactions, /settings in parallel…\`
-- \`▸ [6/6] Applying to disk…\`
+Examples (positions match a shape with \`phases: ["plan", "anchor", "extract-style", "components", "page", "apply"]\` plus the post-apply fix step):
+
+- \`▸ [1/8] Planning pages…\`
+- \`▸ [2/8] Generating anchor page (Dashboard)…\`
+- \`▸ [3/8] Extracting design tokens…\`
+- \`▸ [4/8] No shared components — skipping\` (sentinel)
+- \`▸ [5/8] Generating /balance, /transactions, /settings in parallel…\`
+- \`▸ [6/8] Applying to disk…\`
+- \`▸ [7/8] Auto-installing shadcn primitives…\`
+- \`▸ [8/8] Done — preview ready\`
+
+Plan-only example (\`phases: ["plan", "apply"]\`):
+
+- \`▸ [1/2] Planning…\`
+- \`▸ [2/2] Applying delete-page to disk…\`
+- \`▸ Done — preview ready\` (post-apply line, no counter)
 
 One line per phase, plain text. The user reads these between Bash spinners.
 
@@ -160,7 +179,18 @@ Read \`.coherent/session/<UUID>/plan-prompt.md\`. Produce the plan JSON response
 coherent _phase ingest plan --session <UUID> --protocol ${PHASE_ENGINE_PROTOCOL} < .coherent/session/<UUID>/plan-response.md
 \`\`\`
 
-### 3. Anchor phase (AI)
+### 2.5. Read the session shape (gates everything below)
+
+Read \`.coherent/session/<UUID>/session-shape.json\` with the Read tool. The plan ingest wrote it. Shape fields:
+
+- \`phases: string[]\` — ordered list of phases this session needs, e.g. \`["plan", "apply"]\` or \`["plan", "anchor", "extract-style", "components", "page", "apply"]\`. Use \`phases.length\` for the \`[N/M]\` counter total.
+- \`hasAddPage: boolean\` — when \`false\`, **skip steps 3–6 entirely** (anchor, extract-style, components, page). Jump to step 7.
+- \`hasOnlyNoAiRequests: boolean\` — when \`true\`, fast path. The modification applier handles delete-page / delete-component / update-token / add-component / modify-component deterministically at session end. No AI generation needed.
+- \`needsFix: boolean\` — when \`false\`, **skip step 8** (\`coherent fix\`). For plan-only ops it's noisy and risks mutating unrelated state.
+
+If the shape file is missing (older CLI), default to \`hasAddPage: true\` + \`needsFix: true\` and run all steps as before.
+
+### 3. Anchor phase (AI) — only if \`shape.hasAddPage\`
 
 Run prep first:
 
@@ -174,13 +204,13 @@ Read \`.coherent/session/<UUID>/anchor-prompt.md\`, produce the JSON response (s
 coherent _phase ingest anchor --session <UUID> --protocol ${PHASE_ENGINE_PROTOCOL} < .coherent/session/<UUID>/anchor-response.md
 \`\`\`
 
-### 4. Extract-style phase (deterministic)
+### 4. Extract-style phase (deterministic) — only if \`shape.hasAddPage\`
 
 \`\`\`bash
 coherent _phase run extract-style --session <UUID> --protocol ${PHASE_ENGINE_PROTOCOL}
 \`\`\`
 
-### 5. Components phase (AI)
+### 5. Components phase (AI) — only if \`shape.hasAddPage\`
 
 \`\`\`bash
 coherent _phase prep components --session <UUID> --protocol ${PHASE_ENGINE_PROTOCOL} > .coherent/session/<UUID>/components-prompt.md
@@ -192,7 +222,7 @@ Read the prompt, produce the response file, then ingest in a separate Bash call:
 coherent _phase ingest components --session <UUID> --protocol ${PHASE_ENGINE_PROTOCOL} < .coherent/session/<UUID>/components-response.md
 \`\`\`
 
-### 6. Page phase (AI, parallel per page)
+### 6. Page phase (AI, parallel per page) — only if \`shape.hasAddPage\`
 
 Read \`.coherent/session/<UUID>/pages-input.json\` and run page phase for every \`pageId\` in \`pages[].id\`. The first page in \`plan.pageNames\` is the anchor — generated in step 3 — so \`pages-input.json\` deliberately does NOT include it.
 
@@ -216,25 +246,41 @@ This collapses what would be 12 sequential turns (4 pages × 3 steps) into 3 par
 coherent session end <UUID>
 \`\`\`
 
-Applies all artifacts (config-delta, generated pages, components) — including the auto-fix pass on every file — writes the run record under \`.coherent/runs/\`, releases the project lock.
+Applies all artifacts in order: config-delta → modification (delete-page, update-token, add-component, modify-component, delete-component) → components → pages → replace-welcome → layout → fix-globals-css. Writes the run record under \`.coherent/runs/\`, releases the project lock.
 
-### 8. Run \`coherent fix\` (auto-install shadcn primitives + cleanup)
+The output starts with \`Applied:\` followed by one line per applier with what it did. Capture this — you'll surface it in the completion signal below.
+
+### 8. Run \`coherent fix\` — only if \`shape.needsFix\`
 
 \`\`\`bash
 coherent fix
 \`\`\`
 
-Generated pages often import shadcn primitives (\`@/components/ui/badge\`, \`tabs\`, \`select\`, etc.) that the user's project doesn't yet have. Session-end doesn't auto-install them — \`coherent fix\` does. Without this step, \`coherent preview\` will throw \`Module not found\` on the first page open. Run it once after \`session end\`.
+When generated pages or shared components landed in step 6/7, they often import shadcn primitives (\`@/components/ui/badge\`, \`tabs\`, \`select\`, etc.) that the user's project doesn't yet have. \`coherent fix\` auto-installs them and runs cleanup. Without this step, \`coherent preview\` would throw \`Module not found\` on the first page open.
+
+For plan-only sessions (delete-page, update-token, etc.) \`needsFix\` is \`false\` — \`coherent fix\` is noisy and risks mutating unrelated state. Skip it.
+
+## Completion signal
+
+After step 7 (and step 8 when \`needsFix\`), print ONE final line:
+
+- \`✅ Done. Applied: <comma-separated summary from session end>. Run \\\`coherent preview\\\` to see it.\`
+
+The summary comes from the \`session end\` output — read its \`Applied:\` block and condense to a one-liner. Examples:
+
+- Plan-only delete: \`✅ Done. Applied: delete-page Profile. Run \\\`coherent preview\\\` to see it.\`
+- Full add-page: \`✅ Done. Applied: 4 pages, 2 components, layout regen. Run \\\`coherent preview\\\` to see it.\`
+
+If \`session end\` errored (non-zero exit, error in output) — say what failed instead, e.g. \`❌ Session end failed: <error>. Project unchanged. See .coherent/session/<UUID>/ for state.\` Do NOT print the green Done line.
 
 ## Report back
 
-Tell the user:
-- Which pages and components were written (read from the \`session end\` output).
-- Which shadcn primitives \`coherent fix\` auto-installed (if any).
-- Run-record path under \`.coherent/runs/\`.
-- Any pages that were skipped (empty pageCode) and need regeneration.
+Beyond the one-line completion signal, also surface:
 
-If \`session end\` reported auto-fix counts, mention them — it means the AI-generated code had known issues and the CLI corrected them before write.
+- Run-record path under \`.coherent/runs/\` (helps with later retros / debugging).
+- Any pages that were skipped (empty pageCode) and need regeneration.
+- Shadcn primitives \`coherent fix\` auto-installed (only when step 8 ran).
+- Auto-fix counts from \`session end\` (means the AI-generated code had known issues and the CLI corrected them before write).
 
 ## Error recovery
 
@@ -297,16 +343,20 @@ If the user ran \`coherent init --api-mode\` or has an API key, prefer
 
 ## Flow
 
+The flow is **dynamic** — phases are gated by \`session-shape.json\` written by the plan phase. After plan ingest, read \`session-shape.json\` and follow only the phases listed in \`shape.phases\`.
+
+Two common shapes:
+
 \`\`\`
-session start
-  → plan          (AI: prep → respond → ingest)
-  → anchor        (AI)
-  → extract-style (deterministic: run)
-  → components    (AI)
-  → page × N      (AI, one prep/ingest per page)
-session end  (applies all artifacts + writes run record)
-coherent fix    (auto-install shadcn primitives, fix imports, cleanup)
+Plan-only (delete-page, update-token, add-component, etc.):
+  session start → plan → session end                          (2 steps)
+
+Full add-page generation:
+  session start → plan → anchor → extract-style → components
+                       → page × N → session end → coherent fix (8 steps)
 \`\`\`
+
+A rename like "rename Transactions to Activity" decomposes into \`[delete-page X, add-page Y]\` and uses the FULL flow because of the add-page. A pure \`[delete-page X]\` uses the plan-only flow and skips anchor / extract-style / components / page entirely.
 
 ## Response format per phase (read once, follow exactly)
 
@@ -344,18 +394,33 @@ DO NOT put \`pageCode\` inside the JSON. Embedded backticks inside template lite
 
 When a \`prep\` Bash output is exactly \`__COHERENT_PHASE_SKIPPED__\` (one line, optional trailing newline), the phase has no AI work to do — it already wrote its output artifact deterministically. **Do NOT Write a response file. Do NOT call \`_phase ingest\` for that phase.** Move on to the next step.
 
-This currently fires on the components phase when the plan has zero shared components.
+Common cases (v0.11.4):
+- **Components** when the plan has zero shared components.
+- **Anchor** when the plan has no \`add-page\` request (plan-only flows).
+- **Components** when extract-style was skipped (no \`components-input.json\` to read).
+
+If you forget to skip and call \`_phase ingest\` after a sentinel, ingest also no-ops gracefully — but you'll have wasted a Write+Bash turn.
 
 ## Progress reporting
 
-Before each phase's Bash call, print one line so the user sees what's happening:
+Use the \`session-shape.json\` to size your progress counters. Total = \`shape.phases.length\` (2 for plan-only, 8 for full add-page generation when including \`coherent fix\`). Position = the phase you're about to run.
 
-- \`▸ [1/6] Planning pages…\`
-- \`▸ [2/6] Generating anchor page (Dashboard)…\`
-- \`▸ [3/6] Extracting design tokens…\`
-- \`▸ [4/6] No shared components — skipping\` (when sentinel fires)
-- \`▸ [5/6] Generating /balance, /transactions, /settings in parallel…\`
-- \`▸ [6/6] Applying to disk…\`
+Examples (\`phases: ["plan", "anchor", "extract-style", "components", "page", "apply"]\` plus the post-apply fix step):
+
+- \`▸ [1/8] Planning pages…\`
+- \`▸ [2/8] Generating anchor page (Dashboard)…\`
+- \`▸ [3/8] Extracting design tokens…\`
+- \`▸ [4/8] No shared components — skipping\` (sentinel)
+- \`▸ [5/8] Generating /balance, /transactions, /settings in parallel…\`
+- \`▸ [6/8] Applying to disk…\`
+- \`▸ [7/8] Auto-installing shadcn primitives…\`
+- \`▸ [8/8] Done — preview ready\`
+
+Plan-only example (\`phases: ["plan", "apply"]\`):
+
+- \`▸ [1/2] Planning…\`
+- \`▸ [2/2] Applying delete-page to disk…\`
+- \`▸ Done — preview ready\` (post-apply line, no counter)
 
 One line per phase, plain text. The user reads these between Bash spinners.
 
@@ -399,7 +464,18 @@ schema in the prompt exactly). Write to \`.coherent/session/<UUID>/plan-response
 coherent _phase ingest plan --session <UUID> --protocol ${PHASE_ENGINE_PROTOCOL} < .coherent/session/<UUID>/plan-response.md
 \`\`\`
 
-### 3. Anchor phase (AI)
+### 2.5. Read the session shape (gates everything below)
+
+Read \`.coherent/session/<UUID>/session-shape.json\` with the Read tool. The plan ingest wrote it. Shape fields:
+
+- \`phases: string[]\` — ordered list of phases this session needs, e.g. \`["plan", "apply"]\` or \`["plan", "anchor", "extract-style", "components", "page", "apply"]\`. Use \`phases.length\` for the \`[N/M]\` counter total.
+- \`hasAddPage: boolean\` — when \`false\`, **skip steps 3–6 entirely** (anchor, extract-style, components, page). Jump to step 7.
+- \`hasOnlyNoAiRequests: boolean\` — when \`true\`, fast path. The modification applier handles delete-page / delete-component / update-token / add-component / modify-component deterministically at session end. No AI generation needed.
+- \`needsFix: boolean\` — when \`false\`, **skip step 8** (\`coherent fix\`). For plan-only ops it's noisy and risks mutating unrelated state.
+
+If the shape file is missing (older CLI), default to \`hasAddPage: true\` + \`needsFix: true\` and run all steps as before.
+
+### 3. Anchor phase (AI) — only if \`shape.hasAddPage\`
 
 Run prep first:
 
@@ -415,7 +491,7 @@ Read \`.coherent/session/<UUID>/anchor-prompt.md\`, produce the JSON response
 coherent _phase ingest anchor --session <UUID> --protocol ${PHASE_ENGINE_PROTOCOL} < .coherent/session/<UUID>/anchor-response.md
 \`\`\`
 
-### 4. Extract-style phase (deterministic)
+### 4. Extract-style phase (deterministic) — only if \`shape.hasAddPage\`
 
 No AI call — pure transform over the anchor artifact:
 
@@ -423,7 +499,7 @@ No AI call — pure transform over the anchor artifact:
 coherent _phase run extract-style --session <UUID> --protocol ${PHASE_ENGINE_PROTOCOL}
 \`\`\`
 
-### 5. Components phase (AI)
+### 5. Components phase (AI) — only if \`shape.hasAddPage\`
 
 \`\`\`bash
 coherent _phase prep components --session <UUID> --protocol ${PHASE_ENGINE_PROTOCOL} > .coherent/session/<UUID>/components-prompt.md
@@ -435,7 +511,7 @@ Read the prompt, Write the response file, then ingest in a SEPARATE Bash call:
 coherent _phase ingest components --session <UUID> --protocol ${PHASE_ENGINE_PROTOCOL} < .coherent/session/<UUID>/components-response.md
 \`\`\`
 
-### 6. Page phase (AI, parallel per page)
+### 6. Page phase (AI, parallel per page) — only if \`shape.hasAddPage\`
 
 Read \`.coherent/session/<UUID>/pages-input.json\` and run page phase for every
 \`pageId\` in \`pages[].id\`. The first page in \`plan.pageNames\` is the
@@ -473,20 +549,32 @@ This collapses 12 sequential turns (4 pages × 3 steps) into 3 parallel batches.
 coherent session end <UUID>
 \`\`\`
 
-Applies all artifacts (config-delta, generated pages, components), writes
-the run record under \`.coherent/runs/\`, releases the project lock.
+Applies all artifacts in order: config-delta → modification → components → pages → replace-welcome → layout → fix-globals-css. Writes the run record under \`.coherent/runs/\`, releases the project lock.
 
-### 8. Run \`coherent fix\` (auto-install shadcn primitives + cleanup)
+The output starts with \`Applied:\` followed by one line per applier. Capture this — surface it in the completion signal.
+
+### 8. Run \`coherent fix\` — only if \`shape.needsFix\`
 
 \`\`\`bash
 coherent fix
 \`\`\`
 
-Generated pages often import shadcn primitives (\`@/components/ui/badge\`,
-\`tabs\`, \`select\`, etc.) that the user's project doesn't yet have.
-Session-end doesn't auto-install them — \`coherent fix\` does. Without this
-step, \`coherent preview\` will throw \`Module not found\` on first open.
-Run it once after \`session end\`.
+When generated pages or shared components landed in step 6/7, they often import shadcn primitives (\`@/components/ui/badge\`, \`tabs\`, \`select\`, etc.) that the user's project doesn't yet have. \`coherent fix\` auto-installs them and runs cleanup. Without this step, \`coherent preview\` would throw \`Module not found\` on first open.
+
+For plan-only sessions (delete-page, update-token, etc.) \`needsFix\` is \`false\` — \`coherent fix\` is noisy and risks mutating unrelated state. Skip it.
+
+## Completion signal
+
+After step 7 (and step 8 when \`needsFix\`), print ONE final line:
+
+- \`✅ Done. Applied: <comma-separated summary from session end>. Run \\\`coherent preview\\\` to see it.\`
+
+The summary comes from the \`session end\` output — read its \`Applied:\` block and condense to a one-liner. Examples:
+
+- Plan-only delete: \`✅ Done. Applied: delete-page Profile. Run \\\`coherent preview\\\` to see it.\`
+- Full add-page: \`✅ Done. Applied: 4 pages, 2 components, layout regen. Run \\\`coherent preview\\\` to see it.\`
+
+If \`session end\` errored (non-zero exit, error in output) — say what failed instead, e.g. \`❌ Session end failed: <error>. Project unchanged. See .coherent/session/<UUID>/ for state.\` Do NOT print the green Done line.
 
 ## Error recovery
 
