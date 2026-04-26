@@ -822,6 +822,34 @@ Implementation outline (inherits from landing-repo fix done 2026-04-23):
 **Target:** v0.8.x.
 
 ---
+id: M17
+type: idea
+status: open
+target: post-PR2 (after applyRequests pipeline + chat.ts facade ship)
+effort: 0.5h
+date: 2026-04-25
+confidence: verified
+---
+
+### M17 — Share DSM/CM/PM construction across appliers via `ArtifactApplierContext`
+
+**Source:** Eng-review of `docs/plans/2026-04-25-skill-rail-architecture-review.md` (skill-rail architecture decision). Surfaced as performance side-finding.
+
+**Current state:** Each applier in `phase-engine/appliers.ts` re-instantiates `DesignSystemManager` / `ComponentManager` / `PageManager` and calls `dsm.load()`. With 7 entries in `defaultAppliers()`, that's 7 disk reads + parses of `design-system.config.ts` per session-end. See appliers.ts:206-210, repeated in `createConfigDeltaApplier`, `createComponentsApplier`, `createPagesApplier`, `createReplaceWelcomeApplier`, `createLayoutApplier`, `createFixGlobalsCssApplier`.
+
+**Why this matters:** Not a perf bug today — `design-system.config.ts` is small, parse is sub-ms. But it's a constant tax on every session-end and grows linearly with applier count. After PR2 lands ADR-0005 (chat.ts facade), `sessionStart` becomes the natural place to load the trio once and seed it into `ArtifactApplierContext`. Appliers read the seeded value instead of re-loading.
+
+**Proposal:**
+1. Extend `ArtifactApplierContext` (`phase-engine/session-lifecycle.ts:83`) with `dsm: DesignSystemManager`, `cm: ComponentManager`, `pm: PageManager` fields.
+2. `sessionStart` constructs them once after config snapshot, attaches to context.
+3. Appliers drop their inline `new DesignSystemManager(configPath); await dsm.load()` blocks.
+4. Mutation appliers must call `applyManagerResult(ctx.dsm, ctx.cm, ctx.pm, newConfig)` (already extracted to `apply-requests/managers.ts` per plan) so cross-applier mutations stay synchronized.
+
+**Blocker:** Depends on PR2 landing first — PR2 finishes the facade refactor that makes `ArtifactApplierContext` the canonical seam between rails. Doing this before PR2 means edits to ctx shape that PR2 then re-edits.
+
+**Target:** post-PR2 cleanup, ~30 min CC+gstack.
+
+---
 
 ## Meta-ideas (about the process)
 

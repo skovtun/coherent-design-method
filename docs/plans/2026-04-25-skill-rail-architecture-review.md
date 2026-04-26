@@ -145,3 +145,109 @@ If Option A, each is its own M16 hotfix.
 ---
 
 **TL;DR for the review:** Are we building a parallel implementation that will keep drifting, or is there a cleaner shape where skill rail orchestrates and API rail's logic does the actual work?
+
+---
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | not run |
+| Codex Review | `/codex review` | Independent 2nd opinion | 1 | issues_found → all 4 accepted | 4 substantive critiques: layer violation, sequencing, AI contract, fixtures |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | issues_open → all 7 decisions resolved | 7 decisions (D1–D7); 0 unresolved; 0 critical gaps |
+| Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | n/a (no UI) |
+| DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | not run |
+
+**CODEX:** Surfaced 4 P0/P1-class gaps the eng review missed — (1) phase-engine/ is wrong layer for the extract (modification-handler.ts has command-layer dep tree), (2) parity harness is stubbed and can't be the safety net for the very refactor that builds it, (3) AI-dependent cases call createAIProvider() at apply time without contract → silent extra API calls + double-edit risk on skill rail, (4) live 3-intent fixtures are flaky/expensive and shouldn't gate PR1. All 4 accepted; plan revised.
+
+**CROSS-MODEL:** Strong agreement on direction (B-shaped, not A or C). Tension on execution (layer / sequencing / AI contract / fixtures) — codex won every tension; eng-review hand-waved details that codex hardened.
+
+**UNRESOLVED:** 0.
+
+**FINAL DECISIONS:**
+- **D1: Option B** — extract shared request-application pipeline; both rails call it.
+- **D4: Layer = top-level `packages/cli/src/apply-requests/`** (sibling to `commands/`, `phase-engine/`, `utils/` — peer service, NOT nested under `commands/chat/`). Top-level placement signals "shared service" not "chat-specific helper" — matters for future contributor mental model. Both rails import as peers; phase-engine stays narrow (lifecycle + ArtifactApplier protocol).
+- **D5: Two sequential PRs.** PR1 = pipeline + 6 deterministic fixtures (the drift gate). PR2 = chat.ts facade refactor with PR1 as the proven gate.
+- **D6: Explicit `applyMode: 'with-ai' | 'no-new-ai'` parameter + artifact-shape contract.** Skill rail uses `no-new-ai`; AI-dependent cases require pre-populated artifact fields; missing → hard error.
+- **D7: Deterministic per-case fixtures for PR1.** Live 3-intent recording deferred to PR2+.
+
+**VERDICT:** ENG CLEARED — ready to implement PR1.
+
+**Test plan:** `~/.gstack/projects/skovtun-coherent-design-method/sergeipro-main-eng-review-test-plan-20260425-215353.md`
+
+---
+
+## NOT in scope (deferred)
+
+- **Live 3-intent parity fixture recording** — defer to PR2+. PR1's drift gate is 6 hand-crafted deterministic fixtures (cheap, repeatable, zero flake).
+- **Performance micro-opts** — sharing DSM/CM/PM across appliers. Not blocking; capture as TODO.
+- **Telemetry / run-record additions** — orthogonal to refactor.
+- **AI-output cases (modify-layout-block, link-shared, promote-and-link, update-page-without-pageCode) coverage** — covered structurally by `with-ai` mode in PR1, but byte-equivalent fixture coverage waits for PR2's live recording.
+- **v0.11.4 sequencing** — already shipped (commit 7af0d4e). v0.11.5 also shipped (d95ae1d). No in-flight work to coordinate around.
+- **CEO review and DX review** — not relevant; this is an internal architecture refactor with no user-facing surface change.
+
+## What already exists (reuse, do not rebuild)
+
+- `applyModification(req, dsm, cm, pm, projectRoot, provider, message)` at `commands/chat/modification-handler.ts:208` — the 12-case switch. Move bodies into `commands/apply-requests/dispatch.ts`; do not rewrite logic.
+- `createModificationApplier()` at `phase-engine/appliers.ts:127` — keep the artifact-collection shape (reads `modification-requests.json`, partitions `handled`/`deferred`/`unsupported`); replace the handler bodies with one call to `applyRequests(handled, ctx, 'no-new-ai')`.
+- `createPagesApplier()` at `phase-engine/appliers.ts:509` — already assembles `add-page` shape from `page-*.json` artifacts; just call `applyRequests([assembled], ctx, 'no-new-ai')` instead of inline writes.
+- `applyManagerResult()` duplicated at `modification-handler.ts:196` and `appliers.ts:279` — extract to `commands/apply-requests/managers.ts` on Day 1 as smoke test for the extract pattern.
+- `parity-harness.ts` at `phase-engine/__tests__/parity-harness.ts` — reuse the tree snapshot / normalize / diff infrastructure for the deterministic fixtures. The `runRailA`/`runRailB` stubs at :186, :202 stay stubbed until PR2.
+- `MockProvider` from `phase-engine/__tests__/mock-provider.test.ts` — drives chat-rail for parity tests without API calls.
+
+## Failure modes (for each new codepath)
+
+| New codepath | Realistic failure | Test? | Error handling? | Visible to user? |
+|---|---|---|---|---|
+| `applyRequests(reqs, ctx, 'no-new-ai')` with missing AI artifact | Hard throw before any mutation | YES (D6 contract test) | Explicit error class with request type + missing field | YES — clear error, no partial state |
+| `applyRequests(reqs, ctx, 'with-ai')` regresses chat-rail behavior | One of 12 cases produces different output post-extract | YES (deterministic fixture suite) | Existing chat error paths preserved | Chat rail user sees same output as v0.11.x |
+| `commands/apply-requests/parse.ts` destructive pre-parser misses an intent | Silent destructive op slips through | YES (`parse.test.ts`) | Throw with intent + reason | User sees "destructive op refused — confirm with --force" |
+| `createModificationApplier` 20-line dispatch passes wrong `ctx` shape | Type error caught at compile | TypeScript exhaustiveness | N/A (type system) | N/A |
+| Hash protection lookup race (file edited mid-apply) | Stale hash → overwrites manual edit | INTEGRATION test | Skip apply + warn | User sees "manual edits detected; skipped X" |
+| `no-new-ai` mode lets a `createAIProvider` call sneak through | Spy assertion in `mode.test.ts` would fail | YES — mandatory spy | Code-path-level fail-fast | N/A (test catches before user) |
+| `applyManagerResult` extract introduces shared-state bug | Mutation seen across managers in unintended order | YES (existing applier tests cover) | Existing semantics preserved | N/A |
+
+**Critical gap audit:** None. Every new failure mode has a test AND error handling AND a clear user signal.
+
+## TODOs (proposed for `IDEAS_BACKLOG.md` or M16)
+
+Asking each individually below.
+
+## Worktree parallelization strategy
+
+PR1 and PR2 are SEQUENTIAL — PR2 depends on PR1's pipeline existing. Within PR1:
+
+| Step | Modules touched | Depends on |
+|------|----------------|------------|
+| 1. Extract `applyManagerResult` | `commands/apply-requests/managers.ts`, `modification-handler.ts`, `phase-engine/appliers.ts` | — |
+| 2. Extract dispatch (12-case switch) | `commands/apply-requests/dispatch.ts`, `modification-handler.ts` | 1 |
+| 3. Extract pre-helpers | `commands/apply-requests/pre.ts`, `chat.ts` (delegate) | 2 (dispatch must be callable) |
+| 4. Extract post-helpers | `commands/apply-requests/post.ts`, `chat.ts` (delegate) | 2 |
+| 5. Add `applyMode` parameter + contract | `commands/apply-requests/index.ts`, `dispatch.ts` | 2 |
+| 6. Rewrite `createModificationApplier` to dispatch | `phase-engine/appliers.ts` | 5 |
+| 7. Deterministic fixture suite | `commands/apply-requests/__tests__/fixtures/` | 6 |
+
+Steps 3 and 4 (`pre.ts` / `post.ts`) are **independent — different modules, no shared state**. Lane A: pre. Lane B: post. Parallel. Recombine before step 5.
+
+```
+Lane A: 1 → 2 → 3 ─┐
+                   ├→ 5 → 6 → 7
+Lane B: ─────── → 4 ─┘
+```
+
+**Conflict flag:** Steps 3 and 4 both edit `chat.ts` to delegate. If two parallel agents both edit `chat.ts`, merge conflicts on the inline-replacement lines. Mitigation: each lane edits a different `chat.ts` line range (Lane A → :432/:661 pre-stack, Lane B → :900/:1283/:1310-1360/:1380 post-stack). Coordinate before pushing.
+
+## Completion summary
+
+- Step 0: Scope Challenge — accepted as-is (plan IS the scope; B is the boil-the-lake answer)
+- Architecture Review: 1 issue (D1) — resolved (Option B)
+- Code Quality Review: 2 issues (D2 superseded by D5; trivial `applyManagerResult` dup → smoke test step 1)
+- Test Review: 22 new tests added to plan; 6 deterministic fixtures gate PR1; ~3 tests + live recording for PR2
+- Performance Review: 0 issues (DSM/CM/PM sharing micro-opt → TODO)
+- NOT in scope: written
+- What already exists: written (reuse map for migration)
+- TODOs.md updates: deferring to interactive Q below
+- Failure modes: 0 critical gaps flagged
+- Outside voice: codex consult ran; 4 substantive tensions; ALL 4 codex critiques accepted; plan revised
+- Parallelization: 2 PRs sequential; within PR1, 2 lanes (pre/post extracts) can run parallel after step 2
+- Lake Score: 6/7 recommendations chose complete option (D5 chose sequence-over-bundle for risk mgmt — conscious risk-trade, not coverage cut)
