@@ -47,6 +47,19 @@ export const COHERENT_ERROR_CODES = {
   E005_SESSION_SCHEMA_MISMATCH: 'COHERENT_E005',
   /** Skill auto-resume: session says `awaiting-ingest` but the expected input artifact is missing. */
   E006_SESSION_ARTIFACT_MISSING: 'COHERENT_E006',
+  /**
+   * `applyRequests` was called in `applyMode: 'no-new-ai'` mode but received
+   * a request that requires AI resolution AND was not pre-populated with
+   * the deterministic output (`changes.pageCode` for add/update-page,
+   * `changes.layoutBlock` for modify-layout-block, etc).
+   *
+   * Fires from the skill rail (which never has an AI provider) when it
+   * receives an AI-dependent request without the producer-side artifact
+   * having pre-populated the output. Structurally kills the v0.11.3 silent-
+   * drop bug class — the request must come in fully resolved or the run
+   * fails loudly.
+   */
+  E007_NO_AI_REQUIRES_PREPOPULATION: 'COHERENT_E007',
 } as const
 
 export type CoherentErrorCode = (typeof COHERENT_ERROR_CODES)[keyof typeof COHERENT_ERROR_CODES]

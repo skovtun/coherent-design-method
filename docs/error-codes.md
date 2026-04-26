@@ -165,6 +165,24 @@ The mismatch is always caught at the first `_phase` invocation — before any st
 
 ---
 
+## COHERENT_E007 — applyMode 'no-new-ai' received an AI-dependent request without pre-populated output
+
+**When you see it:** the skill rail (which runs without an AI provider) received a `ModificationRequest` whose type is AI-dependent (`add-page`, `update-page`, `modify-layout-block`, `link-shared`, `promote-and-link`) but the request did NOT carry pre-populated deterministic output (`changes.pageCode` for add/update-page, `changes.layoutBlock` for modify-layout-block).
+
+**Why:** The skill rail and the API rail share the same `apply-requests` entry point but run with different `applyMode` settings. API rail (`coherent chat`) has an AI provider available and runs in `'with-ai'` mode — non-pre-populated requests are fine, the provider fills in the output mid-dispatch. Skill rail (`/coherent-chat` via Claude Code) has NO provider and runs in `'no-new-ai'` mode — every AI-dependent request must arrive with its output already filled in by the upstream skill phase. Pre-v0.12.0 the skill rail silently dropped these requests on the floor; since v0.12.0 it throws E007 loudly so the producer-side bug surfaces immediately.
+
+**Fix options:**
+
+1. **You hit this from a skill-rail invocation.** This is a producer bug — the upstream phase failed to populate the deterministic output. File an issue with the skill name + request type. As a workaround: re-run via `coherent chat` (API rail) which has the provider available.
+
+2. **You hit this from custom code calling `applyRequests` directly.** Switch to `applyMode: 'with-ai'` if you have a provider set up, or pre-populate the request's `changes.pageCode` / `changes.layoutBlock` field before calling `applyRequests`.
+
+3. **The request type is `link-shared` or `promote-and-link`.** These cannot be pre-populated — they always require AI to pick the insertion site / extract the JSX. Use the API rail.
+
+**Related:** ADR-0005 (rail parity), v0.12.0 release notes (apply-requests extraction), `packages/cli/src/apply-requests/dispatch-ai.ts`.
+
+---
+
 ## Appending a new code
 
 Every code is append-only. Never re-assign an existing number, even when the error is removed — leave a tombstone comment (`<!-- E007 retired in v0.10.0, no replacement -->`) so old references in issues / PR reviews / Slack threads still resolve to the right slot.
