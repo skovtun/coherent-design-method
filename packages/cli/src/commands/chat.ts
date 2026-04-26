@@ -74,6 +74,7 @@ import {
   summarizeValidators,
 } from '../utils/run-record.js'
 import { applyModification } from './chat/modification-handler.js'
+import { applyRequests } from '../apply-requests/index.js'
 import { regenerateFiles, scanAndInstallSharedDeps, ensurePlanGroupLayouts } from './chat/code-generator.js'
 import { takeNavSnapshot, hasNavChanged } from '../utils/nav-snapshot.js'
 import { loadHashes, saveHashes, computeFileHash } from '../utils/file-hashes.js'
@@ -973,14 +974,18 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
       }
     }
 
-    // Apply modifications
+    // Apply modifications via the shared applyRequests entry (PR1 #7).
+    // Per-request routing happens inside: deterministic types go through
+    // dispatchDeterministic (verbatim port of the API rail's old switch
+    // cases); AI-dependent types delegate to applyModification under the
+    // hood until PR1 #10 moves the bodies into dispatch-ai.ts. The API
+    // rail runs in 'with-ai' mode — applyMode gate is a no-op here.
     spinner.start('Applying modifications...')
-    const results: Array<{ success: boolean; message: string; modified: string[] }> = []
-
-    for (const request of normalizedRequests) {
-      const result = await applyModification(request, dsm, cm, pm, projectRoot, provider, message)
-      results.push(result)
-    }
+    const results = await applyRequests(
+      normalizedRequests,
+      { dsm, cm, pm, projectRoot, provider, originalMessage: message },
+      'with-ai',
+    )
 
     // Welcome-scaffold replacement (M15, parity with skill rail's
     // `createReplaceWelcomeApplier`).
