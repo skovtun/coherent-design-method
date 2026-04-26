@@ -1,0 +1,12 @@
+{
+  "_doc": "PR1 #9 DRIFT GATE fixture — modify-component on a nonexistent target. Expected: failure with clear message (parity with API rail behavior). The fixture deliberately uses a missing target so we don't depend on having a component pre-seeded.",
+  "input": {
+    "type": "modify-component",
+    "target": "nonexistent-component",
+    "changes": { "variants": ["primary", "ghost"] }
+  },
+  "expected": {
+    "success": false,
+    "messageMatches": "not found|Component"
+  }
+}

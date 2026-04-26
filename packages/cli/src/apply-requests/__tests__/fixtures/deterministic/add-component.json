@@ -1,0 +1,26 @@
+{
+  "_doc": "PR1 #9 DRIFT GATE fixture — add-component. Input: register a non-shadcn custom component. Expected: cm.register success, component appears in dsm.config.components.",
+  "input": {
+    "type": "add-component",
+    "target": "new",
+    "changes": {
+      "id": "cta-button",
+      "name": "CtaButton",
+      "source": "custom",
+      "category": "form",
+      "baseClassName": "rounded-md px-4 py-2 font-medium",
+      "variants": [],
+      "sizes": [],
+      "createdAt": "2026-04-26T00:00:00.000Z",
+      "updatedAt": "2026-04-26T00:00:00.000Z"
+    }
+  },
+  "expected": {
+    "success": true,
+    "messageMatches": "Registered component CtaButton",
+    "configCheck": {
+      "path": "components",
+      "containsId": "cta-button"
+    }
+  }
+}

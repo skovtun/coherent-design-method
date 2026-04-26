@@ -1,0 +1,13 @@
+{
+  "_doc": "PR1 #9 DRIFT GATE fixture — update-navigation. Always-success marker case (actual nav rendering is downstream). Expected: success, modified contains 'navigation'.",
+  "input": {
+    "type": "update-navigation",
+    "target": "navigation",
+    "changes": {}
+  },
+  "expected": {
+    "success": true,
+    "messageMatches": "Navigation updated",
+    "modifiedContains": "navigation"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "_doc": "PR1 #9 DRIFT GATE fixture — delete-page. Setup: pre-seed an /about page in config and on disk. Input: delete it by id. Expected: success, file removed, page no longer in config.pages.",
+  "setup": {
+    "seedPage": { "id": "about", "name": "About", "route": "/about" },
+    "seedPageFile": "app/about/page.tsx"
+  },
+  "input": {
+    "type": "delete-page",
+    "target": "about",
+    "changes": {}
+  },
+  "expected": {
+    "success": true,
+    "messageMatches": "Deleted page \"About\"",
+    "fileRemoved": "app/about/page.tsx",
+    "configCheck": {
+      "path": "pages",
+      "doesNotContainId": "about"
+    }
+  }
+}
