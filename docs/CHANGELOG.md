@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.11.5] — 2026-04-26
+
+### Two skill-rail UX paper-cuts: invisible "Done" + opaque stale-lock recovery
+
+v0.11.4 dogfood (`/coherent-chat delete the Activity page`) shipped the right-shape orchestration but exposed two visible UX issues:
+
+1. **Completion signal unreadable.** The skill body emitted `✅ Done. Applied: delete-page Activity. Run \`coherent preview\` to see it.` Claude Code renders inline-code (text wrapped in backticks) as gray-on-light. On the highlighted ✅ Done plate that styling collapses to invisible — user could not see the recovery command in the very moment they needed it.
+2. **Stale-lock recovery opaque.** When a session crashed mid-flow (permission gate, network hiccup, agent abandon) the lock persisted and the next `coherent session start` failed with `❌ Another coherent session is active (lock age: 145s)` and a fix message saying `coherent session end <uuid>` — literal `<uuid>` placeholder. The dogfood agent recovered by manually `ls .coherent/session/` to find the right UUID. v0.11.5 puts the actual UUID in the error.
+
+### Fixed
+
+- **Both skill bodies (`packages/cli/src/utils/claude-code.ts`)** — completion signal section rewritten to mandate plain text (no backticks) on the ✅ Done line. Claude Code's inline-code styling on a highlighted plate is unreadable; the signal carries the recovery command at the exact moment the user needs it. Plain text wins. Examples updated to use `Preview: coherent preview` instead of `Run \`coherent preview\` to see it.`
+- **`acquirePersistentLock` (`packages/cli/src/utils/files.ts`)** — when the persistent lock is held, the error's `fix` field now embeds the active session UUID looked up from `.coherent/session/<uuid>/`. Pre-v0.11.5 the message said `coherent session end <uuid>` literally; v0.11.5 says `coherent session end 4f2adb4a-bec4-4760-a5b5-e67e1bc447b7 --keep` — copy-pasteable. Most-recent dir wins on ties (the one most likely blocking right now). Falls back to `<uuid>` placeholder + `ls .coherent/session` hint when no session dirs exist (orphan lock).
+
+### For Maintainers
+
+- 3 new tests in `files.test.ts`: UUID embedded when one session dir exists; most-recent-mtime wins on multiple; placeholder fallback on orphan lock. Total: 1530 passing + 9 todo (1539). Up 3 from v0.11.4.
+- Both UX paper-cuts caught in the same dogfood session that proved v0.11.4 worked. Pattern: each iteration finds smaller and smaller drifts. The v0.11 line is now 5 hotfixes deep — we're in the long tail of polish.
+- The deeper architectural question (`/plan-eng-review` of Option A/B/C: continue parity-engine pattern vs collapse skill rail to thin wrapper) is in flight independently. v0.11.5 fixes don't presume which option wins — both work regardless.
+
 ## [0.11.4] — 2026-04-25
 
 ### Skill-rail orchestration drift — `[1/6]` lies + spurious "Error" lines
