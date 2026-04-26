@@ -34,6 +34,21 @@ This is the long-deferred ADR-0005 delivery. Originally accepted in v0.9.0, neve
 - **Skill rail (`phase-engine/appliers.ts:createModificationApplier`)** now calls `applyRequests(handled, ctx, 'no-new-ai')` instead of running its own inline 5-case switch (lines 215-262 — gone). Removed 110 lines of skill-private duplicates: `applyManagerResult`, `applyDeletePage`, `applyDeleteComponent`. The applier function body collapses from ~140 lines to ~25 lines.
 - **5 message-format assertions** in `phase-engine/__tests__/appliers.test.ts` updated to match the shared `dispatchDeterministic` format. Skill rail's old `delete-page: Transactions ✓` → API rail's `Deleted page "Transactions" (/transactions). ...`. Behavioral equivalence preserved, just the message strings reformatted to one canonical shape.
 
+### ⚠ BREAKING — skill-rail message format
+
+The skill rail's `createModificationApplier` (used by `/coherent-chat` via Claude Code) previously emitted concise `<verb>-<type>: <name> ✓` strings. Post-v0.12.0 it emits the full canonical `dispatchDeterministic` strings, which match the API rail format. If any downstream skill consumer (custom Claude Code skill, automation that parses CLI output) regex-matches the old shape, it will silently stop matching:
+
+| Operation | Old skill format | New shared format |
+|---|---|---|
+| delete-page | `delete-page: Transactions ✓` | `Deleted page "Transactions" (/transactions). Nav updated. Run \`coherent undo\` to restore.` |
+| delete-component | `delete-component: CID-009 ✓` | `Deleted shared component "FeatureCard" (CID-009). Pages importing it will break — regenerate them with \`coherent chat --page X "remove FeatureCard usage"\`.` |
+| update-token | `update-token: colors.light.primary ✓` | `Updated token colors.light.primary from #X to #Y` |
+| add-component | `add-component: CtaButton ✓` | `Registered component CtaButton (cta-button)` |
+| modify-component | `modify-component: <id> ✓` | `Updated component <name> (<id>)` (or specific failure message) |
+| delete-page (root refusal) | `refusing to delete root page` | `Refusing to delete the root page (/). If you really want this, edit design-system.config.ts manually.` |
+
+If you parse these strings, update your patterns. The new format is canonical and stable going forward — both rails produce it.
+
 ### Drift class killed
 
 Six codex audit drifts collapsed:
@@ -52,6 +67,23 @@ The structural fix for the silent-drop bug class:
 
 - `commands/chat/modification-handler.ts` (1344 lines) stays intact this release as the AI-case delegation target. PR2 (`chat.ts` facade extraction) physically moves the 5 AI-case bodies (~880 lines) into `dispatch-ai.ts` and reduces modification-handler to a re-export. Held back from v0.12.0 to keep the surface area reviewable.
 - Bisect-friendly: 11 commits, each with vitest green at HEAD. Each commit independently revertable.
+
+### Adversarial review — known limitations carried into v0.12.0
+
+A pre-merge adversarial subagent review (2026-04-26) caught 3 INFORMATIONAL gaps and 5 CRITICAL findings beyond what `/plan-eng-review` and `/codex consult` had identified at planning stage. The cheap fixes shipped in this release; the structural ones are queued for PR2:
+
+**Shipped in v0.12.0 (post-review fixes):**
+- `add-layout-block` was in the type union but in NEITHER `DETERMINISTIC_TYPES` nor `AI_TYPES` — would silently produce `{success:false}` instead of throwing E007 in `'no-new-ai'` mode. Added to `AI_TYPES` as never-pre-populatable so the gate fires loudly even on this unimplemented type. Test added.
+- `modify-component` parity-gate fixture had a too-loose regex (`"not found|Component"`) that would match hypothetical regression messages containing the literal English word "Component". Tightened to the canonical `"Component <id> not found"` shape.
+- This BREAKING CHANGE callout for the skill-rail message format change.
+
+**Deferred to PR2 (with rationale):**
+1. **Zombie deterministic case bodies in `modification-handler.ts`.** The 6 deterministic cases still live there as a second copy alongside `dispatch.ts`. Current call sites only hit `applyModification` for AI types, but no compile-time check enforces "only AI types reach me." Risk: future contributor adding a new caller of `applyModification` gets the legacy bodies, not the shared ones. PR2 will physically delete the 6 deterministic case bodies + replace with `default: throw new Error('only AI types post-v0.12.0')`.
+2. **Test coverage gaps.** No integration test exercises (a) the API rail loop with `parseModification`-produced requests, (b) skill-rail E007 boundary (currently caught by partition guard before applyRequests sees AI-type), (c) the second `applyModification` call site at `chat.ts:1156`, (d) `CoherentError` propagation (no `instanceof CoherentError` branches in any caller — `.fix` and `.docsUrl` are silently lost).
+3. **No end-to-end smoke test with a real AI provider.** Only unit/integration tests pin behavior; the `coherent chat "build me X"` E2E path is unverified post-extraction. Smoke test for the API rail's full delegation chain requires a fake AI provider in tests — queued for PR2.
+4. **`anySuccess` heuristic for `dsm.save()` in skill rail applier.** Works today; latent footgun if a future deterministic case returns `success:true` but shouldn't trigger persistence. Documenting now; revisiting in PR2.
+
+These limitations do NOT block v0.12.0 — they trace to the deliberate "wrap-now / move-later" split the GSTACK eng-review accepted. The structural extraction lands now; the layer-hygiene completion is PR2.
 - Drift-gate fixtures (`apply-requests/__tests__/fixtures/deterministic/*.json`) are the canonical contract for the 6 deterministic types. When you change `dispatchDeterministic`, expect to update fixtures. When you add a request type, add a fixture in the same commit.
 - ADR-0005 (chat.ts as facade over runPipeline) — `shipped_in` field in the ADR header now lists `[0.9.0, 0.12.0]`. PR1 of the ADR landed; PR2 (chat.ts collapse to ~150 lines) is in flight.
 

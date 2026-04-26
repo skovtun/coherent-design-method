@@ -39,12 +39,22 @@ import { COHERENT_ERROR_CODES } from '../errors/codes.js'
 import type { ApplyMode, ApplyRequestsContext, ApplyResult } from './types.js'
 
 /**
- * The 5 AI-dependent ModificationRequest types. These ALWAYS need an
+ * The 6 AI-dependent ModificationRequest types. These ALWAYS need an
  * AI provider unless the producer side has pre-populated the deter-
  * ministic output.
+ *
+ * `add-layout-block` is included even though no current code path
+ * implements it — without inclusion, an `add-layout-block` request
+ * would fall through both `dispatchDeterministic` (returns null) and
+ * `dispatchAi` (returns null) and end up in `unknownTypeFailure`,
+ * silently producing `{success:false}` instead of throwing E007 in
+ * `'no-new-ai'` mode. Adversarial review (2026-04-26) caught this as
+ * a silent-drop bug-class regression. Listing it here closes the gap
+ * structurally — the gate fires loudly even on the unimplemented type.
  */
 const AI_TYPES = new Set<ModificationRequest['type']>([
   'modify-layout-block',
+  'add-layout-block',
   'link-shared',
   'promote-and-link',
   'add-page',
@@ -82,8 +92,13 @@ export function isAiCasePrepopulated(request: ModificationRequest): boolean {
       return typeof changes.pageCode === 'string' && (changes.pageCode as string).trim() !== ''
     case 'modify-layout-block':
       return typeof changes.layoutBlock === 'string' && (changes.layoutBlock as string).trim() !== ''
+    case 'add-layout-block':
     case 'link-shared':
     case 'promote-and-link':
+      // `add-layout-block` is in the type union but no current path implements
+      // it. Treating as never-pre-populatable means the E007 gate fires for
+      // any skill-rail invocation, surfacing the missing implementation
+      // loudly instead of silently dropping the request.
       return false
     default:
       return false

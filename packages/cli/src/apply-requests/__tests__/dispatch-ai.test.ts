@@ -19,9 +19,10 @@ import { dispatchAi, isAi, isAiCasePrepopulated } from '../dispatch-ai.js'
 import type { ApplyRequestsContext } from '../types.js'
 
 describe('isAi', () => {
-  it('returns true for the 5 AI-dependent types', () => {
+  it('returns true for the 6 AI-dependent types (incl. unimplemented add-layout-block)', () => {
     const types: ModificationRequest['type'][] = [
       'modify-layout-block',
+      'add-layout-block',
       'link-shared',
       'promote-and-link',
       'add-page',
@@ -157,6 +158,19 @@ describe('dispatchAi — applyMode contract', () => {
         type: 'link-shared',
         target: 'home',
         changes: { componentId: 'CID-001' },
+      }
+      await expect(dispatchAi(req, stubCtx, 'no-new-ai')).rejects.toThrow(CoherentError)
+    })
+
+    it('throws E007 for add-layout-block (unimplemented type, never pre-populatable)', async () => {
+      // Adversarial review (2026-04-26) caught this gap: pre-fix, add-layout-block
+      // was in NEITHER the deterministic nor AI set, falling through to
+      // unknownTypeFailure soft `{success:false}` instead of throwing E007.
+      // Listing it as AI + never-pre-populatable closes the silent-drop gap.
+      const req: ModificationRequest = {
+        type: 'add-layout-block',
+        target: 'header',
+        changes: { instruction: 'add a banner' },
       }
       await expect(dispatchAi(req, stubCtx, 'no-new-ai')).rejects.toThrow(CoherentError)
     })
