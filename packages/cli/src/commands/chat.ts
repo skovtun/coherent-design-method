@@ -73,7 +73,6 @@ import {
   aggregateValidatorIssues,
   summarizeValidators,
 } from '../utils/run-record.js'
-import { applyModification } from './chat/modification-handler.js'
 import { applyRequests } from '../apply-requests/index.js'
 import { regenerateFiles, scanAndInstallSharedDeps, ensurePlanGroupLayouts } from './chat/code-generator.js'
 import { takeNavSnapshot, hasNavChanged } from '../utils/nav-snapshot.js'
@@ -1153,7 +1152,7 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
                 scaffoldSpinner.warn(`  Skipped scaffold: ${linkedReq.error}`)
                 continue
               }
-              const linkedResult = await applyModification(linkedReq, dsm, cm, pm, projectRoot, provider)
+              const [linkedResult] = await applyRequests([linkedReq], { dsm, cm, pm, projectRoot, provider }, 'with-ai')
               if (linkedResult.success) {
                 results.push(linkedResult)
                 normalizedRequests.push(linkedReq)

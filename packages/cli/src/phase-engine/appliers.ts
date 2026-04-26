@@ -31,17 +31,10 @@
  */
 
 import { dirname, resolve } from 'path'
-import { mkdir, writeFile, rm } from 'fs/promises'
+import { mkdir, writeFile } from 'fs/promises'
 import { existsSync } from 'fs'
-import {
-  ComponentManager,
-  DesignSystemManager,
-  PageManager,
-  generateSharedComponent,
-  loadManifest,
-  saveManifest,
-} from '@getcoherent/core'
-import type { ComponentDefinition, DesignSystemConfig, ModificationRequest, PageDefinition } from '@getcoherent/core'
+import { ComponentManager, DesignSystemManager, PageManager, generateSharedComponent } from '@getcoherent/core'
+import type { DesignSystemConfig, ModificationRequest, PageDefinition } from '@getcoherent/core'
 import type { ArtifactApplier, ArtifactApplierContext } from './session-lifecycle.js'
 import type { ConfigDelta } from './phases/plan.js'
 import type { ComponentsArtifact } from './phases/components.js'
@@ -53,6 +46,7 @@ import { pickPrimaryRoute, replaceWelcomeWithPrimary, type PageLite } from '../u
 import { takeNavSnapshot, hasNavChanged } from '../utils/nav-snapshot.js'
 import { buildSidebarNavItems } from '../utils/nav-items.js'
 import { createBackup } from '../utils/backup.js'
+import { applyRequests } from '../apply-requests/index.js'
 
 const CONFIG_DELTA_ARTIFACT = 'config-delta.json'
 const COMPONENTS_GENERATED_ARTIFACT = 'components-generated.json'
@@ -209,199 +203,37 @@ export function createModificationApplier(): ArtifactApplier {
       const cm = new ComponentManager(dsm.getConfig())
       const pm = new PageManager(dsm.getConfig())
 
-      const results: string[] = []
-      let dsmDirty = false
+      // PR1 #10 — delegate to the shared apply-requests entry. Both rails
+      // now route deterministic types through the SAME dispatchDeterministic
+      // (verbatim port from modification-handler.ts), eliminating the parity
+      // drift this whole extraction was scoped to address. Skill-mode runs
+      // 'no-new-ai' — the gate is a no-op for deterministic types but
+      // throws E007 if a future phase mistakenly emits an AI-dependent
+      // request through this applier.
+      const applyResults = await applyRequests(handled, { dsm, cm, pm, projectRoot: ctx.projectRoot }, 'no-new-ai')
+      const messages = applyResults.map(r => r.message)
+      const anySuccess = applyResults.some(r => r.success)
 
-      for (const req of handled) {
-        switch (req.type) {
-          case 'delete-page': {
-            const r = await applyDeletePage(req, dsm, ctx.projectRoot)
-            if (r.dsmDirty) dsmDirty = true
-            results.push(r.message)
-            break
-          }
-          case 'delete-component': {
-            const r = await applyDeleteComponent(req, ctx.projectRoot)
-            results.push(r.message)
-            break
-          }
-          case 'update-token': {
-            const r = await dsm.updateToken(req.target ?? '', (req.changes as Record<string, unknown>)?.value)
-            if (r.success) dsmDirty = true
-            results.push(r.success ? `update-token: ${req.target} ✓` : `update-token: ${r.message}`)
-            break
-          }
-          case 'add-component': {
-            const componentData = req.changes as ComponentDefinition
-            const reg = await cm.register(componentData)
-            if (reg.success) {
-              applyManagerResult(dsm, cm, pm, reg.config)
-              dsmDirty = true
-              results.push(`add-component: ${componentData.name ?? componentData.id} ✓`)
-            } else {
-              results.push(`add-component: ${reg.message}`)
-            }
-            break
-          }
-          case 'modify-component': {
-            const upd = await cm.update(req.target ?? '', (req.changes as Record<string, unknown> | undefined) ?? {})
-            if (upd.success) {
-              applyManagerResult(dsm, cm, pm, upd.config)
-              dsmDirty = true
-              results.push(`modify-component: ${req.target} ✓`)
-            } else {
-              results.push(`modify-component: ${upd.message}`)
-            }
-            break
-          }
-          // No default — the partition above guaranteed exhaustive
-          // coverage of `handled`. Adding a request type to the
-          // `handled` partition without adding a case here will fail
-          // the TypeScript exhaustiveness check on the next build.
-        }
-      }
-
-      if (dsmDirty) {
+      // dsm.save() persists token mutations + page deletions to
+      // design-system.config.ts. Idempotent on no-op runs. The previous
+      // implementation tracked dsmDirty per case; the simpler heuristic
+      // "save if anything succeeded" produces the same on-disk result and
+      // matches the API rail's behavior (chat.ts always saves at the end
+      // of an apply batch).
+      if (anySuccess) {
         await dsm.save()
       }
 
-      return results
+      return messages
     },
   }
 }
 
-/**
- * Mirrors `applyManagerResult` from `commands/chat/modification-handler.ts:196`.
- * Keeps the three managers' in-memory configs in lockstep after a mutation
- * so subsequent reads see the same picture. Tokens are re-attached because
- * the manager-returned config can drop them in some code paths.
- */
-function applyManagerResult(
-  dsm: DesignSystemManager,
-  cm: ComponentManager,
-  pm: PageManager,
-  newConfig: DesignSystemConfig,
-): void {
-  const merged: DesignSystemConfig = { ...newConfig, tokens: dsm.getConfig().tokens }
-  dsm.updateConfig(merged)
-  cm.updateConfig(merged)
-  pm.updateConfig(merged)
-}
-
-/**
- * Resolve a delete-page request against the project's pages + remove the
- * `.tsx` file on disk + drop the page from `config.pages` and the
- * matching `navigation.items` entry. Mirrors API rail's case at
- * `modification-handler.ts:1111`. Returns `dsmDirty: true` when the
- * caller needs to `await dsm.save()` after.
- */
-async function applyDeletePage(
-  req: ModificationRequest,
-  dsm: DesignSystemManager,
-  projectRoot: string,
-): Promise<{ message: string; dsmDirty: boolean }> {
-  const target = req.target
-  if (!target) {
-    return { message: 'delete-page: missing target', dsmDirty: false }
-  }
-  const config = dsm.getConfig()
-  const pages = config.pages ?? []
-  const page = pages.find(
-    p =>
-      p.id === target ||
-      p.name?.toLowerCase() === target.toLowerCase() ||
-      p.route === target ||
-      p.route === '/' + target.replace(/^\//, ''),
-  )
-  if (!page) {
-    return {
-      message: `delete-page: no match for "${target}" (pages: ${pages.map(p => p.id).join(', ') || 'none'})`,
-      dsmDirty: false,
-    }
-  }
-  // Refuse to delete `/` — same guard as API rail (modification-handler.ts:1137).
-  // Without a root page the project's routing breaks; users almost never
-  // mean to delete it.
-  if (page.route === '/') {
-    return {
-      message: `delete-page: refusing to delete root page "/" (edit design-system.config.ts manually if you really want this)`,
-      dsmDirty: false,
-    }
-  }
-
-  // Try every route group convention in turn. The page may live under
-  // `app/<slug>/`, `app/(app)/<slug>/`, or `app/(auth)/<slug>/`,
-  // depending on its pageType. Same candidate list as API rail.
-  const relRoute = page.route.replace(/^\//, '')
-  const candidates = [
-    resolve(projectRoot, 'app', relRoute, 'page.tsx'),
-    resolve(projectRoot, 'app', '(app)', relRoute, 'page.tsx'),
-    resolve(projectRoot, 'app', '(auth)', relRoute, 'page.tsx'),
-  ]
-  const filePath = candidates.find(existsSync)
-  if (filePath) {
-    await rm(filePath, { force: true })
-    try {
-      // Best-effort directory cleanup — the dir may still hold a
-      // layout.tsx or sibling pages. If `rm -r` would touch shared
-      // infra, the catch swallows it and we leave the dir intact.
-      await rm(dirname(filePath), { recursive: true, force: true })
-    } catch {
-      /* leave alone */
-    }
-  }
-
-  // Drop from config.pages + matching navigation.items entry in one
-  // atomic update so a partial save can't leave the project in a state
-  // where the page is gone but the nav still 404s into it.
-  const filteredPages = pages.filter(p => p.id !== page.id)
-  const currentNav = config.navigation
-  const updatedNav = currentNav?.items
-    ? { ...currentNav, items: currentNav.items.filter(it => it.route !== page.route) }
-    : currentNav
-  dsm.updateConfig({
-    ...config,
-    pages: filteredPages,
-    ...(updatedNav ? { navigation: updatedNav } : {}),
-    updatedAt: new Date().toISOString(),
-  })
-
-  return { message: `delete-page: ${page.name} (${page.route}) ✓`, dsmDirty: true }
-}
-
-/**
- * Resolve a delete-component request against the manifest + remove the
- * shared component file on disk. Mirrors API rail's case at
- * `modification-handler.ts:1213`. Pages that import the now-deleted
- * component will break — the API rail surfaces this as a warning;
- * we follow the same approach.
- */
-async function applyDeleteComponent(req: ModificationRequest, projectRoot: string): Promise<{ message: string }> {
-  const target = req.target
-  if (!target) {
-    return { message: 'delete-component: missing target' }
-  }
-  let manifest
-  try {
-    manifest = await loadManifest(projectRoot)
-  } catch {
-    return { message: 'delete-component: could not load shared-components manifest' }
-  }
-  const entry = manifest.shared.find(e => e.id === target || e.name.toLowerCase() === target.toLowerCase())
-  if (!entry) {
-    const list = manifest.shared.map(e => `${e.id}/${e.name}`).join(', ') || 'none'
-    return { message: `delete-component: no match for "${target}" (manifest: ${list})` }
-  }
-  const filePath = resolve(projectRoot, entry.file)
-  if (existsSync(filePath)) {
-    await rm(filePath, { force: true })
-  }
-  await saveManifest(projectRoot, {
-    ...manifest,
-    shared: manifest.shared.filter(e => e.id !== entry.id),
-  })
-  return { message: `delete-component: ${entry.id} (${entry.name}) ✓ (pages importing it may need regen)` }
-}
+// PR1 #10: applyDeletePage, applyDeleteComponent, and applyManagerResult
+// formerly lived here as skill-rail-private duplicates of API rail logic.
+// They were the canonical example of the parity drift this whole extraction
+// was scoped to fix. The shared apply-requests/dispatch.ts now owns the
+// single implementation; both rails route through it.
 
 /**
  * Apply `config-delta.json` to the project's design-system.config.ts.
