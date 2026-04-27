@@ -11,6 +11,28 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.13.2] — 2026-04-27
+
+### Fixed — three latent v0.14.0 prerequisites caught by adversarial review
+
+After picking Variant D for skill-rail UX (Item 4), an adversarial pre-impl gate (per ADR-0007) caught three issues that would have surfaced as user-visible regressions during v0.14.0. Shipped as a patch to clear the runway before v0.14 starts.
+
+- **`coherent update` no longer destroys customized skill bodies.** Pre-v0.13.2, `writeClaudeSkills()` unconditionally overwrote `.claude/skills/coherent-chat/SKILL.md` and `.claude/skills/frontend-ux/SKILL.md`. Anyone who customized either file lost their changes silently on every `coherent update`. v0.13.2 introduces a hash-chain lock at `.coherent/skills.lock.json` — when the file on disk matches the last canonical hash we wrote, we safely overwrite. When it doesn't match, the existing file is preserved as `.coherent/backups/skills/<skill>-SKILL-<timestamp>.md` and the new canonical is written with a warning. First `coherent update` after upgrading from v0.13.0/v0.13.1 emits one cosmetic backup notice (no lock yet exists), then is silent thereafter.
+- **`package.json` exports map for `@getcoherent/cli`.** Pre-v0.13.2 there was no `exports` field, so any deep import path into `dist/` resolved by file lookup. Removing or renaming any internal module would silently break downstream consumers — even though the CLI exposes no library API. v0.13.2 adds `exports: { ".": "./dist/index.js", "./package.json": "./package.json" }` matching `@getcoherent/core`. PR2's planned commands/chat/ flatten in v0.14.0 is now technically non-breaking. **Note for downstream consumers:** if you were doing `import 'unstable/path' from '@getcoherent/cli/dist/utils/...'`, that path is now blocked. There is no public library API; use `@getcoherent/core` instead.
+- **`coherentReleaseFlags` end-to-end publish path verified + documented.** Pre-v0.13.2 the v0.13.0 update-notifier expected `coherentReleaseFlags.breaking` to ship in the published package.json, but the maintainer step to add it was undocumented and unenforced — the field was missing from both v0.13.0 and v0.13.1 published tarballs (verified by inspecting the npm tarball). v0.13.2 (a) confirms `pnpm pack` preserves arbitrary top-level fields when present, (b) documents the manual injection step in `docs/runbooks/cut-release.md` Step 3a, and (c) adds a CI guard test (`packages/cli/src/utils/release-flags-schema.test.ts`) that validates schema if the field is present and enforces cli/core consistency.
+
+### Internal
+
+- Tests: 1638 passing (claude-code +4 lock/backup tests, release-flags-schema +6). tsc clean. Build clean.
+- New file: `packages/cli/src/utils/release-flags-schema.test.ts`.
+- Documentation: `docs/runbooks/cut-release.md` Step 3a (BREAKING releases only).
+
+### Out of scope (deferred to v0.14.0)
+
+- Skill rail Variant D streaming format. The adversarial gate also caught two non-trivial concerns about Variant D itself: (1) the runtime opt-out env var as originally written is incoherent (skill body is markdown, not code), (2) the streaming format depends on Claude Code's Bash-box rendering which has not been validated against the mockup. v0.13.2 is the prerequisites; Variant D ships in v0.14.0 alongside PR2 only after the rendering check (`/tmp/coherent-rendering-check-plan.md`) confirms feasibility.
+
+---
+
 ## [0.13.1] — 2026-04-27
 
 ### Fixed — version-mismatch UX (E008)

@@ -4,9 +4,105 @@
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'fs'
-import { join } from 'path'
+import { join, relative } from 'path'
+import { createHash } from 'crypto'
 import chalk from 'chalk'
 import { PHASE_ENGINE_PROTOCOL } from '../phase-engine/phase-registry.js'
+
+type SkillName = 'coherent-chat' | 'frontend-ux'
+
+const SKILLS_LOCK_PATH = '.coherent/skills.lock.json'
+const SKILLS_BACKUP_DIR = '.coherent/backups/skills'
+
+function sha256(content: string): string {
+  return createHash('sha256').update(content).digest('hex')
+}
+
+function readChecksumLock(projectRoot: string): Record<string, string> {
+  const lockPath = join(projectRoot, SKILLS_LOCK_PATH)
+  if (!existsSync(lockPath)) return {}
+  try {
+    const parsed = JSON.parse(readFileSync(lockPath, 'utf-8')) as unknown
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, string>
+    }
+  } catch {
+    // corrupt lock — treat as missing
+  }
+  return {}
+}
+
+function writeChecksumLock(projectRoot: string, lock: Record<string, string>): void {
+  const dir = join(projectRoot, '.coherent')
+  ensureDir(dir)
+  writeFileSync(join(projectRoot, SKILLS_LOCK_PATH), JSON.stringify(lock, null, 2) + '\n', 'utf-8')
+}
+
+/**
+ * Write a canonical skill body without destroying user customizations.
+ *
+ * Hash chain:
+ *  - lock records the SHA256 of the last canonical body we wrote.
+ *  - If the file on disk hashes to that value → file is untouched, safe to overwrite.
+ *  - If hashes differ → user (or another tool) modified the file. Back it up
+ *    under `.coherent/backups/skills/<skill>-SKILL-<ts>.md`, write the new
+ *    canonical, return the backup path so the caller can warn.
+ *  - First write (no lock entry, no existing file): write canonical, record hash.
+ *  - First write with existing file but no lock: treat as user-modified. The
+ *    grace cost is one cosmetic backup notice on first `coherent update`
+ *    after upgrading to v0.13.2.
+ */
+function safeWriteSkill(
+  filePath: string,
+  canonical: string,
+  skillName: SkillName,
+  projectRoot: string,
+  lock: Record<string, string>,
+): { wrote: boolean; backedUp: string | null } {
+  const newHash = sha256(canonical)
+
+  if (!existsSync(filePath)) {
+    writeFileSync(filePath, canonical, 'utf-8')
+    lock[skillName] = newHash
+    return { wrote: true, backedUp: null }
+  }
+
+  let existing: string
+  try {
+    existing = readFileSync(filePath, 'utf-8')
+  } catch {
+    writeFileSync(filePath, canonical, 'utf-8')
+    lock[skillName] = newHash
+    return { wrote: true, backedUp: null }
+  }
+
+  const existingHash = sha256(existing)
+
+  // Already current.
+  if (existingHash === newHash) {
+    lock[skillName] = newHash
+    return { wrote: false, backedUp: null }
+  }
+
+  const lockedHash = lock[skillName]
+
+  // Untouched between writes — safe to overwrite.
+  if (lockedHash && existingHash === lockedHash) {
+    writeFileSync(filePath, canonical, 'utf-8')
+    lock[skillName] = newHash
+    return { wrote: true, backedUp: null }
+  }
+
+  // User-modified or unknown provenance — preserve existing.
+  const backupDir = join(projectRoot, SKILLS_BACKUP_DIR)
+  ensureDir(backupDir)
+  const ts = new Date().toISOString().replace(/[:.]/g, '-')
+  const backupPath = join(backupDir, `${skillName}-SKILL-${ts}.md`)
+  writeFileSync(backupPath, existing, 'utf-8')
+  writeFileSync(filePath, canonical, 'utf-8')
+  lock[skillName] = newHash
+  return { wrote: true, backedUp: backupPath }
+}
 
 function ensureDir(dir: string): void {
   try {
@@ -677,7 +773,18 @@ export function writeClaudeSkills(projectRoot: string): void {
   const dirChat = join(projectRoot, '.claude', 'skills', 'coherent-chat')
   ensureDir(dirFrontend)
   ensureDir(dirChat)
-  writeFileSync(join(dirFrontend, 'SKILL.md'), SKILL_FRONTEND_UX, 'utf-8')
+
+  const lock = readChecksumLock(projectRoot)
+
+  const frontendPath = join(dirFrontend, 'SKILL.md')
+  const frontendResult = safeWriteSkill(frontendPath, SKILL_FRONTEND_UX, 'frontend-ux', projectRoot, lock)
+  if (frontendResult.backedUp) {
+    console.log(
+      chalk.yellow(
+        `   ⚠ Customized frontend-ux/SKILL.md preserved → ${relative(projectRoot, frontendResult.backedUp)}`,
+      ),
+    )
+  }
 
   // R5 refresh notice: if an older protocol generation exists in the project,
   // tell the user it's being upgraded so a stale ambient copy never goes
@@ -697,7 +804,15 @@ export function writeClaudeSkills(projectRoot: string): void {
       // already handles broken `.claude/` state.
     }
   }
-  writeFileSync(chatPath, SKILL_COHERENT_CHAT, 'utf-8')
+
+  const chatResult = safeWriteSkill(chatPath, SKILL_COHERENT_CHAT, 'coherent-chat', projectRoot, lock)
+  if (chatResult.backedUp) {
+    console.log(
+      chalk.yellow(`   ⚠ Customized coherent-chat/SKILL.md preserved → ${relative(projectRoot, chatResult.backedUp)}`),
+    )
+  }
+
+  writeChecksumLock(projectRoot, lock)
 }
 
 export function writeClaudeSettings(projectRoot: string): void {

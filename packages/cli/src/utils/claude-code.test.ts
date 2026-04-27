@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { COHERENT_CHAT_SKILL_BODY, readSkillProtocol, writeClaudeCommands, writeClaudeSkills } from './claude-code.js'
@@ -306,5 +306,79 @@ describe('writeClaudeSkills refresh notice (R5)', () => {
     expect(existsSync(join(skillsRoot, 'coherent-project'))).toBe(false)
     expect(existsSync(join(skillsRoot, 'coherent-generate'))).toBe(false)
     expect(existsSync(join(projectRoot, '.claude', 'commands', 'coherent-generate.md'))).toBe(false)
+  })
+})
+
+describe('writeClaudeSkills user-customization preservation', () => {
+  let projectRoot: string
+  afterEach(() => {
+    if (projectRoot && existsSync(projectRoot)) {
+      rmSync(projectRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('preserves user-modified coherent-chat/SKILL.md by backing it up', () => {
+    projectRoot = mkdtempSync(join(tmpdir(), 'coherent-claude-code-'))
+    const dirChat = join(projectRoot, '.claude', 'skills', 'coherent-chat')
+    mkdirSync(dirChat, { recursive: true })
+    const userContent = '# user customized skill body\n\nWith my custom rules.\n'
+    writeFileSync(join(dirChat, 'SKILL.md'), userContent, 'utf-8')
+
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    writeClaudeSkills(projectRoot)
+    log.mockRestore()
+
+    // Canonical now in place
+    const canonical = readFileSync(join(dirChat, 'SKILL.md'), 'utf-8')
+    expect(canonical).not.toBe(userContent)
+    expect(canonical).toContain('phase_engine_protocol')
+
+    // Backup created under .coherent/backups/skills/
+    const backupDir = join(projectRoot, '.coherent', 'backups', 'skills')
+    expect(existsSync(backupDir)).toBe(true)
+    const backups = readdirSync(backupDir).filter((f: string) => f.startsWith('coherent-chat-SKILL-'))
+    expect(backups.length).toBe(1)
+    expect(readFileSync(join(backupDir, backups[0]), 'utf-8')).toBe(userContent)
+  })
+
+  it('writes lock file recording canonical hashes after first write', () => {
+    projectRoot = mkdtempSync(join(tmpdir(), 'coherent-claude-code-'))
+    writeClaudeSkills(projectRoot)
+
+    const lockPath = join(projectRoot, '.coherent', 'skills.lock.json')
+    expect(existsSync(lockPath)).toBe(true)
+    const lock = JSON.parse(readFileSync(lockPath, 'utf-8')) as Record<string, string>
+    expect(lock['coherent-chat']).toMatch(/^[a-f0-9]{64}$/)
+    expect(lock['frontend-ux']).toMatch(/^[a-f0-9]{64}$/)
+  })
+
+  it('does NOT back up an untouched canonical file across re-runs', () => {
+    projectRoot = mkdtempSync(join(tmpdir(), 'coherent-claude-code-'))
+
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    writeClaudeSkills(projectRoot) // first install — canonical written, lock created
+    writeClaudeSkills(projectRoot) // second run — file untouched, no backup
+    log.mockRestore()
+
+    const backupDir = join(projectRoot, '.coherent', 'backups', 'skills')
+    expect(existsSync(backupDir)).toBe(false)
+  })
+
+  it('preserves user customization to frontend-ux/SKILL.md too', () => {
+    projectRoot = mkdtempSync(join(tmpdir(), 'coherent-claude-code-'))
+    const dirFrontend = join(projectRoot, '.claude', 'skills', 'frontend-ux')
+    mkdirSync(dirFrontend, { recursive: true })
+    const userContent = '# my custom frontend-ux\n'
+    writeFileSync(join(dirFrontend, 'SKILL.md'), userContent, 'utf-8')
+
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    writeClaudeSkills(projectRoot)
+    log.mockRestore()
+
+    const backupDir = join(projectRoot, '.coherent', 'backups', 'skills')
+    expect(existsSync(backupDir)).toBe(true)
+    const backups = readdirSync(backupDir).filter((f: string) => f.startsWith('frontend-ux-SKILL-'))
+    expect(backups.length).toBe(1)
+    expect(readFileSync(join(backupDir, backups[0]), 'utf-8')).toBe(userContent)
   })
 })
