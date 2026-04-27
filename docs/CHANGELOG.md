@@ -11,6 +11,50 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.13.3] — 2026-04-27
+
+### Changed — skill rail log cleanup
+
+User-visible noise reduction for `/coherent-chat` runs in Claude Code. ~30 lines of mixed UUID echoes / "Plan-only shape confirmed" / `▸ [N/M]` progress chatter / verbose `Applied:` block → clean preamble + final summary card.
+
+- **`coherent session start --quiet`** (new flag). Stdout still emits the bare UUID; informational stderr block ("Session UUID started at TIMESTAMP", session dir, started-at) is suppressed. Errors remain on stderr. Default behavior unchanged for direct CLI users.
+- **`coherent session end --quiet`** (new flag). Stdout becomes a single line `✔ Session <short> ended (<N> applied)` instead of the multi-line `Applied:` block. Run record still written under `.coherent/runs/`. Default behavior unchanged for direct CLI users.
+- **Skill body (`SKILL_COHERENT_CHAT`) rewritten.** Drops the `▸ [N/M] Planning…` / `▸ [N/M] Applying delete-page to disk…` instructions — the Bash boxes themselves show what's running, the chatter was redundant. Final completion signal is now a structured card:
+  ```
+  Coherent · delete the Activity page
+
+    ✅ Applied: delete-page Profile
+
+    Preview · coherent preview
+    Undo    · coherent undo
+    Debug   · session 4f2adb (full uuid: 4f2adb4a-bec4-4760-a5b5-e67e1bc447b7)
+  ```
+  Failure path uses `❌ Failed:` and skips Preview/Undo.
+
+### Behavior matrix
+
+| Surface | Before | After |
+|---|---|---|
+| Direct `coherent session start` | UUID + verbose stderr | unchanged |
+| Direct `coherent session end` | verbose `Applied:` list | unchanged |
+| Skill rail (`/coherent-chat`) | ~30 lines noise + `✅ Done. Applied: ...` one-liner | tight `Bash(...)` boxes + structured card at end |
+
+### Internal
+
+- Tests: 1642 passing (+4 new in `session.test.ts` for `--quiet` flag, +existing `claude-code.test.ts` updated for new card format).
+- New file: `packages/cli/src/commands/session.test.ts`.
+- Test hook: added `_projectRoot` to `SessionStartCliOptions` and `SessionEndCliOptions` for sandboxed unit tests.
+
+### Out of scope
+
+The full Variant D′ design (per-phase `_phase ingest` ✓-lines, `<phase>-result.json` artifacts, `coherent session card` read-only renderer, `sessionEndMutate` vs `sessionEndRender` split, `coherentReleaseFlags.breaking` for v0.14, MIGRATION-v0.14.md) was descoped after 4 rounds of codex+adversarial pre-impl gates surfaced 14+ infrastructure issues unrelated to the actual user need (cleaner logs). The minimal v0.13.3 covers the user-facing intent; the deferred infrastructure work waits until it has its own demand.
+
+### Not breaking
+
+`session start` and `session end` flags are additive. Stale skill bodies (no `--quiet`) keep working with verbose output. Direct CLI users see no change. Downstream parsers of skill-rail output may need to update — see CHANGELOG entry for v0.12.0 for the same migration shape (the `▸ [N/M]` and `✅ Done. Applied:` strings are gone from the new skill body).
+
+---
+
 ## [0.13.2] — 2026-04-27
 
 ### Fixed — three latent v0.14.0 prerequisites caught by adversarial review

@@ -204,14 +204,16 @@ sessionCmd
   .description('Start a new session — prints UUID on stdout, human-readable summary on stderr')
   .option('--intent <message>', 'Raw user intent (persisted as intent.txt)')
   .option('--options <json>', 'JSON object of caller options (persisted as options.json)')
-  .action((opts: { intent?: string; options?: string }) =>
-    sessionStartCommand({ intent: opts.intent, optionsJson: opts.options }),
+  .option('--quiet', 'Suppress informational stderr (skill rail uses this)')
+  .action((opts: { intent?: string; options?: string; quiet?: boolean }) =>
+    sessionStartCommand({ intent: opts.intent, optionsJson: opts.options, quiet: opts.quiet }),
   )
 sessionCmd
   .command('end <uuid>')
   .description('End a session — applies artifacts, writes run record, releases lock')
   .option('--keep', 'Keep the session dir after ending (for debugging)')
-  .action((uuid: string, opts: { keep?: boolean }) => sessionEndCommand(uuid, opts))
+  .option('--quiet', 'Print one-line summary instead of verbose Applied: list (skill rail uses this)')
+  .action((uuid: string, opts: { keep?: boolean; quiet?: boolean }) => sessionEndCommand(uuid, opts))
 program.addCommand(sessionCmd)
 
 // ─── _phase (hidden, skill-mode rail) ──────────────────────────────

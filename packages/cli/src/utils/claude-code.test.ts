@@ -221,12 +221,13 @@ describe('skill bodies — v0.11.4 session-shape gating (both bodies)', () => {
   it('both bodies describe the structured completion signal', () => {
     const { slashCommand, installedSkill } = readBoth()
     for (const body of [slashCommand, installedSkill]) {
-      // The "✅ Done. Applied: ... Run coherent preview ..." signal
-      // structure. Don't pin exact text — just that the recipe + the
-      // failure branch are both documented.
-      expect(body).toMatch(/✅ Done\. Applied:/)
-      expect(body).toMatch(/Run.*coherent preview/i)
-      expect(body).toMatch(/❌ Session end failed/)
+      // v0.13.3 Variant E card format: success block + Preview/Undo/Debug
+      // commands + failure branch. Don't pin exact text — just that the
+      // recipe + the failure branch are both documented.
+      expect(body).toMatch(/✅ Applied:/)
+      expect(body).toMatch(/Preview · coherent preview/)
+      expect(body).toMatch(/Debug.*session/)
+      expect(body).toMatch(/❌ Failed:/)
     }
   })
 
@@ -239,10 +240,13 @@ describe('skill bodies — v0.11.4 session-shape gating (both bodies)', () => {
     }
   })
 
-  it('both bodies use shape.phases.length for the dynamic counter, not hardcoded 6', () => {
+  it('both bodies suppress per-phase progress chatter (v0.13.3)', () => {
     const { slashCommand, installedSkill } = readBoth()
+    // The `▸ [N/M]` progress lines were removed in v0.13.3 — the Bash boxes
+    // already show what's running, and the final card carries the summary.
     for (const body of [slashCommand, installedSkill]) {
-      expect(body).toMatch(/shape\.phases\.length/)
+      expect(body).not.toMatch(/▸ \[\d+\/\d+\]/)
+      expect(body).toMatch(/Do NOT print intermediate progress lines/)
     }
   })
 })
