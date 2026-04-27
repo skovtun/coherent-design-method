@@ -11,7 +11,9 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
-## [0.13.0] — TBD (in progress on `feat/v0.13.0-cleanup-part1`)
+## [0.13.0-rc.1] — 2026-04-27
+
+First published as a release candidate to the `next` dist-tag. After manual canary validates (`npm install -g @getcoherent/cli@next`), promoted to `latest` via `npm dist-tag add @getcoherent/cli@0.13.0-rc.1 latest` (or a follow-up `0.13.0` stable release).
 
 ### Pre-manual-testing cleanup release
 

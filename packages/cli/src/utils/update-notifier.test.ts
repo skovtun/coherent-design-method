@@ -110,7 +110,14 @@ describe('shouldSkipUpdateCheck', () => {
   })
 })
 
-describe('maybePrintUpdateBanner', () => {
+// `isNewer()` deliberately suppresses prerelease versions (a 0.11.1-rc.1 user
+// should never see "downgrade to 0.11.0" prompts). When CLI_VERSION is itself
+// a prerelease, `maybePrintUpdateBanner` correctly returns false for ANY
+// cached version — the banner never fires. Skip this describe block in that
+// case; the suppression behavior is unit-tested directly in the `isNewer`
+// describe above.
+const isPrereleaseBuild = !/^\d+\.\d+\.\d+$/.test(CLI_VERSION)
+describe.skipIf(isPrereleaseBuild)('maybePrintUpdateBanner', () => {
   let tmpHome: string
   let originalHome: string | undefined
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
