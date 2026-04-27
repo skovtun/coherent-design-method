@@ -22,6 +22,7 @@ import { readdir, readFile } from 'fs/promises'
 import { join, resolve } from 'path'
 import { CLI_VERSION, DesignSystemManager } from '@getcoherent/core'
 import { acquirePersistentLock, releasePersistentLock } from '../utils/files.js'
+import { isCoherentError } from '../errors/CoherentError.js'
 import { loadHashes } from '../utils/file-hashes.js'
 import { writeRunRecordRel } from '../utils/run-record.js'
 import type { RunRecord, RunRecordOptions } from '../utils/run-record.js'
@@ -202,6 +203,11 @@ export async function sessionEnd(input: SessionEndInput): Promise<SessionEndResu
         const results = await applier.apply({ projectRoot, uuid, sessionDir, store, meta })
         for (const r of results) applied.push(`${applier.name}: ${r}`)
       } catch (e) {
+        // v0.13.0 — preserve CoherentError context across the applier
+        // boundary. Pre-v0.13.0 we wrapped any error in a plain Error,
+        // dropping code/fix/docsUrl. Adversarial review (2026-04-27)
+        // flagged this as silent destruction of the typed-error contract.
+        if (isCoherentError(e)) throw e
         const msg = e instanceof Error ? e.message : String(e)
         throw new Error(`Applier "${applier.name}" failed: ${msg}`)
       }

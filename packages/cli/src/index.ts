@@ -8,6 +8,25 @@ try {
   }
 }
 
+// v0.13.0 — global error trap for uncaught throws + unhandled promise
+// rejections. Without this, a CoherentError thrown from an async
+// background task (e.g., the auto-update fetch) crashed with raw stack
+// trace and lost .fix/.docsUrl. Adversarial review (2026-04-27) flagged
+// this as a missing safety net. Imports happen lazily so a broken import
+// during module evaluation doesn't fight the renderer for stderr.
+process.on('uncaughtException', async err => {
+  const { renderCliError } = await import('./utils/render-cli-error.js')
+  const { stderr, exitCode } = renderCliError(err, { debug: process.env.COHERENT_DEBUG === '1' })
+  process.stderr.write(stderr)
+  process.exit(exitCode)
+})
+process.on('unhandledRejection', async reason => {
+  const { renderCliError } = await import('./utils/render-cli-error.js')
+  const { stderr, exitCode } = renderCliError(reason, { debug: process.env.COHERENT_DEBUG === '1' })
+  process.stderr.write(stderr)
+  process.exit(exitCode)
+})
+
 import { Command } from 'commander'
 import { CLI_VERSION } from '@getcoherent/core'
 import { initCommand, type InitOptions } from './commands/init.js'
