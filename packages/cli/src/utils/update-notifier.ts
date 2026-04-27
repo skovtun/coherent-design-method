@@ -38,7 +38,7 @@
  * `COHERENT_DEBUG=1` and otherwise silent.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { homedir } from 'os'
 import chalk from 'chalk'
@@ -50,6 +50,21 @@ const CACHE_DIR = join(homedir(), '.coherent')
 const CACHE_FILE = join(CACHE_DIR, 'update-check.json')
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000 // 24 hours
 
+/**
+ * Domain allowlist for `coherentReleaseFlags.migrationUrl`. Anyone with
+ * write access to the npm registry record could otherwise inject a
+ * phishing link the CLI tells users to visit. Only URLs starting with
+ * one of these prefixes are surfaced; anything else is silently dropped
+ * to a generic "see CHANGELOG" message.
+ *
+ * v0.13.0 — added per adversarial review (2026-04-27) finding S6:
+ * supply-chain attack surface in registry-sourced URL field.
+ */
+const TRUSTED_MIGRATION_URL_PREFIXES = [
+  'https://github.com/skovtun/coherent-design-method/',
+  'https://getcoherent.design/',
+] as const
+
 interface CacheData {
   latest: string
   checkedAt: number
@@ -60,6 +75,19 @@ interface CacheData {
    * UX; currently always undefined.
    */
   dismissedFor?: string
+  /**
+   * v0.13.0+ — flagged when the published package metadata contains
+   * `coherentReleaseFlags.breaking: true`. Triggers louder banner format
+   * with migration URL.
+   */
+  breaking?: boolean
+  /**
+   * Domain-allowlisted migration URL from `coherentReleaseFlags.migrationUrl`.
+   * Allowed prefixes pinned in `TRUSTED_MIGRATION_URL_PREFIXES`. Any URL
+   * outside the allowlist is silently dropped to prevent supply-chain
+   * phishing.
+   */
+  migrationUrl?: string
 }
 
 function readCache(): CacheData | null {
@@ -76,23 +104,64 @@ function readCache(): CacheData | null {
 function writeCache(data: CacheData): void {
   try {
     if (!existsSync(CACHE_DIR)) mkdirSync(CACHE_DIR, { recursive: true })
-    writeFileSync(CACHE_FILE, JSON.stringify(data), 'utf-8')
+    // v0.13.0 — atomic write to defeat the parallel-invocation race that
+    // pre-v0.13.0 corrupted the cache when two `coherent` commands ran
+    // concurrently. writeFileSync(tmp) + renameSync(tmp, final) is
+    // atomic on POSIX (rename(2) is a single inode swap). Adversarial
+    // review (2026-04-27) finding S5.
+    const tmpFile = `${CACHE_FILE}.tmp.${process.pid}.${Date.now()}`
+    writeFileSync(tmpFile, JSON.stringify(data), 'utf-8')
+    renameSync(tmpFile, CACHE_FILE)
   } catch (e) {
     if (DEBUG) console.error('Failed to write update cache:', e)
   }
 }
 
-async function fetchLatestVersion(): Promise<string | null> {
+/**
+ * Validate a migration URL against the trusted-domain allowlist.
+ * Returns the URL if valid, undefined if rejected. Adversarial review
+ * S6 — anyone who compromises npm could inject phishing URLs into
+ * package metadata. Pin allowed prefixes hard.
+ */
+function validateMigrationUrl(url: unknown): string | undefined {
+  if (typeof url !== 'string') return undefined
+  if (TRUSTED_MIGRATION_URL_PREFIXES.some(prefix => url.startsWith(prefix))) {
+    return url
+  }
+  if (DEBUG) console.error(`Rejected migrationUrl outside allowlist: ${url}`)
+  return undefined
+}
+
+interface FetchedMetadata {
+  version: string
+  breaking?: boolean
+  migrationUrl?: string
+}
+
+async function fetchLatestVersion(): Promise<FetchedMetadata | null> {
   try {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 3000)
+    // v0.13.0 — fetch /latest manifest (NOT /full package metadata) to
+    // get the version PLUS coherentReleaseFlags. This is GET (was already
+    // GET pre-v0.13.0; adversarial review S2 was incorrect on HEAD usage).
+    // Bytes are tiny (~1KB).
     const res = await fetch(`https://registry.npmjs.org/${PACKAGE_NAME}/latest`, {
       signal: controller.signal,
     })
     clearTimeout(timeout)
     if (!res.ok) return null
-    const data = (await res.json()) as { version?: string }
-    return data.version ?? null
+    const data = (await res.json()) as {
+      version?: string
+      coherentReleaseFlags?: { breaking?: boolean; migrationUrl?: string }
+    }
+    if (!data.version) return null
+    const flags = data.coherentReleaseFlags
+    return {
+      version: data.version,
+      breaking: flags?.breaking === true ? true : undefined,
+      migrationUrl: validateMigrationUrl(flags?.migrationUrl),
+    }
   } catch (e) {
     if (DEBUG) console.error('Failed to fetch latest version:', e)
     return null
@@ -156,7 +225,7 @@ export function maybePrintUpdateBanner(): boolean {
     if (!cached) return false
     if (cached.dismissedFor && cached.dismissedFor === cached.latest) return false
     if (!isNewer(cached.latest, CLI_VERSION)) return false
-    printUpdateNotice(cached.latest)
+    printUpdateNotice(cached.latest, cached.breaking, cached.migrationUrl)
     return true
   } catch (e) {
     if (DEBUG) console.error('maybePrintUpdateBanner failed:', e)
@@ -188,9 +257,14 @@ export function refreshUpdateCacheAsync(): void {
     }
     // Fire and forget. Promise rejects → silent (DEBUG-only log).
     fetchLatestVersion()
-      .then(latest => {
-        if (!latest) return
-        writeCache({ latest, checkedAt: now })
+      .then(metadata => {
+        if (!metadata) return
+        writeCache({
+          latest: metadata.version,
+          checkedAt: now,
+          breaking: metadata.breaking,
+          migrationUrl: metadata.migrationUrl,
+        })
       })
       .catch(e => {
         if (DEBUG) console.error('refreshUpdateCacheAsync fetch failed:', e)
@@ -212,11 +286,50 @@ export async function checkForUpdates(): Promise<void> {
   refreshUpdateCacheAsync()
 }
 
-function printUpdateNotice(latest: string): void {
-  console.log(
-    chalk.yellow(`\n  ⬆  Update available: v${CLI_VERSION} → v${latest}`) +
-      chalk.dim(`\n     Run: npm update -g ${PACKAGE_NAME}\n`),
-  )
+/**
+ * Banner output. Two formats based on `coherentReleaseFlags.breaking`:
+ *
+ * - Non-breaking (default): single-line yellow notice, dim secondary line
+ *   with the npm update command. Same as pre-v0.13.0.
+ * - Breaking: two-line bold-yellow warning with migration URL when
+ *   provided (or generic CHANGELOG link otherwise).
+ *
+ * Output goes to stderr when stdout is non-TTY (CI logs, redirected
+ * output, automation pipes) so the notice is visible to dashboards
+ * without polluting the structured-stdout contract that scripts may
+ * parse. When stdout IS a TTY, output goes to stdout where the user
+ * sees it inline above command output.
+ *
+ * Adversarial review (2026-04-27) finding C1 / C4: pre-v0.13.0 banner
+ * went to stdout unconditionally — broke CI scripts parsing stdout AND
+ * was invisible in CI dashboards that capture stderr separately.
+ */
+function printUpdateNotice(latest: string, breaking?: boolean, migrationUrl?: string): void {
+  const isTty = process.stdout.isTTY ?? false
+
+  let notice: string
+  if (breaking) {
+    const migrationLine = migrationUrl
+      ? `Migration: ${migrationUrl}`
+      : `See CHANGELOG: https://github.com/skovtun/coherent-design-method/blob/main/docs/CHANGELOG.md`
+    notice =
+      chalk.bold.yellow(`\n  ⚠  Update available with BREAKING changes: v${CLI_VERSION} → v${latest}`) +
+      chalk.yellow(`\n     ${migrationLine}`) +
+      chalk.dim(`\n     Run: npm update -g ${PACKAGE_NAME}\n`)
+  } else {
+    notice =
+      chalk.yellow(`\n  ⬆  Update available: v${CLI_VERSION} → v${latest}`) +
+      chalk.dim(`\n     Run: npm update -g ${PACKAGE_NAME}\n`)
+  }
+
+  // TTY → stdout (user sees inline above command output, current behavior).
+  // Non-TTY (CI, piped, redirected) → stderr (visible in dashboards but
+  // doesn't pollute the structured-stdout contract scripts may parse).
+  if (isTty) {
+    console.log(notice)
+  } else {
+    process.stderr.write(notice + '\n')
+  }
 }
 
 /** Test-only helpers. Not part of the public API; the named exports above are. */
