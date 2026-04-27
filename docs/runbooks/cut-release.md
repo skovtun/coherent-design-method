@@ -38,6 +38,34 @@ Look at recent entries for voice; keep it factual over marketing.
 
 **3. Update `QUICK_REFERENCE.md` if new commands or flags shipped.**
 
+**3a. BREAKING releases only — inject `coherentReleaseFlags` into both `package.json` files.**
+
+Skip this step for non-breaking patch/minor releases. Only when a release introduces user-visible breaking changes (downstream skill consumers, parsing scripts, etc.):
+
+```jsonc
+// packages/cli/package.json AND packages/core/package.json — add at top level
+{
+  "name": "@getcoherent/cli",
+  "version": "0.14.0",
+  "coherentReleaseFlags": {
+    "breaking": true,
+    "migrationUrl": "https://getcoherent.design/migrations/v0.14"
+  }
+}
+```
+
+Why: `update-notifier.ts` reads `coherentReleaseFlags.breaking` from the published package.json on the remote registry to render the louder BREAKING banner format with the migration URL. The field MUST be present in BOTH packages' published `package.json`. Without it, downstream installs see only the standard "update available" message and miss the migration call-out.
+
+`migrationUrl` must be from the allowlisted host set (see `update-notifier.ts:isAllowedMigrationHost`). Currently: `getcoherent.design`, `github.com/skovtun/coherent-design-method`. Off-allowlist URLs are silently dropped at consumer-side.
+
+Verify it shipped after publish:
+```bash
+npm pack @getcoherent/cli@X.Y.Z --dry-run 2>/dev/null | head -1  # tarball name
+npm view @getcoherent/cli@X.Y.Z coherentReleaseFlags  # field must echo, not "undefined"
+```
+
+For non-breaking releases, this field MUST be absent — otherwise consumers get spurious BREAKING banners on minor/patch updates.
+
 **4. Pre-ship gate — all must be green in one pass:**
 
 ```bash
