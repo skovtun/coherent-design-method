@@ -6,7 +6,7 @@ All notable changes to this project are documented in this file.
 
 If you are upgrading across breaking releases, follow the matching migration doc:
 
-- **v0.11.x → v0.12.0+**: see [`docs/MIGRATION-v0.12.md`](./MIGRATION-v0.12.md). Skill-rail status messages changed format (5 strings).
+- **v0.11.x → v0.12.0+**: see [`docs/MIGRATION-v0.12.md`](./MIGRATION-v0.12.md). Skill-rail status messages changed format (6 strings).
 - v0.13.0: no breaking changes for end users. Internal infrastructure improvements only.
 
 ---
@@ -22,7 +22,7 @@ Closes infrastructure gaps from v0.12.0's "known limitations" CHANGELOG section 
 - **Centralized `renderCliError(err, {debug, isTty})` helper** at `packages/cli/src/utils/render-cli-error.ts`. Single rendering boundary for typed `CoherentError` errors (E001-E007) and generic Errors. Handles 4 branches: CoherentError fast-path (instanceof), CoherentError structural (cross-package boundary), generic Error (with optional stack via `COHERENT_DEBUG=1`), unknown shape (string/null/object thrown as error).
 - **Wired CoherentError surfacing at 4 boundary sites**: top-level CLI catch (`index.ts` global `uncaughtException` + `unhandledRejection` traps with recursive-failure fallback), `chat.ts` chat command catch, `_phase.ts` outer catch, `phase-engine/session-lifecycle.ts:206` applier wrapper (no longer destroys typed-error context).
 - **`isCoherentError()` is now actually structural** — not just instanceof. Pre-v0.13.0 the docblock claimed "structural marker" but the implementation was `instanceof CoherentError`. v0.13.0 implements an actual structural check (`name === 'CoherentError'` + code matches `/^COHERENT_E\d{3}$/` + fix is string + docsUrl is string) that survives cross-package boundaries (dependency hoisting, dual install, IPC serialization). The `instanceof` check is preserved as a fast-path for the common single-package case.
-- **`docs/MIGRATION-v0.12.md`** — explicit migration doc for users upgrading from v0.11.x to v0.12.0+. Documents 5 BREAKING skill-rail message format changes with old → new regex examples. Cross-referenced from CHANGELOG top.
+- **`docs/MIGRATION-v0.12.md`** — explicit migration doc for users upgrading from v0.11.x to v0.12.0+. Documents 6 BREAKING skill-rail message format changes with old → new regex examples. Cross-referenced from CHANGELOG top.
 - **`coherentReleaseFlags` registry-metadata field** (consumed by update-notifier). Allows future releases to flag themselves as breaking + provide a domain-allowlisted migration URL. The auto-update banner uses this to differentiate non-breaking updates from breaking ones — louder formatting + migration link for breaking releases. URL allowlist pinned to `https://github.com/skovtun/coherent-design-method/` and `https://getcoherent.design/` to defeat supply-chain phishing via compromised registry record.
 - **Update-notifier banner routes to STDERR on non-TTY** (CI logs, redirected output, automation pipes). Pre-v0.13.0 it always went to stdout, polluting structured-stdout contracts. TTY mode unchanged — banner stays inline above command output where users see it.
 

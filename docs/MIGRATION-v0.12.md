@@ -3,7 +3,7 @@
 ## TL;DR — what to do
 
 - **You don't parse skill-rail output AND don't script around session lifecycle stdout.** No action needed. Upgrade with `npm install -g @getcoherent/cli@latest`.
-- **You parse skill-rail output (custom Claude Code skill, automation that scrapes CLI text).** See "Update your regex patterns" below — 5 message format strings changed. Estimated effort: 5-10 minutes.
+- **You parse skill-rail output (custom Claude Code skill, automation that scrapes CLI text).** See "Update your regex patterns" below — 6 message format strings changed. Estimated effort: 5-10 minutes.
 - **You script around session lifecycle stdout (`Session UUID started/ended at TIMESTAMP` patterns).** See "Switch to RunRecord JSON" below. Migrate to reading `.coherent/runs/<timestamp>.yaml` for stable structured fields.
 - **You upgraded directly from v0.10.x or earlier.** First upgrade to v0.11.5, then follow this guide.
 
