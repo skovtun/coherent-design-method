@@ -11,9 +11,9 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
-## [0.13.0-rc.1] — 2026-04-27
+## [0.13.0] — 2026-04-27
 
-First published as a release candidate to the `next` dist-tag. After manual canary validates (`npm install -g @getcoherent/cli@next`), promoted to `latest` via `npm dist-tag add @getcoherent/cli@0.13.0-rc.1 latest` (or a follow-up `0.13.0` stable release).
+First published as `0.13.0-rc.1` to the `next` dist-tag for canary validation. End-to-end manual test (`coherent chat "fitness studio app..."`) on a real project under live Anthropic API succeeded: 4 pages generated, 6 shadcn primitives auto-installed, AI quality auto-fix worked (Classes: 4 errors → 0 + 9 TS errors fixed), backup saved, preview server rendered OK. Promoted to `0.13.0` stable.
 
 ### Pre-manual-testing cleanup release
 
@@ -39,6 +39,10 @@ Closes infrastructure gaps from v0.12.0's "known limitations" CHANGELOG section 
 - **Tests:** 1627 passing + 9 todo (up from 1612 in v0.12.0). New: 13 render-cli-error tests + 4 update-notifier tests for breaking-flag handling.
 - **Carried forward to v0.14.0:** PR2 structural collapse (delete zombie deterministic case bodies in `modification-handler.ts`, move 5 AI-case bodies to `dispatch-ai.ts`, chat.ts facade collapse). Codex flagged Item 5 as 8-12h scope on its own — split out of v0.13.0 cleanly.
 - **Deferred to user-supervised next session:** chat pipeline smoke with real-AI corpus (needs `ANTHROPIC_API_KEY_CANARY`), skill-rail UX polish (BREAKING for downstream — needs visual review of prototypes).
+
+### Known issues — flagged for v0.13.x patch
+
+- **Project version mismatch shows warning, not hard stop.** When `coherent chat` runs on a project created with an older CLI version, the CLI prints `⚠ Project is older than CLI` and continues. If the project's config schema diverged, downstream code crashes with a cryptic generic `TypeError: Cannot read properties of undefined (reading 'sections')`. Should be a `CoherentError` (e.g., `E008_PROJECT_OLDER_THAN_CLI`) with `fix: 'coherent update'` and immediate exit so v0.13.0's surfacing helper renders the actionable Fix line. Reproduced 2026-04-27 during manual end-to-end test. Workaround: run `coherent update` whenever you see the warning.
 
 ---
 
