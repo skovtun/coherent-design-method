@@ -4,14 +4,14 @@ type: adr
 status: accepted
 date: 2026-04-24
 confidence: established
-shipped_in: [0.9.0]
+shipped_in: [0.9.0, 0.12.0]
 ---
 
 # ADR 0005 — chat.ts as facade over runPipeline
 
 **Status:** Accepted
 **Date:** 2026-04-24
-**Shipped in:** v0.9.0 (phase-engine rail) + follow-up facade refactor (same release cycle)
+**Shipped in:** v0.9.0 (phase-engine rail), v0.12.0 (PR1 — apply-requests extraction: shared dispatch + applyMode contract). PR2 (chat.ts physical collapse to ~150 lines + AI-case bodies into dispatch-ai.ts) in flight.
 
 ## Context
 

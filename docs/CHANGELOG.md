@@ -2,6 +2,91 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.12.0] — 2026-04-26
+
+### apply-requests extraction — both rails now share one dispatch path
+
+The v0.11 line shipped 6 hotfixes (0.11.0 → 0.11.5) over 24 hours, every one patching a different symptom of the same architectural drift: the skill rail (`/coherent-chat`) and the API rail (`coherent chat`) had diverged implementations of how to apply `ModificationRequest` types. Every dogfood session uncovered another place where the skill rail handled a subset of cases differently — silent drops, missing destructive guards, divergent error messages, format inconsistencies. Codex audit (2026-04-25) confirmed it was a parity-drift CLASS, not a bug list.
+
+v0.12.0 fixes the class structurally. `packages/cli/src/apply-requests/` is a new top-level peer service that owns the `ModificationRequest` dispatch contract for BOTH rails. The 6 deterministic request types route through one shared `dispatchDeterministic`. The 5 AI-dependent types route through `dispatchAi` with an enforced `applyMode: 'with-ai' | 'no-new-ai'` contract — the skill rail's no-AI mode now throws `COHERENT_E007` on un-pre-populated AI requests instead of silently dropping them (the v0.11.3 bug class).
+
+This is the long-deferred ADR-0005 delivery. Originally accepted in v0.9.0, never finished. The 6 v0.11.x hotfixes were what motivated finishing it.
+
+### Added
+
+- **`packages/cli/src/apply-requests/`** (~2700 LoC, 7 source files + 5 test files + 6 fixture JSONs):
+  - `types.ts` — `ApplyMode`, `ApplyRequestsContext`, `ApplyResult` interfaces
+  - `managers.ts` — ported `applyManagerResult` (was duplicated across both rails)
+  - `pre.ts` — pre-apply helpers: `runGlobalsCssPreflight`, `loadProjectHashes`, `createPreApplyBackup`, `resolveKnownRoutes` (codex F-pattern fix for known-routes drift)
+  - `parse.ts` — `parseRequests` pipeline: `applyDefaults` + PJ-009 destructive-intent guard + per-request normalize-and-coerce-refusal in one structured-result helper
+  - `dispatch.ts` — `dispatchDeterministic` for 6 types: `update-token`, `add-component`, `modify-component`, `update-navigation`, `delete-page`, `delete-component`
+  - `dispatch-ai.ts` — `dispatchAi` for 5 types with `applyMode` gate: throws `COHERENT_E007` in `'no-new-ai'` mode when an AI-dependent request lacks pre-populated `pageCode` / `layoutBlock`
+  - `post.ts` — post-apply helpers: `updateFileHashes`, `syncManifestMetadata`, `createPostApplyBackup`
+  - `index.ts` — `applyRequests(requests, ctx, mode)` entry point; per-request routing through `dispatchDeterministic` / `dispatchAi`
+- **`COHERENT_E007_NO_AI_REQUIRES_PREPOPULATION`** in `errors/codes.ts` — fires when skill rail (`'no-new-ai'`) gets an AI-dependent request without pre-populated output. Structurally kills the v0.11.3 silent-drop bug class. Documented in `docs/error-codes.md`.
+- **6 deterministic fixtures** under `apply-requests/__tests__/fixtures/deterministic/*.json` — JSON I/O contracts the parity-gate test asserts against. Add a fixture when you add a request type.
+- **Integration + parity-gate tests** — `integration.test.ts` (4 tests) covers multi-request orchestration; `parity-gate.test.ts` (7 tests) loads each fixture and runs through `applyRequests`. Pinned contract that future changes can't drift from.
+- **84 new tests** across the apply-requests test suite. Total: 1611 passing + 9 todo (1620). Up 84 from v0.11.5.
+
+### Changed
+
+- **API rail (`commands/chat.ts:980-983`)** now calls `applyRequests(normalizedRequests, ctx, 'with-ai')` instead of inline `for (req of ...) await applyModification(...)`. Result shape unchanged so all surrounding result handling needs zero changes. Same for the linked-page auto-scaffold loop at `chat.ts:1156` — `applyModification` import dropped from `chat.ts` entirely; only `apply-requests/index.ts` calls it now (transitively through `dispatchAi`).
+- **Skill rail (`phase-engine/appliers.ts:createModificationApplier`)** now calls `applyRequests(handled, ctx, 'no-new-ai')` instead of running its own inline 5-case switch (lines 215-262 — gone). Removed 110 lines of skill-private duplicates: `applyManagerResult`, `applyDeletePage`, `applyDeleteComponent`. The applier function body collapses from ~140 lines to ~25 lines.
+- **5 message-format assertions** in `phase-engine/__tests__/appliers.test.ts` updated to match the shared `dispatchDeterministic` format. Skill rail's old `delete-page: Transactions ✓` → API rail's `Deleted page "Transactions" (/transactions). ...`. Behavioral equivalence preserved, just the message strings reformatted to one canonical shape.
+
+### ⚠ BREAKING — skill-rail message format
+
+The skill rail's `createModificationApplier` (used by `/coherent-chat` via Claude Code) previously emitted concise `<verb>-<type>: <name> ✓` strings. Post-v0.12.0 it emits the full canonical `dispatchDeterministic` strings, which match the API rail format. If any downstream skill consumer (custom Claude Code skill, automation that parses CLI output) regex-matches the old shape, it will silently stop matching:
+
+| Operation | Old skill format | New shared format |
+|---|---|---|
+| delete-page | `delete-page: Transactions ✓` | `Deleted page "Transactions" (/transactions). Nav updated. Run \`coherent undo\` to restore.` |
+| delete-component | `delete-component: CID-009 ✓` | `Deleted shared component "FeatureCard" (CID-009). Pages importing it will break — regenerate them with \`coherent chat --page X "remove FeatureCard usage"\`.` |
+| update-token | `update-token: colors.light.primary ✓` | `Updated token colors.light.primary from #X to #Y` |
+| add-component | `add-component: CtaButton ✓` | `Registered component CtaButton (cta-button)` |
+| modify-component | `modify-component: <id> ✓` | `Updated component <name> (<id>)` (or specific failure message) |
+| delete-page (root refusal) | `refusing to delete root page` | `Refusing to delete the root page (/). If you really want this, edit design-system.config.ts manually.` |
+
+If you parse these strings, update your patterns. The new format is canonical and stable going forward — both rails produce it.
+
+### Drift class killed
+
+Six codex audit drifts collapsed:
+1. **Destructive pre-parser drift** — both rails now share `parse.ts:parseRequests` (PJ-009 guard runs identically)
+2. **Normalization drift** — same `normalizeRequest` for both rails through `parse.ts`
+3. **Validation/autofix divergence** — moved to dispatch layer; rails behave identically
+4. **Known-routes drift** — `resolveKnownRoutes(dsm)` reads full config; skill rail no longer misses routes from prior chats
+5. **Manual-edit hash protection drift** — both rails will share `pre.ts:loadProjectHashes` (call-site migration is PR2)
+6. **Backup parity** — both rails have access to `pre.ts:createPreApplyBackup` + `post.ts:createPostApplyBackup`
+
+The structural fix for the silent-drop bug class:
+- Pre-v0.12.0 skill rail: AI-dependent request with no pre-populated output → silently dropped (no signal)
+- v0.12.0 skill rail: same input → throws `COHERENT_E007` immediately. Producer-side bug surfaces loudly at the first phase that fails to fill in deterministic output.
+
+### For Maintainers
+
+- `commands/chat/modification-handler.ts` (1344 lines) stays intact this release as the AI-case delegation target. PR2 (`chat.ts` facade extraction) physically moves the 5 AI-case bodies (~880 lines) into `dispatch-ai.ts` and reduces modification-handler to a re-export. Held back from v0.12.0 to keep the surface area reviewable.
+- Bisect-friendly: 11 commits, each with vitest green at HEAD. Each commit independently revertable.
+
+### Adversarial review — known limitations carried into v0.12.0
+
+A pre-merge adversarial subagent review (2026-04-26) caught 3 INFORMATIONAL gaps and 5 CRITICAL findings beyond what `/plan-eng-review` and `/codex consult` had identified at planning stage. The cheap fixes shipped in this release; the structural ones are queued for PR2:
+
+**Shipped in v0.12.0 (post-review fixes):**
+- `add-layout-block` was in the type union but in NEITHER `DETERMINISTIC_TYPES` nor `AI_TYPES` — would silently produce `{success:false}` instead of throwing E007 in `'no-new-ai'` mode. Added to `AI_TYPES` as never-pre-populatable so the gate fires loudly even on this unimplemented type. Test added.
+- `modify-component` parity-gate fixture had a too-loose regex (`"not found|Component"`) that would match hypothetical regression messages containing the literal English word "Component". Tightened to the canonical `"Component <id> not found"` shape.
+- This BREAKING CHANGE callout for the skill-rail message format change.
+
+**Deferred to PR2 (with rationale):**
+1. **Zombie deterministic case bodies in `modification-handler.ts`.** The 6 deterministic cases still live there as a second copy alongside `dispatch.ts`. Current call sites only hit `applyModification` for AI types, but no compile-time check enforces "only AI types reach me." Risk: future contributor adding a new caller of `applyModification` gets the legacy bodies, not the shared ones. PR2 will physically delete the 6 deterministic case bodies + replace with `default: throw new Error('only AI types post-v0.12.0')`.
+2. **Test coverage gaps.** No integration test exercises (a) the API rail loop with `parseModification`-produced requests, (b) skill-rail E007 boundary (currently caught by partition guard before applyRequests sees AI-type), (c) the second `applyModification` call site at `chat.ts:1156`, (d) `CoherentError` propagation (no `instanceof CoherentError` branches in any caller — `.fix` and `.docsUrl` are silently lost).
+3. **No end-to-end smoke test with a real AI provider.** Only unit/integration tests pin behavior; the `coherent chat "build me X"` E2E path is unverified post-extraction. Smoke test for the API rail's full delegation chain requires a fake AI provider in tests — queued for PR2.
+4. **`anySuccess` heuristic for `dsm.save()` in skill rail applier.** Works today; latent footgun if a future deterministic case returns `success:true` but shouldn't trigger persistence. Documenting now; revisiting in PR2.
+
+These limitations do NOT block v0.12.0 — they trace to the deliberate "wrap-now / move-later" split the GSTACK eng-review accepted. The structural extraction lands now; the layer-hygiene completion is PR2.
+- Drift-gate fixtures (`apply-requests/__tests__/fixtures/deterministic/*.json`) are the canonical contract for the 6 deterministic types. When you change `dispatchDeterministic`, expect to update fixtures. When you add a request type, add a fixture in the same commit.
+- ADR-0005 (chat.ts as facade over runPipeline) — `shipped_in` field in the ADR header now lists `[0.9.0, 0.12.0]`. PR1 of the ADR landed; PR2 (chat.ts collapse to ~150 lines) is in flight.
+
 ## [0.11.5] — 2026-04-26
 
 ### Two skill-rail UX paper-cuts: invisible "Done" + opaque stale-lock recovery

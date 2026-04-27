@@ -989,7 +989,9 @@ describe('createModificationApplier (v0.11.3)', () => {
     const results = await createModificationApplier().apply(ctx)
 
     expect(results).toHaveLength(1)
-    expect(results[0]).toContain('delete-page: Transactions')
+    // PR1 #10: shared dispatchDeterministic uses API-rail format
+    // ("Deleted page \"Transactions\" (/transactions). Nav updated. ...").
+    expect(results[0]).toContain('Deleted page "Transactions"')
     expect(existsSync(beforePagePath)).toBe(false)
 
     const after = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
@@ -1006,7 +1008,8 @@ describe('createModificationApplier (v0.11.3)', () => {
     await writeRequests(store, uuid, [{ type: 'delete-page', target: '/' }])
     const results = await createModificationApplier().apply(ctx)
     expect(results).toHaveLength(1)
-    expect(results[0]).toContain('refusing to delete root page')
+    // PR1 #10: shared format uses "Refusing to delete the root page".
+    expect(results[0]).toMatch(/refusing to delete the root page/i)
 
     // Seeded Home is still in config.
     const after = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
@@ -1020,7 +1023,8 @@ describe('createModificationApplier (v0.11.3)', () => {
     await writeRequests(store, uuid, [{ type: 'delete-page', target: 'nonexistent' }])
     const results = await createModificationApplier().apply(ctx)
     expect(results).toHaveLength(1)
-    expect(results[0]).toContain('no match for "nonexistent"')
+    // PR1 #10: shared format uses "no page matches" instead of "no match for".
+    expect(results[0]).toMatch(/no page matches "nonexistent"/i)
   })
 
   it('delete-component: removes file + manifest entry', async () => {
@@ -1056,7 +1060,9 @@ describe('createModificationApplier (v0.11.3)', () => {
     const results = await createModificationApplier().apply(ctx)
 
     expect(results).toHaveLength(1)
-    expect(results[0]).toContain('delete-component: CID-009')
+    // PR1 #10: shared format reads "Deleted shared component \"FeatureCard\" (CID-009). ...".
+    expect(results[0]).toContain('Deleted shared component "FeatureCard"')
+    expect(results[0]).toContain('CID-009')
     expect(existsSync(join(sharedDir, 'feature-card.tsx'))).toBe(false)
 
     const manifestRaw = readFileSync(join(projectRoot, 'coherent.components.json'), 'utf-8')
@@ -1082,7 +1088,8 @@ describe('createModificationApplier (v0.11.3)', () => {
     // page phase, not the planner request directly).
     const results = await createModificationApplier().apply(ctx)
     expect(results).toHaveLength(1)
-    expect(results[0]).toContain('delete-page: Transactions')
+    // PR1 #10: shared dispatchDeterministic format.
+    expect(results[0]).toContain('Deleted page "Transactions"')
 
     // Verify post-delete state.
     const after = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
@@ -1146,7 +1153,8 @@ describe('createModificationApplier (v0.11.3)', () => {
     ])
     const results = await createModificationApplier().apply(ctx)
     expect(results).toHaveLength(1)
-    expect(results[0]).toMatch(/update-token: colors\.light\.primary/)
+    // PR1 #10: shared format produces "Updated token <path> from <X> to <Y>".
+    expect(results[0]).toMatch(/Updated token colors\.light\.primary/)
 
     const after = new DesignSystemManager(join(projectRoot, 'design-system.config.ts'))
     await after.load()

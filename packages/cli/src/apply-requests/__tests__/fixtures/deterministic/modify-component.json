@@ -1,0 +1,12 @@
+{
+  "_doc": "PR1 #9 DRIFT GATE fixture — modify-component on a nonexistent target. Expected: failure with the canonical \"Component <id> not found\" message produced by ComponentManager.update. Tightened from the original loose 'not found|Component' regex (adversarial review 2026-04-26 flagged that the alternation matched any message containing the literal English word 'Component', including hypothetical regression messages like 'Modified Component XYZ').",
+  "input": {
+    "type": "modify-component",
+    "target": "nonexistent-component",
+    "changes": { "variants": ["primary", "ghost"] }
+  },
+  "expected": {
+    "success": false,
+    "messageMatches": "Component nonexistent-component not found"
+  }
+}

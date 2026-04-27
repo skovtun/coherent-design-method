@@ -9,7 +9,7 @@ import {
 } from '../index.js'
 
 describe('COHERENT_ERROR_CODES registry', () => {
-  it('exports every code from the canonical v0.9.0 allocation', () => {
+  it('exports every code from the canonical v0.9.0 allocation + v0.12.0 additions', () => {
     expect(Object.keys(COHERENT_ERROR_CODES).sort()).toEqual([
       'E001_NO_API_KEY',
       'E002_SESSION_LOCKED',
@@ -17,6 +17,7 @@ describe('COHERENT_ERROR_CODES registry', () => {
       'E004_PROTOCOL_MISMATCH',
       'E005_SESSION_SCHEMA_MISMATCH',
       'E006_SESSION_ARTIFACT_MISSING',
+      'E007_NO_AI_REQUIRES_PREPOPULATION',
     ])
   })
 

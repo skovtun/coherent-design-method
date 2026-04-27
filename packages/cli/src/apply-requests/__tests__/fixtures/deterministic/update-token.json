@@ -1,0 +1,16 @@
+{
+  "_doc": "PR1 #9 DRIFT GATE fixture — update-token. Input: change colors.light.primary. Expected: token mutated, dsm config reflects new value, success result.",
+  "input": {
+    "type": "update-token",
+    "target": "colors.light.primary",
+    "changes": { "value": "#A53FA0" }
+  },
+  "expected": {
+    "success": true,
+    "messageMatches": "Updated token colors.light.primary",
+    "configCheck": {
+      "path": "tokens.colors.light.primary",
+      "value": "#A53FA0"
+    }
+  }
+}

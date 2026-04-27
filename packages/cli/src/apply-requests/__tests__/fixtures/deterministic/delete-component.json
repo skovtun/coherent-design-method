@@ -1,0 +1,24 @@
+{
+  "_doc": "PR1 #9 DRIFT GATE fixture — delete-component. Setup: pre-seed a CID-001 Hero shared component on disk + manifest. Input: delete it. Expected: success, file removed, manifest entry gone.",
+  "setup": {
+    "seedComponent": {
+      "id": "CID-001",
+      "name": "Hero",
+      "file": "components/shared/hero.tsx",
+      "code": "export function Hero(){ return null }"
+    }
+  },
+  "input": {
+    "type": "delete-component",
+    "target": "CID-001",
+    "changes": {}
+  },
+  "expected": {
+    "success": true,
+    "messageMatches": "Deleted shared component \"Hero\"",
+    "fileRemoved": "components/shared/hero.tsx",
+    "manifestCheck": {
+      "doesNotContainId": "CID-001"
+    }
+  }
+}
