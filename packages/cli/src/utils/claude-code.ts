@@ -232,36 +232,17 @@ If you forget to skip and call \`_phase ingest\` after a sentinel, ingest also n
 
 ## Progress reporting
 
-Use the \`session-shape.json\` to size your progress counters. Total = \`shape.phases.length\` (2 for plan-only, 8 for full add-page generation). Position = the phase you're about to run.
-
-Examples (positions match a shape with \`phases: ["plan", "anchor", "extract-style", "components", "page", "apply"]\` plus the post-apply fix step):
-
-- \`▸ [1/8] Planning pages…\`
-- \`▸ [2/8] Generating anchor page (Dashboard)…\`
-- \`▸ [3/8] Extracting design tokens…\`
-- \`▸ [4/8] No shared components — skipping\` (sentinel)
-- \`▸ [5/8] Generating /balance, /transactions, /settings in parallel…\`
-- \`▸ [6/8] Applying to disk…\`
-- \`▸ [7/8] Auto-installing shadcn primitives…\`
-- \`▸ [8/8] Done — preview ready\`
-
-Plan-only example (\`phases: ["plan", "apply"]\`):
-
-- \`▸ [1/2] Planning…\`
-- \`▸ [2/2] Applying delete-page to disk…\`
-- \`▸ Done — preview ready\` (post-apply line, no counter)
-
-One line per phase, plain text. The user reads these between Bash spinners.
+Do NOT print intermediate progress lines (no \`▸ [N/M]\` counters, no "Planning…", no "Applying to disk…"). The Bash boxes themselves show what's running; extra commentary creates noise. Save your output for the final completion card (see "Completion signal" below).
 
 ## Steps
 
 ### 1. Start the session
 
 \`\`\`bash
-coherent session start --intent "$ARGUMENTS"
+coherent session start --intent "$ARGUMENTS" --quiet
 \`\`\`
 
-The command prints the session UUID (one line) to stdout. Capture it. Use that literal UUID in every subsequent command — do NOT prefix calls with \`UUID=...\`.
+The command prints the session UUID (one line) to stdout. Capture it. Use that literal UUID in every subsequent command — do NOT prefix calls with \`UUID=...\`. \`--quiet\` strips the informational stderr block so the Bash box stays tight.
 
 ### 2. Plan phase (AI)
 
@@ -339,12 +320,10 @@ This collapses what would be 12 sequential turns (4 pages × 3 steps) into 3 par
 ### 7. End the session
 
 \`\`\`bash
-coherent session end <UUID>
+coherent session end <UUID> --quiet
 \`\`\`
 
-Applies all artifacts in order: config-delta → modification (delete-page, update-token, add-component, modify-component, delete-component) → components → pages → replace-welcome → layout → fix-globals-css. Writes the run record under \`.coherent/runs/\`, releases the project lock.
-
-The output starts with \`Applied:\` followed by one line per applier with what it did. Capture this — you'll surface it in the completion signal below.
+Applies all artifacts in order: config-delta → modification (delete-page, update-token, add-component, modify-component, delete-component) → components → pages → replace-welcome → layout → fix-globals-css. Writes the run record under \`.coherent/runs/\`, releases the project lock. With \`--quiet\` the output is a one-line summary (\`✔ Session <short> ended (<N> applied)\`) instead of the verbose \`Applied:\` block. Read \`.coherent/runs/<latest>.yaml\` if you need details for the completion card.
 
 ### 8. Run \`coherent fix\` — only if \`shape.needsFix\`
 
@@ -358,23 +337,50 @@ For plan-only sessions (delete-page, update-token, etc.) \`needsFix\` is \`false
 
 ## Completion signal
 
-After step 7 (and step 8 when \`needsFix\`), print ONE final line.
+After step 7 (and step 8 when \`needsFix\`), print ONE final card. Plain text, no backticks anywhere — Claude Code renders inline code as gray-on-light text and the contrast collapses to unreadable on highlighted plates. Format:
 
-**Format — no backticks anywhere on this line.** Claude Code renders inline code as gray-on-light text; on the highlighted ✅ Done plate the contrast collapses to invisible (the v0.11.4 dogfood showed "Run \`coherent preview\` to see it" with the command literally unreadable). Use plain text:
+\`\`\`
+Coherent · <intent verbatim>
 
-> ✅ Done. Applied: <comma-separated summary from session end>. Preview: coherent preview
+  ✅ Applied: <one-line summary>
 
-The summary comes from the \`session end\` output — read its \`Applied:\` block and condense to a one-liner. Examples (verbatim, plain text):
+  Preview · coherent preview
+  Undo    · coherent undo
+  Debug   · session <short-uuid> (full uuid: <full-uuid>)
+\`\`\`
 
-> ✅ Done. Applied: delete-page Profile. Preview: coherent preview
+The \`<one-line summary>\` is condensed from the \`session end\` output. With \`session end --quiet\` you get only \`✔ Session <short> ended (<N> applied)\` — read \`.coherent/runs/<latest>.yaml\` if you need detail. Examples:
 
-> ✅ Done. Applied: 4 pages, 2 components, layout regen. Preview: coherent preview
+\`\`\`
+Coherent · delete the Activity page
 
-If \`session end\` errored (non-zero exit, error in output) — say what failed instead, plain text:
+  ✅ Applied: delete-page Profile
 
-> ❌ Session end failed: <error message verbatim>. Project unchanged. See .coherent/session/<UUID>/ for state.
+  Preview · coherent preview
+  Undo    · coherent undo
+  Debug   · session 4f2adb (full uuid: 4f2adb4a-bec4-4760-a5b5-e67e1bc447b7)
+\`\`\`
 
-Do NOT print the green Done line on failure.
+\`\`\`
+Coherent · build a fitness studio app
+
+  ✅ Applied: 4 pages, 2 components, layout regen
+
+  Preview · coherent preview
+  Undo    · coherent undo
+  Debug   · session 4f2adb (full uuid: 4f2adb4a-bec4-4760-a5b5-e67e1bc447b7)
+\`\`\`
+
+If \`session end\` errored (non-zero exit) — replace the success block with the error and skip Preview/Undo:
+
+\`\`\`
+Coherent · <intent>
+
+  ❌ Failed: <error message verbatim>
+
+  Project unchanged. See .coherent/session/<UUID>/ for state.
+  Debug · session <short-uuid> (full uuid: <full-uuid>)
+\`\`\`
 
 ## Report back
 
@@ -506,26 +512,7 @@ If you forget to skip and call \`_phase ingest\` after a sentinel, ingest also n
 
 ## Progress reporting
 
-Use the \`session-shape.json\` to size your progress counters. Total = \`shape.phases.length\` (2 for plan-only, 8 for full add-page generation when including \`coherent fix\`). Position = the phase you're about to run.
-
-Examples (\`phases: ["plan", "anchor", "extract-style", "components", "page", "apply"]\` plus the post-apply fix step):
-
-- \`▸ [1/8] Planning pages…\`
-- \`▸ [2/8] Generating anchor page (Dashboard)…\`
-- \`▸ [3/8] Extracting design tokens…\`
-- \`▸ [4/8] No shared components — skipping\` (sentinel)
-- \`▸ [5/8] Generating /balance, /transactions, /settings in parallel…\`
-- \`▸ [6/8] Applying to disk…\`
-- \`▸ [7/8] Auto-installing shadcn primitives…\`
-- \`▸ [8/8] Done — preview ready\`
-
-Plan-only example (\`phases: ["plan", "apply"]\`):
-
-- \`▸ [1/2] Planning…\`
-- \`▸ [2/2] Applying delete-page to disk…\`
-- \`▸ Done — preview ready\` (post-apply line, no counter)
-
-One line per phase, plain text. The user reads these between Bash spinners.
+Do NOT print intermediate progress lines (no \`▸ [N/M]\` counters, no "Planning…", no "Applying to disk…"). The Bash boxes themselves show what's running; extra commentary creates noise. Save your output for the final completion card (see "Completion signal" below).
 
 ## How to invoke each Bash call (read this once, applies to every step)
 
@@ -549,10 +536,10 @@ If a Bash call legitimately fails (CLI returned non-zero), the tool result alrea
 ### 1. Start the session
 
 \`\`\`bash
-coherent session start --intent "<user request verbatim>"
+coherent session start --intent "<user request verbatim>" --quiet
 \`\`\`
 
-The command prints the session UUID (one line) to stdout. Capture it. Use that literal UUID in every subsequent command — do NOT prefix calls with \`UUID=...\` and do NOT pipe the output to anything.
+The command prints the session UUID (one line) to stdout. Capture it. Use that literal UUID in every subsequent command — do NOT prefix calls with \`UUID=...\` and do NOT pipe the output to anything. \`--quiet\` strips the informational stderr block so the Bash box stays tight.
 
 ### 2. Plan phase (AI)
 
@@ -649,12 +636,10 @@ This collapses 12 sequential turns (4 pages × 3 steps) into 3 parallel batches.
 ### 7. End the session
 
 \`\`\`bash
-coherent session end <UUID>
+coherent session end <UUID> --quiet
 \`\`\`
 
-Applies all artifacts in order: config-delta → modification → components → pages → replace-welcome → layout → fix-globals-css. Writes the run record under \`.coherent/runs/\`, releases the project lock.
-
-The output starts with \`Applied:\` followed by one line per applier. Capture this — surface it in the completion signal.
+Applies all artifacts in order: config-delta → modification → components → pages → replace-welcome → layout → fix-globals-css. Writes the run record under \`.coherent/runs/\`, releases the project lock. With \`--quiet\` the output is a one-line summary (\`✔ Session <short> ended (<N> applied)\`) instead of the verbose \`Applied:\` block. Read \`.coherent/runs/<latest>.yaml\` if you need details for the completion card.
 
 ### 8. Run \`coherent fix\` — only if \`shape.needsFix\`
 
@@ -668,23 +653,50 @@ For plan-only sessions (delete-page, update-token, etc.) \`needsFix\` is \`false
 
 ## Completion signal
 
-After step 7 (and step 8 when \`needsFix\`), print ONE final line.
+After step 7 (and step 8 when \`needsFix\`), print ONE final card. Plain text, no backticks anywhere — Claude Code renders inline code as gray-on-light text and the contrast collapses to unreadable on highlighted plates. Format:
 
-**Format — no backticks anywhere on this line.** Claude Code renders inline code as gray-on-light text; on the highlighted ✅ Done plate the contrast collapses to invisible (the v0.11.4 dogfood showed "Run \`coherent preview\` to see it" with the command literally unreadable). Use plain text:
+\`\`\`
+Coherent · <intent verbatim>
 
-> ✅ Done. Applied: <comma-separated summary from session end>. Preview: coherent preview
+  ✅ Applied: <one-line summary>
 
-The summary comes from the \`session end\` output — read its \`Applied:\` block and condense to a one-liner. Examples (verbatim, plain text):
+  Preview · coherent preview
+  Undo    · coherent undo
+  Debug   · session <short-uuid> (full uuid: <full-uuid>)
+\`\`\`
 
-> ✅ Done. Applied: delete-page Profile. Preview: coherent preview
+The \`<one-line summary>\` is condensed from the \`session end\` output. With \`session end --quiet\` you get only \`✔ Session <short> ended (<N> applied)\` — read \`.coherent/runs/<latest>.yaml\` if you need detail. Examples:
 
-> ✅ Done. Applied: 4 pages, 2 components, layout regen. Preview: coherent preview
+\`\`\`
+Coherent · delete the Activity page
 
-If \`session end\` errored (non-zero exit, error in output) — say what failed instead, plain text:
+  ✅ Applied: delete-page Profile
 
-> ❌ Session end failed: <error message verbatim>. Project unchanged. See .coherent/session/<UUID>/ for state.
+  Preview · coherent preview
+  Undo    · coherent undo
+  Debug   · session 4f2adb (full uuid: 4f2adb4a-bec4-4760-a5b5-e67e1bc447b7)
+\`\`\`
 
-Do NOT print the green Done line on failure.
+\`\`\`
+Coherent · build a fitness studio app
+
+  ✅ Applied: 4 pages, 2 components, layout regen
+
+  Preview · coherent preview
+  Undo    · coherent undo
+  Debug   · session 4f2adb (full uuid: 4f2adb4a-bec4-4760-a5b5-e67e1bc447b7)
+\`\`\`
+
+If \`session end\` errored (non-zero exit) — replace the success block with the error and skip Preview/Undo:
+
+\`\`\`
+Coherent · <intent>
+
+  ❌ Failed: <error message verbatim>
+
+  Project unchanged. See .coherent/session/<UUID>/ for state.
+  Debug · session <short-uuid> (full uuid: <full-uuid>)
+\`\`\`
 
 ## Error recovery
 

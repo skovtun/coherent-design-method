@@ -22,6 +22,9 @@ import { defaultAppliers } from '../phase-engine/appliers.js'
 export interface SessionStartCliOptions {
   intent?: string
   optionsJson?: string
+  quiet?: boolean
+  /** Override project root — testing hook. Defaults to `requireProject()`. */
+  _projectRoot?: string
   _throwOnError?: boolean
 }
 
@@ -45,19 +48,23 @@ export async function sessionStartCommand(options: SessionStartCliOptions): Prom
     }
   }
 
-  const project = requireProject()
+  const projectRoot = options._projectRoot ?? requireProject().root
   try {
     const result = await sessionStart({
-      projectRoot: project.root,
+      projectRoot,
       intent: options.intent,
       options: parsedOptions,
     })
     // Machine-readable: UUID on stdout (single line). Humans see the boxed summary
     // on stderr so shell pipelines like `UUID=$(coherent session start ...)` work.
     console.log(result.uuid)
-    process.stderr.write(
-      chalk.dim(`\nSession ${result.uuid} started.\n  dir: ${result.sessionDir}\n  at:  ${result.startedAt}\n\n`),
-    )
+    // --quiet suppresses the informational stderr block — used by the skill rail
+    // (`/coherent-chat`) to keep Bash boxes tight. Errors and warnings still emit.
+    if (!options.quiet) {
+      process.stderr.write(
+        chalk.dim(`\nSession ${result.uuid} started.\n  dir: ${result.sessionDir}\n  at:  ${result.startedAt}\n\n`),
+      )
+    }
   } catch (e) {
     console.error(chalk.red(`\n❌ session start failed: ${e instanceof Error ? e.message : String(e)}\n`))
     if (options._throwOnError) throw e
@@ -67,11 +74,14 @@ export async function sessionStartCommand(options: SessionStartCliOptions): Prom
 
 export interface SessionEndCliOptions {
   keep?: boolean
+  quiet?: boolean
+  /** Override project root — testing hook. Defaults to `requireProject()`. */
+  _projectRoot?: string
   _throwOnError?: boolean
 }
 
 export async function sessionEndCommand(uuid: string, options: SessionEndCliOptions): Promise<void> {
-  const project = requireProject()
+  const projectRoot = options._projectRoot ?? requireProject().root
   try {
     // Wire the default applier set so generated artifacts (config-delta,
     // components-generated, page-*.json) actually land on the project
@@ -79,22 +89,29 @@ export async function sessionEndCommand(uuid: string, options: SessionEndCliOpti
     // project unchanged — the session dir had all the work, none of it
     // applied.
     const result = await sessionEnd({
-      projectRoot: project.root,
+      projectRoot,
       uuid,
       keepSession: options.keep,
       appliers: defaultAppliers(),
     })
-    console.log(chalk.green(`\n✔ Session ${uuid} ended at ${result.endedAt}`))
-    if (result.applied.length > 0) {
-      console.log(chalk.cyan('\nApplied:'))
-      for (const line of result.applied) {
-        console.log(chalk.dim(`  • ${line}`))
+    if (options.quiet) {
+      // Skill rail consumes a tight one-line summary; the skill body emits the
+      // full polished card via Claude text after this Bash call returns.
+      const count = result.applied.length
+      console.log(chalk.green(`✔ Session ${uuid.slice(0, 8)} ended (${count} applied)`))
+    } else {
+      console.log(chalk.green(`\n✔ Session ${uuid} ended at ${result.endedAt}`))
+      if (result.applied.length > 0) {
+        console.log(chalk.cyan('\nApplied:'))
+        for (const line of result.applied) {
+          console.log(chalk.dim(`  • ${line}`))
+        }
       }
+      if (result.runRecordPath) {
+        console.log(chalk.dim(`\n  📝 Run record → ${result.runRecordPath}`))
+      }
+      console.log('')
     }
-    if (result.runRecordPath) {
-      console.log(chalk.dim(`\n  📝 Run record → ${result.runRecordPath}`))
-    }
-    console.log('')
   } catch (e) {
     console.error(chalk.red(`\n❌ session end failed: ${e instanceof Error ? e.message : String(e)}\n`))
     if (options._throwOnError) throw e
