@@ -32,26 +32,29 @@ jobs:
       - name: Build packages
         run: pnpm build
 
-      # Detect dist-tag from the release tag name (v0.13.0).
-      # Pre-release tags (vX.Y.Z-rc.N, vX.Y.Z-beta.N, vX.Y.Z-alpha.N) publish to
-      # the `next` dist-tag so they don't overwrite `latest`. Stable tags publish
-      # to `latest` (default).
+      # Detect dist-tag from GitHub's release.prerelease boolean.
       #
-      # Without this, every published version becomes `npm install -g @getcoherent/cli`
-      # by default — including release candidates that should require explicit
-      # `npm install -g @getcoherent/cli@next`. Adversarial review on the v0.13.0
-      # plan (2026-04-27) caught that the original workflow had no dist-tag
-      # detection — RC strategy was structurally impossible.
+      # The boolean is set when the release is created with `gh release create
+      # --prerelease` OR ticked in the GitHub UI. This is the canonical signal
+      # for "this is a pre-release" — failing closed: forgetting `--prerelease`
+      # publishes to `latest`, which is at least the explicit operator intent.
+      #
+      # Pre-v0.13.0 part1 used a regex on the tag name (`^v.*-(rc|beta|alpha)\.[0-9]+$`).
+      # DevEx review (2026-04-27) caught 4 bypass classes: uppercase RC, build
+      # metadata (`+build.42`), nested pre-release (`-rc.1.2`), alternate labels
+      # (`-pre.1`, `-canary.1`). Switched to the boolean flag. Tag-name
+      # convention is no longer load-bearing — only the prerelease flag matters.
       - name: Detect dist-tag
         id: tag
         run: |
           TAG_NAME="${{ github.event.release.tag_name }}"
-          if [[ "$TAG_NAME" =~ -(rc|beta|alpha)\.[0-9]+$ ]]; then
+          IS_PRERELEASE="${{ github.event.release.prerelease }}"
+          if [[ "$IS_PRERELEASE" == "true" ]]; then
             echo "dist_tag=next" >> $GITHUB_OUTPUT
-            echo "Pre-release tag detected ($TAG_NAME) — publishing to 'next' dist-tag"
+            echo "Pre-release detected ($TAG_NAME, prerelease=$IS_PRERELEASE) — publishing to 'next' dist-tag"
           else
             echo "dist_tag=latest" >> $GITHUB_OUTPUT
-            echo "Stable tag detected ($TAG_NAME) — publishing to 'latest' dist-tag"
+            echo "Stable release detected ($TAG_NAME, prerelease=$IS_PRERELEASE) — publishing to 'latest' dist-tag"
           fi
 
       # Use `pnpm publish`, not `npm publish`. The packages declare
@@ -72,10 +75,18 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      # Promotion path documented for the operator: after RC validates,
-      # promote to latest manually:
-      #
-      #   npm dist-tag add @getcoherent/core@X.Y.Z latest
-      #   npm dist-tag add @getcoherent/cli@X.Y.Z latest
-      #
-      # Cannot automate without a separate workflow + manual approval gate.
+      # Surface promotion instructions in the GitHub Actions UI when an RC
+      # was just published. DevEx review (2026-04-27) caught: documented as
+      # comments only is invisible to the operator at release time. The
+      # ::notice:: directive surfaces these in the run page summary.
+      - name: Promotion instructions (RC only)
+        if: steps.tag.outputs.dist_tag == 'next'
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          # Strip leading `v` if present (npm dist-tag uses bare semver).
+          VERSION="${VERSION#v}"
+          echo "::notice title=RC published to 'next' — promotion required for 'latest'::"
+          echo "::notice::Run AFTER manual canary validates:"
+          echo "::notice::  npm dist-tag add @getcoherent/core@$VERSION latest"
+          echo "::notice::  npm dist-tag add @getcoherent/cli@$VERSION latest"
+          echo "::notice::Cannot automate — requires manual approval gate."

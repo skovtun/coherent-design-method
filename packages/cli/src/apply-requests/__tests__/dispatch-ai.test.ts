@@ -193,7 +193,11 @@ describe('dispatchAi — applyMode contract', () => {
         expect(err).toBeInstanceOf(CoherentError)
         const ce = err as CoherentError
         expect(ce.code).toBe('COHERENT_E007')
-        expect(ce.fix).toMatch(/skill rail|with-ai|producer/i)
+        // Post-DevEx-review (2026-04-27): fix text is a single concrete
+        // copy-pasteable command + docs URL for triage. Old assertion
+        // matched against the conditional-prose flowchart which has been
+        // moved to the docs page.
+        expect(ce.fix).toMatch(/coherent chat|API rail|getcoherent\.design/i)
         expect(ce.docsUrl).toMatch(/E007$/)
       }
     })

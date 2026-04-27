@@ -161,5 +161,34 @@ describe('renderCliError', () => {
       const { stderr } = renderCliError(malformed, { isTty: false })
       expect(stderr).not.toMatch(/\[COHERENT_E\d{3}\]/)
     })
+
+    it('formatStructural() output matches CoherentError.format() byte-for-byte (drift gate)', () => {
+      // DevEx review (2026-04-27) — without this test, formatStructural()
+      // and CoherentError.format() can drift silently. If format() adds a
+      // new field or reorders lines, the cross-package code path produces
+      // different output than the same-package one. This regression class
+      // would only surface in dependency-hoisted environments — exactly
+      // the scenario formatStructural exists to handle.
+      const realError = new CoherentError({
+        code: COHERENT_ERROR_CODES.E007_NO_AI_REQUIRES_PREPOPULATION,
+        message: 'drift gate test',
+        cause: 'verifying layout parity',
+        fix: 'no-op',
+      })
+      const { stderr: realOutput } = renderCliError(realError, { isTty: false })
+
+      // Plain object with identical structural fields — exercises formatStructural.
+      const plainCopy = {
+        name: 'CoherentError',
+        code: realError.code,
+        message: realError.message,
+        causeText: realError.causeText,
+        fix: realError.fix,
+        docsUrl: realError.docsUrl,
+      }
+      const { stderr: structuralOutput } = renderCliError(plainCopy, { isTty: false })
+
+      expect(structuralOutput).toBe(realOutput)
+    })
   })
 })
