@@ -60,6 +60,18 @@ export const COHERENT_ERROR_CODES = {
    * fails loudly.
    */
   E007_NO_AI_REQUIRES_PREPOPULATION: 'COHERENT_E007',
+  /**
+   * `coherent chat` invoked on a project whose `coherentVersion` field
+   * is older than the installed CLI. Pre-v0.13.1 the CLI printed a soft
+   * warning and continued — leading to cryptic generic `TypeError:
+   * Cannot read properties of undefined (reading 'sections')` when the
+   * project's config schema didn't match the CLI's expectations.
+   *
+   * Reproduced 2026-04-27 during real-AI manual test (project created
+   * with v0.12.0, CLI at v0.13.0-rc.1). v0.13.1 makes this a hard stop
+   * with the actionable fix line "coherent update".
+   */
+  E008_PROJECT_OLDER_THAN_CLI: 'COHERENT_E008',
 } as const
 
 export type CoherentErrorCode = (typeof COHERENT_ERROR_CODES)[keyof typeof COHERENT_ERROR_CODES]

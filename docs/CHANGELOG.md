@@ -11,6 +11,25 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.13.1] — 2026-04-27
+
+### Fixed — version-mismatch UX (E008)
+
+Pre-v0.13.1 the CLI printed a soft warning when running `coherent chat` on a project whose `coherentVersion` was older than the CLI, then continued anyway. If the schemas differed, downstream code crashed with a cryptic generic `TypeError: Cannot read properties of undefined (reading 'sections')` mid-generation. Reproduced 2026-04-27 during real-AI manual test.
+
+v0.13.1 makes this a hard stop at config-load time:
+
+- **New code:** `COHERENT_E008_PROJECT_OLDER_THAN_CLI`. Throws via `CoherentError` so the v0.13.0 boundary helper renders the actionable Fix line: `Run \`coherent update\` in the project to apply the new CLI's rules and templates, then re-run \`coherent chat\``.
+- **Hard stop at boundary:** error fires BEFORE any state mutation, instead of crashing partway through generation when files have already been written.
+- **Docs:** entry in `docs/error-codes.md` + the `coherentReleaseFlags`-aware `update-notifier` from v0.13.0 already links typed errors to their docs page (E008 docs synced to getcoherent.design/errors/E008).
+
+### Internal
+
+- Tests: 1628 passing (E008 added to error registry test). tsc clean. Build clean.
+- The known-issue note in v0.13.0 CHANGELOG is now closed by this patch.
+
+---
+
 ## [0.13.0] — 2026-04-27
 
 First published as `0.13.0-rc.1` to the `next` dist-tag for canary validation. End-to-end manual test (`coherent chat "fitness studio app..."`) on a real project under live Anthropic API succeeded: 4 pages generated, 6 shadcn primitives auto-installed, AI quality auto-fix worked (Classes: 4 errors → 0 + 9 TS errors fixed), backup saved, preview server rendered OK. Promoted to `0.13.0` stable.

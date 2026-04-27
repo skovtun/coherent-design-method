@@ -183,6 +183,29 @@ The mismatch is always caught at the first `_phase` invocation — before any st
 
 ---
 
+## COHERENT_E008 — Project was created with an older Coherent version than the installed CLI
+
+**When you see it:** running `coherent chat "..."` on a project whose `design-system.config.ts` has a `coherentVersion` field older than the CLI you are running.
+
+**Why:** The CLI's config schema, generator templates, and validator rules evolve across releases. A project initialized with an older CLI may have a config shape that the newer CLI's downstream code doesn't expect — e.g., a missing `sections` field on a page that the new generator dereferences. Pre-v0.13.1 the CLI printed a soft warning and continued, leading to cryptic generic `TypeError: Cannot read properties of undefined (reading 'sections')` mid-generation. v0.13.1 makes this a hard stop at config-load time so the actionable fix shows BEFORE state mutation.
+
+**Fix:**
+
+1. **Run `coherent update` in the project.** This applies the new CLI's rules and templates to your existing project without modifying your generated pages and components.
+
+   ```bash
+   cd your-project
+   coherent update
+   ```
+
+2. **Then re-run `coherent chat`.** The version mismatch is gone, the schema matches, and the generation proceeds.
+
+If you don't want to upgrade the project (e.g., you need to keep matching production parity with an older Coherent version), pin your global CLI to that version: `npm install -g @getcoherent/cli@<old-version>`.
+
+**Related:** [COHERENT_E004](#coherent_e004--phase-engine-protocol-mismatch) (skill protocol vs CLI), [COHERENT_E005](#coherent_e005--session-schema-version-mismatch) (session schema vs CLI). All three are version-skew errors that fail loud at the boundary instead of crashing later.
+
+---
+
 ## Appending a new code
 
 Every code is append-only. Never re-assign an existing number, even when the error is removed — leave a tombstone comment (`<!-- E007 retired in v0.10.0, no replacement -->`) so old references in issues / PR reviews / Slack threads still resolve to the right slot.

@@ -74,7 +74,8 @@ import {
   summarizeValidators,
 } from '../utils/run-record.js'
 import { applyRequests } from '../apply-requests/index.js'
-import { isCoherentError } from '../errors/CoherentError.js'
+import { CoherentError, isCoherentError } from '../errors/CoherentError.js'
+import { COHERENT_ERROR_CODES } from '../errors/codes.js'
 import { renderCliError } from '../utils/render-cli-error.js'
 import { regenerateFiles, scanAndInstallSharedDeps, ensurePlanGroupLayouts } from './chat/code-generator.js'
 import { takeNavSnapshot, hasNavChanged } from '../utils/nav-snapshot.js'
@@ -251,16 +252,18 @@ export async function chatCommand(
         console.log('      ' + chalk.green('npm install -g @getcoherent/cli@latest') + '\n')
         process.exit(1)
       }
-      console.log(chalk.yellow('\n⚠️  Project is older than CLI\n'))
-      console.log(chalk.gray('   Project created with: ') + chalk.white(`v${config.coherentVersion}`))
-      console.log(chalk.gray('   Current CLI version:  ') + chalk.white(`v${CLI_VERSION}`))
-      console.log(
-        chalk.dim('\n   Run ') +
-          chalk.green('coherent update') +
-          chalk.dim(' to apply latest rules/templates to your project.\n'),
-      )
-      console.log(chalk.dim('   Continuing with current project config...\n'))
-      spinner.start('Loading design system configuration...')
+      // v0.13.1 — hard stop on version mismatch instead of soft warn + continue.
+      // Pre-v0.13.1: soft warn → continue → downstream code crashes with
+      // cryptic `TypeError: Cannot read properties of undefined (reading
+      // 'sections')` when the project's config schema doesn't match.
+      // Reproduced 2026-04-27 during real-AI manual test. Now throws E008
+      // with the actionable Fix line that v0.13.0's renderCliError surfaces.
+      throw new CoherentError({
+        code: COHERENT_ERROR_CODES.E008_PROJECT_OLDER_THAN_CLI,
+        message: `Project was created with Coherent v${config.coherentVersion}, but CLI is v${CLI_VERSION}`,
+        cause: `The project's config schema may differ from what this CLI version expects, leading to crashes mid-generation. v0.13.1 catches this at load time instead of crashing later.`,
+        fix: `Run \`coherent update\` in the project to apply the new CLI's rules and templates, then re-run \`coherent chat\`.`,
+      })
     }
 
     if (needsGlobalsFix(projectRoot)) {
