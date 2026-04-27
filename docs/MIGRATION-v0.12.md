@@ -43,7 +43,7 @@ After:
 /Updated token ([\w.]+) from/
 ```
 
-The new format is canonical and stable going forward — both rails produce it. Future v0.x.0 releases that change message format will be flagged via `coherentReleaseFlags.breaking: true` in the published package metadata so the auto-update prompt warns you in advance.
+The new format is canonical and stable going forward — both rails produce it. Future BREAKING changes to message format will be documented in a versioned `MIGRATION-vX.Y.md` file at the repository root.
 
 ### If you script around session lifecycle output
 
@@ -53,10 +53,11 @@ If you depend on stdout patterns, switch to reading the RunRecord file. It conta
 
 ### If you reach into private internals
 
-The following symbols were exported in v0.11.x but are not part of the public API. v0.12.0 dropped some of them:
+The following symbols changed status or were dropped in v0.12.0. None of them were ever part of the documented public API; this section exists to head off monkey-patching workflows that may have reached into them.
 
 - `applyModification` from `commands/chat/modification-handler.ts` is no longer imported by `chat.ts` directly. It still exists internally to delegate AI-dependent request types from `apply-requests/dispatch-ai.ts`, but reaching into it from external code is unsupported and may break in a future minor release.
-- `applyDeletePage`, `applyDeleteComponent`, `applyManagerResult` private helpers in `phase-engine/appliers.ts` were deleted in v0.12.0. Behavior is now provided by the shared `apply-requests/dispatch.ts` module. If you somehow imported these (very unlikely — they were not exported) your build now fails.
+- `applyDeletePage` and `applyDeleteComponent` were skill-rail-private helpers in `phase-engine/appliers.ts` (not exported). Both are deleted in v0.12.0 — behavior is now provided by the shared `apply-requests/dispatch.ts` module. If you somehow imported these your build now fails.
+- `applyManagerResult` was extracted from `commands/chat/modification-handler.ts` to `apply-requests/managers.ts` and is re-exported from `apply-requests/index.ts`. The export is intentional but the API is **unstable** — this helper may change shape or move again in v0.14.x as the apply-requests layer matures. Do not depend on its signature for stable code paths.
 
 If your project monkey-patches Coherent internals via require-cache shenanigans (rare but legitimate for test harnesses), expect breakage and migrate to the public API. There is no supported workaround.
 

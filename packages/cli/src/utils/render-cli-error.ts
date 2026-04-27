@@ -66,8 +66,13 @@ export function renderCliError(err: unknown, opts: RenderOptions = {}): RenderRe
 
   // CoherentError path: use the canonical format() layout. Color only
   // when TTY; plain text otherwise (CI logs, support ticket pasting).
+  //
+  // The structural detection (cross-package boundary) means `err` may be
+  // a plain object that LOOKS like a CoherentError without having the
+  // `format()` method. Guard for that — fall back to manual layout from
+  // the structural fields.
   if (isCoherentError(err)) {
-    const formatted = err.format()
+    const formatted = typeof (err as { format?: unknown }).format === 'function' ? err.format() : formatStructural(err)
     const colored = isTty ? chalk.red(formatted) : formatted
     return { stderr: `\n${colored}\n`, exitCode: 1 }
   }
@@ -93,4 +98,26 @@ export function renderCliError(err: unknown, opts: RenderOptions = {}): RenderRe
   const message = `[unknown error] ${typeof err}: ${String(err)}`
   const colored = isTty ? chalk.red(message) : message
   return { stderr: `\n${colored}\n`, exitCode: 1 }
+}
+
+/**
+ * Manual format layout for cross-package CoherentError objects that have
+ * the structural shape but lack the `format()` method (e.g., serialized
+ * across IPC, manually constructed for tests). Mirrors the layout in
+ * `errors/CoherentError.ts:format()`.
+ */
+function formatStructural(err: unknown): string {
+  const obj = err as { code?: string; message?: string; causeText?: string; fix?: string; docsUrl?: string }
+  const lines: string[] = []
+  lines.push(`[${obj.code}] ${obj.message ?? '(no message)'}`)
+  lines.push('')
+  if (obj.causeText) {
+    lines.push(`Why: ${obj.causeText}`)
+    lines.push('')
+  }
+  lines.push('Fix:')
+  lines.push(`  ${obj.fix ?? '(no fix specified)'}`)
+  lines.push('')
+  lines.push(`Docs: ${obj.docsUrl ?? '(no docs)'}`)
+  return lines.join('\n')
 }

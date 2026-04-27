@@ -6,10 +6,8 @@ All notable changes to this project are documented in this file.
 
 If you are upgrading across breaking releases, follow the matching migration doc:
 
-- **v0.11.x → v0.12.0+**: see [`docs/MIGRATION-v0.12.md`](./MIGRATION-v0.12.md). Skill-rail status messages changed format (6 strings).
+- **v0.11.x → v0.12.0+**: see [`docs/MIGRATION-v0.12.md`](./MIGRATION-v0.12.md). Skill-rail status messages changed format (5 strings).
 - v0.13.0+: migration doc ships with that release if breaking changes are introduced.
-
-The auto-update prompt that ships in v0.12.0+ links to the relevant migration doc when it detects a behind-version that crosses a breaking-flagged release.
 
 ---
 

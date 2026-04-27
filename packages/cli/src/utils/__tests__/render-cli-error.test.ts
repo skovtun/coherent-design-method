@@ -47,9 +47,12 @@ describe('renderCliError', () => {
       // Chalk auto-detects color support and is a no-op in non-color
       // test environments. Assert structural correctness: either ANSI
       // escapes appear OR content is identical to TTY-off mode.
+      // Use the literal ESC byte (\x1b) so we probe for actual ANSI
+      // sequences, not the literal '[' that appears in '[COHERENT_E002]'.
       const ttyOn = renderCliError(err, { isTty: true }).stderr
       const ttyOff = renderCliError(err, { isTty: false }).stderr
-      const hasAnsi = /\[/.test(ttyOn)
+      // eslint-disable-next-line no-control-regex
+      const hasAnsi = /\x1b\[/.test(ttyOn)
       expect(hasAnsi || ttyOn === ttyOff).toBe(true)
       expect(ttyOn).toContain('[COHERENT_E002] session locked')
     })
@@ -101,13 +104,7 @@ describe('renderCliError', () => {
   })
 
   describe('Cross-boundary CoherentError detection', () => {
-    it('uses isCoherentError structural marker, not instanceof', () => {
-      // Simulate cross-package boundary: an object that has the same
-      // shape as CoherentError but is NOT the same constructor instance.
-      // This happens when two copies of the errors module are loaded
-      // (e.g., dependency hoisting issues).
-      // For this test we use a real CoherentError and assert positive
-      // path; the cross-package case is structurally identical.
+    it('catches real CoherentError instances (fast path)', () => {
       const err = new CoherentError({
         code: COHERENT_ERROR_CODES.E001_NO_API_KEY,
         message: 'no key',
@@ -115,6 +112,54 @@ describe('renderCliError', () => {
       })
       const { stderr } = renderCliError(err, { isTty: false })
       expect(stderr).toContain('[COHERENT_E001]')
+    })
+
+    it('catches plain objects with CoherentError shape (cross-package boundary)', () => {
+      // Simulate a CoherentError thrown from a different module instance —
+      // structurally identical but not satisfying `instanceof CoherentError`.
+      // Real-world: dependency hoisting, dual install, monorepo workspace
+      // boundary, errors serialized across IPC.
+      const fakeFromOtherPackage = {
+        name: 'CoherentError',
+        code: 'COHERENT_E007',
+        message: 'cross-boundary throw',
+        fix: 'use --with-ai',
+        docsUrl: 'https://getcoherent.design/errors/E007',
+        causeText: 'producer phase did not pre-populate output',
+      }
+      const { stderr } = renderCliError(fakeFromOtherPackage, { isTty: false })
+      // Structural detection must succeed. Renderer falls back to
+      // formatStructural() because the plain object lacks .format().
+      expect(stderr).toContain('[COHERENT_E007]')
+      expect(stderr).toContain('cross-boundary throw')
+      expect(stderr).toContain('use --with-ai')
+      expect(stderr).toContain('Why: producer phase')
+    })
+
+    it('rejects non-CoherentError plain objects (no false positives)', () => {
+      // Plain objects without the CoherentError shape must NOT be detected
+      // as CoherentError. Otherwise any thrown plain object would be
+      // misrendered. Tests the negative side of structural detection.
+      const notACoherentError = {
+        name: 'Error',
+        message: 'just a regular error',
+      }
+      const { stderr } = renderCliError(notACoherentError, { isTty: false })
+      expect(stderr).not.toMatch(/\[COHERENT_E\d{3}\]/)
+      expect(stderr).toContain('[unknown error]')
+    })
+
+    it('rejects objects with malformed code (false positives)', () => {
+      // Has CoherentError-ish name + fix + docsUrl, but `code` doesn't
+      // match the canonical regex. Structural check must reject.
+      const malformed = {
+        name: 'CoherentError',
+        code: 'NOT_COHERENT_FORMAT',
+        fix: 'fix-text',
+        docsUrl: 'https://example.com',
+      }
+      const { stderr } = renderCliError(malformed, { isTty: false })
+      expect(stderr).not.toMatch(/\[COHERENT_E\d{3}\]/)
     })
   })
 })

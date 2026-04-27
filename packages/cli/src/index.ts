@@ -8,23 +8,46 @@ try {
   }
 }
 
-// v0.13.0 — global error trap for uncaught throws + unhandled promise
-// rejections. Without this, a CoherentError thrown from an async
-// background task (e.g., the auto-update fetch) crashed with raw stack
-// trace and lost .fix/.docsUrl. Adversarial review (2026-04-27) flagged
-// this as a missing safety net. Imports happen lazily so a broken import
-// during module evaluation doesn't fight the renderer for stderr.
+// v0.13.0 — runtime error trap for uncaught throws + unhandled promise
+// rejections that escape from main() or async background tasks (e.g.,
+// the auto-update fetch). Without this, a CoherentError thrown post-
+// initialization crashed with raw stack trace and lost .fix/.docsUrl.
+//
+// LIMITATION: registers AFTER static imports below. If a module-init
+// throw happens during ESM import resolution (broken bundle chunk,
+// missing peer dep, malformed package.json), this handler is not yet
+// attached and Node prints raw output. That class of failure pre-dates
+// this trap and is unfixable without restructuring the entry into a
+// 2-file shim. Adversarial review (2026-04-27) called this out as a
+// known scope limitation. Inner try/catch covers the recursive case
+// where the dynamic import itself fails.
 process.on('uncaughtException', async err => {
-  const { renderCliError } = await import('./utils/render-cli-error.js')
-  const { stderr, exitCode } = renderCliError(err, { debug: process.env.COHERENT_DEBUG === '1' })
-  process.stderr.write(stderr)
-  process.exit(exitCode)
+  try {
+    const { renderCliError } = await import('./utils/render-cli-error.js')
+    const { stderr, exitCode } = renderCliError(err, { debug: process.env.COHERENT_DEBUG === '1' })
+    process.stderr.write(stderr)
+    process.exit(exitCode)
+  } catch (rendererErr) {
+    process.stderr.write(`Coherent crashed: ${err instanceof Error ? err.message : String(err)}\n`)
+    process.stderr.write(
+      `Renderer also failed: ${rendererErr instanceof Error ? rendererErr.message : String(rendererErr)}\n`,
+    )
+    process.exit(1)
+  }
 })
 process.on('unhandledRejection', async reason => {
-  const { renderCliError } = await import('./utils/render-cli-error.js')
-  const { stderr, exitCode } = renderCliError(reason, { debug: process.env.COHERENT_DEBUG === '1' })
-  process.stderr.write(stderr)
-  process.exit(exitCode)
+  try {
+    const { renderCliError } = await import('./utils/render-cli-error.js')
+    const { stderr, exitCode } = renderCliError(reason, { debug: process.env.COHERENT_DEBUG === '1' })
+    process.stderr.write(stderr)
+    process.exit(exitCode)
+  } catch (rendererErr) {
+    process.stderr.write(`Coherent rejected: ${reason instanceof Error ? reason.message : String(reason)}\n`)
+    process.stderr.write(
+      `Renderer also failed: ${rendererErr instanceof Error ? rendererErr.message : String(rendererErr)}\n`,
+    )
+    process.exit(1)
+  }
 })
 
 import { Command } from 'commander'
