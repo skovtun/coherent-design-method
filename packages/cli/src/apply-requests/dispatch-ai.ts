@@ -138,7 +138,10 @@ export async function dispatchAi(
       code: COHERENT_ERROR_CODES.E007_NO_AI_REQUIRES_PREPOPULATION,
       message: `applyMode: 'no-new-ai' received an AI-dependent request (${request.type}) without pre-populated output`,
       cause: `The skill rail runs without an AI provider. AI-dependent requests must arrive with their deterministic output already filled in (changes.pageCode for add/update-page, changes.layoutBlock for modify-layout-block). Types like 'link-shared' and 'promote-and-link' cannot be pre-populated and require a skill-phase rewrite to produce them inline.`,
-      fix: `If you reached this from a skill-rail invocation, this is a producer bug — the upstream phase must populate the deterministic output before emitting the request. If you reached this directly, switch to applyMode: 'with-ai' (API rail).`,
+      // DevEx review (2026-04-27): Fix line is a single concrete action.
+      // Conditional triage (skill-rail vs custom-code vs link-shared) lives
+      // in the docs page so the user gets one command to copy-paste here.
+      fix: `Re-run via the API rail: coherent chat "<your original request>". Triage: see https://getcoherent.design/errors/E007`,
     })
   }
 

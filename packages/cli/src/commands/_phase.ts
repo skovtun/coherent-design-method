@@ -34,7 +34,8 @@ import {
   type PhaseContext,
 } from '../phase-engine/phase.js'
 import { PHASE_ENGINE_PROTOCOL, resolvePhase } from '../phase-engine/phase-registry.js'
-import { COHERENT_ERROR_CODES, CoherentError } from '../errors/index.js'
+import { COHERENT_ERROR_CODES, CoherentError, isCoherentError } from '../errors/index.js'
+import { renderCliError } from '../utils/render-cli-error.js'
 
 export type PhaseAction = 'prep' | 'ingest' | 'run'
 
@@ -146,6 +147,16 @@ export async function phaseCommand(action: PhaseAction, name: string, options: P
     }
   } catch (e) {
     if (options._throwOnError) throw e
+    // v0.13.0 — surface CoherentError via format() to preserve code/fix/docsUrl.
+    // Pre-v0.13.0 the outer catch always called `e.message` which dropped
+    // the typed-error context for any CoherentError thrown from inside
+    // aiPhase.ingest() / detPhase.run(). Adversarial review (2026-04-27)
+    // flagged it.
+    if (isCoherentError(e)) {
+      const { stderr, exitCode } = renderCliError(e, { debug: process.env.COHERENT_DEBUG === '1' })
+      process.stderr.write(stderr)
+      process.exit(exitCode)
+    }
     console.error(chalk.red(`\n❌ ${name} ${action} failed: ${e instanceof Error ? e.message : String(e)}\n`))
     process.exit(1)
   }

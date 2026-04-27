@@ -2,6 +2,46 @@
 
 All notable changes to this project are documented in this file.
 
+## Migration guides
+
+If you are upgrading across breaking releases, follow the matching migration doc:
+
+- **v0.11.x → v0.12.0+**: see [`docs/MIGRATION-v0.12.md`](./MIGRATION-v0.12.md). Skill-rail status messages changed format (6 strings).
+- v0.13.0: no breaking changes for end users. Internal infrastructure improvements only.
+
+---
+
+## [0.13.0-rc.1] — 2026-04-27
+
+First published as a release candidate to the `next` dist-tag. After manual canary validates (`npm install -g @getcoherent/cli@next`), promoted to `latest` via `npm dist-tag add @getcoherent/cli@0.13.0-rc.1 latest` (or a follow-up `0.13.0` stable release).
+
+### Pre-manual-testing cleanup release
+
+Closes infrastructure gaps from v0.12.0's "known limitations" CHANGELOG section before users start manual testing. No breaking changes for end users; downstream consumers parsing skill-rail output already migrated in v0.12.0.
+
+### Added
+
+- **Centralized `renderCliError(err, {debug, isTty})` helper** at `packages/cli/src/utils/render-cli-error.ts`. Single rendering boundary for typed `CoherentError` errors (E001-E007) and generic Errors. Handles 4 branches: CoherentError fast-path (instanceof), CoherentError structural (cross-package boundary), generic Error (with optional stack via `COHERENT_DEBUG=1`), unknown shape (string/null/object thrown as error).
+- **Wired CoherentError surfacing at 4 boundary sites**: top-level CLI catch (`index.ts` global `uncaughtException` + `unhandledRejection` traps with recursive-failure fallback), `chat.ts` chat command catch, `_phase.ts` outer catch, `phase-engine/session-lifecycle.ts:206` applier wrapper (no longer destroys typed-error context).
+- **`isCoherentError()` is now actually structural** — not just instanceof. Pre-v0.13.0 the docblock claimed "structural marker" but the implementation was `instanceof CoherentError`. v0.13.0 implements an actual structural check (`name === 'CoherentError'` + code matches `/^COHERENT_E\d{3}$/` + fix is string + docsUrl is string) that survives cross-package boundaries (dependency hoisting, dual install, IPC serialization). The `instanceof` check is preserved as a fast-path for the common single-package case.
+- **`docs/MIGRATION-v0.12.md`** — explicit migration doc for users upgrading from v0.11.x to v0.12.0+. Documents 6 BREAKING skill-rail message format changes with old → new regex examples. Cross-referenced from CHANGELOG top.
+- **`coherentReleaseFlags` registry-metadata field** (consumed by update-notifier). Allows future releases to flag themselves as breaking + provide a domain-allowlisted migration URL. The auto-update banner uses this to differentiate non-breaking updates from breaking ones — louder formatting + migration link for breaking releases. URL allowlist pinned to `https://github.com/skovtun/coherent-design-method/` and `https://getcoherent.design/` to defeat supply-chain phishing via compromised registry record.
+- **Update-notifier banner routes to STDERR on non-TTY** (CI logs, redirected output, automation pipes). Pre-v0.13.0 it always went to stdout, polluting structured-stdout contracts. TTY mode unchanged — banner stays inline above command output where users see it.
+
+### Changed
+
+- **`publish.yml` workflow** — added dist-tag detection. Pre-release tags (`vX.Y.Z-rc.N`, `-beta.N`, `-alpha.N`) publish to `next` dist-tag instead of `latest`. Without this, RC validation strategy was structurally impossible — every published version overwrote `latest` and broke users on the previous stable.
+- **Update-notifier cache write is now atomic** — `writeFileSync(tmp) + renameSync(tmp, final)` instead of direct `writeFileSync`. Pre-v0.13.0, parallel `coherent` invocations could corrupt the cache JSON (interleaved writes), causing the banner to silently stop appearing for ~24h until next refresh.
+
+### Internal
+
+- **Adversarial-review pattern proven AGAIN.** The plan went through codex consult (caught Item 5 scope-creep, renamed "real-AI smoke", split items), then a fresh-context adversarial subagent caught 7 critical issues codex missed: existing `update-notifier.ts` (Item 1 was reinventing existing code), `publish.yml` workflow gap (RC strategy was impossible), 3 CoherentError destruction sites, cache write race, supply-chain attack surface in registry-sourced URLs, npm unpublish 72h policy is wrong (`download_count > 1` cannot be unpublished after 24h). All 7 either fixed or deferred to user-supervised work with explicit rationale.
+- **Tests:** 1627 passing + 9 todo (up from 1612 in v0.12.0). New: 13 render-cli-error tests + 4 update-notifier tests for breaking-flag handling.
+- **Carried forward to v0.14.0:** PR2 structural collapse (delete zombie deterministic case bodies in `modification-handler.ts`, move 5 AI-case bodies to `dispatch-ai.ts`, chat.ts facade collapse). Codex flagged Item 5 as 8-12h scope on its own — split out of v0.13.0 cleanly.
+- **Deferred to user-supervised next session:** chat pipeline smoke with real-AI corpus (needs `ANTHROPIC_API_KEY_CANARY`), skill-rail UX polish (BREAKING for downstream — needs visual review of prototypes).
+
+---
+
 ## [0.12.0] — 2026-04-26
 
 ### apply-requests extraction — both rails now share one dispatch path

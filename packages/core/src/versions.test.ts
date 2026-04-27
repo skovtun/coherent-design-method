@@ -9,8 +9,10 @@ describe('CLI_VERSION', () => {
     expect(CLI_VERSION).toBe(pkg.version)
   })
 
-  it('is a valid semver string', () => {
-    expect(CLI_VERSION).toMatch(/^\d+\.\d+\.\d+$/)
+  it('is a valid semver string (incl. prerelease suffix)', () => {
+    // Accepts plain `X.Y.Z` AND prerelease `X.Y.Z-<label>.<n>` (rc/beta/alpha/etc).
+    // Build metadata `+sha` is also valid per semver.org but not currently used.
+    expect(CLI_VERSION).toMatch(/^\d+\.\d+\.\d+(-[\w.-]+)?(\+[\w.-]+)?$/)
   })
 
   it('core and cli package versions are in sync', async () => {

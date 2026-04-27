@@ -110,11 +110,20 @@ describe('shouldSkipUpdateCheck', () => {
   })
 })
 
-describe('maybePrintUpdateBanner', () => {
+// `isNewer()` deliberately suppresses prerelease versions (a 0.11.1-rc.1 user
+// should never see "downgrade to 0.11.0" prompts). When CLI_VERSION is itself
+// a prerelease, `maybePrintUpdateBanner` correctly returns false for ANY
+// cached version — the banner never fires. Skip this describe block in that
+// case; the suppression behavior is unit-tested directly in the `isNewer`
+// describe above.
+const isPrereleaseBuild = !/^\d+\.\d+\.\d+$/.test(CLI_VERSION)
+describe.skipIf(isPrereleaseBuild)('maybePrintUpdateBanner', () => {
   let tmpHome: string
   let originalHome: string | undefined
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let consoleSpy: any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let stderrSpy: any
 
   beforeEach(() => {
     // Redirect HOMEDIR via the cache-dir paths we exposed in __test__.
@@ -123,13 +132,18 @@ describe('maybePrintUpdateBanner', () => {
     // helpers instead of monkey-patching homedir.
     tmpHome = mkdtempSync(join(tmpdir(), 'coherent-update-notifier-'))
     originalHome = process.env.HOME
+    // v0.13.0 — banner goes to console.log on TTY, process.stderr.write
+    // on non-TTY. Spy both so tests work regardless of test runner's
+    // stdout TTY state.
     consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
   })
 
   afterEach(() => {
     if (originalHome === undefined) delete process.env.HOME
     else process.env.HOME = originalHome
     consoleSpy.mockRestore()
+    stderrSpy.mockRestore()
     rmSync(tmpHome, { recursive: true, force: true })
     // Wipe the real cache file we may have written into ~/.coherent — the
     // module's CACHE_DIR was resolved against process.env.HOME at load
@@ -168,12 +182,59 @@ describe('maybePrintUpdateBanner', () => {
 
     const printed = maybePrintUpdateBanner()
     expect(printed).toBe(true)
-    expect(consoleSpy).toHaveBeenCalledTimes(1)
-    const banner = consoleSpy.mock.calls[0][0] as string
+    // v0.13.0 — banner goes to console.log on TTY, process.stderr.write on
+    // non-TTY. Either spy must have been called once. Test runner's TTY
+    // state varies across vitest configurations, so accept either route.
+    const consoleCall = consoleSpy.mock.calls[0]?.[0] as string | undefined
+    const stderrCall = stderrSpy.mock.calls[0]?.[0] as string | undefined
+    const banner = consoleCall ?? stderrCall ?? ''
     expect(banner).toContain('Update available')
     expect(banner).toContain(`v${CLI_VERSION}`)
     expect(banner).toContain(`v${fakeNewer}`)
     expect(banner).toContain('npm update -g @getcoherent/cli')
+  })
+
+  it('prints LOUDER banner with migration URL when breaking flag set', () => {
+    const parts = CLI_VERSION.split('.').map(Number)
+    const fakeNewer = `${(parts[0] || 0) + 1}.0.0`
+    __test__.writeCache({
+      latest: fakeNewer,
+      checkedAt: Date.now(),
+      breaking: true,
+      migrationUrl: 'https://github.com/skovtun/coherent-design-method/blob/main/docs/MIGRATION-v1.md',
+    })
+    const printed = maybePrintUpdateBanner()
+    expect(printed).toBe(true)
+    const consoleCall = consoleSpy.mock.calls[0]?.[0] as string | undefined
+    const stderrCall = stderrSpy.mock.calls[0]?.[0] as string | undefined
+    const banner = consoleCall ?? stderrCall ?? ''
+    expect(banner).toContain('BREAKING')
+    expect(banner).toContain('Migration:')
+    expect(banner).toContain('skovtun/coherent-design-method')
+  })
+
+  it('falls back to generic CHANGELOG link when migrationUrl is rejected by allowlist', () => {
+    const parts = CLI_VERSION.split('.').map(Number)
+    const fakeNewer = `${(parts[0] || 0) + 1}.0.0`
+    // Cache as if a malicious registry record set a phishing URL.
+    // validateMigrationUrl runs at fetch time before write — but we
+    // simulate the post-fetch state by writing already-validated URL.
+    // For this test we directly write an undefined migrationUrl,
+    // representing a record where the URL was rejected at validation.
+    __test__.writeCache({
+      latest: fakeNewer,
+      checkedAt: Date.now(),
+      breaking: true,
+      migrationUrl: undefined,
+    })
+    const printed = maybePrintUpdateBanner()
+    expect(printed).toBe(true)
+    const consoleCall = consoleSpy.mock.calls[0]?.[0] as string | undefined
+    const stderrCall = stderrSpy.mock.calls[0]?.[0] as string | undefined
+    const banner = consoleCall ?? stderrCall ?? ''
+    expect(banner).toContain('BREAKING')
+    expect(banner).toContain('See CHANGELOG')
+    expect(banner).toContain('blob/main/docs/CHANGELOG.md')
   })
 
   it('respects the dismissedFor field — no banner for that exact version', () => {

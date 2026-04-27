@@ -74,6 +74,8 @@ import {
   summarizeValidators,
 } from '../utils/run-record.js'
 import { applyRequests } from '../apply-requests/index.js'
+import { isCoherentError } from '../errors/CoherentError.js'
+import { renderCliError } from '../utils/render-cli-error.js'
 import { regenerateFiles, scanAndInstallSharedDeps, ensurePlanGroupLayouts } from './chat/code-generator.js'
 import { takeNavSnapshot, hasNavChanged } from '../utils/nav-snapshot.js'
 import { loadHashes, saveHashes, computeFileHash } from '../utils/file-hashes.js'
@@ -1545,9 +1547,22 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
     }
   } catch (error) {
     spinner.fail('Chat command failed')
-    console.error(chalk.red('\n✖ Chat command failed'))
     runRecord.outcome = 'error'
     runRecord.error = error instanceof Error ? error.message : String(error)
+
+    // v0.13.0 — surface CoherentError via format() FIRST. Pre-v0.13.0
+    // a typed error from the new applyMode contract (E007) or any
+    // future code-bearing error fell through to generic Error handling
+    // and lost the .fix and .docsUrl fields.
+    if (isCoherentError(error)) {
+      const { stderr } = renderCliError(error, { debug: process.env.COHERENT_DEBUG === '1' })
+      process.stderr.write(stderr)
+      if (options._throwOnError) throw error
+      process.exitCode = 1
+      return
+    }
+
+    console.error(chalk.red('\n✖ Chat command failed'))
 
     const zodError = error as { issues?: Array<{ path: (string | number)[]; message: string }> }
     const issues =

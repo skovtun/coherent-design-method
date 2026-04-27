@@ -90,7 +90,37 @@ export class CoherentError extends Error {
   }
 }
 
-/** Runtime guard — true iff `err` is a CoherentError instance. */
+/**
+ * Runtime guard — true iff `err` is a CoherentError shape.
+ *
+ * v0.13.0 adversarial review (2026-04-27) caught: pre-v0.13.0 this used
+ * `err instanceof CoherentError` despite the docblock claiming "structural
+ * marker." That `instanceof` check fails when two copies of the errors
+ * module are loaded (dependency hoisting, dual install, monorepo
+ * workspace boundaries) — the second copy's CoherentError instances
+ * don't satisfy the first copy's `instanceof`. This v0.13.0 implementation
+ * does an actual structural check that survives cross-package boundaries.
+ *
+ * Structural shape: any object with
+ *   - name === 'CoherentError'
+ *   - code matching `/^COHERENT_E\d{3}$/`
+ *   - fix (string)
+ *   - docsUrl (string)
+ *
+ * The native `instanceof` check is preserved as a fast-path so the common
+ * single-package case skips the structural inspection.
+ */
 export function isCoherentError(err: unknown): err is CoherentError {
-  return err instanceof CoherentError
+  // Fast path — same module instance.
+  if (err instanceof CoherentError) return true
+  // Structural path — different module instance (cross-package boundary).
+  if (typeof err !== 'object' || err === null) return false
+  const candidate = err as Record<string, unknown>
+  return (
+    candidate.name === 'CoherentError' &&
+    typeof candidate.code === 'string' &&
+    /^COHERENT_E\d{3}$/.test(candidate.code) &&
+    typeof candidate.fix === 'string' &&
+    typeof candidate.docsUrl === 'string'
+  )
 }
