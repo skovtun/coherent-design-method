@@ -1577,6 +1577,36 @@ describe('Visual Sanity Layer v1 (v0.14.0)', () => {
       const issues = validatePageQuality(code)
       expect(issues.some(i => i.type === 'BUTTON_NO_VARIANT_IN_MAP')).toBe(false)
     })
+
+    it('v0.14.3: does NOT fire on Button outside .map() in same file (regression)', () => {
+      // Reproduces the v0.14.1 false positive on landing/page.tsx: a .map()
+      // block early in the file, a totally separate <Button> CTA much later.
+      // v0.14.1 regex was unbounded → captured the late Button as if it were
+      // inside the .map(). v0.14.3 bounds the body to the map block only.
+      const code = `
+        export default function Landing() {
+          return (
+            <div>
+              <ul>
+                {tasks.map(t => (
+                  <div key={t.label} className="flex">
+                    <span>{t.label}</span>
+                  </div>
+                ))}
+              </ul>
+              <section>
+                <h2>CTA</h2>
+                <Button asChild size="lg">
+                  <Link href="/tasks">Open Tasks</Link>
+                </Button>
+              </section>
+            </div>
+          )
+        }
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'BUTTON_NO_VARIANT_IN_MAP')).toBe(false)
+    })
   })
 
   describe('BUTTON_NO_VARIANT_IN_MAP auto-fix (v0.14.2)', () => {
