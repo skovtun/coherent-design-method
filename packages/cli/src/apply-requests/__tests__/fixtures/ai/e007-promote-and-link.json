@@ -1,0 +1,16 @@
+{
+  "_doc": "Item 3 PARITY boundary fixture — promote-and-link in 'no-new-ai' mode always throws E007. promote-and-link is NEVER pre-populatable (per dispatch-ai.ts:84-85) because it requires AI to do the block extraction. Skill rail must surface this loudly.",
+  "mode": "no-new-ai",
+  "input": {
+    "type": "promote-and-link",
+    "target": "home",
+    "changes": {
+      "componentName": "FeatureGrid",
+      "blockHint": "the three-column feature section"
+    }
+  },
+  "expected": {
+    "throwsCode": "COHERENT_E007",
+    "throwsMessageMatches": "no-new-ai.*promote-and-link.*pre-populated"
+  }
+}

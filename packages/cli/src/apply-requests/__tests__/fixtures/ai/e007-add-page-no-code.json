@@ -1,0 +1,23 @@
+{
+  "_doc": "Item 3 PARITY boundary fixture — add-page WITHOUT pageCode in 'no-new-ai' mode must throw E007. Without pre-populated pageCode, the skill rail has no way to produce content (no AI provider). The structural fix from v0.12.0 is that this throws CoherentError E007 loudly instead of silently dropping. Validates the skill-rail safety contract.",
+  "mode": "no-new-ai",
+  "input": {
+    "type": "add-page",
+    "target": "new",
+    "changes": {
+      "id": "settings",
+      "name": "Settings",
+      "route": "/settings",
+      "layout": "centered",
+      "sections": [],
+      "title": "Settings",
+      "description": "",
+      "requiresAuth": false,
+      "noIndex": false
+    }
+  },
+  "expected": {
+    "throwsCode": "COHERENT_E007",
+    "throwsMessageMatches": "no-new-ai.*add-page.*pre-populated"
+  }
+}

@@ -11,6 +11,30 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.13.4] — 2026-04-27
+
+### Added — AI-dispatch boundary parity gate (Item 3)
+
+Closes the parity coverage gap from v0.12.0 adversarial review. The existing `parity-gate.test.ts` covered the 6 deterministic ModificationRequest types end-to-end (on-disk + config). The 5 AI-dependent types (add-page, update-page, modify-layout-block, link-shared, promote-and-link) had no equivalent gate — meaning a future regression in `dispatchAi`'s pre-population enforcement could quietly reintroduce the v0.11.x silent-drop bug class.
+
+- **NEW: `parity-gate-ai.test.ts` + 3 boundary fixtures.** Pin the contract for the v0.12.0 structural fix: when `applyMode === 'no-new-ai'` (skill rail), AI-dependent requests MUST throw `CoherentError E007` if the request lacks pre-populated output. Fixtures cover:
+  - `add-page` without `pageCode` → E007
+  - `link-shared` (NEVER pre-populatable per `dispatch-ai.ts:81-82`) → E007 always
+  - `promote-and-link` (NEVER pre-populatable per `dispatch-ai.ts:84-85`) → E007 always
+- **Why boundary tests, not happy-path on-disk tests.** Happy-path AI parity (e.g. `add-page` WITH pageCode → file written + manifest updated) goes through legacy `applyModification` which has heavy downstream side effects (component install, plan loading, route mapping, auto-fix, layout stripping, globals.css sync). Testing on-disk byte equivalence requires fake-AI-provider scaffolding + manifest setup. That's bigger scope and the deterministic types in `parity-gate.test.ts` already cover on-disk parity for the 6 types that don't need AI. The 3 boundary tests close the **regression-risk** part of the gap (silent drop) without that scaffolding.
+
+### Internal
+
+- Tests: 1646 passing (+4 in `parity-gate-ai.test.ts`).
+- 3 new fixture files under `packages/cli/src/apply-requests/__tests__/fixtures/ai/`.
+
+### Out of scope (deferred to v0.14+)
+
+- Happy-path AI on-disk parity (add-page WITH pageCode, update-page WITH pageCode, modify-layout-block) — needs fake-AI-provider scaffolding. Will land naturally when PR2 commit #10 moves the 5 AI-case bodies into `dispatch-ai.ts` and they become self-contained.
+- Real-AI corpus capture / VCR live-provider — defer until parser-drift becomes an observed problem.
+
+---
+
 ## [0.13.3] — 2026-04-27
 
 ### Changed — skill rail log cleanup

@@ -1,0 +1,16 @@
+{
+  "_doc": "Item 3 PARITY boundary fixture — link-shared in 'no-new-ai' mode always throws E007. link-shared is NEVER pre-populatable (per dispatch-ai.ts:81-82) because it requires AI to pick the insertion site within the page. Skill rail must surface this as 'skill phase missing' loudly.",
+  "mode": "no-new-ai",
+  "input": {
+    "type": "link-shared",
+    "target": "Card",
+    "changes": {
+      "componentId": "card",
+      "pageId": "home"
+    }
+  },
+  "expected": {
+    "throwsCode": "COHERENT_E007",
+    "throwsMessageMatches": "no-new-ai.*link-shared.*pre-populated"
+  }
+}
