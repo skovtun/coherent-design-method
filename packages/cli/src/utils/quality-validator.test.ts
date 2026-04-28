@@ -1258,6 +1258,211 @@ describe('new quality rules v0.6.94', () => {
   })
 })
 
+describe('Visual Sanity Layer v1 (v0.14.0)', () => {
+  describe('STUCK_ON_SELECTION', () => {
+    it('flags unconditional bg-primary inside .map() callback', () => {
+      const code = `
+        export default function Notifications() {
+          return (
+            <ul>
+              {items.map(item => (
+                <li key={item.id} className="bg-primary p-3 flex gap-2">
+                  <Avatar src={item.avatar} />
+                  <span>{item.text}</span>
+                </li>
+              ))}
+            </ul>
+          )
+        }
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'STUCK_ON_SELECTION')).toBe(true)
+    })
+
+    it('flags bg-accent on every list item without conditional', () => {
+      const code = `
+        {notifications.map(n => <div className="bg-accent rounded p-2">{n.title}</div>)}
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'STUCK_ON_SELECTION')).toBe(true)
+    })
+
+    it('passes when bg-accent is conditional via cn()', () => {
+      const code = `
+        {items.map(item => (
+          <li key={item.id} className={cn("p-3", item.id === activeId && "bg-accent")}>
+            {item.text}
+          </li>
+        ))}
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'STUCK_ON_SELECTION')).toBe(false)
+    })
+
+    it('passes when className uses template literal with isActive flag', () => {
+      const code = `
+        {rows.map(r => (
+          <tr className={\`hover:bg-muted \${r.selected ? 'bg-accent' : ''}\`}>
+            <td>{r.name}</td>
+          </tr>
+        ))}
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'STUCK_ON_SELECTION')).toBe(false)
+    })
+  })
+
+  describe('CALENDAR_OVER_SELECTED', () => {
+    it('flags calendar with many unconditional bg-primary cells', () => {
+      const code = `
+        export default function Calendar() {
+          const days = generateDays()
+          return (
+            <table>
+              <tbody>
+                <tr>
+                  <td className="bg-primary text-white">5</td>
+                  <td className="bg-primary text-white">6</td>
+                  <td className="bg-primary text-white">7</td>
+                  <td className="bg-primary text-white">8</td>
+                  <td className="bg-primary text-white">9</td>
+                  <td className="bg-primary text-white">10</td>
+                </tr>
+              </tbody>
+            </table>
+          )
+        }
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'CALENDAR_OVER_SELECTED')).toBe(true)
+    })
+
+    it('passes calendar with conditional today highlighting', () => {
+      const code = `
+        export default function Calendar() {
+          const days = generateDays()
+          return (
+            <div>
+              {days.map(day => (
+                <div
+                  key={day}
+                  className={cn(
+                    "p-2 rounded",
+                    isToday(day) && "bg-primary text-primary-foreground"
+                  )}
+                >
+                  {day}
+                </div>
+              ))}
+            </div>
+          )
+        }
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'CALENDAR_OVER_SELECTED')).toBe(false)
+    })
+
+    it('does not fire on non-calendar pages even with several bg-primary', () => {
+      const code = `
+        export default function Pricing() {
+          return (
+            <section>
+              <button className="bg-primary">Buy Pro</button>
+              <button className="bg-primary">Subscribe</button>
+              <button className="bg-primary">Get Started</button>
+              <button className="bg-primary">Try Free</button>
+            </section>
+          )
+        }
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'CALENDAR_OVER_SELECTED')).toBe(false)
+    })
+  })
+
+  describe('CELL_OVERFLOW_NO_CONTAIN', () => {
+    it('flags calendar with events.map but no truncate/overflow-hidden', () => {
+      const code = `
+        export default function Calendar() {
+          return (
+            <div>
+              {days.map(day => (
+                <td key={day.id}>
+                  {day.events.map(e => <span key={e.id}>{e.title}</span>)}
+                </td>
+              ))}
+            </div>
+          )
+        }
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'CELL_OVERFLOW_NO_CONTAIN')).toBe(true)
+    })
+
+    it('passes when truncate is present on event labels', () => {
+      const code = `
+        export default function Calendar() {
+          return (
+            <div>
+              {days.map(day => (
+                <td key={day.id} className="overflow-hidden">
+                  {day.events.map(e => <span key={e.id} className="truncate block">{e.title}</span>)}
+                </td>
+              ))}
+            </div>
+          )
+        }
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'CELL_OVERFLOW_NO_CONTAIN')).toBe(false)
+    })
+
+    it('passes when line-clamp is used', () => {
+      const code = `
+        export default function CalendarMonth() {
+          return (
+            <div>
+              {days.map(d => (
+                <div key={d.id}>
+                  {d.events.map(e => <p key={e.id} className="line-clamp-1">{e.title}</p>)}
+                </div>
+              ))}
+            </div>
+          )
+        }
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'CELL_OVERFLOW_NO_CONTAIN')).toBe(false)
+    })
+
+    it('does not fire on non-calendar pages with mapped lists', () => {
+      const code = `
+        export default function Inbox() {
+          return (
+            <ul>
+              {messages.map(m => <li key={m.id}><span>{m.text}</span></li>)}
+            </ul>
+          )
+        }
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'CELL_OVERFLOW_NO_CONTAIN')).toBe(false)
+    })
+  })
+
+  describe('CORE_CONSTRAINTS — LAYOUT SANITY rules present', () => {
+    it('design-constraints.ts contains the v0.14.0 LAYOUT SANITY block', async () => {
+      const { CORE_CONSTRAINTS } = await import('../agents/design-constraints.js')
+      expect(CORE_CONSTRAINTS).toContain('LAYOUT SANITY')
+      expect(CORE_CONSTRAINTS).toContain('Selection state scope')
+      expect(CORE_CONSTRAINTS).toContain('Calendar today/selected cardinality')
+      expect(CORE_CONSTRAINTS).toContain('Grid overflow containment')
+      expect(CORE_CONSTRAINTS).toContain('Background/text contrast pairing')
+      expect(CORE_CONSTRAINTS).toContain('List item active state')
+    })
+  })
+})
+
 describe('CHART_PLACEHOLDER detection', () => {
   it('flags "Chart visualization would go here"', () => {
     const code = '<div>Chart visualization would go here</div>'

@@ -214,6 +214,13 @@ ANTI-PATTERNS (NEVER DO):
 - Filter options as inline text/buttons/tabs → ALWAYS use Select dropdown with chevron
 - Component over 200 lines → extract logical sections (data table, chart, form) into named subcomponents. Prefer composition over monolith.
 
+LAYOUT SANITY (v0.14.0 — visual sanity layer, generated apps shipped these bugs):
+- Selection state scope: highlight EXACTLY ONE item at a time. NEVER apply selection background (bg-primary, bg-accent, bg-muted) to a parent that wraps a list of items — apply to the active child only. BAD: \`<div className="bg-primary"><ul>{items.map(i => <li>{i}</li>)}</ul></div>\` (every item looks selected). GOOD: \`<ul>{items.map(i => <li className={cn("hover:bg-muted", i.id === activeId && "bg-accent")}>{i}</li>)}</ul>\`.
+- Calendar today/selected cardinality: AT MOST ONE day cell carries today/selected styling. NEVER apply today/selected classes inside the days.map() unless the cell's ID === today/selected. Common bug: \`<td className="bg-primary">{day}</td>\` for every day. GOOD: \`<td className={cn(isToday(day) && "bg-primary text-primary-foreground")}>\{day\}</td>\`.
+- Grid overflow containment: cells in fixed-cell grids (calendars, kanbans, dashboards) must constrain children with \`overflow-hidden\` and labels must use \`truncate\` or fixed-line clamping. NEVER let event/card titles overflow the cell. BAD: \`<td>{events.map(e => <span>{e.title}</span>)}</td>\` — long titles bleed into next cell. GOOD: \`<td className="overflow-hidden"><div className="space-y-0.5">{events.slice(0,2).map(e => <span className="truncate block text-xs">{e.title}</span>)}{events.length > 2 && <span className="text-xs">+\{events.length - 2\} more</span>}</div></td>\`.
+- Background/text contrast pairing: when a container has \`bg-primary\` / \`bg-accent\` / \`bg-destructive\`, child text MUST use the matching foreground (\`text-primary-foreground\` / \`text-accent-foreground\` / \`text-destructive-foreground\`). NEVER inherit default text colors on a colored bg — contrast collapses on dark mode. BAD: \`<div className="bg-primary"><p>Title</p></div>\`. GOOD: \`<div className="bg-primary text-primary-foreground"><p>Title</p></div>\`.
+- List item active state: in mapped lists (notifications, comments, sidebar links, message rows), the active/selected indicator goes on ONE child at most. Default state is "not selected" — \`hover:\` for cursor feedback, conditional \`isActive && "bg-accent"\` for selection. NEVER unconditional bg classes inside .map().
+
 COMPONENT VARIANT RULES (CRITICAL):
 - NEVER use <Button> with custom bg-*/text-* classes for navigation or tabs without variant="ghost".
   The default Button variant sets bg-primary, so custom text-muted-foreground or bg-accent classes will conflict.
