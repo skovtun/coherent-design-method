@@ -1461,6 +1461,123 @@ describe('Visual Sanity Layer v1 (v0.14.0)', () => {
       expect(CORE_CONSTRAINTS).toContain('List item active state')
     })
   })
+
+  describe('BUTTON_NO_VARIANT_IN_MAP (v0.14.1 hotfix)', () => {
+    it('flags <Button> inside .map() without variant — Calendar reproduction', () => {
+      // Reproduces the exact pattern from /tmp/dogfood-v13/app/(app)/calendar/page.tsx.
+      // Default Button variant = bg-primary, so all 35 day cells render solid blue.
+      const code = `
+        export default function Calendar() {
+          return (
+            <div>
+              {cells.map((cell, i) => {
+                const isSelected = cell.date === selected
+                return (
+                  <Button
+                    key={\`\${cell.date}-\${i}\`}
+                    type="button"
+                    onClick={() => setSelected(cell.date)}
+                    className="min-h-[92px] hover:bg-muted/50"
+                    aria-pressed={isSelected}
+                  >
+                    {cell.day}
+                  </Button>
+                )
+              })}
+            </div>
+          )
+        }
+      `
+      const issues = validatePageQuality(code)
+      const hit = issues.find(i => i.type === 'BUTTON_NO_VARIANT_IN_MAP')
+      expect(hit).toBeDefined()
+      expect(hit?.severity).toBe('error')
+    })
+
+    it('flags <Button> inside .map() without variant — Notifications reproduction', () => {
+      const code = `
+        export default function Notifications() {
+          return (
+            <ul>
+              {visible.map(n => (
+                <li key={n.id}>
+                  <Button
+                    type="button"
+                    onClick={() => toggleRead(n.id)}
+                    className="flex w-full px-4 py-4 hover:bg-muted/40"
+                  >
+                    {n.title}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )
+        }
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'BUTTON_NO_VARIANT_IN_MAP')).toBe(true)
+    })
+
+    it('passes when Button has variant="ghost"', () => {
+      const code = `
+        {items.map(item => (
+          <Button
+            key={item.id}
+            variant="ghost"
+            onClick={() => select(item.id)}
+            className="w-full justify-start"
+          >
+            {item.label}
+          </Button>
+        ))}
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'BUTTON_NO_VARIANT_IN_MAP')).toBe(false)
+    })
+
+    it('passes when Button has dynamic variant prop', () => {
+      const code = `
+        {filters.map(f => (
+          <Button
+            key={f.key}
+            variant={activeFilter === f.key ? 'default' : 'outline'}
+            onClick={() => setFilter(f.key)}
+          >
+            {f.label}
+          </Button>
+        ))}
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'BUTTON_NO_VARIANT_IN_MAP')).toBe(false)
+    })
+
+    it('does NOT fire on standalone Button outside .map() (single submit/action)', () => {
+      const code = `
+        export default function Form() {
+          return (
+            <form>
+              <Input name="email" />
+              <Button type="submit">Sign in</Button>
+            </form>
+          )
+        }
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'BUTTON_NO_VARIANT_IN_MAP')).toBe(false)
+    })
+
+    it('does NOT fire on native <button> (no shadcn default variant)', () => {
+      const code = `
+        {items.map(item => (
+          <button key={item.id} type="button" onClick={() => select(item.id)}>
+            {item.label}
+          </button>
+        ))}
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'BUTTON_NO_VARIANT_IN_MAP')).toBe(false)
+    })
+  })
 })
 
 describe('CHART_PLACEHOLDER detection', () => {

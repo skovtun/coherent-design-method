@@ -1142,6 +1142,48 @@ export function validatePageQuality(
   // (per Codex pre-impl gate 2026-04-28: "rules alone are probabilistic
   // — failure mode already escaped compile/lint, need belt + suspenders").
 
+  // BUTTON_NO_VARIANT_IN_MAP (v0.14.1 hotfix): shadcn <Button> used as a
+  // list/cell wrapper inside .map() WITHOUT an explicit variant prop.
+  // Default Button variant = bg-primary text-primary-foreground, so every
+  // mapped item ends up rendering with the primary brand color regardless
+  // of what the className tries to add (className only ADDS classes;
+  // doesn't override the variant).
+  //
+  // Reproduced 2026-04-28 dogfood — Calendar (35 day cells) + Notifications
+  // (list items) both wrapped <Button> without variant="ghost" inside
+  // .map(). v0.14.0 STUCK_ON_SELECTION missed this because className
+  // strings don't contain bg-primary literally — bg-primary comes from
+  // the variant DEFAULT, which is invisible to text matching.
+  //
+  // The constraint at design-constraints.ts:218 already says "NEVER use
+  // <Button> with custom bg-*/text-* classes... without variant='ghost'".
+  // AI ignored it. This validator catches the violation deterministically.
+  const buttonInMapRe = /\.map\s*\(\s*(?:\([^)]*\)|[a-zA-Z_$][\w$]*)\s*=>\s*[\s\S]*?<Button\b[^>]*?>/g
+  let buttonMapMatch
+  while ((buttonMapMatch = buttonInMapRe.exec(code)) !== null) {
+    const block = buttonMapMatch[0]
+    // Find the <Button ...> opening tag specifically (last occurrence in
+    // the captured block — closest to the .map's JSX body).
+    const openTagMatch = block.match(/<Button\b[^>]*?>/g)
+    if (!openTagMatch) continue
+    const openTag = openTagMatch[openTagMatch.length - 1]
+    if (/\bvariant\s*=/.test(openTag)) {
+      // Has explicit variant — caller chose, trust them.
+      continue
+    }
+    // Compute approximate line. Find position of the opening <Button in code.
+    const openTagIdx = code.indexOf(openTag, buttonMapMatch.index)
+    const line = openTagIdx >= 0 ? code.slice(0, openTagIdx).split('\n').length : 1
+    issues.push({
+      line,
+      type: 'BUTTON_NO_VARIANT_IN_MAP',
+      message:
+        '<Button> inside .map() callback without explicit variant — default variant is bg-primary, every mapped item will render with the brand color. Use variant="ghost" for list rows / cell wrappers, variant="outline" for action buttons.',
+      severity: 'error',
+    })
+    break // one error per file is enough
+  }
+
   // STUCK_ON_SELECTION: unconditional selection background inside .map()
   // callbacks. Pattern: a list item element with bg-primary/accent/etc.
   // class that doesn't go through cn() or a conditional. Every list item
