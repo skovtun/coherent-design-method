@@ -11,6 +11,62 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.14.1] — 2026-04-28
+
+### Fixed — caught the actual #1 visual bug class (post-v0.14.0 dogfood)
+
+User ran `coherent check` after upgrading to v0.14.0. The three new validators (STUCK_ON_SELECTION, CALENDAR_OVER_SELECTED, CELL_OVERFLOW_NO_CONTAIN) were **silent on the broken Calendar and Notifications pages** that v0.13.x dogfood reproduced. Investigation revealed the actual broken pattern was different from what the v0.14.0 heuristics modeled:
+
+```jsx
+{items.map(item => (
+  <li>
+    <Button
+      type="button"
+      onClick={...}
+      className="hover:bg-muted/40 flex w-full ..."
+    >
+      {item.content}
+    </Button>
+  </li>
+))}
+```
+
+shadcn `<Button>` defaults to `variant="default"` which sets `bg-primary text-primary-foreground`. The className doesn't override the variant — it only appends. So every mapped Button renders solid brand color (Calendar: 35 day cells solid blue; Notifications: every list item solid blue). The constraint at `design-constraints.ts:218` already says "NEVER use Button without variant='ghost'" but AI ignored it.
+
+v0.14.0 STUCK_ON_SELECTION searched for literal `bg-primary` strings in className — finds nothing because the bg comes from the variant DEFAULT (invisible to text matching).
+
+### Added
+
+- **NEW validator `BUTTON_NO_VARIANT_IN_MAP`** (severity: **error**) at `packages/cli/src/utils/quality-validator.ts`. Flags `<Button>` inside `.map()` callbacks without an explicit `variant=` prop. Verified to fire on both reproduction pages: Calendar/page.tsx line 204, Notifications/page.tsx line 266.
+- **CORE_CONSTRAINTS rule strengthened** — explicit example of the broken pattern + explicit good patterns (`variant="ghost"` for list rows / cell wrappers, `variant={isActive ? 'default' : 'outline'}` for toggles). Also flagged as "the #1 generated-app visual bug class" with specific dogfood evidence.
+
+### Why severity = error (not warning)
+
+The other v0.14.0 validators emit warnings because false positives are possible (heuristic-based). `BUTTON_NO_VARIANT_IN_MAP` is structurally tight — finding `<Button` (uppercase, shadcn) inside `.map()` without `variant=` is a high-signal pattern with low false-positive risk. The bug class is also user-facing severe (page renders unusable). Promoting to error means `coherent check` exits non-zero, blocking flow until the user fixes — appropriate for "page is visually broken."
+
+### Internal
+
+- Tests: 1670 passing (+6 new — Calendar reproduction, Notifications reproduction, variant="ghost" passes, dynamic variant passes, standalone Button passes, native button passes).
+- Affected files: `packages/cli/src/utils/quality-validator.ts` (1 new validator), `packages/cli/src/agents/design-constraints.ts` (1 strengthened rule), respective tests.
+- Verified end-to-end: ran new validator against actual broken `/tmp/dogfood-v13/app/(app)/calendar/page.tsx` and `notifications/page.tsx` files — fired on both. Real-world dogfood validation, not just unit-test fixtures.
+
+### Not breaking
+
+Validator is additive — emits new error type but doesn't change existing validator behavior. Users with existing pages that violate this pattern will see new errors on `coherent check`. This is the intended behavior — those pages ARE visually broken.
+
+### Migration note for v0.14.0 → v0.14.1 users
+
+If `coherent check` now flags `BUTTON_NO_VARIANT_IN_MAP` on existing pages, the fix is mechanical:
+
+```diff
+- <Button onClick={...} className="hover:bg-muted">
++ <Button variant="ghost" onClick={...} className="hover:bg-muted">
+```
+
+Or via `/coherent-chat`: `add variant="ghost" to the Button inside <pageName>.tsx mapping`.
+
+---
+
 ## [0.14.0] — 2026-04-28
 
 ### Added — Visual Sanity Layer v1
