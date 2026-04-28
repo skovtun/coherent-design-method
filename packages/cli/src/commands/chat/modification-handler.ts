@@ -465,70 +465,20 @@ export async function applyModification(
       }
     }
 
-    case 'update-token': {
-      const path = request.target
-      const value = request.changes.value
-      const result = await dsm.updateToken(path, value)
-      return {
-        success: result.success,
-        message: result.message,
-        modified: result.modified,
-      }
-    }
+    case 'update-token':
+      throw new Error(
+        `Deterministic type "update-token" reached applyModification — should route through dispatchDeterministic. Bug in dispatch routing.`,
+      )
 
-    case 'add-component': {
-      const componentData = request.changes as ComponentDefinition
+    case 'add-component':
+      throw new Error(
+        `Deterministic type "add-component" reached applyModification — should route through dispatchDeterministic. Bug in dispatch routing.`,
+      )
 
-      const provider = getComponentProvider()
-      if (componentData.source === 'shadcn' && provider.has(componentData.id)) {
-        const result = await provider.installComponent(componentData.id, projectRoot)
-        if (result.success && result.componentDef) {
-          const mergedData: ComponentDefinition = {
-            ...result.componentDef,
-            variants:
-              componentData.variants && componentData.variants.length > 0
-                ? componentData.variants
-                : result.componentDef.variants,
-            sizes:
-              componentData.sizes && componentData.sizes.length > 0 ? componentData.sizes : result.componentDef.sizes,
-          }
-          const regResult = await cm.register(mergedData)
-          if (regResult.success) {
-            applyManagerResult(dsm, cm, pm, regResult.config)
-          }
-          return {
-            success: regResult.success,
-            message: regResult.success ? `✨ Auto-installed ${componentData.name}` : regResult.message,
-            modified: regResult.modified,
-          }
-        }
-      }
-
-      const result = await cm.register(componentData)
-      if (result.success) {
-        applyManagerResult(dsm, cm, pm, result.config)
-      }
-      return {
-        success: result.success,
-        message: result.message,
-        modified: result.modified,
-      }
-    }
-
-    case 'modify-component': {
-      const componentId = request.target
-      const changes = request.changes as Record<string, unknown> | undefined
-
-      const result = await cm.update(componentId, changes ?? {})
-      if (result.success) {
-        applyManagerResult(dsm, cm, pm, result.config)
-      }
-      return {
-        success: result.success,
-        message: result.message,
-        modified: result.modified,
-      }
-    }
+    case 'modify-component':
+      throw new Error(
+        `Deterministic type "modify-component" reached applyModification — should route through dispatchDeterministic. Bug in dispatch routing.`,
+      )
 
     case 'add-page': {
       const page = request.changes as PageDefinition & {
@@ -1100,149 +1050,20 @@ export async function applyModification(
       }
     }
 
-    case 'update-navigation': {
-      return {
-        success: true,
-        message: 'Navigation updated',
-        modified: ['navigation'],
-      }
-    }
-
-    case 'delete-page': {
-      // PJ-009: remove a page — delete its file, drop from config.pages AND
-      // navigation.items, regen shared Header/Sidebar so nav stops pointing
-      // at a 404. Backups at chat-command level; `coherent undo` restores.
-      const target = request.target
-      if (!target) {
-        return { success: false, message: 'delete-page requires target (page id/name/route)', modified: [] }
-      }
-      const config = dsm.getConfig()
-      const pages = config.pages || []
-      const page = pages.find(
-        (p: any) =>
-          p.id === target ||
-          p.name?.toLowerCase() === target.toLowerCase() ||
-          p.route === target ||
-          p.route === '/' + target.replace(/^\//, ''),
+    case 'update-navigation':
+      throw new Error(
+        `Deterministic type "update-navigation" reached applyModification — should route through dispatchDeterministic. Bug in dispatch routing.`,
       )
-      if (!page) {
-        return {
-          success: false,
-          message: `delete-page: no page matches "${target}". Available: ${pages.map((p: any) => p.id).join(', ')}`,
-          modified: [],
-        }
-      }
-      // Root page (/) is guarded — users almost never want this gone, and
-      // having no root page breaks routing.
-      if (page.route === '/') {
-        return {
-          success: false,
-          message: `Refusing to delete the root page (/). If you really want this, edit design-system.config.ts manually.`,
-          modified: [],
-        }
-      }
-      const relRoute = page.route.replace(/^\//, '')
-      const candidates = [
-        resolve(projectRoot, 'app', relRoute, 'page.tsx'),
-        resolve(projectRoot, 'app', '(app)', relRoute, 'page.tsx'),
-        resolve(projectRoot, 'app', '(auth)', relRoute, 'page.tsx'),
-      ]
-      const filePath = candidates.find(existsSync)
-      const modified: string[] = []
-      if (filePath) {
-        await rm(filePath, { force: true })
-        try {
-          await rm(dirname(filePath), { recursive: true, force: true })
-        } catch {
-          /* directory may still contain layout.tsx, etc. — leave alone */
-        }
-        modified.push(filePath)
-      }
 
-      // Drop from config.pages + config.navigation.items in one pass so the
-      // post-delete nav regen sees the final state.
-      const filteredPages = pages.filter((p: any) => p.id !== page.id)
-      const currentNav: any = (config as any).navigation
-      const updatedNav =
-        currentNav && currentNav.items
-          ? { ...currentNav, items: currentNav.items.filter((it: any) => it.route !== page.route) }
-          : currentNav
-      const updated = {
-        ...config,
-        pages: filteredPages,
-        ...(updatedNav ? { navigation: updatedNav } : {}),
-      }
-      applyManagerResult(dsm, cm, pm, updated as any)
+    case 'delete-page':
+      throw new Error(
+        `Deterministic type "delete-page" reached applyModification — should route through dispatchDeterministic. Bug in dispatch routing.`,
+      )
 
-      // Regen shared Header / Sidebar so stale nav links can't 404.
-      try {
-        const { PageGenerator } = await import('@getcoherent/core')
-        const generator = new PageGenerator(updated as any)
-        const navType = updatedNav?.type || 'header'
-        const sharedDir = resolve(projectRoot, 'components', 'shared')
-        await mkdir(sharedDir, { recursive: true })
-        if (navType === 'header' || navType === 'both') {
-          const headerPath = resolve(sharedDir, 'header.tsx')
-          if (existsSync(headerPath)) {
-            await writeFile(headerPath, generator.generateSharedHeaderCode())
-            modified.push(headerPath)
-          }
-        }
-        if (navType === 'sidebar' || navType === 'both') {
-          const sidebarPath = resolve(sharedDir, 'sidebar.tsx')
-          if (existsSync(sidebarPath)) {
-            await writeFile(sidebarPath, generator.generateSharedSidebarCode())
-            modified.push(sidebarPath)
-          }
-        }
-      } catch (err) {
-        console.log(
-          chalk.yellow(
-            `  ⚠ Nav regen after delete-page failed: ${err instanceof Error ? err.message : String(err)}. Run \`coherent fix\` to clean stale nav links.`,
-          ),
-        )
-      }
-
-      return {
-        success: true,
-        message: `Deleted page "${page.name}" (${page.route}). Nav updated. Run \`coherent undo\` to restore.`,
-        modified,
-      }
-    }
-
-    case 'delete-component': {
-      // Remove a shared component file + manifest entry. Pages that import
-      // the now-deleted component will break — we surface the list as a warning.
-      const target = request.target
-      if (!target) {
-        return { success: false, message: 'delete-component requires target (component id or name)', modified: [] }
-      }
-      const manifest = await loadManifest(projectRoot)
-      const entry = manifest.shared.find(e => e.id === target || e.name.toLowerCase() === target.toLowerCase())
-      if (!entry) {
-        return {
-          success: false,
-          message: `delete-component: no shared component matches "${target}". Available: ${manifest.shared.map(e => `${e.id} (${e.name})`).join(', ')}`,
-          modified: [],
-        }
-      }
-      const filePath = resolve(projectRoot, entry.file)
-      const modified: string[] = []
-      if (existsSync(filePath)) {
-        await rm(filePath, { force: true })
-        modified.push(filePath)
-      }
-      const updatedManifest = {
-        ...manifest,
-        shared: manifest.shared.filter(e => e.id !== entry.id),
-      }
-      await saveManifest(projectRoot, updatedManifest)
-      return {
-        success: true,
-        message: `Deleted shared component "${entry.name}" (${entry.id}). Pages importing it will break — regenerate them with \`coherent chat --page X "remove ${entry.name} usage"\`.`,
-        modified,
-      }
-    }
+    case 'delete-component':
+      throw new Error(
+        `Deterministic type "delete-component" reached applyModification — should route through dispatchDeterministic. Bug in dispatch routing.`,
+      )
 
     default:
       return {
