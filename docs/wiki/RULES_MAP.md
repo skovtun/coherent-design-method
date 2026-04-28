@@ -73,6 +73,9 @@ Every validator fires a typed issue. Grep for the type in `quality-validator.ts`
 | `MISSING_ARIA_LABEL` | Icon-only button without aria-label — add aria-label= |
 | `SMALL_TOUCH_TARGET` | Icon button may be < 44px touch target — add min-h-[44px] or increase padding |
 | `EMOJI_IN_UI` | Emoji character in UI — use Lucide icon instead (vector, scalable, theme-aware) |
+| `STUCK_ON_SELECTION` | Unconditional selection background inside .map() callback — every list item will look selected. Use conditional cn(isActive &&  |
+| `CALENDAR_OVER_SELECTED` | Calendar/grid has ${maxCellsInWindow} cells with unconditional bg-primary/accent in a 60-line window — only ONE day should carry today/selec |
+| `CELL_OVERFLOW_NO_CONTAIN` | Calendar/grid maps events into cells without overflow containment — long titles will bleed across cell borders. Add overflow-hidden on the c |
 
 ## Golden patterns (auto-generated)
 
