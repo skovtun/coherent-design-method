@@ -11,6 +11,28 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.13.9] — 2026-04-27
+
+### Fixed — dev server detection actually works now (v0.13.8 was a false-negative)
+
+v0.13.8 added dev-server detection to `coherent fix` so the cache clear is skipped when `coherent preview` is running. The detection used `net.createServer().listen(port, '127.0.0.1')` and checked for `EADDRINUSE`. Reproducible miss in real dogfood: Next.js dev server binds to `::` (IPv6 wildcard) or `0.0.0.0` (IPv4 wildcard). On macOS those are different address families from the probe's `127.0.0.1`, so the bind succeeded, no EADDRINUSE, false negative — `coherent fix` cleared the cache anyway and broke the running preview.
+
+v0.13.9 switches to a `net.connect()` probe: try to OPEN a TCP connection to `localhost:<port>`. If connect succeeds, something is listening (regardless of address family — `localhost` resolves to both 127.0.0.1 and ::1, Node tries them in order). If connect refuses (`ECONNREFUSED`), nothing is there.
+
+- **Connect-based probe** at `packages/cli/src/utils/dev-server-running.ts`. 300ms per-port timeout. Bias to false positives still applies — timeout or non-ECONNREFUSED error treated as "in use."
+- **Manual verification:** spun up `net.createServer().listen(3000, '0.0.0.0')` and confirmed connect-probe sees it. v0.13.8's listen-probe missed exactly this case.
+
+### Internal
+
+- Tests: 1649 passing (existing test updated to use a real listening socket — connect needs something to actually accept the SYN, not just a bound port).
+- Files affected: `packages/cli/src/utils/dev-server-running.ts` rewrite.
+
+### Not breaking
+
+Same external surface as v0.13.8 (`--force-cache-clear` flag, warning text). Just makes the detection actually work.
+
+---
+
 ## [0.13.8] — 2026-04-27
 
 ### Fixed — `coherent fix` no longer corrupts running dev server

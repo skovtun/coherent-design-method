@@ -3,9 +3,11 @@
  * to skip the .next/ cache clear when a dev server is bound to one of
  * the Next.js dev ports.
  *
- * Strategy: occupy a port using node's net.createServer, call detect,
- * assert it returns the port. Then close, call detect again, assert
- * null. Avoids relying on system state.
+ * v0.13.9: detection switched from listen()-probe to connect()-probe
+ * after v0.13.8 missed Next.js servers binding on `::` or `0.0.0.0`
+ * (different address family from the probe's `127.0.0.1`). Tests now
+ * spin up a real server.listen() that ACCEPTS connections, so the
+ * connect-based probe has something to talk to.
  */
 import { describe, it, expect, afterEach } from 'vitest'
 import { createServer, type Server } from 'net'
@@ -21,7 +23,7 @@ describe('detectRunningDevServer', () => {
     }
   })
 
-  it('returns null when none of the Next.js dev ports are bound', async () => {
+  it('returns null when none of the Next.js dev ports have a listener', async () => {
     // The CI runner usually has 3000-3010 free. If this test ever
     // becomes flaky on a developer machine running their own dev
     // server, the assertion captures real environment state rather
@@ -34,14 +36,19 @@ describe('detectRunningDevServer', () => {
     expect(result).toBeNull()
   })
 
-  it('returns the bound port when one is in use', async () => {
+  it('returns the listening port when one is in use', async () => {
     // Pick port 3010 (the highest port we scan) to minimize collision
     // with anything the developer may have running.
     const targetPort = 3010
-    occupiedServer = createServer()
+    occupiedServer = createServer(socket => {
+      // Accept and immediately close — we just need the OS to ACK
+      // SYN so connect() resolves. Keeping the socket alive isn't
+      // necessary for the probe.
+      socket.end()
+    })
     await new Promise<void>((resolve, reject) => {
       occupiedServer!.once('error', reject)
-      occupiedServer!.listen(targetPort, '127.0.0.1', () => resolve())
+      occupiedServer!.listen(targetPort, () => resolve())
     })
 
     const result = await detectRunningDevServer()
@@ -50,8 +57,7 @@ describe('detectRunningDevServer', () => {
     // (3000 → 3010). If developer has 3000-3009 free and 3010 is
     // ours, result === 3010. If developer has 3000 (or any earlier)
     // bound by their own dev server, result is that port — still
-    // valid: helper's job is "is ANY port in the range bound", not
-    // "is THIS specific port bound".
+    // valid: helper's job is "is ANY port in the range listening".
     expect(typeof result).toBe('number')
     expect(result).toBeGreaterThanOrEqual(3000)
     expect(result).toBeLessThanOrEqual(3010)
