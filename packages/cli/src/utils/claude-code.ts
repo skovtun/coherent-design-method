@@ -344,7 +344,7 @@ Coherent · <intent verbatim>
 
   ✅ Applied: <one-line summary>
 
-  Preview · coherent preview
+  Preview · coherent preview (or open localhost:3000 if already running)
   Undo    · coherent undo
   Debug   · session <short-uuid> (full uuid: <full-uuid>)
 \`\`\`
@@ -356,7 +356,7 @@ Coherent · delete the Activity page
 
   ✅ Applied: delete-page Profile
 
-  Preview · coherent preview
+  Preview · coherent preview (or open localhost:3000 if already running)
   Undo    · coherent undo
   Debug   · session 4f2adb (full uuid: 4f2adb4a-bec4-4760-a5b5-e67e1bc447b7)
 \`\`\`
@@ -366,7 +366,7 @@ Coherent · build a fitness studio app
 
   ✅ Applied: 4 pages, 2 components, layout regen
 
-  Preview · coherent preview
+  Preview · coherent preview (or open localhost:3000 if already running)
   Undo    · coherent undo
   Debug   · session 4f2adb (full uuid: 4f2adb4a-bec4-4760-a5b5-e67e1bc447b7)
 \`\`\`
@@ -660,7 +660,7 @@ Coherent · <intent verbatim>
 
   ✅ Applied: <one-line summary>
 
-  Preview · coherent preview
+  Preview · coherent preview (or open localhost:3000 if already running)
   Undo    · coherent undo
   Debug   · session <short-uuid> (full uuid: <full-uuid>)
 \`\`\`
@@ -672,7 +672,7 @@ Coherent · delete the Activity page
 
   ✅ Applied: delete-page Profile
 
-  Preview · coherent preview
+  Preview · coherent preview (or open localhost:3000 if already running)
   Undo    · coherent undo
   Debug   · session 4f2adb (full uuid: 4f2adb4a-bec4-4760-a5b5-e67e1bc447b7)
 \`\`\`
@@ -682,7 +682,7 @@ Coherent · build a fitness studio app
 
   ✅ Applied: 4 pages, 2 components, layout regen
 
-  Preview · coherent preview
+  Preview · coherent preview (or open localhost:3000 if already running)
   Undo    · coherent undo
   Debug   · session 4f2adb (full uuid: 4f2adb4a-bec4-4760-a5b5-e67e1bc447b7)
 \`\`\`

@@ -11,6 +11,28 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.13.6] — 2026-04-27
+
+### Changed — clarify Preview line in skill-rail completion card
+
+The Variant E completion card (v0.13.3) shows three action rows: Preview / Undo / Debug. The "Preview · coherent preview" line was ambiguous when `coherent preview` was already running in the background — users wondered if they needed to restart it. (They don't — Next.js dev server picks up new files via HMR.)
+
+- **Before:** `Preview · coherent preview`
+- **After:** `Preview · coherent preview (or open localhost:3000 if already running)`
+
+Both packages of skill body markdown updated (slash command + installed SKILL.md). Six total occurrences replaced via replace_all. Existing test pattern (`Preview · coherent preview` substring match) still satisfied.
+
+### Internal
+
+- Tests: 1646 passing.
+- Affected file: `packages/cli/src/utils/claude-code.ts` (skill body constants only).
+
+### Not breaking
+
+Cosmetic skill body change. Existing skill rail flow unchanged. Stale skill bodies (no `coherent update` after upgrade) keep showing the old shorter line.
+
+---
+
 ## [0.13.5] — 2026-04-27
 
 ### Changed — internal cleanup (PR2 step 1: zombie deterministic case bodies removed)
