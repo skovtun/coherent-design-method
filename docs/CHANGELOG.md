@@ -11,6 +11,30 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.13.5] — 2026-04-27
+
+### Changed — internal cleanup (PR2 step 1: zombie deterministic case bodies removed)
+
+`packages/cli/src/commands/chat/modification-handler.ts` lost 6 deterministic case bodies that became unreachable after v0.12.0's apply-requests extraction. Per v0.12.0 CHANGELOG's "deferred to PR2" note, these are zombie code: the canonical path goes through `apply-requests/dispatch.ts:dispatchDeterministic`, and `applyModification` is now only reached for AI types via `dispatchAi:152`.
+
+- **Deleted bodies:** `update-token`, `add-component`, `modify-component`, `update-navigation`, `delete-page`, `delete-component` (~180 lines).
+- **Replaced with explicit throws:** each deterministic case now throws `Error("Deterministic type X reached applyModification — should route through dispatchDeterministic. Bug in dispatch routing.")`. If a future caller bypasses `applyRequests` and reaches `applyModification` with a deterministic type, the error fires loudly instead of silently running stale code.
+- **Default arm preserved unchanged.** `add-layout-block` (AI type with no case body in this file) still hits the default and returns the structured "Unknown modification type" result — codex pre-impl gate caught the original blanket-default plan would have changed `add-layout-block` behavior.
+
+File: 1344 → 1165 lines. Risk: zero by construction — the deleted bodies were unreachable per the v0.12.0 dispatch routing audit; no test referenced them.
+
+### Internal
+
+- Tests: 1646 passing (zero added, zero removed — confirms zombie status).
+- tsc + prettier + build clean.
+- This is step 1 of the PR2 structural collapse plan (`docs/plans/2026-04-27-v0.14.0-pr2-collapse-spike.md`). Steps 2-12 (helper relocation, AI-case body moves, chat.ts facade collapse, modification-handler.ts deletion) remain pending.
+
+### Not breaking
+
+`@getcoherent/cli` exports map (added v0.13.2) blocks deep imports into `dist/`, so internal moves are non-breaking for downstream consumers. The `applyModification` function remains exported with its same signature; only its dead code paths are gone.
+
+---
+
 ## [0.13.4] — 2026-04-27
 
 ### Added — AI-dispatch boundary parity gate (Item 3)
