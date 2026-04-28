@@ -47,6 +47,7 @@ import {
 import { validatePageQuality, formatIssues, autoFixCode, verifyIncrementalEdit } from '../utils/quality-validator.js'
 import { safeWrite, isValidTsx } from './fix-validation.js'
 import { toKebabCase } from '../utils/strings.js'
+import { detectRunningDevServer } from '../utils/dev-server-running.js'
 
 export interface FixOptions {
   dryRun?: boolean
@@ -54,6 +55,14 @@ export interface FixOptions {
   quality?: boolean
   verbose?: boolean
   journal?: boolean
+  /**
+   * Force `.next/` clear even when a dev server (`coherent preview`)
+   * is detected running. Default behavior (v0.13.8+) skips the clear
+   * to avoid corrupting turbopack's in-memory state — turbopack
+   * rebuilds incrementally on next request anyway, so the clear is
+   * rarely load-bearing.
+   */
+  forceCacheClear?: boolean
 }
 
 function extractComponentIdsFromCode(code: string): Set<string> {
@@ -111,12 +120,28 @@ export async function fixCommand(opts: FixOptions = {}) {
   }
 
   // ─── Step 1: Clear build cache ──────────────────────────────────────
+  // v0.13.8: skip clear when a dev server (coherent preview) is detected
+  // running. Wiping .next/ mid-run corrupts turbopack's in-memory state
+  // and breaks the next page load with 500 Internal Server Error.
+  // Override with --force-cache-clear if user really wants it.
   if (!skipCache) {
     const nextDir = join(projectRoot, '.next')
     if (existsSync(nextDir)) {
-      if (!dryRun) rmSync(nextDir, { recursive: true, force: true })
-      fixes.push('Cleared build cache')
-      console.log(chalk.green('  ✔ Cleared build cache'))
+      const runningPort = opts.forceCacheClear ? null : await detectRunningDevServer()
+      if (runningPort !== null) {
+        const msg = `Skipped cache clear — dev server detected on :${runningPort}`
+        fixes.push(msg)
+        console.log(chalk.yellow(`  ⚠ ${msg}`))
+        console.log(
+          chalk.dim(
+            `     turbopack rebuilds incrementally on next request. To force clear, stop the server (Ctrl+C) or pass --force-cache-clear.`,
+          ),
+        )
+      } else {
+        if (!dryRun) rmSync(nextDir, { recursive: true, force: true })
+        fixes.push('Cleared build cache')
+        console.log(chalk.green('  ✔ Cleared build cache'))
+      }
     }
   }
 

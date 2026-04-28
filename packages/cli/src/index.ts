@@ -264,6 +264,7 @@ program
   .description('Auto-fix everything: cache, deps, components, syntax, quality')
   .option('--dry-run', 'Show what would be fixed without writing')
   .option('--no-cache', 'Skip cache clearing')
+  .option('--force-cache-clear', 'Clear .next/ even when a dev server is detected running')
   .option('--no-quality', 'Skip quality auto-fixes')
   .option('--verbose', 'Show per-file breakdown (legacy report)')
   .option('--journal', 'Write session summary to .coherent/fix-sessions/ for later review')
