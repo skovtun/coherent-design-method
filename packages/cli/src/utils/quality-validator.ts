@@ -1158,22 +1158,33 @@ export function validatePageQuality(
   // The constraint at design-constraints.ts:218 already says "NEVER use
   // <Button> with custom bg-*/text-* classes... without variant='ghost'".
   // AI ignored it. This validator catches the violation deterministically.
-  const buttonInMapRe = /\.map\s*\(\s*(?:\([^)]*\)|[a-zA-Z_$][\w$]*)\s*=>\s*[\s\S]*?<Button\b[^>]*?>/g
-  let buttonMapMatch
-  while ((buttonMapMatch = buttonInMapRe.exec(code)) !== null) {
-    const block = buttonMapMatch[0]
-    // Find the <Button ...> opening tag specifically (last occurrence in
-    // the captured block — closest to the .map's JSX body).
-    const openTagMatch = block.match(/<Button\b[^>]*?>/g)
-    if (!openTagMatch) continue
-    const openTag = openTagMatch[openTagMatch.length - 1]
-    if (/\bvariant\s*=/.test(openTag)) {
-      // Has explicit variant — caller chose, trust them.
-      continue
+  //
+  // v0.14.3: bounded the search to the .map() body only. v0.14.1's regex
+  // had unbounded `[\s\S]*?<Button` which could leap from a .map( on line
+  // 50 to a stray <Button> on line 139 in a completely separate section.
+  // Reproduced as false positive on landing/page.tsx during 2026-04-28
+  // dogfood. Now we capture the bounded block (same lookahead trick as
+  // the v0.14.2 autofix) and only check Buttons INSIDE that block.
+  const buttonMapBlockRe =
+    /\.map\s*\(\s*(?:\([^)]*\)|[a-zA-Z_$][\w$]*)\s*=>\s*[\s\S]*?(?=<\/Button>|<\/li>|<\/div>|\)\s*[},])/g
+  let buttonMapBlockMatch
+  while ((buttonMapBlockMatch = buttonMapBlockRe.exec(code)) !== null) {
+    const block = buttonMapBlockMatch[0]
+    const openTags = block.match(/<Button\b[^>]*?>/g)
+    if (!openTags || openTags.length === 0) continue
+    // Find first opening tag without variant.
+    let bareTag: string | null = null
+    for (const tag of openTags) {
+      if (!/\bvariant\s*=/.test(tag)) {
+        bareTag = tag
+        break
+      }
     }
-    // Compute approximate line. Find position of the opening <Button in code.
-    const openTagIdx = code.indexOf(openTag, buttonMapMatch.index)
-    const line = openTagIdx >= 0 ? code.slice(0, openTagIdx).split('\n').length : 1
+    if (!bareTag) continue
+    // Locate the tag in the original code for line number. Search starts
+    // at the .map() match index to stay scoped to this block.
+    const tagIdx = code.indexOf(bareTag, buttonMapBlockMatch.index)
+    const line = tagIdx >= 0 ? code.slice(0, tagIdx).split('\n').length : 1
     issues.push({
       line,
       type: 'BUTTON_NO_VARIANT_IN_MAP',

@@ -11,6 +11,45 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.14.3] — 2026-04-28
+
+### Fixed — false positive in `BUTTON_NO_VARIANT_IN_MAP`
+
+Real dogfood after v0.14.2 surfaced a false positive: `landing/page.tsx` flagged with `BUTTON_NO_VARIANT_IN_MAP` at line 139. Investigation showed the `<Button>` at line 139 was a single CTA, NOT inside any `.map()` callback. The `.map()` block in landing was at line 50 and ended at line 60 — 79 lines before the flagged Button.
+
+Root cause: v0.14.1's validator regex was unbounded — `[\s\S]*?<Button` is lazy but has no end-anchor, so it captured the nearest `<Button>` after the `.map(` keyword regardless of whether the Button was actually inside the callback body.
+
+```regex
+# v0.14.1 (broken):
+.map\s*\(\s*(?:\([^)]*\)|[a-zA-Z_$][\w$]*)\s*=>\s*[\s\S]*?<Button\b[^>]*?>
+
+# v0.14.3 (bounded):
+.map\s*\(\s*(?:\([^)]*\)|[a-zA-Z_$][\w$]*)\s*=>\s*[\s\S]*?(?=<\/Button>|<\/li>|<\/div>|\)\s*[},])
+```
+
+The v0.14.2 autofix already used the bounded approach — that's why it correctly skipped landing while v0.14.1 validator still complained. v0.14.3 unifies validator with autofix logic.
+
+### Verified
+
+End-to-end on actual `/tmp/dogfood-v13/` pages:
+- `calendar/page.tsx` — silent (was autofixed by v0.14.2)
+- `notifications/page.tsx` — silent (was autofixed by v0.14.2)
+- `settings/page.tsx` — silent (was autofixed by v0.14.2)
+- `landing/page.tsx` — silent ✓ (v0.14.1 false positive fixed)
+
+After upgrading to v0.14.3, `coherent check` should show 0 `BUTTON_NO_VARIANT_IN_MAP` errors on this project.
+
+### Internal
+
+- Tests: 1676 passing (+1 new — regression test reproducing the landing/page.tsx false positive pattern: .map() block followed by separate `<Button>` CTA in different section).
+- Affected file: `packages/cli/src/utils/quality-validator.ts` (validator regex tightened with bounded lookahead).
+
+### Not breaking
+
+Validator becomes MORE accurate — strictly fewer false positives. Real violations still caught. Users seeing fewer errors after upgrade is the intended behavior.
+
+---
+
 ## [0.14.2] — 2026-04-28
 
 ### Added — auto-fix for `BUTTON_NO_VARIANT_IN_MAP`
