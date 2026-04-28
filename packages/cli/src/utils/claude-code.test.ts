@@ -250,6 +250,19 @@ describe('skill bodies — v0.11.4 session-shape gating (both bodies)', () => {
     }
   })
 
+  it('both bodies skip page phase for 1-page plans (v0.13.10 fix)', () => {
+    const { slashCommand, installedSkill } = readBoth()
+    // Dogfood 2026-04-27: 1-page plan triggered `_phase prep page:calendar`
+    // which failed with missing pages-input.json (anchor was the only page).
+    // Skill body must explicitly tell AI to skip page phase when
+    // pages-input.json is absent/empty.
+    for (const body of [slashCommand, installedSkill]) {
+      expect(body).toMatch(/pages-input\.json.*exists.*non-empty/)
+      expect(body).toMatch(/Skip rule/)
+      expect(body).toMatch(/ONLY the anchor page/)
+    }
+  })
+
   it('both bodies document the discoverability hint (v0.13.7)', () => {
     const { slashCommand, installedSkill } = readBoth()
     for (const body of [slashCommand, installedSkill]) {

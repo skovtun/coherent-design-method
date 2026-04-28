@@ -1669,6 +1669,32 @@ describe('autoFixCode v0.7.9 — overlay, touch target, aria-label, double sign'
     expect(fixes).not.toContain('icon buttons → min 44px touch target')
   })
 
+  it('v0.13.10: does NOT corrupt JSX when icon button has arrow-function onClick', async () => {
+    // Dogfood 2026-04-27 reproduced this: regex `<...size="icon"[^>]*>` stops
+    // at first `>`, including the `>` inside `() => stepMonth()`. The fix
+    // landed `className="..."` mid-arrow-function, breaking syntax:
+    //   onClick={() = className="..." > stepMonth(-1)}
+    const code = `<Button variant="ghost" size="icon" onClick={() => stepMonth(-1)} aria-label="Previous month"><ChevronLeft /></Button>`
+    const { code: fixed } = await autoFixCode(code)
+
+    // Must NOT have the corruption pattern.
+    expect(fixed).not.toMatch(/onClick=\{\(\)\s*=\s*className/)
+    expect(fixed).not.toMatch(/=\s*className="[^"]*"\s*>/)
+
+    // Original arrow function intact.
+    expect(fixed).toContain('onClick={() => stepMonth(-1)}')
+  })
+
+  it('v0.13.10: bails on tap-target fix when expression has unbalanced braces', async () => {
+    // Defensive test — a manually-crafted attrs slice that LOOKS truncated
+    // (mimics what regex-with-{>] capture would return). The bail check
+    // counts {/} and (/) — if unbalanced, return original element unchanged.
+    const code = `<Button size="icon" onClick={() => fn({a: 1})}><X /></Button>`
+    const { code: fixed } = await autoFixCode(code)
+    // Must preserve the onClick expression bytes-for-bytes.
+    expect(fixed).toContain('onClick={() => fn({a: 1})}')
+  })
+
   it('adds aria-label to icon-only <Button> with lucide child', async () => {
     const code = `<Button variant="ghost" size="icon"><Trash className="h-4 w-4" /></Button>`
     const { code: fixed, fixes } = await autoFixCode(code)
