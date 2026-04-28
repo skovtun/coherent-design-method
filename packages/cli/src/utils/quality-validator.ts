@@ -2365,6 +2365,33 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
   })
   if (hadTouchFix) fixes.push('icon buttons → min 44px touch target')
 
+  // 7b. BUTTON_NO_VARIANT_IN_MAP (v0.14.2 auto-fix) — insert variant="ghost" on
+  //    shadcn <Button> elements inside .map() callbacks that lack an explicit
+  //    variant prop. Companion to the validator added in v0.14.1. ghost is the
+  //    correct choice for list rows / cell wrappers (the dominant offending
+  //    context — calendar cells, notification rows, sidebar nav). For action
+  //    toggles users want variant={isActive ? 'default' : 'outline'} which we
+  //    can't infer mechanically, so this auto-fix biases to the ghost case
+  //    (~80% of mapped Button usage) and accepts that the remaining 20% may
+  //    need a manual variant override after.
+  let hadVariantFix = false
+  const buttonInMapAutoFixRe =
+    /\.map\s*\(\s*(?:\([^)]*\)|[a-zA-Z_$][\w$]*)\s*=>\s*[\s\S]*?(?=<\/Button>|<\/li>|<\/div>|\)\s*[},])/g
+  fixed = fixed.replace(buttonInMapAutoFixRe, mapBlock => {
+    return mapBlock.replace(/<Button\b([^>]*?)>/g, (full, attrs: string) => {
+      // Skip if variant already declared.
+      if (/\bvariant\s*=/.test(attrs)) return full
+      // Skip if it's a self-closing or non-shadcn case (we already restricted
+      // by capitalized Button — this is a defensive belt).
+      if (/\bvariant=$/.test(attrs)) return full // mid-edit, skip
+      hadVariantFix = true
+      // Insert variant="ghost" right after <Button (before any other attrs).
+      // Preserves existing attribute order for clean diffs.
+      return `<Button variant="ghost"${attrs}>`
+    })
+  })
+  if (hadVariantFix) fixes.push('Button in .map() → variant="ghost"')
+
   // 8. MISSING_ARIA_LABEL — for icon-only Button/button with a lucide icon child,
   //    infer aria-label from the icon component name. Lucide icons are
   //    PascalCase and semantic (Trash, Edit, X, Menu, Plus, Check), so they

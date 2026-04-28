@@ -1578,6 +1578,75 @@ describe('Visual Sanity Layer v1 (v0.14.0)', () => {
       expect(issues.some(i => i.type === 'BUTTON_NO_VARIANT_IN_MAP')).toBe(false)
     })
   })
+
+  describe('BUTTON_NO_VARIANT_IN_MAP auto-fix (v0.14.2)', () => {
+    it('inserts variant="ghost" on bare Button inside .map()', async () => {
+      const code = `
+        {items.map(item => (
+          <li key={item.id}>
+            <Button onClick={() => select(item.id)} className="hover:bg-muted">
+              {item.label}
+            </Button>
+          </li>
+        ))}
+      `
+      const { code: fixed, fixes } = await autoFixCode(code)
+      expect(fixed).toContain('<Button variant="ghost"')
+      expect(fixes).toContain('Button in .map() → variant="ghost"')
+    })
+
+    it('preserves existing variant — no double insertion', async () => {
+      const code = `
+        {items.map(item => (
+          <Button variant="outline" onClick={...}>{item.label}</Button>
+        ))}
+      `
+      const { code: fixed, fixes } = await autoFixCode(code)
+      // Only one variant attribute, value preserved.
+      const matches = fixed.match(/variant=/g) || []
+      expect(matches.length).toBe(1)
+      expect(fixed).toContain('variant="outline"')
+      expect(fixes).not.toContain('Button in .map() → variant="ghost"')
+    })
+
+    it('does NOT touch standalone Button outside .map()', async () => {
+      const code = `
+        <form>
+          <Button type="submit">Sign in</Button>
+        </form>
+      `
+      const { code: fixed, fixes } = await autoFixCode(code)
+      expect(fixed).not.toContain('variant="ghost"')
+      expect(fixes).not.toContain('Button in .map() → variant="ghost"')
+    })
+
+    it('preserves className, onClick, type, key on the patched Button', async () => {
+      const code = `
+        {rows.map(r => (
+          <Button key={r.id} type="button" onClick={() => pick(r.id)} className="w-full justify-start">
+            {r.label}
+          </Button>
+        ))}
+      `
+      const { code: fixed } = await autoFixCode(code)
+      expect(fixed).toContain(
+        '<Button variant="ghost" key={r.id} type="button" onClick={() => pick(r.id)} className="w-full justify-start">',
+      )
+    })
+
+    it('after autofix, validator no longer fires on the patched code', async () => {
+      const broken = `
+        {cells.map(cell => (
+          <Button onClick={() => setSelected(cell.date)} className="hover:bg-muted/50">
+            {cell.day}
+          </Button>
+        ))}
+      `
+      const { code: fixed } = await autoFixCode(broken)
+      const issues = validatePageQuality(fixed)
+      expect(issues.some(i => i.type === 'BUTTON_NO_VARIANT_IN_MAP')).toBe(false)
+    })
+  })
 })
 
 describe('CHART_PLACEHOLDER detection', () => {

@@ -11,6 +11,39 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.14.2] — 2026-04-28
+
+### Added — auto-fix for `BUTTON_NO_VARIANT_IN_MAP`
+
+v0.14.1 added the validator (severity: error) but no auto-fix. v0.14.2 dogfood found the bug class wider than expected — 4 violations across calendar, notifications, settings, landing pages in one project. Manual fix per page is mechanical busywork.
+
+`coherent fix` (and the post-generation auto-fix step that runs inside `coherent chat` / `/coherent-chat`) now inserts `variant="ghost"` after `<Button` when the validator's pattern matches:
+
+```diff
+- <Button onClick={...} className="hover:bg-muted">
++ <Button variant="ghost" onClick={...} className="hover:bg-muted">
+```
+
+Verified end-to-end:
+- Calendar (line 204) — validator fires before, autofix inserts variant, validator silent after.
+- Notifications (line 266) — same.
+
+### Why `variant="ghost"` (not "outline" or "default")
+
+Most mapped Button usage is list rows / cell wrappers (calendar cells, sidebar nav, notification items). For that context, `ghost` is the correct base: hover-only feedback, transparent default, conditional `bg-accent` for active state. The remaining ~20% of cases (filter toggles wanting `variant={isActive ? 'default' : 'outline'}`) need manual review after autofix — they're rare enough that biasing to `ghost` is the right default.
+
+### Internal
+
+- Tests: 1675 passing (+5 new — autofix unit tests covering bare insertion, existing-variant skip, standalone Button skip, attr preservation, validator-after-autofix-silent).
+- Affected file: `packages/cli/src/utils/quality-validator.ts` (autofix step 7b in `autoFixCode`).
+- End-to-end real-page verification continues to be standard practice for visual sanity layer changes.
+
+### Not breaking
+
+Auto-fix is additive — runs as part of existing `autoFixCode` flow, only fires when the v0.14.1 validator pattern matches. Users who deliberately set `variant="default"` on mapped buttons (rare — usually unintended) keep their explicit choice.
+
+---
+
 ## [0.14.1] — 2026-04-28
 
 ### Fixed — caught the actual #1 visual bug class (post-v0.14.0 dogfood)
