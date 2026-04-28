@@ -11,6 +11,45 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.13.10] — 2026-04-27
+
+### Fixed — two pre-existing dogfood bugs
+
+**Bug B (HIGH severity — code corruption):** `coherent fix` step 7 (SMALL_TOUCH_TARGET auto-fix for `size="icon"` Buttons) corrupted JSX when the button had an arrow-function `onClick`. Reproduced 2026-04-27 dogfood:
+
+```
+Before: <Button size="icon" onClick={() => stepMonth(-1)}>
+After:  <Button size="icon" onClick={() = className="..." > stepMonth(-1)}>
+```
+
+The regex `<...size="icon"[^>]*>` stops at the first `>`, including the `>` inside `() =>`. The className insertion landed inside the arrow body. **Wrote invalid TSX to user files** — caught by user manual edit.
+
+Mitigation: added a brace/paren balance check on the captured `attrs` slice. If `{`/`}` or `(`/`)` are unbalanced — meaning the regex truncated mid-expression — the fix bails (returns the element untouched). The validator still flags the issue; user can fix manually. Better than corrupted output.
+
+Tests: 2 new in `quality-validator.test.ts` pinning the corruption pattern + bail behavior.
+
+**Bug A (medium severity — mid-flow crash):** Skill body told AI to call `coherent _phase prep page:<id>` for every plan'd page. For 1-page plans (anchor IS the only page), `pages-input.json` is absent — the prep call fails with `missing required artifact "pages-input.json"`. Reproduced in dogfood adding a single calendar page.
+
+Mitigation: skill body markdown now explicitly states the skip rule:
+
+> Page phase — only if `shape.hasAddPage` AND `pages-input.json` exists with non-empty `pages[]`.
+> Skip rule (v0.13.10): When the plan contained ONLY the anchor page (1 add-page total), `pages-input.json` is either absent OR has empty `pages[]`. The anchor was generated in step 3 — there is nothing left to generate per-page. Do NOT run `coherent _phase prep page:<id>` in this case; it will fail with `missing required artifact "pages-input.json"`. Move directly to step 7.
+
+Both skill body locations (slash command + `SKILL_COHERENT_CHAT` constant) updated. Test pinning the new wording.
+
+### Internal
+
+- Tests: 1652 passing (+3 new — 2 quality-validator, 1 claude-code).
+- Affected files: `packages/cli/src/utils/quality-validator.ts` (balance check in tap-target fix), `packages/cli/src/utils/claude-code.ts` (skill body skip rule), respective tests.
+- Bug B is a code-corruption fix — high priority, no debate.
+- Bug A is markdown-only skill body change — soft fix, AI follows instruction.
+
+### Not breaking
+
+Both fixes are bug fixes — strictly safer behavior. Existing flows unchanged.
+
+---
+
 ## [0.13.9] — 2026-04-27
 
 ### Fixed — dev server detection actually works now (v0.13.8 was a false-negative)

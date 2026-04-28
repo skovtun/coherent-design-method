@@ -299,9 +299,11 @@ Read the prompt, produce the response file, then ingest in a separate Bash call:
 coherent _phase ingest components --session <UUID> --protocol ${PHASE_ENGINE_PROTOCOL} < .coherent/session/<UUID>/components-response.md
 \`\`\`
 
-### 6. Page phase (AI, parallel per page) — only if \`shape.hasAddPage\`
+### 6. Page phase (AI, parallel per page) — only if \`shape.hasAddPage\` AND \`pages-input.json\` exists with non-empty \`pages[]\`
 
-Read \`.coherent/session/<UUID>/pages-input.json\` and run page phase for every \`pageId\` in \`pages[].id\`. The first page in \`plan.pageNames\` is the anchor — generated in step 3 — so \`pages-input.json\` deliberately does NOT include it.
+**Skip rule (v0.13.10):** When the plan contained ONLY the anchor page (1 add-page total), \`pages-input.json\` is either absent OR has empty \`pages[]\`. The anchor was generated in step 3 — there is nothing left to generate per-page. Do NOT run \`coherent _phase prep page:<id>\` in this case; it will fail with \`missing required artifact "pages-input.json"\`. Move directly to step 7.
+
+When \`pages-input.json\` exists with non-empty \`pages[]\` (multi-page plans only), read it and run page phase for every \`pageId\` in \`pages[].id\`. The first page in \`plan.pageNames\` is the anchor — generated in step 3 — so \`pages-input.json\` deliberately does NOT include it.
 
 **Run pages in parallel.** All page generations are independent after extract-style. Issue calls in 3 batches of N parallel tool calls per message (cap at 6 per batch for very wide plans):
 
@@ -690,12 +692,11 @@ Read the prompt, Write the response file, then ingest in a SEPARATE Bash call:
 coherent _phase ingest components --session <UUID> --protocol ${PHASE_ENGINE_PROTOCOL} < .coherent/session/<UUID>/components-response.md
 \`\`\`
 
-### 6. Page phase (AI, parallel per page) — only if \`shape.hasAddPage\`
+### 6. Page phase (AI, parallel per page) — only if \`shape.hasAddPage\` AND \`pages-input.json\` exists with non-empty \`pages[]\`
 
-Read \`.coherent/session/<UUID>/pages-input.json\` and run page phase for every
-\`pageId\` in \`pages[].id\`. The first page in \`plan.pageNames\` is the
-anchor — generated in step 3 — so \`pages-input.json\` deliberately does NOT
-include it.
+**Skip rule (v0.13.10):** When the plan contained ONLY the anchor page (1 add-page total), \`pages-input.json\` is either absent OR has empty \`pages[]\`. The anchor was generated in step 3 — there is nothing left to generate per-page. Do NOT run \`coherent _phase prep page:<id>\` in this case; it will fail with \`missing required artifact "pages-input.json"\`. Move directly to step 7.
+
+When \`pages-input.json\` exists with non-empty \`pages[]\` (multi-page plans only), read it and run page phase for every \`pageId\` in \`pages[].id\`. The first page in \`plan.pageNames\` is the anchor — generated in step 3 — so \`pages-input.json\` deliberately does NOT include it.
 
 **Run pages in parallel.** Pages are independent after extract-style. Issue
 calls in 3 batches of N parallel tool calls per message (cap at 6 per batch

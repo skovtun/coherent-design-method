@@ -2189,8 +2189,29 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
 
   // 7. SMALL_TOUCH_TARGET — add min-h-[44px] min-w-[44px] to size="icon" buttons.
   //    Validator: size="icon" with no explicit sizing.
+  //
+  // v0.13.10 SAFETY: the original regex `[^>]*` for attrs stops at the
+  // first `>`. JSX prop expressions like `onClick={() => fn()}` contain
+  // `>` inside `{...}` — the regex truncates `attrs` mid-expression
+  // and the className insertion lands inside the arrow body:
+  //   <Button onClick={() = className="..." > stepMonth(-1)}>
+  // Real corruption written to user files (dogfood 2026-04-27).
+  // Mitigation: bail when `attrs` has unbalanced braces/parens — that
+  // signals the regex captured a partial element and we'd corrupt JSX.
+  // Cost of bail: validator still warns, no auto-fix. User can apply
+  // manually. Better than writing invalid TSX.
   let hadTouchFix = false
   fixed = fixed.replace(/<(?:Button|button)\b([^>]*size=("|')icon\2[^>]*)>/g, (full, attrs) => {
+    // Bail check: unbalanced { or ( in attrs means regex truncated
+    // mid-expression. Skip rather than corrupt.
+    const openBraces = (attrs.match(/\{/g) || []).length
+    const closeBraces = (attrs.match(/\}/g) || []).length
+    const openParens = (attrs.match(/\(/g) || []).length
+    const closeParens = (attrs.match(/\)/g) || []).length
+    if (openBraces !== closeBraces || openParens !== closeParens) {
+      return full // signals corrupt match — leave element untouched
+    }
+
     if (
       /\bmin-h-\[4[4-9]|\bmin-h-11\b|\bh-11\b|\bmin-w-\[4[4-9]|\bmin-w-11\b|\bw-11\b|\bp-[3-9]\b|\bp-2\.5\b/.test(attrs)
     ) {
