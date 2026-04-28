@@ -249,6 +249,24 @@ describe('skill bodies — v0.11.4 session-shape gating (both bodies)', () => {
       expect(body).toMatch(/Do NOT print intermediate progress lines/)
     }
   })
+
+  it('both bodies document the discoverability hint (v0.13.7)', () => {
+    const { slashCommand, installedSkill } = readBoth()
+    for (const body of [slashCommand, installedSkill]) {
+      // The 📍 hint instruction must be present.
+      expect(body).toMatch(/📍/)
+      // All 3 classifications mentioned with their templates.
+      expect(body).toMatch(/TOP-LEVEL/)
+      expect(body).toMatch(/INTERNAL/)
+      expect(body).toMatch(/DETAIL/)
+      // At least one concrete next-step coherent chat invocation per type.
+      expect(body).toMatch(/coherent chat "add .+ to the main nav"/)
+      expect(body).toMatch(/coherent chat "add a .+ link to the/)
+      expect(body).toMatch(/coherent chat "in .+, make each/)
+      // Skip rule when no add-page in applied.
+      expect(body).toMatch(/Skip the 📍 line entirely if/)
+    }
+  })
 })
 
 describe('writeClaudeSkills refresh notice (R5)', () => {

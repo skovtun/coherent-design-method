@@ -11,6 +11,55 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.13.7] — 2026-04-27
+
+### Added — discoverability hint in skill-rail completion card
+
+User feedback from v0.13.6 dogfood: after `/coherent-chat add a profile page`, the page existed at `/profile` but **nothing in the UI linked to it** — user had to know the URL or peek at the sitemap. Coherent's nav-items aren't append-on-add, so newly-added pages are stranded by default.
+
+This release adds a 📍 line to the completion card that classifies the new page and emits ONE concrete next-step command. Three categories with their own template:
+
+- **TOP-LEVEL** (single-segment route, common page name): suggests `coherent chat "add <Name> to the main nav"`
+- **INTERNAL** (sub-page of an existing parent route): suggests `coherent chat "add a <Name> link to the <parent> page"`
+- **DETAIL** (Next.js dynamic `[id]` / `[slug]` route): suggests `coherent chat "in <parent-list>, make each item's name link to <route>"`
+
+The 📍 line is **skipped** when:
+- No `add-page` in applied (delete, update-token, modify-component)
+- User intent already specifies linking ("add a Profile page linked from /home")
+
+For multi-page generation, the hint covers the anchor page only; the other pages get nav regen automatically.
+
+Example for top-level:
+
+```
+Coherent · add a profile page
+
+  ✅ Applied: 1 page (Profile) at /profile
+
+  📍 Profile looks like a top-level page. To add it to the main nav:
+     coherent chat "add Profile to the main nav"
+
+  Preview · coherent preview (or open localhost:3000 if already running)
+  Undo    · coherent undo
+  Debug   · session 4f2adb (full uuid: 4f2adb4a-bec4-4760-a5b5-e67e1bc447b7)
+```
+
+### Internal
+
+- Tests: 1647 passing (+1 new claude-code test pinning the 3 templates).
+- Affected file: `packages/cli/src/utils/claude-code.ts` (skill body constants only — slash command + installed SKILL.md).
+- Implementation is markdown-only (skill body instruction). AI does the classification at completion-signal time. Soft suggestion — if AI miscategorizes, user can ignore the hint and run any other command.
+
+### Not breaking
+
+Cosmetic skill body change. Existing flows unchanged. Stale skill bodies (no `coherent update` after upgrade) keep showing the v0.13.6 card without 📍.
+
+### Out of scope (deferred)
+
+Auto-linking implementation — i.e. `add-page` automatically modifies parent page or nav config to insert the link. Requires extending `ModificationRequest` schema with `linkFrom: 'nav' | 'page:home' | 'none'` field + dispatch logic. Not v0.13.7 scope. Today's hint shifts the work to the user as a one-command follow-up; future v0.14+ may auto-execute.
+
+---
+
 ## [0.13.6] — 2026-04-27
 
 ### Changed — clarify Preview line in skill-rail completion card

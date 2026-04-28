@@ -344,12 +344,52 @@ Coherent · <intent verbatim>
 
   ✅ Applied: <one-line summary>
 
+  📍 <discoverability hint — ONLY when new pages were added; see classification below>
+
   Preview · coherent preview (or open localhost:3000 if already running)
   Undo    · coherent undo
   Debug   · session <short-uuid> (full uuid: <full-uuid>)
 \`\`\`
 
-The \`<one-line summary>\` is condensed from the \`session end\` output. With \`session end --quiet\` you get only \`✔ Session <short> ended (<N> applied)\` — read \`.coherent/runs/<latest>.yaml\` if you need detail. Examples:
+The \`<one-line summary>\` is condensed from the \`session end\` output. With \`session end --quiet\` you get only \`✔ Session <short> ended (<N> applied)\` — read \`.coherent/runs/<latest>.yaml\` if you need detail.
+
+### Discoverability hint (📍 line)
+
+When \`add-page\` requests landed, the new page exists at its route but **nothing links to it yet** — the user has to know the URL. Without a hint, they get stuck. Classify each new page and emit ONE concrete next-step suggestion.
+
+**Classification (apply in order, first match wins):**
+
+1. **DETAIL** — route contains a Next.js dynamic segment (\`[id]\`, \`[slug]\`, \`[...slug]\`). Examples: \`/users/[id]\`, \`/tasks/[id]\`, \`/blog/[slug]\`.
+2. **INTERNAL** — route has 2+ path segments AND parent route exists (e.g. \`/settings/billing\` when \`/settings\` is already a registered page). Sub-page of an existing parent.
+3. **TOP-LEVEL** — single-segment route (\`/profile\`, \`/pricing\`) OR name matches a known top-level pattern: settings, profile, dashboard, pricing, features, contact, about, blog index, faq.
+
+If multiple new pages added in one run, emit hint for the **anchor page** (or first by plan order). Skip the 📍 line entirely if:
+- No \`add-page\` in applied (delete-page, update-token, modify-component, etc.)
+- The user's intent already specifies linking (\`"add a Profile page linked from /home"\`, etc.)
+
+**Templates per classification:**
+
+TOP-LEVEL:
+\`\`\`
+  📍 <PageName> looks like a top-level page. To add it to the main nav:
+     coherent chat "add <PageName> to the main nav"
+\`\`\`
+
+INTERNAL (parent = parent route):
+\`\`\`
+  📍 <PageName> looks like a sub-page of <parent>. To wire it up:
+     coherent chat "add a <PageName> link to the <parent> page"
+\`\`\`
+
+DETAIL (parent-list = inferred list page from route prefix):
+\`\`\`
+  📍 <PageName> is a dynamic [id] detail route. To make it reachable:
+     coherent chat "in <parent-list>, make each item's name link to <route>"
+\`\`\`
+
+### Examples
+
+Plan-only delete (no 📍 line):
 
 \`\`\`
 Coherent · delete the Activity page
@@ -361,17 +401,66 @@ Coherent · delete the Activity page
   Debug   · session 4f2adb (full uuid: 4f2adb4a-bec4-4760-a5b5-e67e1bc447b7)
 \`\`\`
 
-\`\`\`
-Coherent · build a fitness studio app
+Top-level page added:
 
-  ✅ Applied: 4 pages, 2 components, layout regen
+\`\`\`
+Coherent · add a profile page
+
+  ✅ Applied: 1 page (Profile) at /profile
+
+  📍 Profile looks like a top-level page. To add it to the main nav:
+     coherent chat "add Profile to the main nav"
 
   Preview · coherent preview (or open localhost:3000 if already running)
   Undo    · coherent undo
   Debug   · session 4f2adb (full uuid: 4f2adb4a-bec4-4760-a5b5-e67e1bc447b7)
 \`\`\`
 
-If \`session end\` errored (non-zero exit) — replace the success block with the error and skip Preview/Undo:
+Internal sub-page added:
+
+\`\`\`
+Coherent · add a billing settings page
+
+  ✅ Applied: 1 page (BillingSettings) at /settings/billing
+
+  📍 BillingSettings looks like a sub-page of /settings. To wire it up:
+     coherent chat "add a BillingSettings link to the /settings page"
+
+  Preview · coherent preview (or open localhost:3000 if already running)
+  Undo    · coherent undo
+  Debug   · session 4f2adb (full uuid: 4f2adb4a-bec4-4760-a5b5-e67e1bc447b7)
+\`\`\`
+
+Detail page added:
+
+\`\`\`
+Coherent · add a user detail page
+
+  ✅ Applied: 1 page (UserDetail) at /users/[id]
+
+  📍 UserDetail is a dynamic [id] detail route. To make it reachable:
+     coherent chat "in /users, make each user's name link to /users/[id]"
+
+  Preview · coherent preview (or open localhost:3000 if already running)
+  Undo    · coherent undo
+  Debug   · session 4f2adb (full uuid: 4f2adb4a-bec4-4760-a5b5-e67e1bc447b7)
+\`\`\`
+
+Multi-page generation — emit hint for anchor only:
+
+\`\`\`
+Coherent · build a fitness studio app
+
+  ✅ Applied: 4 pages, 2 components, layout regen
+
+  📍 Classes (anchor page) is top-level. The full nav is regenerated automatically for multi-page builds — no follow-up needed.
+
+  Preview · coherent preview (or open localhost:3000 if already running)
+  Undo    · coherent undo
+  Debug   · session 4f2adb (full uuid: 4f2adb4a-bec4-4760-a5b5-e67e1bc447b7)
+\`\`\`
+
+If \`session end\` errored (non-zero exit) — replace the success block with the error and skip Preview/Undo + 📍:
 
 \`\`\`
 Coherent · <intent>
@@ -660,12 +749,52 @@ Coherent · <intent verbatim>
 
   ✅ Applied: <one-line summary>
 
+  📍 <discoverability hint — ONLY when new pages were added; see classification below>
+
   Preview · coherent preview (or open localhost:3000 if already running)
   Undo    · coherent undo
   Debug   · session <short-uuid> (full uuid: <full-uuid>)
 \`\`\`
 
-The \`<one-line summary>\` is condensed from the \`session end\` output. With \`session end --quiet\` you get only \`✔ Session <short> ended (<N> applied)\` — read \`.coherent/runs/<latest>.yaml\` if you need detail. Examples:
+The \`<one-line summary>\` is condensed from the \`session end\` output. With \`session end --quiet\` you get only \`✔ Session <short> ended (<N> applied)\` — read \`.coherent/runs/<latest>.yaml\` if you need detail.
+
+### Discoverability hint (📍 line)
+
+When \`add-page\` requests landed, the new page exists at its route but **nothing links to it yet** — the user has to know the URL. Without a hint, they get stuck. Classify each new page and emit ONE concrete next-step suggestion.
+
+**Classification (apply in order, first match wins):**
+
+1. **DETAIL** — route contains a Next.js dynamic segment (\`[id]\`, \`[slug]\`, \`[...slug]\`). Examples: \`/users/[id]\`, \`/tasks/[id]\`, \`/blog/[slug]\`.
+2. **INTERNAL** — route has 2+ path segments AND parent route exists (e.g. \`/settings/billing\` when \`/settings\` is already a registered page). Sub-page of an existing parent.
+3. **TOP-LEVEL** — single-segment route (\`/profile\`, \`/pricing\`) OR name matches a known top-level pattern: settings, profile, dashboard, pricing, features, contact, about, blog index, faq.
+
+If multiple new pages added in one run, emit hint for the **anchor page** (or first by plan order). Skip the 📍 line entirely if:
+- No \`add-page\` in applied (delete-page, update-token, modify-component, etc.)
+- The user's intent already specifies linking (\`"add a Profile page linked from /home"\`, etc.)
+
+**Templates per classification:**
+
+TOP-LEVEL:
+\`\`\`
+  📍 <PageName> looks like a top-level page. To add it to the main nav:
+     coherent chat "add <PageName> to the main nav"
+\`\`\`
+
+INTERNAL (parent = parent route):
+\`\`\`
+  📍 <PageName> looks like a sub-page of <parent>. To wire it up:
+     coherent chat "add a <PageName> link to the <parent> page"
+\`\`\`
+
+DETAIL (parent-list = inferred list page from route prefix):
+\`\`\`
+  📍 <PageName> is a dynamic [id] detail route. To make it reachable:
+     coherent chat "in <parent-list>, make each item's name link to <route>"
+\`\`\`
+
+### Examples
+
+Plan-only delete (no 📍 line):
 
 \`\`\`
 Coherent · delete the Activity page
@@ -677,17 +806,66 @@ Coherent · delete the Activity page
   Debug   · session 4f2adb (full uuid: 4f2adb4a-bec4-4760-a5b5-e67e1bc447b7)
 \`\`\`
 
-\`\`\`
-Coherent · build a fitness studio app
+Top-level page added:
 
-  ✅ Applied: 4 pages, 2 components, layout regen
+\`\`\`
+Coherent · add a profile page
+
+  ✅ Applied: 1 page (Profile) at /profile
+
+  📍 Profile looks like a top-level page. To add it to the main nav:
+     coherent chat "add Profile to the main nav"
 
   Preview · coherent preview (or open localhost:3000 if already running)
   Undo    · coherent undo
   Debug   · session 4f2adb (full uuid: 4f2adb4a-bec4-4760-a5b5-e67e1bc447b7)
 \`\`\`
 
-If \`session end\` errored (non-zero exit) — replace the success block with the error and skip Preview/Undo:
+Internal sub-page added:
+
+\`\`\`
+Coherent · add a billing settings page
+
+  ✅ Applied: 1 page (BillingSettings) at /settings/billing
+
+  📍 BillingSettings looks like a sub-page of /settings. To wire it up:
+     coherent chat "add a BillingSettings link to the /settings page"
+
+  Preview · coherent preview (or open localhost:3000 if already running)
+  Undo    · coherent undo
+  Debug   · session 4f2adb (full uuid: 4f2adb4a-bec4-4760-a5b5-e67e1bc447b7)
+\`\`\`
+
+Detail page added:
+
+\`\`\`
+Coherent · add a user detail page
+
+  ✅ Applied: 1 page (UserDetail) at /users/[id]
+
+  📍 UserDetail is a dynamic [id] detail route. To make it reachable:
+     coherent chat "in /users, make each user's name link to /users/[id]"
+
+  Preview · coherent preview (or open localhost:3000 if already running)
+  Undo    · coherent undo
+  Debug   · session 4f2adb (full uuid: 4f2adb4a-bec4-4760-a5b5-e67e1bc447b7)
+\`\`\`
+
+Multi-page generation — emit hint for anchor only:
+
+\`\`\`
+Coherent · build a fitness studio app
+
+  ✅ Applied: 4 pages, 2 components, layout regen
+
+  📍 Classes (anchor page) is top-level. The full nav is regenerated automatically for multi-page builds — no follow-up needed.
+
+  Preview · coherent preview (or open localhost:3000 if already running)
+  Undo    · coherent undo
+  Debug   · session 4f2adb (full uuid: 4f2adb4a-bec4-4760-a5b5-e67e1bc447b7)
+\`\`\`
+
+If \`session end\` errored (non-zero exit) — replace the success block with the error and skip Preview/Undo + 📍:
 
 \`\`\`
 Coherent · <intent>
