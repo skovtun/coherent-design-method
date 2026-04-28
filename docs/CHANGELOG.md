@@ -11,6 +11,39 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.13.8] — 2026-04-27
+
+### Fixed — `coherent fix` no longer corrupts running dev server
+
+Recurring bug reproduced twice in v0.13.5 + v0.13.7 dogfood: after `/coherent-chat <intent>` runs `coherent fix` as its post-apply step, the next page load on `coherent preview` (`http://localhost:3000`) returned **500 Internal Server Error**. Manual `Ctrl+C` + restart of the preview was the only recovery.
+
+Root cause: `coherent fix` step 1 (`Cleared build cache`) does `rmSync('.next/', { recursive: true, force: true })` unconditionally. When a Next.js dev server is running, turbopack's in-memory bundler state still references files on disk; wiping `.next/` mid-run triggers ENOENT spam in the dev log AND breaks the next page load until manual restart.
+
+- **NEW: dev-server detection** at `packages/cli/src/utils/dev-server-running.ts`. Tries to bind to ports 3000-3010 via `net.createServer().listen()`. If any is bound (EADDRINUSE), assumes a dev server is running and `coherent fix` skips the cache clear with a yellow warning.
+- **`--force-cache-clear` opt-out flag** for users who really want the clear (e.g., "my cache is genuinely corrupted, restart preview after"). Documented inline in the warning message.
+- **Output examples:**
+  ```
+  # Without dev server running (default behavior, unchanged):
+    ✔ Cleared build cache
+
+  # With dev server running on :3000:
+    ⚠ Skipped cache clear — dev server detected on :3000
+       turbopack rebuilds incrementally on next request. To force clear, stop the server (Ctrl+C) or pass --force-cache-clear.
+  ```
+
+### Internal
+
+- Tests: 1649 passing (+2 new in `dev-server-running.test.ts`).
+- New file: `packages/cli/src/utils/dev-server-running.ts` (38 lines).
+- New flag: `--force-cache-clear` on `coherent fix`.
+- Bias: false positives (skip clear unnecessarily when no server is up but port is bound by something else) over false negatives (clear while server is up). Cost of skipping when no server is running is zero — turbopack rebuilds on next request anyway.
+
+### Not breaking
+
+`coherent fix` default behavior is now safer when a dev server is running. Direct CLI users without a dev server see no change. The `--no-cache` flag (skip clear entirely) is unchanged. The new `--force-cache-clear` flag is opt-in.
+
+---
+
 ## [0.13.7] — 2026-04-27
 
 ### Added — discoverability hint in skill-rail completion card
