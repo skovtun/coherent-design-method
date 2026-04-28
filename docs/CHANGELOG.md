@@ -11,6 +11,66 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.14.0] — 2026-04-28
+
+### Added — Visual Sanity Layer v1
+
+After 2026-04-27/28 dogfood revealed that AI-generated pages can compile cleanly, pass tests, pass lint — and still be visually unusable, this release adds the missing layer between code-correctness validation and user-perceived quality. Two reproducible bugs drove the design:
+
+- **Notifications page** had every list item rendered with `bg-primary` parent. Text contrast collapsed to unreadable. Avatars rendered outside the blue blocks.
+- **Calendar page** rendered half the days (5-25) solid-blue selected, with events overflowing day cells and "+2 more" labels misplaced.
+
+Both passed every existing CI gate. v0.14.0 closes the gap with **rules + deterministic validators**.
+
+### Constraint additions (CORE_CONSTRAINTS)
+
+Five new layout-sanity rules in the always-injected constraint block (`packages/cli/src/agents/design-constraints.ts`):
+
+- **Selection state scope** — highlight EXACTLY ONE item at a time. Never apply selection background to a parent that wraps a list of items.
+- **Calendar today/selected cardinality** — at most ONE day cell carries today/selected styling. Conditional via `cn(isToday(day) && "bg-primary")` on the cell only.
+- **Grid overflow containment** — calendar/kanban/dashboard cells must use `overflow-hidden` + `truncate` (or line-clamp) on text children.
+- **Background/text contrast pairing** — `bg-primary` requires `text-primary-foreground` on children; never inherit default text colors on a colored bg.
+- **List item active state** — in mapped lists, the selection indicator goes on ONE child at most; default state is "not selected"; conditional `isActive && "bg-accent"` for selection.
+
+The rules are PROBABILISTIC prevention — AI may still violate. Three deterministic validators below catch what escapes.
+
+### Validators added to `coherent check`
+
+Three static validators in `packages/cli/src/utils/quality-validator.ts`. All three emit `severity: 'warning'` (additive — does not promote `coherent check` to non-zero exit, does not break user CI):
+
+- **STUCK_ON_SELECTION** — flags unconditional `bg-primary` / `bg-accent` / `bg-secondary` / `bg-destructive` inside `.map()` callbacks where className is not threaded through `cn()` or a template literal. Catches the Notifications-style pattern where every list item ends up looking selected.
+- **CALENDAR_OVER_SELECTED** — flags calendar/day-grid files (heuristic: contains `calendar` / `generateDays` / `isToday` / `days.map(`) with ≥4 unconditional `bg-primary`/`bg-accent` className occurrences inside any 60-line window. Catches the Calendar-style pattern where today-highlighting misfired.
+- **CELL_OVERFLOW_NO_CONTAIN** — flags calendar/grid files that map an `events` / `appointments` / `sessions` array into cell children but never use `truncate` / `overflow-hidden` / `line-clamp-N` anywhere. Catches event-title overflow.
+
+Heuristics are intentionally conservative (false positives acceptable as warnings, false negatives expensive). Exact patterns documented inline in `quality-validator.ts`.
+
+### Why rules + validators, not one or the other
+
+Codex pre-impl gate (2026-04-28) challenged the "rules first, validators later" framing: failure mode already escaped compile/lint, so probabilistic prevention alone is insufficient. v0.14.0 ships both in the same release — rules at AI-prompt time, validators at file-write time. Belt + suspenders.
+
+### Internal
+
+- Tests: 1664 passing (+12 new — 11 in `quality-validator.test.ts` covering STUCK_ON_SELECTION, CALENDAR_OVER_SELECTED, CELL_OVERFLOW_NO_CONTAIN positive + negative cases, plus 1 parity test verifying CORE_CONSTRAINTS contains the LAYOUT SANITY block).
+- Affected files: `packages/cli/src/agents/design-constraints.ts` (5 new rules), `packages/cli/src/utils/quality-validator.ts` (3 new validators).
+- Both rails (API + Skill) inherit the constraint additions automatically — `CORE_CONSTRAINTS` is shared.
+
+### Not breaking
+
+All three validators emit warnings, not errors — `coherent check` exit code is unchanged unless it was already failing on errors. New validator type strings are additive (downstream consumers parsing output may see new types but old types are unchanged). Constraint additions extend the AI-prompt token budget by ~600 chars / ~150 tokens (within the soft warn threshold per `scripts/check-constraint-budget.mjs`).
+
+### Out of scope (deferred)
+
+- framer-motion integration (Codex confirmed motion ≠ visual fix; defer until structure sanity verified)
+- Atmosphere UX polish (no proven user gap; needs P5 signal)
+- Auto-linking implementation (duplicates v0.13.7 hint)
+- Community remix gallery (v1.0+ scope, not next-cycle)
+
+### Parallel track
+
+User running 5-user dogfood survey to validate P1 ("visual quality is the #1 gap"). Survey asks: last `/coherent-chat` prompt + screenshot + forced-choice "what made this unusable: visual/layout / missing functionality / wrong routing / setup friction / unclear value". Results inform v0.15.0 priority.
+
+---
+
 ## [0.13.10] — 2026-04-27
 
 ### Fixed — two pre-existing dogfood bugs

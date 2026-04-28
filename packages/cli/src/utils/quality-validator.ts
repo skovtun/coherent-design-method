@@ -1132,6 +1132,96 @@ export function validatePageQuality(
     })
   }
 
+  // v0.14.0 — VISUAL SANITY LAYER v1
+  //
+  // Three validators catching layout failures observed in 2026-04-27/28
+  // dogfood (Notifications page with stuck-on selection backgrounds,
+  // Calendar with all-days-highlighted broken grid). The constraint
+  // additions in design-constraints.ts are PROBABILISTIC prevention;
+  // these are DETERMINISTIC catches that fire when the AI ignored them
+  // (per Codex pre-impl gate 2026-04-28: "rules alone are probabilistic
+  // — failure mode already escaped compile/lint, need belt + suspenders").
+
+  // STUCK_ON_SELECTION: unconditional selection background inside .map()
+  // callbacks. Pattern: a list item element with bg-primary/accent/etc.
+  // class that doesn't go through cn() or a conditional. Every list item
+  // ends up looking selected — contrast collapses, text becomes unreadable.
+  const mapBlockRe = /\.map\s*\(\s*(?:\([^)]*\)|[a-zA-Z_$][\w$]*)\s*=>\s*(?:\([\s\S]*?\)|[\s\S]*?)(?=\s*\)\s*[},])/g
+  const stuckBgRe =
+    /<(?:li|div|tr|button|a)\b[^>]*className=("|')[^"']*\b(bg-primary|bg-accent|bg-secondary|bg-destructive)\b[^"']*\1/g
+  let mapMatch
+  while ((mapMatch = mapBlockRe.exec(code)) !== null) {
+    const block = mapMatch[0]
+    if (/cn\(|className=\{`|className=\{[a-zA-Z_$]/.test(block)) {
+      // Conditional className via cn() or template literal — safe.
+      continue
+    }
+    if (stuckBgRe.test(block)) {
+      const line = code.slice(0, mapMatch.index).split('\n').length
+      issues.push({
+        line,
+        type: 'STUCK_ON_SELECTION',
+        message:
+          'Unconditional selection background inside .map() callback — every list item will look selected. Use conditional cn(isActive && "bg-accent") on the active item only.',
+        severity: 'warning',
+      })
+      break // one warning per file is enough — caller fixes the pattern
+    }
+    stuckBgRe.lastIndex = 0
+  }
+
+  // CALENDAR_OVER_SELECTED: calendar/day grid where many cells carry
+  // today/selected styling. AI's today-highlighting often misfires and
+  // applies the class to every day cell. Heuristic: file contains
+  // calendar markers AND has >= 4 unconditional bg-primary/accent
+  // occurrences within a 60-line window.
+  const isCalendarShape = /\bcalendar\b|\bgenerate(Days|Calendar)|\bisToday\b|\bsetMonth\b|days\.map\(/i.test(code)
+  if (isCalendarShape) {
+    const lines = code.split('\n')
+    let maxCellsInWindow = 0
+    let firstHotLine = -1
+    for (let i = 0; i < lines.length; i++) {
+      const window = lines.slice(i, i + 60).join('\n')
+      // Match unconditional bg-X (NOT inside cn()/template) — sample
+      // heuristic: count plain className="...bg-primary..." occurrences.
+      const matches = window.match(/className=("|')[^"']*\b(bg-primary|bg-accent)\b[^"']*\1/g) || []
+      const unconditional = matches.filter(m => !/cn\(/.test(m)).length
+      if (unconditional > maxCellsInWindow) {
+        maxCellsInWindow = unconditional
+        firstHotLine = i + 1
+      }
+    }
+    if (maxCellsInWindow >= 4) {
+      issues.push({
+        line: firstHotLine,
+        type: 'CALENDAR_OVER_SELECTED',
+        message: `Calendar/grid has ${maxCellsInWindow} cells with unconditional bg-primary/accent in a 60-line window — only ONE day should carry today/selected styling. Wrap in cn(isToday(day) && "bg-primary") on the active cell only.`,
+        severity: 'warning',
+      })
+    }
+  }
+
+  // CELL_OVERFLOW_NO_CONTAIN: calendar/grid cells with mapped event chips
+  // but no overflow containment. Long event titles bleed into adjacent
+  // cells. Heuristic: file has calendar shape + maps an events array into
+  // span/div children, but neither "truncate" nor "overflow-hidden"
+  // appears anywhere in the file.
+  if (isCalendarShape) {
+    const hasEventMap = /events?\.map\(|appointments?\.map\(|sessions?\.map\(/i.test(code)
+    const hasContain = /\btruncate\b|\boverflow-hidden\b|\bline-clamp-/.test(code)
+    if (hasEventMap && !hasContain) {
+      const lines = code.split('\n')
+      const lineIdx = lines.findIndex(l => /events?\.map\(|appointments?\.map\(/i.test(l))
+      issues.push({
+        line: Math.max(1, lineIdx + 1),
+        type: 'CELL_OVERFLOW_NO_CONTAIN',
+        message:
+          'Calendar/grid maps events into cells without overflow containment — long titles will bleed across cell borders. Add overflow-hidden on the cell + truncate (or line-clamp-N) on text children.',
+        severity: 'warning',
+      })
+    }
+  }
+
   return issues
 }
 
