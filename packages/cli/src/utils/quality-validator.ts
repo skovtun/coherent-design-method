@@ -1215,8 +1215,7 @@ export function validatePageQuality(
   // cell with stacked children). For BUTTON_* validators specifically,
   // </Button> is the right anchor since we ARE searching for a Button.
   {
-    const buttonRowBlockRe =
-      /\.map\s*\(\s*(?:\([^)]*\)|[a-zA-Z_$][\w$]*)\s*=>\s*[\s\S]*?<\/Button>/g
+    const buttonRowBlockRe = /\.map\s*\(\s*(?:\([^)]*\)|[a-zA-Z_$][\w$]*)\s*=>\s*[\s\S]*?<\/Button>/g
     let m
     while ((m = buttonRowBlockRe.exec(code)) !== null) {
       const block = m[0]
@@ -1262,8 +1261,7 @@ export function validatePageQuality(
   //  - Missing flex-col — the actual conflict
   // Tight signals → low false positive risk per codex.
   {
-    const buttonCellBlockRe =
-      /\.map\s*\(\s*(?:\([^)]*\)|[a-zA-Z_$][\w$]*)\s*=>\s*[\s\S]*?<\/Button>/g
+    const buttonCellBlockRe = /\.map\s*\(\s*(?:\([^)]*\)|[a-zA-Z_$][\w$]*)\s*=>\s*[\s\S]*?<\/Button>/g
     let m
     while ((m = buttonCellBlockRe.exec(code)) !== null) {
       const block = m[0]
