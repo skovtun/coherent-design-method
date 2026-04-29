@@ -11,6 +11,46 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.15.3] — 2026-04-29
+
+### Added — `coherent prefs` user design preferences
+
+Local preference store at `~/.coherent/preferences.json`. Auto-injected into every `coherent chat` AI prompt as a "USER DESIGN PREFERENCES" block, so AI generation respects your taste across runs without re-stating them every prompt.
+
+```bash
+coherent prefs set design.style "minimalist, monochrome, editorial"
+coherent prefs set design.density compact
+coherent prefs set design.avoid "purple gradients, marketing hero layouts"
+coherent prefs set design.notes "lean toward serif body type"
+coherent prefs show
+coherent prefs clear design.density
+coherent prefs clear  # wipe all
+```
+
+The injection is unconditional but empty when no prefs are set — zero token cost for users who haven't configured anything. Block lives between CORE_CONSTRAINTS and DESIGN_QUALITY in the prompt, so user preferences override the defaults but stay subordinate to the foundational rules.
+
+### Codex pre-implementation gate
+
+Codex consult (2026-04-29) recommended this simpler local store **instead of** integrating Honcho (the dialectic user-modeling service from plastic-labs). Honcho is heavier than the use case warrants: hosted Postgres+pgvector dependency, AGPL-licensed server, and a privacy concern (user prompts → hosted unless self-hosted). For "remember Sergei prefers minimalist + monochrome" a local JSON file solves 80%+ of the value with zero infrastructure.
+
+Honcho remains a candidate for v0.16+ if implicit cross-session preference discovery becomes important.
+
+### Forward compatibility
+
+Schema is `{ version: 1, design: { style?, density?, avoid?, notes?, ...other } }`. Unknown `design.*` keys round-trip unchanged so future fields land without a migration. Comma-separated values for `style` and `avoid` parse into arrays automatically.
+
+### Internal
+
+- Tests: 1719 passing (+15 new — store r/w, parsing, clear-by-key, render-to-prompt-block, forward-compat unknown keys, malformed-JSON tolerance, env override for test isolation).
+- New files: `packages/cli/src/utils/preferences.ts`, `packages/cli/src/commands/prefs.ts`, `packages/cli/src/utils/preferences.test.ts`.
+- Affected: `packages/cli/src/index.ts` (command registration), `packages/cli/src/phase-engine/prompt-builders/modification.ts` (prompt injection).
+
+### Not breaking
+
+Net-new feature. Existing projects unaffected. `coherent chat` runs identically when no preferences are configured.
+
+---
+
 ## [0.15.2] — 2026-04-29
 
 ### Added — agentskills.io format compliance for `coherent-chat` skill
