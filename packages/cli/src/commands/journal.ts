@@ -105,7 +105,7 @@ function parseSession(raw: string, file: string): ParsedSession | null {
  * loop. Each entry records initial errors, retry attempts, and whether
  * the page resolved cleanly.
  */
-interface ParsedRetry {
+export interface ParsedRetry {
   page: string
   pageType: string
   attempts: number
@@ -205,6 +205,57 @@ export function parseRunRetries(raw: string, file: string): ParsedRun | null {
   }
   flush()
   return out.timestamp ? out : null
+}
+
+/**
+ * Per-validator retry aggregation row used by `coherent journal aggregate`.
+ * Exported so unit tests can verify resolution semantics directly without
+ * spinning up the full command (which depends on findConfig + cwd state).
+ */
+export interface RetryAggRow {
+  type: string
+  totalRetryCount: number
+  pageCount: number
+  resolvedPageCount: number
+  sumAttempts: number
+  avgAttempts: number
+}
+
+/**
+ * Aggregate per-validator retry stats across all parsed run records.
+ * v0.15.4: fix per-validator resolution. Page-level `retry.resolved`
+ * cannot tell whether validator A or validator B was the one that
+ * remained — must check `finalErrors` per type. If a page started with
+ * `A+B` and ended with only `B`, A counts as resolved, B as unresolved.
+ */
+export function aggregateRetries(retries: ParsedRetry[]): RetryAggRow[] {
+  const agg: Record<string, RetryAggRow> = {}
+  for (const retry of retries) {
+    const finalTypes = new Set(retry.finalErrors.map(e => e.type))
+    const seenInitial = new Set<string>()
+    for (const ie of retry.initialErrors) {
+      if (seenInitial.has(ie.type)) continue
+      seenInitial.add(ie.type)
+      if (!agg[ie.type]) {
+        agg[ie.type] = {
+          type: ie.type,
+          totalRetryCount: 0,
+          pageCount: 0,
+          resolvedPageCount: 0,
+          sumAttempts: 0,
+          avgAttempts: 0,
+        }
+      }
+      agg[ie.type].totalRetryCount += ie.count
+      agg[ie.type].pageCount += 1
+      agg[ie.type].sumAttempts += retry.attempts
+      if (!finalTypes.has(ie.type)) agg[ie.type].resolvedPageCount += 1
+    }
+  }
+  return Object.values(agg).map(r => ({
+    ...r,
+    avgAttempts: r.pageCount > 0 ? r.sumAttempts / r.pageCount : 0,
+  }))
 }
 
 function readAllRunRecords(projectRoot: string): ParsedRun[] {
@@ -371,40 +422,10 @@ export async function journalAggregateCommand(): Promise<void> {
   // moved to top of function so we can bail-or-render based on either source.
   if (allRetries.length === 0) return
 
-  interface RetryAgg {
-    type: string
-    totalRetryCount: number // sum of initialErrors[].count where this validator fired
-    pageCount: number // pages where this validator triggered the retry loop
-    resolvedPageCount: number // pages where retry succeeded
-    avgAttempts: number
-    sumAttempts: number
-  }
-  const retryAgg: Record<string, RetryAgg> = {}
-  for (const retry of allRetries) {
-    const seenInitial = new Set<string>()
-    for (const ie of retry.initialErrors) {
-      if (seenInitial.has(ie.type)) continue
-      seenInitial.add(ie.type)
-      if (!retryAgg[ie.type]) {
-        retryAgg[ie.type] = {
-          type: ie.type,
-          totalRetryCount: 0,
-          pageCount: 0,
-          resolvedPageCount: 0,
-          avgAttempts: 0,
-          sumAttempts: 0,
-        }
-      }
-      retryAgg[ie.type].totalRetryCount += ie.count
-      retryAgg[ie.type].pageCount += 1
-      retryAgg[ie.type].sumAttempts += retry.attempts
-      if (retry.resolved) retryAgg[ie.type].resolvedPageCount += 1
-    }
-  }
-  const retryRows = Object.values(retryAgg).map(r => ({
-    ...r,
-    avgAttempts: r.pageCount > 0 ? r.sumAttempts / r.pageCount : 0,
-  }))
+  // v0.15.4 — per-validator aggregation extracted to aggregateRetries
+  // (pure, exported, unit-tested) so codex's "A resolved + B unresolved"
+  // logic has explicit coverage.
+  const retryRows = aggregateRetries(allRetries)
 
   console.log(chalk.cyan(`  Retry telemetry \u2014 ${runs.length} run(s), ${allRetries.length} retry event(s)\n`))
 

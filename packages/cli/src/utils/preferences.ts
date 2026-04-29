@@ -83,6 +83,16 @@ export function writePreferences(prefs: Preferences): boolean {
 }
 
 /**
+ * Result of a write-attempting preferences mutation. v0.15.4 — codex
+ * flagged that swallowing `writePreferences()`'s false return makes
+ * permission/full-disk failures look successful. Now bubbled to caller.
+ */
+export interface PreferenceWriteResult {
+  prefs: Preferences
+  written: boolean
+}
+
+/**
  * Set a design preference by dot-path key. Supported paths:
  *   design.style       — comma-separated → array
  *   design.density     — string
@@ -91,14 +101,14 @@ export function writePreferences(prefs: Preferences): boolean {
  *   design.<other>     — string (unknown keys allowed)
  *
  * Empty/whitespace value clears the key. Returns the resulting
- * Preferences after the write attempt (or pre-write state on failure).
+ * Preferences and whether the write succeeded.
  */
-export function setPreference(key: string, value: string): Preferences {
+export function setPreference(key: string, value: string): PreferenceWriteResult {
   const prefs = readPreferences()
   const parts = key.split('.')
   if (parts[0] !== 'design' || parts.length !== 2) {
     // Unsupported key shape — leave prefs unchanged. Caller validates.
-    return prefs
+    return { prefs, written: false }
   }
   const subKey = parts[1]
   if (!prefs.design) prefs.design = {}
@@ -114,18 +124,18 @@ export function setPreference(key: string, value: string): Preferences {
   } else {
     prefs.design[subKey] = value
   }
-  writePreferences(prefs)
-  return prefs
+  const written = writePreferences(prefs)
+  return { prefs, written }
 }
 
 /**
  * Clear all preferences (or just one key when supplied). Returns the
- * Preferences after the write.
+ * Preferences and whether the write succeeded.
  */
-export function clearPreferences(key?: string): Preferences {
+export function clearPreferences(key?: string): PreferenceWriteResult {
   if (!key) {
-    writePreferences({ ...EMPTY })
-    return { ...EMPTY }
+    const written = writePreferences({ ...EMPTY })
+    return { prefs: { ...EMPTY }, written }
   }
   return setPreference(key, '')
 }

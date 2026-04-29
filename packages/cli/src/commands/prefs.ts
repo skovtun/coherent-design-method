@@ -27,7 +27,14 @@ export async function prefsSetCommand(key: string, value: string): Promise<void>
     console.log(chalk.yellow(`\n  Unsupported key "${key}". Supported: ${SUPPORTED_KEYS.join(', ')}\n`))
     process.exit(1)
   }
-  const after = setPreference(key, value)
+  const { prefs: after, written } = setPreference(key, value)
+  if (!written) {
+    // v0.15.4 — surface write failure (permission denied, disk full,
+    // read-only home) instead of falsely reporting success.
+    console.log(chalk.red(`\n  Failed to write preferences to ${getPreferencesPath()}`))
+    console.log(chalk.dim('  Check filesystem permissions on ~/.coherent/\n'))
+    process.exit(1)
+  }
   const cleared = value.trim() === ''
   console.log(chalk.green(`\n  ${cleared ? 'Cleared' : 'Set'} ${chalk.bold(key)}${cleared ? '' : ' = ' + value}`))
   console.log(chalk.dim(`  Stored at ${getPreferencesPath()}\n`))
@@ -45,7 +52,13 @@ export async function prefsClearCommand(key?: string): Promise<void> {
     console.log(chalk.yellow(`\n  Unsupported key "${key}". Supported: ${SUPPORTED_KEYS.join(', ')}\n`))
     process.exit(1)
   }
-  const after = clearPreferences(key)
+  const { prefs: after, written } = clearPreferences(key)
+  if (!written) {
+    // v0.15.4 — surface write failure (permission denied, disk full).
+    console.log(chalk.red(`\n  Failed to write preferences to ${getPreferencesPath()}`))
+    console.log(chalk.dim('  Check filesystem permissions on ~/.coherent/\n'))
+    process.exit(1)
+  }
   console.log(chalk.green(`\n  ${key ? `Cleared ${chalk.bold(key)}` : 'Cleared all preferences'}\n`))
   printPreferences(after)
 }

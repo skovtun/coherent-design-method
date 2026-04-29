@@ -11,6 +11,47 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.15.4] — 2026-04-29
+
+### Fixed — three correctness bugs flagged by codex review of v0.15.x
+
+After shipping v0.15.0 → v0.15.3 a `/codex consult` review caught real correctness issues:
+
+**1. Per-validator retry resolution was wrong.** `coherent journal aggregate` reported every initial validator as resolved/unresolved using the page-level `retry.resolved` flag. If a page started with `A+B` errors and ended with only `B`, the old code reported A as unresolved too — polluting the "AI failed to self-fix" list with already-fixed validators. Fixed by checking each initial type against `finalErrors`: a validator is resolved when its type no longer appears post-retry.
+
+**2. `coherent prefs set` falsely reported success on write failure.** `writePreferences()` returns `false` on permission denied / disk full / read-only home, but `setPreference()` and `clearPreferences()` ignored the return value, and the CLI command printed "Set" regardless. Now the helpers return `{ prefs, written }` and the CLI surfaces a red error message + exit code 1 when the write fails.
+
+**3. Missing tests for v0.15.1 + v0.15.0 edge cases.** v0.15.1 explicitly shipped with manual smoke only (per its CHANGELOG entry — codex called this out as exactly where a regression test should have been added). Extracted `aggregateRetries(retries)` from `journalAggregateCommand` to a pure exported function, then added unit tests covering the codex-flagged scenarios:
+- `aggregateRetries` with empty input
+- Single resolved retry
+- Single unresolved retry
+- **Mixed initial/final** — A+B initial, only B final → A resolved, B unresolved (the exact codex-described case the v0.15.4 fix targets)
+- Same validator across multiple pages
+- Deduplication of same type within one retry entry
+
+### Codex review highlights (deferred to v0.15.5)
+
+Codex also flagged three issues we'll address in a follow-up release:
+
+- **agentskills.io spec strictness on `metadata`.** Our `metadata.coherent.phase_engine_protocol: 2` may violate the spec's "string-to-string map" rule. Need to verify the spec literally before changing — the v0.15.2 path is the documented Hermes/Anthropic interpretation, but a pure spec read may require flattening to `coherent_phase_engine_protocol: "2"`.
+- **`COHERENT_HOME` env var semantics.** Currently `COHERENT_HOME=/x` resolves to `/x/.coherent`. Users would expect `COHERENT_HOME` = the data dir directly. Rename to `COHERENT_TEST_HOME` or centralize as `getCoherentHome()`.
+- **Unknown `design.*` keys accept-don't-render.** `coherent prefs set design.tone editorial` is stored and shown but silently NOT injected into the prompt. Either restrict accepted keys to the supported set, or render unknown scalars generically in the prompt block.
+
+Plus a data-shape concern: `qualityRetries.page` is a display name — should also include `route`, `operation` (`add-page`/`update-page`) for collision-free aggregation.
+
+### Internal
+
+- Tests: 1726 passing (+7 new — 6 aggregateRetries scenarios + 1 setPreference write-failure surfacing).
+- Affected files: `packages/cli/src/commands/journal.ts` (extract aggregateRetries, fix per-validator resolution), `packages/cli/src/utils/preferences.ts` (return write-success bool), `packages/cli/src/commands/prefs.ts` (surface write failure), corresponding tests.
+
+### Not breaking
+
+- Public `journal.aggregateRetries` is new (additive).
+- `setPreference` / `clearPreferences` return type changed `Preferences` → `{ prefs, written }`. Callers in this repo were the only consumers; external callers would notice — but these helpers were undocumented, so the practical risk is zero.
+- `RetryAggRow` interface exported for unit-test inspection.
+
+---
+
 ## [0.15.3] — 2026-04-29
 
 ### Added — `coherent prefs` user design preferences

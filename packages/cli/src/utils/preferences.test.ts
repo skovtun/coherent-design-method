@@ -51,50 +51,63 @@ describe('preferences store', () => {
   })
 
   it('setPreference parses comma-separated style into array', () => {
-    const after = setPreference('design.style', 'minimalist, monochrome, editorial')
-    expect(after.design?.style).toEqual(['minimalist', 'monochrome', 'editorial'])
+    const { prefs, written } = setPreference('design.style', 'minimalist, monochrome, editorial')
+    expect(written).toBe(true)
+    expect(prefs.design?.style).toEqual(['minimalist', 'monochrome', 'editorial'])
   })
 
   it('setPreference parses comma-separated avoid into array', () => {
-    const after = setPreference('design.avoid', 'purple gradients, marketing hero')
-    expect(after.design?.avoid).toEqual(['purple gradients', 'marketing hero'])
+    const { prefs } = setPreference('design.avoid', 'purple gradients, marketing hero')
+    expect(prefs.design?.avoid).toEqual(['purple gradients', 'marketing hero'])
   })
 
   it('setPreference stores density as plain string', () => {
-    const after = setPreference('design.density', 'compact')
-    expect(after.design?.density).toBe('compact')
+    const { prefs } = setPreference('design.density', 'compact')
+    expect(prefs.design?.density).toBe('compact')
   })
 
   it('setPreference with empty value clears that key', () => {
     setPreference('design.density', 'compact')
-    const after = setPreference('design.density', '   ')
-    expect(after.design?.density).toBeUndefined()
+    const { prefs } = setPreference('design.density', '   ')
+    expect(prefs.design?.density).toBeUndefined()
   })
 
-  it('setPreference rejects unsupported key shape (no-op write)', () => {
+  it('setPreference rejects unsupported key shape (no write)', () => {
     setPreference('design.density', 'compact')
-    setPreference('not.a.design.key', 'whatever')
+    const { written } = setPreference('not.a.design.key', 'whatever')
+    expect(written).toBe(false)
     expect(readPreferences().design?.density).toBe('compact')
   })
 
   it('setPreference accepts unknown design.* keys (forward compat)', () => {
-    const after = setPreference('design.tone', 'editorial')
-    expect((after.design as Record<string, unknown>)?.tone).toBe('editorial')
+    const { prefs } = setPreference('design.tone', 'editorial')
+    expect((prefs.design as Record<string, unknown>)?.tone).toBe('editorial')
   })
 
   it('clearPreferences with no key wipes the store', () => {
     setPreference('design.density', 'compact')
     setPreference('design.style', 'minimalist')
-    const after = clearPreferences()
-    expect(after.design).toBeUndefined()
+    const { prefs, written } = clearPreferences()
+    expect(written).toBe(true)
+    expect(prefs.design).toBeUndefined()
   })
 
   it('clearPreferences with key removes only that key', () => {
     setPreference('design.density', 'compact')
     setPreference('design.style', 'minimalist')
-    const after = clearPreferences('design.density')
-    expect(after.design?.density).toBeUndefined()
-    expect(after.design?.style).toEqual(['minimalist'])
+    const { prefs } = clearPreferences('design.density')
+    expect(prefs.design?.density).toBeUndefined()
+    expect(prefs.design?.style).toEqual(['minimalist'])
+  })
+
+  // v0.15.4 — write failure surfacing
+  it('setPreference returns written:false when filesystem fails', () => {
+    // Point COHERENT_HOME at a path that cannot be created (a file, not a dir).
+    const blockerFile = join(tmpHome, 'blocker')
+    writeFileSync(blockerFile, '', 'utf-8')
+    process.env.COHERENT_HOME = blockerFile // file at this path → mkdir fails
+    const { written } = setPreference('design.density', 'compact')
+    expect(written).toBe(false)
   })
 
   it('renderPreferencesBlock returns empty string for empty prefs', () => {
