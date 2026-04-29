@@ -26,9 +26,10 @@ export class DesignSystemGenerator {
   public generateStructure(): Map<string, string> {
     const files = new Map<string, string>()
 
-    files.set('app/design-system/layout.tsx', DESIGN_SYSTEM_LAYOUT)
+    files.set('app/design-system/layout.tsx', this.generateLayout())
     files.set('app/design-system/page.tsx', this.generateDynamicHome())
     files.set('app/design-system/components/page.tsx', this.generateComponentsIndexPage())
+    files.set('app/design-system/voice/page.tsx', this.generateVoicePage())
 
     files.set('app/design-system/components/[id]/page.tsx', COMPONENT_DYNAMIC_PAGE)
     files.set('app/design-system/components/[id]/ComponentShowcase.tsx', COMPONENT_SHOWCASE_CLIENT)
@@ -1051,6 +1052,171 @@ export default function SitemapPage() {
         ))}
       </div>
     </div>
+  )
+}
+`
+  }
+
+  /**
+   * v0.17.0 — substitute placeholders in DESIGN_SYSTEM_LAYOUT template.
+   * Layout has {{PROJECT_NAME}}, {{PROJECT_VERSION}}, {{GENERATED_AT}}.
+   */
+  private generateLayout(): string {
+    const generatedAt = new Date().toISOString().slice(0, 10)
+    return DESIGN_SYSTEM_LAYOUT.replace(/\{\{PROJECT_NAME\}\}/g, this.config.name || 'Project')
+      .replace(/\{\{PROJECT_VERSION\}\}/g, this.config.version || '1.0.0')
+      .replace(/\{\{GENERATED_AT\}\}/g, generatedAt)
+  }
+
+  /**
+   * v0.17.0 — Voice & Tone page. Reads `config.voice` (v0.16.0 schema).
+   * If voice is unset, shows a "set a voice profile" empty state with
+   * config snippet so users know how to opt in.
+   */
+  private generateVoicePage(): string {
+    const voice = this.config.voice
+    const voiceJson = JSON.stringify(voice ?? null)
+    return `'use client'
+import Link from 'next/link'
+
+const voice: any = ${voiceJson}
+
+const HAS_VOICE = voice !== null && (
+  voice.tone || voice.ctaStyle ||
+  (voice.copyRules && voice.copyRules.length > 0) ||
+  (voice.avoidWords && voice.avoidWords.length > 0) ||
+  (voice.transparencyRules && voice.transparencyRules.length > 0)
+)
+
+const SAMPLE_CONFIG = \`voice: {
+  tone: "confident-direct",
+  ctaStyle: "imperative-action",
+  copyRules: [
+    "Plain English. No hedging.",
+    "Lead with the value, not the process.",
+  ],
+  avoidWords: ["amazing", "revolutionary", "delve"],
+  transparencyRules: [
+    "Show the cost upfront.",
+    "Quiet confidence over hype.",
+  ],
+}\`
+
+export default function VoicePage() {
+  return (
+    <article className="space-y-12">
+      <header className="space-y-4">
+        <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">04 — Voice</div>
+        <h1 className="text-[40px] font-semibold leading-[1.05] tracking-[-0.02em] text-foreground">
+          How this product talks.
+        </h1>
+        <p className="max-w-[60ch] text-[16px] leading-[1.6] text-muted-foreground">
+          Voice is the third dimension of the design system, after layout and color. It controls every CTA label, empty state, error message, and pricing line the AI generates.
+        </p>
+      </header>
+
+      {!HAS_VOICE && (
+        <section className="rounded-lg border border-border bg-card p-8">
+          <h2 className="text-[20px] font-semibold leading-tight tracking-tight text-foreground">No voice profile configured.</h2>
+          <p className="mt-2 max-w-[60ch] text-[14px] leading-[1.6] text-muted-foreground">
+            Add a <code className="rounded bg-muted px-1 py-0.5 font-mono text-[12px]">voice</code> field to your <code className="rounded bg-muted px-1 py-0.5 font-mono text-[12px]">design-system.config.ts</code> to constrain copy generation. All fields are optional.
+          </p>
+          <pre className="mt-6 overflow-x-auto rounded-md border border-border bg-muted/40 p-4 font-mono text-[12.5px] leading-[1.6] text-foreground">
+            <code>{SAMPLE_CONFIG}</code>
+          </pre>
+          <p className="mt-4 max-w-[60ch] text-[13px] leading-[1.6] text-muted-foreground">
+            Once set, this page renders your voice principles. The same rules are injected into every <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11.5px]">coherent chat</code> generation prompt.
+          </p>
+        </section>
+      )}
+
+      {HAS_VOICE && (
+        <>
+          {/* Tone + CTA style as eyebrow facts */}
+          {(voice.tone || voice.ctaStyle) && (
+            <section className="grid gap-4 md:grid-cols-2">
+              {voice.tone && (
+                <div className="rounded-lg border border-border bg-card p-5">
+                  <div className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground">tone</div>
+                  <div className="mt-2 text-[18px] font-semibold tracking-tight text-foreground">{voice.tone}</div>
+                </div>
+              )}
+              {voice.ctaStyle && (
+                <div className="rounded-lg border border-border bg-card p-5">
+                  <div className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground">cta style</div>
+                  <div className="mt-2 text-[18px] font-semibold tracking-tight text-foreground">{voice.ctaStyle}</div>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Copy rules */}
+          {voice.copyRules && voice.copyRules.length > 0 && (
+            <section>
+              <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-foreground">Copywriting rules</h2>
+              <p className="mt-2 max-w-[60ch] text-[14px] leading-[1.6] text-muted-foreground">
+                Followed verbatim by every generation. Each rule is a hard directive.
+              </p>
+              <div className="mt-6 space-y-3">
+                {voice.copyRules.map((rule: string, i: number) => (
+                  <div key={i} className="flex items-start gap-3 rounded-md border border-border bg-card p-4">
+                    <span className="mt-0.5 font-mono text-[10.5px] tabular-nums text-muted-foreground">{String(i + 1).padStart(2, '0')}</span>
+                    <span className="text-[15px] leading-[1.55] text-foreground">{rule}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Transparency rules */}
+          {voice.transparencyRules && voice.transparencyRules.length > 0 && (
+            <section>
+              <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-foreground">Transparency &amp; trust</h2>
+              <p className="mt-2 max-w-[60ch] text-[14px] leading-[1.6] text-muted-foreground">
+                What we promise about pricing, privacy, beta status, and trade-offs.
+              </p>
+              <div className="mt-6 space-y-3">
+                {voice.transparencyRules.map((rule: string, i: number) => (
+                  <div key={i} className="flex items-start gap-3 rounded-md border border-border bg-card p-4">
+                    <span className="mt-0.5 font-mono text-[10.5px] tabular-nums text-muted-foreground">{String(i + 1).padStart(2, '0')}</span>
+                    <span className="text-[15px] leading-[1.55] text-foreground">{rule}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Avoid list */}
+          {voice.avoidWords && voice.avoidWords.length > 0 && (
+            <section>
+              <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-foreground">Words we don't use</h2>
+              <p className="mt-2 max-w-[60ch] text-[14px] leading-[1.6] text-muted-foreground">
+                The AI is hard-banned from generating any of these. They mark voice that isn't ours.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-2">
+                {voice.avoidWords.map((w: string) => (
+                  <span key={w} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 font-mono text-[12.5px] text-muted-foreground">
+                    <span className="text-muted-foreground/40">×</span>
+                    {w}
+                  </span>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* The wiring — show the actual injected prompt */}
+          <section className="rounded-lg border border-border bg-card p-6">
+            <h2 className="text-[18px] font-semibold leading-tight tracking-tight text-foreground">How this reaches the AI</h2>
+            <p className="mt-2 max-w-[60ch] text-[13.5px] leading-[1.6] text-muted-foreground">
+              Every <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11.5px]">coherent chat</code> run injects this voice profile into the modification prompt as a <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11.5px]">## VOICE DIRECTIVE</code> block, sitting between core constraints and design-quality rules.
+            </p>
+            <p className="mt-3 max-w-[60ch] text-[13.5px] leading-[1.6] text-muted-foreground">
+              Edit voice in <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11.5px]">design-system.config.ts</code>, run <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11.5px]">coherent update</code>, and the next generation respects the new tone.
+            </p>
+          </section>
+        </>
+      )}
+    </article>
   )
 }
 `
