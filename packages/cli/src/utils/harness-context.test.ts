@@ -5,6 +5,7 @@ import { tmpdir } from 'os'
 import type { DesignSystemConfig, SharedComponentsManifest } from '@getcoherent/core'
 import {
   buildProjectContext,
+  buildDesignTokensSummary,
   formatForCursor,
   formatForClaude,
   formatForAgents,
@@ -136,6 +137,58 @@ describe('formatForAgents', () => {
     const output = formatForAgents(ctx)
     expect(output.toLowerCase()).not.toContain('cursor')
     expect(output.toLowerCase()).not.toContain('claude')
+  })
+})
+
+// v0.16.1 — semantic color usage notes injected into token summary
+describe('buildDesignTokensSummary (v0.16.1 tokenUsage)', () => {
+  const baseConfig = {
+    ...TEST_CONFIG,
+    tokenUsage: undefined,
+  } as unknown as DesignSystemConfig
+
+  it('renders without usage hints when tokenUsage is undefined', () => {
+    const out = buildDesignTokensSummary(baseConfig)
+    expect(out).toContain('Primary:')
+    expect(out).not.toContain('use for:')
+  })
+
+  it('renders without usage hints when tokenUsage.colors is empty', () => {
+    const out = buildDesignTokensSummary({
+      ...baseConfig,
+      tokenUsage: { colors: {} },
+    } as unknown as DesignSystemConfig)
+    expect(out).not.toContain('use for:')
+  })
+
+  it('appends use-for hint when token usage matches a token key', () => {
+    const out = buildDesignTokensSummary({
+      ...baseConfig,
+      tokenUsage: {
+        colors: {
+          primary: 'CTA buttons, focus rings',
+          muted: 'Subtle section backgrounds',
+        },
+      },
+    } as unknown as DesignSystemConfig)
+    expect(out).toContain('Primary:')
+    expect(out).toContain('use for: CTA buttons, focus rings')
+    expect(out).toContain('use for: Subtle section backgrounds')
+  })
+
+  it('skips use-for hint for tokens without a usage entry', () => {
+    const out = buildDesignTokensSummary({
+      ...baseConfig,
+      tokenUsage: {
+        colors: { primary: 'CTAs' },
+      },
+    } as unknown as DesignSystemConfig)
+    expect(out).toContain('Primary:')
+    expect(out).toContain('use for: CTAs')
+    // Background row should NOT carry a use-for hint
+    const bgLine = out.split('\n').find(l => l.startsWith('- Background:'))
+    expect(bgLine).toBeDefined()
+    expect(bgLine).not.toContain('use for:')
   })
 })
 

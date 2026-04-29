@@ -11,6 +11,58 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.16.1] — 2026-04-29
+
+### Added — Semantic color usage notes (Rollur borrow #2)
+
+Coherent already enforces semantic tokens (38 validators reject raw Tailwind colors). v0.16.1 closes the next gap: telling the AI **WHERE** each token belongs.
+
+```ts
+// design-system.config.ts
+tokenUsage: {
+  colors: {
+    primary: 'Primary actions, active nav, focus rings, key links',
+    muted: 'Subtle section backgrounds, inactive states, placeholders',
+    border: 'Card borders, dividers, input outlines',
+    // ...
+  },
+}
+```
+
+Surfaces:
+- **Prompt injection** — appended to the color tokens block in modification prompts as `COLOR USAGE — where each token belongs:`. AI sees both hex AND intended role.
+- **Token summary** in `harness-context.ts` (used by `/coherent-chat` skill rail) appends `· use for: <hint>` per color line.
+- **Defaults seeded** in `minimal-config.ts` so every fresh `coherent init` ships with sensible usage notes.
+
+Without this, AI knows "use bg-primary" but doesn't know if that's a CTA color or a hero background. Codex pre-impl gate quote: *"Validators already force semantic tokens; usage notes tell the model where to use them."*
+
+### Codex pre-implementation gate
+
+Pick #2 from Rollur. 0.5-1d. Spec followed:
+- New `TokenUsageSchema` in `packages/core/src/types/design-system.ts` (sidecar — does NOT modify token values)
+- Optional `tokenUsage` field on `DesignSystemConfig`
+- Defaults seeded at `minimal-config.ts:101`
+- Injected into `harness-context.ts:97` token summary
+- Injected into `modification.ts` prompt builder
+
+### Internal
+
+- Tests: 1746 passing (+4 new — buildDesignTokensSummary with/without tokenUsage, partial usage, empty colors map).
+- Sidecar metadata pattern: tokenUsage is optional and additive. Token *values* (the hex strings) are unchanged — codex was explicit: "current colors are strict hex strings, that should stay stable."
+
+### Not breaking
+
+- `tokenUsage` is optional on `DesignSystemConfig`. Existing projects load identically.
+- Empty/absent tokenUsage produces empty prompt block — zero token cost.
+- Validators behave identically — no change to Tailwind color enforcement.
+
+### What ships next (v0.16.2 + v0.17.0)
+
+- **v0.16.2** — surface hidden code snippets in `/design-system/components/[id]` (audit found `usageCode` generated but never rendered). 30-min quick win.
+- **v0.17.0** — `/design-system/` viewer redesign per direction doc (`~/.gstack/projects/skovtun-coherent-design-method/design-system-viewer-direction-2026-04-29.md`). 3-5d. Editorial-first, Primer + Atlassian + Geist references.
+
+---
+
 ## [0.16.0] — 2026-04-29
 
 ### Added — Voice Profile (first-class generation constraint for COPY)

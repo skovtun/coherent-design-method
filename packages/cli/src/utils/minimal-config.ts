@@ -103,6 +103,24 @@ export function createMinimalConfig(appName: string = 'My App'): DesignSystemCon
       allowModeToggle: true,
     },
 
+    // v0.16.1 — semantic usage hints. Tells AI WHERE each token goes.
+    // Edited via `coherent chat` or directly in design-system.config.ts.
+    tokenUsage: {
+      colors: {
+        primary: 'Primary actions, active nav, focus rings, key links',
+        secondary: 'Secondary buttons, supporting nav, less-emphasized CTAs',
+        accent: 'Highlight chips, attention markers — use sparingly',
+        success: 'Success states, confirmations, positive trends',
+        warning: 'Warnings, caution states, expiring states',
+        error: 'Errors, destructive actions, critical alerts',
+        info: 'Informational badges, neutral status indicators',
+        background: 'Page background — never use for surfaces or cards',
+        foreground: 'Body text on background — never use as background',
+        muted: 'Subtle section backgrounds, inactive states, placeholders',
+        border: 'Card borders, dividers, input outlines',
+      },
+    },
+
     components: [
       {
         id: 'button',

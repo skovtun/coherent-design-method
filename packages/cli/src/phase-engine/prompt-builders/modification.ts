@@ -16,6 +16,23 @@ import { retrieveWikiContext } from './wiki-context.js'
 import { readPreferences, renderPreferencesBlock } from '../../utils/preferences.js'
 import { renderVoiceDirective } from './voice-directive.js'
 
+/**
+ * v0.16.1 — render `tokenUsage.colors` as a "USE WHEN" hint block. Tells
+ * AI WHERE to use each token, not just what hex values exist.
+ *
+ * Empty tokenUsage produces empty string — caller concatenates
+ * unconditionally; the empty string contributes nothing to the prompt.
+ */
+function renderTokenUsage(usage: { colors?: Record<string, string> } | undefined): string {
+  const colors = usage?.colors
+  if (!colors || Object.keys(colors).length === 0) return ''
+  const lines = ['', 'COLOR USAGE — where each token belongs:']
+  for (const [key, hint] of Object.entries(colors)) {
+    if (hint && hint.trim()) lines.push(`  ${key}: ${hint.trim()}`)
+  }
+  return lines.length > 2 ? lines.join('\n') : ''
+}
+
 export interface BuildModificationPromptOptions {
   isExpandedPageRequest?: boolean
   sharedComponentsSummary?: string
@@ -125,6 +142,7 @@ Current color tokens (#RRGGBB hex):
     Brand:   primary=${dark.primary}, secondary=${dark.secondary}, accent=${dark.accent || 'none'}
     Status:  success=${dark.success}, warning=${dark.warning}, error=${dark.error}, info=${dark.info}
     Surface: background=${dark.background}, foreground=${dark.foreground}, muted=${dark.muted}, border=${dark.border}
+${renderTokenUsage(config.tokenUsage)}
 
 EXISTING ROUTES IN THIS PROJECT:
 ${config.pages.map(p => p.route).join(', ') || '(no pages yet)'}

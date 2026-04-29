@@ -106,11 +106,21 @@ Use semantic classes: bg-background, text-foreground, bg-primary, text-muted-for
   const add = (label: string, value: string) => {
     if (value) lines.push(`- ${label}: ${value}`)
   }
-  add('Primary', light.primary ?? dark.primary ?? '')
-  add('Background', light.background ?? dark.background ?? '')
-  add('Foreground', light.foreground ?? dark.foreground ?? '')
-  add('Muted', light.muted ?? dark.muted ?? '')
-  add('Border', light.border ?? dark.border ?? '')
+  // v0.16.1 — semantic usage notes. When tokenUsage.colors is set,
+  // append "USE WHEN" hints to each color line. AI sees both the hex
+  // and the intended role, reducing misuse like primary-as-background.
+  const usage = config.tokenUsage?.colors
+  const lineForColor = (label: string, value: string, key: string) => {
+    if (!value) return
+    const hint = usage?.[key]
+    if (hint) lines.push(`- ${label}: ${value}  · use for: ${hint}`)
+    else lines.push(`- ${label}: ${value}`)
+  }
+  lineForColor('Primary', light.primary ?? dark.primary ?? '', 'primary')
+  lineForColor('Background', light.background ?? dark.background ?? '', 'background')
+  lineForColor('Foreground', light.foreground ?? dark.foreground ?? '', 'foreground')
+  lineForColor('Muted', light.muted ?? dark.muted ?? '', 'muted')
+  lineForColor('Border', light.border ?? dark.border ?? '', 'border')
   const radiusObj = t.radius
   const radiusStr =
     typeof radiusObj === 'object' && radiusObj && 'md' in radiusObj
