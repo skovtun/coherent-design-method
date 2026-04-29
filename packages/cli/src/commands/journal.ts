@@ -275,8 +275,14 @@ export async function journalAggregateCommand(): Promise<void> {
     process.exit(1)
   }
   const sessions = readAllSessions(project.root)
-  if (sessions.length === 0) {
-    console.log(chalk.dim('\n  No journal sessions yet. Run: coherent fix --journal\n'))
+  const runs = readAllRunRecords(project.root)
+  const allRetries = runs.flatMap(r => r.retries)
+
+  // v0.15.1 fix: Only bail when BOTH data sources are empty. Previously
+  // returned early on missing fix-sessions, which silently hid retry
+  // telemetry from .coherent/runs/.
+  if (sessions.length === 0 && allRetries.length === 0) {
+    console.log(chalk.dim('\n  No journal sessions or run records yet. Run: coherent chat / coherent fix --journal\n'))
     return
   }
 
@@ -289,79 +295,80 @@ export async function journalAggregateCommand(): Promise<void> {
     lastSeen: string
     samplePaths: Set<string>
   }
-  const agg: Record<string, AggRow> = {}
-  const sessionTimestamps = sessions.map(s => s.timestamp).sort()
-  for (const session of sessions) {
-    for (const severity of ['error', 'warning', 'info'] as const) {
-      for (const [type, info] of Object.entries(session.byType[severity])) {
-        const key = `${severity}:${type}`
-        if (!agg[key]) {
-          agg[key] = {
-            type,
-            severity,
-            totalCount: 0,
-            sessionCount: 0,
-            firstSeen: session.timestamp,
-            lastSeen: session.timestamp,
-            samplePaths: new Set(),
+  // v0.15.1: wrap fix-sessions render in `if (sessions.length > 0)` so retry
+  // telemetry below still renders on projects that only ran `coherent chat`.
+  if (sessions.length > 0) {
+    const agg: Record<string, AggRow> = {}
+    const sessionTimestamps = sessions.map(s => s.timestamp).sort()
+    for (const session of sessions) {
+      for (const severity of ['error', 'warning', 'info'] as const) {
+        for (const [type, info] of Object.entries(session.byType[severity])) {
+          const key = `${severity}:${type}`
+          if (!agg[key]) {
+            agg[key] = {
+              type,
+              severity,
+              totalCount: 0,
+              sessionCount: 0,
+              firstSeen: session.timestamp,
+              lastSeen: session.timestamp,
+              samplePaths: new Set(),
+            }
           }
+          agg[key].totalCount += info.count
+          agg[key].sessionCount += 1
+          if (session.timestamp < agg[key].firstSeen) agg[key].firstSeen = session.timestamp
+          if (session.timestamp > agg[key].lastSeen) agg[key].lastSeen = session.timestamp
+          for (const sample of info.samples) agg[key].samplePaths.add(sample.path)
         }
-        agg[key].totalCount += info.count
-        agg[key].sessionCount += 1
-        if (session.timestamp < agg[key].firstSeen) agg[key].firstSeen = session.timestamp
-        if (session.timestamp > agg[key].lastSeen) agg[key].lastSeen = session.timestamp
-        for (const sample of info.samples) agg[key].samplePaths.add(sample.path)
       }
     }
-  }
 
-  const severityRank = { error: 0, warning: 1, info: 2 } as const
-  const rows = Object.values(agg).sort((a, b) => {
-    if (severityRank[a.severity] !== severityRank[b.severity]) {
-      return severityRank[a.severity] - severityRank[b.severity]
-    }
-    return b.totalCount - a.totalCount
-  })
+    const severityRank = { error: 0, warning: 1, info: 2 } as const
+    const rows = Object.values(agg).sort((a, b) => {
+      if (severityRank[a.severity] !== severityRank[b.severity]) {
+        return severityRank[a.severity] - severityRank[b.severity]
+      }
+      return b.totalCount - a.totalCount
+    })
 
-  console.log(
-    chalk.cyan(
-      `\n  Aggregating ${sessions.length} session(s) (${sessionTimestamps[0]} \u2192 ${sessionTimestamps[sessionTimestamps.length - 1]})\n`,
-    ),
-  )
-
-  const render = (severity: 'error' | 'warning' | 'info', heading: string, color: (s: string) => string) => {
-    const filtered = rows.filter(r => r.severity === severity).slice(0, 10)
-    if (filtered.length === 0) return
-    console.log(color(`  ${heading}`))
-    for (const row of filtered) {
-      const samples = [...row.samplePaths].slice(0, 3).join(', ')
-      const more = row.samplePaths.size > 3 ? ` +${row.samplePaths.size - 3} more` : ''
-      const label = `${row.type.padEnd(22)}\u00D7${row.totalCount}`
-      const sessionsStr = row.sessionCount > 1 ? chalk.dim(` (${row.sessionCount} sessions)`) : ''
-      console.log(`    ${chalk.dim(label)}${sessionsStr}  ${samples}${more}`)
-    }
-    console.log('')
-  }
-
-  render('error', `Top errors (persistent across ${sessions.length} session(s)):`, chalk.red)
-  render('warning', 'Top warnings:', chalk.yellow)
-  render('info', 'Top info:', chalk.dim)
-
-  const recurring = rows.filter(r => r.sessionCount >= 3 && r.severity !== 'info')
-  if (recurring.length > 0) {
     console.log(
       chalk.cyan(
-        `  ${recurring.length} validator type(s) recurring in 3+ sessions \u2014 candidates for PATTERNS_JOURNAL.md`,
+        `\n  Aggregating ${sessions.length} session(s) (${sessionTimestamps[0]} \u2192 ${sessionTimestamps[sessionTimestamps.length - 1]})\n`,
       ),
     )
-    console.log(chalk.dim('  (Manually draft a PJ-NNN entry with confidence: hypothesis for each.)\n'))
-  }
 
-  // v0.15.0 \u2014 retry telemetry from .coherent/runs (additional signal beyond
-  // post-hoc fix-sessions). Surfaces validators that the AI struggles to
-  // self-fix in-flight: high attempts, low resolved rate.
-  const runs = readAllRunRecords(project.root)
-  const allRetries = runs.flatMap(r => r.retries)
+    const render = (severity: 'error' | 'warning' | 'info', heading: string, color: (s: string) => string) => {
+      const filtered = rows.filter(r => r.severity === severity).slice(0, 10)
+      if (filtered.length === 0) return
+      console.log(color(`  ${heading}`))
+      for (const row of filtered) {
+        const samples = [...row.samplePaths].slice(0, 3).join(', ')
+        const more = row.samplePaths.size > 3 ? ` +${row.samplePaths.size - 3} more` : ''
+        const label = `${row.type.padEnd(22)}\u00D7${row.totalCount}`
+        const sessionsStr = row.sessionCount > 1 ? chalk.dim(` (${row.sessionCount} sessions)`) : ''
+        console.log(`    ${chalk.dim(label)}${sessionsStr}  ${samples}${more}`)
+      }
+      console.log('')
+    }
+
+    render('error', `Top errors (persistent across ${sessions.length} session(s)):`, chalk.red)
+    render('warning', 'Top warnings:', chalk.yellow)
+    render('info', 'Top info:', chalk.dim)
+
+    const recurring = rows.filter(r => r.sessionCount >= 3 && r.severity !== 'info')
+    if (recurring.length > 0) {
+      console.log(
+        chalk.cyan(
+          `  ${recurring.length} validator type(s) recurring in 3+ sessions \u2014 candidates for PATTERNS_JOURNAL.md`,
+        ),
+      )
+      console.log(chalk.dim('  (Manually draft a PJ-NNN entry with confidence: hypothesis for each.)\n'))
+    }
+  } // end of `if (sessions.length > 0)` \u2014 v0.15.1 fix-sessions render scope
+
+  // v0.15.0 \u2014 retry telemetry from .coherent/runs. v0.15.1: runs/allRetries
+  // moved to top of function so we can bail-or-render based on either source.
   if (allRetries.length === 0) return
 
   interface RetryAgg {
