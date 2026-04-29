@@ -80,9 +80,11 @@ describe('writeClaudeSkills', () => {
 })
 
 describe('skill-markdown protocol embed (R5)', () => {
-  it('declares phase_engine_protocol in frontmatter', () => {
+  // v0.15.2 — agentskills.io alignment moved phase_engine_protocol under
+  // metadata.coherent.* (top-level unknown keys are spec-illegal).
+  it('declares phase_engine_protocol under metadata.coherent', () => {
     expect(COHERENT_CHAT_SKILL_BODY).toMatch(
-      new RegExp(`^phase_engine_protocol:\\s*${PHASE_ENGINE_PROTOCOL}\\s*$`, 'm'),
+      new RegExp(`^\\s{4}phase_engine_protocol:\\s*${PHASE_ENGINE_PROTOCOL}\\s*$`, 'm'),
     )
   })
 
@@ -96,8 +98,13 @@ describe('skill-markdown protocol embed (R5)', () => {
     expect(missing, `invocations without --protocol ${PHASE_ENGINE_PROTOCOL}`).toEqual([])
   })
 
-  it('readSkillProtocol parses a well-formed frontmatter value', () => {
+  it('readSkillProtocol parses the new metadata.coherent location', () => {
     expect(readSkillProtocol(COHERENT_CHAT_SKILL_BODY)).toBe(PHASE_ENGINE_PROTOCOL)
+  })
+
+  it('readSkillProtocol still parses legacy top-level frontmatter (backwards compat)', () => {
+    const legacy = `---\nname: coherent-chat\nphase_engine_protocol: ${PHASE_ENGINE_PROTOCOL}\n---\nbody`
+    expect(readSkillProtocol(legacy)).toBe(PHASE_ENGINE_PROTOCOL)
   })
 
   it('readSkillProtocol returns null when frontmatter lacks the key', () => {
@@ -106,6 +113,30 @@ describe('skill-markdown protocol embed (R5)', () => {
 
   it('readSkillProtocol returns null for non-numeric values', () => {
     expect(readSkillProtocol('---\nphase_engine_protocol: not-a-number\n---\nbody')).toBeNull()
+  })
+
+  // v0.15.2 — agentskills.io required + recommended fields
+  it('declares license in frontmatter (agentskills.io recommended)', () => {
+    expect(COHERENT_CHAT_SKILL_BODY).toMatch(/^license:\s*MIT\s*$/m)
+  })
+
+  it('declares compatibility in frontmatter (agentskills.io recommended)', () => {
+    expect(COHERENT_CHAT_SKILL_BODY).toMatch(/^compatibility:\s.+/m)
+  })
+
+  it('description is non-empty and under 1024 chars (agentskills.io required)', () => {
+    const match = COHERENT_CHAT_SKILL_BODY.match(/^description:\s*(.+)$/m)
+    expect(match, 'description: must be present').not.toBeNull()
+    expect(match![1].trim().length).toBeGreaterThan(0)
+    expect(match![1].length).toBeLessThan(1024)
+  })
+
+  it('name is lowercase letters/numbers/hyphens, max 64 chars (agentskills.io required)', () => {
+    const match = COHERENT_CHAT_SKILL_BODY.match(/^name:\s*(.+)$/m)
+    expect(match).not.toBeNull()
+    const name = match![1].trim()
+    expect(name).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/)
+    expect(name.length).toBeLessThanOrEqual(64)
   })
 })
 

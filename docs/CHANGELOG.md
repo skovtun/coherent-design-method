@@ -11,6 +11,53 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.15.2] — 2026-04-29
+
+### Added — agentskills.io format compliance for `coherent-chat` skill
+
+Coherent's `/coherent-chat` skill now follows the [agentskills.io](https://agentskills.io/specification) Agent Skills standard. The standard is supported by Claude Code, GitHub Copilot, Hermes Agent, and OpenAI's Skills (beta) — meaning a properly-formatted skill is portable across tools instead of Claude-Code-specific.
+
+**SKILL.md frontmatter changes:**
+
+```diff
+ ---
+ name: coherent-chat
+-description: Coherent Design Method skill — generate multi-page UI from a prompt inside Claude Code.
+-phase_engine_protocol: 2
++description: Generate and modify Coherent Design Method Next.js UIs by driving the Coherent CLI phase rail. Use in a Coherent project when asked to build, generate, add, update, or remove pages/components without a direct API key.
++license: MIT
++compatibility: Requires coherent CLI on PATH, Node 18+, filesystem read/write, shell or terminal execution, and a Coherent project root. Optimized for Claude Code; portable to other agents that follow the agentskills.io standard with equivalent shell/file tools.
++metadata:
++  coherent:
++    phase_engine_protocol: 2
+ ---
+```
+
+Top-level unknown keys (like the old `phase_engine_protocol:`) violate strict agentskills.io validators. Moving the field under `metadata.coherent.*` is the spec-clean home for vendor-specific extensions. `description` was expanded to include "when to use it" guidance per the spec recommendation.
+
+### Backwards compatibility
+
+`readSkillProtocol()` now reads both locations: prefers `metadata.coherent.phase_engine_protocol` (new) but falls back to top-level `phase_engine_protocol:` (legacy ≤v0.15.1) for one release. Existing installed skills keep working until the next `coherent update` regenerates them in the new shape.
+
+### Codex pre-implementation gate
+
+Codex consult verdict: **Align Now** — the skill was already 90% compliant, format compliance is 0.5-1d work. Concrete distribution upside:
+- **Claude Code:** already works.
+- **GitHub Copilot:** explicitly supports `.claude/skills` and `.agents/skills`.
+- **Hermes Agent:** advertises agentskills.io compatibility, scans external dirs.
+- **OpenAI / ChatGPT Skills:** beta support follows Agent Skills.
+
+### Internal
+
+- Tests: 1704 passing (+5 new — metadata.coherent location, legacy backwards compat, license/compatibility/description/name spec-required fields).
+- Affected files: `packages/cli/src/utils/claude-code.ts`.
+
+### Not breaking
+
+The frontmatter shape changed but the dual-location reader keeps installed skills working. The new shape is what fresh `coherent init` / `coherent update` writes; old installed skills auto-upgrade on next `coherent update` or are read in legacy mode.
+
+---
+
 ## [0.15.1] — 2026-04-29
 
 ### Fixed — `coherent journal aggregate` now renders retry telemetry on chat-only projects
