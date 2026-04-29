@@ -14,6 +14,7 @@ import { pickGoldenPatterns } from '../../agents/golden-patterns.js'
 import { buildProjectContextFromRoot } from './project-context.js'
 import { retrieveWikiContext } from './wiki-context.js'
 import { readPreferences, renderPreferencesBlock } from '../../utils/preferences.js'
+import { renderVoiceDirective } from './voice-directive.js'
 
 export interface BuildModificationPromptOptions {
   isExpandedPageRequest?: boolean
@@ -78,6 +79,9 @@ For editing an existing shared component use type "modify-layout-block" with tar
   // v0.15.3 — inject user design preferences (~/.coherent/preferences.json).
   // Empty when no prefs configured — contributes nothing to the prompt.
   const userPrefs = renderPreferencesBlock(readPreferences())
+  // v0.16.0 — inject project-level voice profile (config.voice). Parallel
+  // to atmosphere (visual) but for COPY. Empty when no voice configured.
+  const voiceDirective = renderVoiceDirective(config.voice)
   // Use type-specific quality rules instead of legacy DESIGN_QUALITY composite.
   // Prefer caller-supplied pageType (skill rail passes it from the plan); fall
   // back to route inference when absent (chat rail's short-message case).
@@ -98,6 +102,7 @@ ${sharedSection}
 ${designThinking}
 ${coreRules}
 ${userPrefs}
+${voiceDirective}
 ${designQuality}
 ${visualDepth}
 ${contextualRules}

@@ -409,6 +409,72 @@ export const FeaturesSchema = z.object({
 export type Features = z.infer<typeof FeaturesSchema>
 
 // ============================================================================
+// VOICE PROFILE
+// ============================================================================
+
+/**
+ * Voice profile — first-class generation constraint controlling COPY in
+ * generated UIs (CTAs, labels, empty states, error messages, pricing
+ * language). Parallel to atmosphere (which controls VISUAL).
+ *
+ * v0.16.0 (Rollur borrow): codex pre-impl gate verdict: highest leverage
+ * because it touches every page's surface text. Most "AI slop" complaints
+ * trace back to generic copy ("Welcome to your dashboard!", "Click here
+ * to get started") that no atmosphere or constraint catches today.
+ *
+ * All fields optional so projects with no voice opted in stay neutral.
+ * When set, voice gets injected into the modification prompt as a
+ * "VOICE DIRECTIVE" block, similar to how atmosphere flows today.
+ */
+export const VoiceProfileSchema = z.object({
+  /**
+   * Single-phrase tone descriptor. Conventional values:
+   *   "confident-direct" | "warm-personal" | "editorial-detached" |
+   *   "playful-builder" | "neutral-utility" | "premium-restrained"
+   * Free-form allowed — AI interprets unknown values from context.
+   */
+  tone: z.string().optional(),
+
+  /**
+   * Imperative copywriting rules. Examples:
+   *   "Plain English. No hedging."
+   *   "Lead with the value, not the process."
+   *   "Numbers, dates, timelines — never 'starting from'."
+   * Each rule is one-line directive. AI follows verbatim.
+   */
+  copyRules: z.array(z.string()).optional(),
+
+  /**
+   * Words/phrases AI must NOT generate. Examples:
+   *   ["amazing", "revolutionary", "delve", "leverage", "robust"]
+   * Catches AI-slop vocabulary that passes visual review but tanks
+   * brand voice. Validator-style hard ban.
+   */
+  avoidWords: z.array(z.string()).optional(),
+
+  /**
+   * CTA style preference. Conventional values:
+   *   "imperative-action" — "Get pricing", "Start free trial"
+   *   "value-first" — "See your number", "Skip the sales call"
+   *   "minimal" — "Continue", "Next"
+   *   "soft-invite" — "Take a look", "Try it"
+   * Affects every Button label, Link CTA, form submit text.
+   */
+  ctaStyle: z.string().optional(),
+
+  /**
+   * Transparency / trust rules. Examples:
+   *   "Show the cost upfront. No 'request a demo'."
+   *   "Name the trade-off. If a feature is beta, say beta."
+   *   "Quiet confidence over hype."
+   * Particularly important for pricing pages, security claims, FAQ.
+   */
+  transparencyRules: z.array(z.string()).optional(),
+})
+
+export type VoiceProfile = z.infer<typeof VoiceProfileSchema>
+
+// ============================================================================
 // MAIN CONFIG
 // ============================================================================
 
@@ -441,6 +507,13 @@ export const DesignSystemConfigSchema = z.object({
     defaultMode: z.enum(['light', 'dark', 'system']).default('dark'),
     allowModeToggle: z.boolean().default(true),
   }),
+
+  /**
+   * v0.16.0 — voice profile for COPY generation (parallel to atmosphere
+   * for VISUAL). When present, gets injected into AI prompts as a VOICE
+   * DIRECTIVE block. Optional; absent voice = AI uses its defaults.
+   */
+  voice: VoiceProfileSchema.optional(),
 
   // Components registry
   components: z.array(ComponentDefinitionSchema),
