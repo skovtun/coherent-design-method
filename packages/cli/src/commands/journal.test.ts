@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readdirSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { pruneJournalSessions, parseRunRetries } from './journal.js'
+import { pruneJournalSessions, parseRunRetries, aggregateRetries, type ParsedRetry } from './journal.js'
 
 describe('pruneJournalSessions', () => {
   let projectRoot: string
@@ -189,5 +189,107 @@ durationMs: 5000
     expect(result?.retries).toHaveLength(2)
     expect(result?.retries[0].page).toBe('notifications')
     expect(result?.retries[1].page).toBe('calendar')
+  })
+})
+
+// v0.15.4 — codex flagged that the inline retry aggregator was using
+// page-level `resolved` for every initial validator, which conflated
+// per-validator outcomes. Test the extracted aggregateRetries() with
+// the exact mixed scenario codex described.
+describe('aggregateRetries (v0.15.4 per-validator resolution)', () => {
+  const makeRetry = (over: Partial<ParsedRetry>): ParsedRetry => ({
+    page: 'p',
+    pageType: 'app',
+    attempts: 1,
+    resolved: false,
+    initialErrors: [],
+    finalErrors: [],
+    ...over,
+  })
+
+  it('returns empty when no retries', () => {
+    expect(aggregateRetries([])).toEqual([])
+  })
+
+  it('counts a single resolved retry correctly', () => {
+    const rows = aggregateRetries([
+      makeRetry({
+        initialErrors: [{ type: 'A', count: 1 }],
+        finalErrors: [],
+        attempts: 1,
+        resolved: true,
+      }),
+    ])
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ type: 'A', pageCount: 1, resolvedPageCount: 1, avgAttempts: 1 })
+  })
+
+  it('counts a single unresolved retry correctly', () => {
+    const rows = aggregateRetries([
+      makeRetry({
+        initialErrors: [{ type: 'A', count: 1 }],
+        finalErrors: [{ type: 'A', count: 1 }],
+        attempts: 2,
+        resolved: false,
+      }),
+    ])
+    expect(rows[0]).toMatchObject({ pageCount: 1, resolvedPageCount: 0, avgAttempts: 2 })
+  })
+
+  // The exact codex-flagged scenario: page started with A+B,
+  // ended with only B. A must be resolved, B must be unresolved.
+  // Old aggregator used page-level resolved=false → both unresolved.
+  it('mixed initial/final: per-validator resolution is correct', () => {
+    const rows = aggregateRetries([
+      makeRetry({
+        initialErrors: [
+          { type: 'A', count: 1 },
+          { type: 'B', count: 1 },
+        ],
+        finalErrors: [{ type: 'B', count: 1 }], // A resolved, B persisted
+        attempts: 2,
+        resolved: false, // page-level: there are still errors, so not "fully resolved"
+      }),
+    ])
+    const a = rows.find(r => r.type === 'A')!
+    const b = rows.find(r => r.type === 'B')!
+    expect(a.resolvedPageCount).toBe(1) // A no longer in finalErrors
+    expect(b.resolvedPageCount).toBe(0) // B still in finalErrors
+    expect(a.pageCount).toBe(1)
+    expect(b.pageCount).toBe(1)
+  })
+
+  it('aggregates the same validator across multiple pages', () => {
+    const rows = aggregateRetries([
+      makeRetry({ page: 'p1', initialErrors: [{ type: 'A', count: 1 }], finalErrors: [], attempts: 1 }),
+      makeRetry({
+        page: 'p2',
+        initialErrors: [{ type: 'A', count: 2 }],
+        finalErrors: [{ type: 'A', count: 1 }],
+        attempts: 2,
+      }),
+    ])
+    const a = rows[0]
+    expect(a.type).toBe('A')
+    expect(a.pageCount).toBe(2)
+    expect(a.resolvedPageCount).toBe(1) // only p1 cleared A
+    expect(a.totalRetryCount).toBe(3) // 1 + 2 initial counts
+    expect(a.avgAttempts).toBe(1.5)
+  })
+
+  it('deduplicates same validator type within one retry entry', () => {
+    // Two initialErrors entries for the same type (e.g., grouped by line).
+    // Should count the page once, not twice.
+    const rows = aggregateRetries([
+      makeRetry({
+        initialErrors: [
+          { type: 'A', count: 1 },
+          { type: 'A', count: 2 },
+        ],
+        finalErrors: [],
+        attempts: 1,
+      }),
+    ])
+    expect(rows[0].pageCount).toBe(1)
   })
 })
