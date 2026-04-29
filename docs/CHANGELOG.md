@@ -11,6 +11,81 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.17.1] — 2026-04-29
+
+### Fixed — viewer feedback after v0.17.0 ship (7 user-reported issues)
+
+User reviewed v0.17.0 live and surfaced 7 issues. All addressed in this hotfix.
+
+#### 1. Two-level navigation with dynamic component lists
+
+v0.17.0 had only one nav level (top groups + flat subitems). Restored two-level structure:
+
+- Top-level groups (01 Foundations, 02 Components, 03 Patterns, 04 Voice) act as headers — clickable to overview pages.
+- **Active group auto-expands** to show its children. Other groups stay collapsed (no hover-only behavior — codex consult flagged that as bad discoverability).
+- **Components list dynamically fetched** from `/api/design-system/config` and alphabetized — same pattern the v0.16 layout used. So `02 Components` expands to "All components" + Button, Input, Card, etc.
+- **Shared blocks list** dynamically fetched from `/api/design-system/shared-components` for `03 Patterns`.
+- Foundations gets static children (Color, Typography, Spacing, All tokens).
+- Voice gets static children (Principles, Recommendations, Documentation).
+
+Codex pre-impl gate quote: *"Make expansion deterministic, not hover-only. Active group should auto-expand. Every group has overview route."*
+
+#### 2. Theme toggle moved to top-right of main content
+
+Was buried in sidebar footer. Now lives in a sticky top header bar (right-aligned, 8×8 button with subtle border). Mobile keeps it in the same right spot alongside the menu hamburger.
+
+#### 3. "C" logo letter removed
+
+Brand block now shows project name + "Design System" subtitle only. The placeholder `C` letter wasn't actual branding — felt like a stub.
+
+#### 4. "Back to App" link in sidebar
+
+Top of sidebar, above brand, with a divider below. Subtle text-muted treatment — chrome, not part of the IA. Mobile drawer also surfaces it at top.
+
+#### 5. Reduced content padding
+
+`px-6 py-12 lg:px-10 lg:py-16` → `px-5 py-8 lg:px-8 lg:py-10` (~40% vertical reduction). Content breathes less; less wasted scroll on quick tasks.
+
+#### 6. Reduced mono font usage (font-laconic pass)
+
+Mono was scattered across nav labels, group headers, breadcrumbs, brand subtitle. Now mono is only on:
+- Number prefixes (`01`, `02`)
+- Version/date metadata in sidebar footer
+- Code snippets in component pages
+
+Everything else uses the project sans font: nav labels, group names, headings, breadcrumbs, brand subtitle. Codex consult: *"That directly addresses 'mixed fonts confuse' without removing the useful technical tone entirely."*
+
+#### 7. Sidebar harmonizes with dark theme
+
+v0.17.0 hard-coded `bg-[#0a0a0a]` for the sidebar in both modes. In dark theme this clashed with the project's actual dark `bg-background` / `bg-card` tokens (which can be any shade per project).
+
+Hybrid strategy per codex consult:
+
+- **Light mode**: sidebar stays `#0a0a0a` (inverted rail — distinctive, signals "design system meta-shell").
+- **Dark mode**: sidebar uses `bg-card` token + project border, so it belongs to the same palette as the content area.
+
+`dark:bg-card dark:border-r dark:border-border dark:text-foreground` does the work via Tailwind's dark-mode classes.
+
+### Codex pre-implementation gate
+
+Verdict: aligned with all 7 fixes. Concrete refinements applied:
+- Sidebar hybrid strategy (light=raw, dark=token) instead of always-token or always-raw
+- Auto-expand active group (no hover-only)
+- Every group has an overview route (Foundations → /tokens, Components → /components, Patterns → /shared, Voice → /voice)
+- Sort components alphabetically in dynamic list
+- Back to App as chrome above the brand block, not inside the IA
+
+### Known limitation (deferred to v0.17.2)
+
+Font consistency across the **dynamic home page** and **tokens pages** wasn't touched in this hotfix — those routes still have heavy mono usage (eyebrows, stat labels). Sidebar layout is the chrome the user spends most time in; that's now consistent. Per-page polish ships next.
+
+### Internal
+
+- Tests: 1746 passing (no test changes — viewer is template content).
+- Affected file: `packages/core/src/generators/templates/design-system/design-system-layout.ts` (rewritten end-to-end).
+
+---
+
 ## [0.17.0] — 2026-04-29
 
 ### Added — `/design-system/` viewer redesign per direction doc
