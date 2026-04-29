@@ -19,10 +19,16 @@ import { homedir } from 'os'
 import { resolve } from 'path'
 
 // Resolved lazily on each call so test overrides flow through. The
-// COHERENT_HOME env var lets tests redirect the store to a temp dir
-// without monkey-patching `os.homedir()` (Node makes it non-configurable
-// so vi.spyOn fails). Production callers never set COHERENT_HOME.
-const storeDir = (): string => resolve(process.env.COHERENT_HOME || homedir(), '.coherent')
+// COHERENT_TEST_HOME env var lets tests redirect the store to a temp
+// dir without monkey-patching `os.homedir()` (Node makes it non-
+// configurable so vi.spyOn fails on macOS). Production callers never
+// set COHERENT_TEST_HOME.
+//
+// v0.15.5: renamed from COHERENT_HOME to COHERENT_TEST_HOME because
+// "COHERENT_HOME" is the kind of name a user would assume points to
+// the data dir directly, not a parent that gets `.coherent` appended.
+// Reserving COHERENT_HOME for a future user-facing data-dir override.
+const storeDir = (): string => resolve(process.env.COHERENT_TEST_HOME || homedir(), '.coherent')
 const storeFile = (): string => resolve(storeDir(), 'preferences.json')
 
 /**
@@ -147,7 +153,14 @@ export function clearPreferences(key?: string): PreferenceWriteResult {
  *
  * Block is small by design (~50-150 tokens typical). Format is
  * directive-style so the AI treats it as constraints, not flavor text.
+ *
+ * v0.15.5: render unknown design.* keys generically (codex flagged the
+ * accept-don't-render disconnect). Setting `coherent prefs set
+ * design.tone editorial` now actually appears in the prompt instead of
+ * silently disappearing. Forward-compat for fields we may add later.
  */
+const KNOWN_KEYS = ['style', 'density', 'avoid', 'notes'] as const
+
 export function renderPreferencesBlock(prefs: Preferences): string {
   const d = prefs.design
   if (!d) return ''
@@ -163,6 +176,18 @@ export function renderPreferencesBlock(prefs: Preferences): string {
   }
   if (typeof d.notes === 'string' && d.notes.trim()) {
     lines.push(`- Notes: ${d.notes.trim()}`)
+  }
+  // v0.15.5 — generic render of unknown design.* keys. Strings render
+  // as-is, arrays join with commas, anything else (objects, numbers)
+  // is silently skipped to avoid leaking malformed config into prompts.
+  for (const [k, v] of Object.entries(d)) {
+    if ((KNOWN_KEYS as readonly string[]).includes(k)) continue
+    const label = k.charAt(0).toUpperCase() + k.slice(1)
+    if (typeof v === 'string' && v.trim()) {
+      lines.push(`- ${label}: ${v.trim()}`)
+    } else if (Array.isArray(v) && v.length > 0 && v.every(item => typeof item === 'string')) {
+      lines.push(`- ${label}: ${(v as string[]).join(', ')}`)
+    }
   }
   if (lines.length === 0) return ''
   return ['## USER DESIGN PREFERENCES', '', ...lines, ''].join('\n')

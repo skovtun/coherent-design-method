@@ -80,11 +80,11 @@ describe('writeClaudeSkills', () => {
 })
 
 describe('skill-markdown protocol embed (R5)', () => {
-  // v0.15.2 — agentskills.io alignment moved phase_engine_protocol under
-  // metadata.coherent.* (top-level unknown keys are spec-illegal).
-  it('declares phase_engine_protocol under metadata.coherent', () => {
+  // v0.15.5 — agentskills.io spec literally: metadata is "a map from string
+  // keys to string values". v0.15.2's nested shape violated that. Now flat.
+  it('declares coherent_phase_engine_protocol as flat string under metadata', () => {
     expect(COHERENT_CHAT_SKILL_BODY).toMatch(
-      new RegExp(`^\\s{4}phase_engine_protocol:\\s*${PHASE_ENGINE_PROTOCOL}\\s*$`, 'm'),
+      new RegExp(`^\\s{2}coherent_phase_engine_protocol:\\s*"${PHASE_ENGINE_PROTOCOL}"\\s*$`, 'm'),
     )
   })
 
@@ -98,13 +98,18 @@ describe('skill-markdown protocol embed (R5)', () => {
     expect(missing, `invocations without --protocol ${PHASE_ENGINE_PROTOCOL}`).toEqual([])
   })
 
-  it('readSkillProtocol parses the new metadata.coherent location', () => {
+  it('readSkillProtocol parses the v0.15.5+ flat metadata location', () => {
     expect(readSkillProtocol(COHERENT_CHAT_SKILL_BODY)).toBe(PHASE_ENGINE_PROTOCOL)
   })
 
-  it('readSkillProtocol still parses legacy top-level frontmatter (backwards compat)', () => {
-    const legacy = `---\nname: coherent-chat\nphase_engine_protocol: ${PHASE_ENGINE_PROTOCOL}\n---\nbody`
-    expect(readSkillProtocol(legacy)).toBe(PHASE_ENGINE_PROTOCOL)
+  it('readSkillProtocol parses legacy v0.15.2-v0.15.4 nested metadata.coherent', () => {
+    const legacyNested = `---\nname: coherent-chat\nmetadata:\n  coherent:\n    phase_engine_protocol: ${PHASE_ENGINE_PROTOCOL}\n---\nbody`
+    expect(readSkillProtocol(legacyNested)).toBe(PHASE_ENGINE_PROTOCOL)
+  })
+
+  it('readSkillProtocol parses legacy ≤v0.15.1 top-level frontmatter', () => {
+    const legacyTop = `---\nname: coherent-chat\nphase_engine_protocol: ${PHASE_ENGINE_PROTOCOL}\n---\nbody`
+    expect(readSkillProtocol(legacyTop)).toBe(PHASE_ENGINE_PROTOCOL)
   })
 
   it('readSkillProtocol returns null when frontmatter lacks the key', () => {

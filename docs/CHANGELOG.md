@@ -11,6 +11,60 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.15.5] — 2026-04-29
+
+### Fixed — three deferred codex findings from v0.15.0-v0.15.3 review
+
+Codex's post-ship review flagged three issues we deferred for verification. All three resolved in this release.
+
+#### 1. agentskills.io `metadata` spec violation (v0.15.2 ship was non-compliant)
+
+After spec verification, codex was correct. The agentskills.io specification literally states:
+
+> The optional `metadata` field:
+> * **A map from string keys to string values**
+
+v0.15.2's nested shape `metadata.coherent.phase_engine_protocol: 2` violated this twice: nested object instead of flat map, number instead of string. Now flattened:
+
+```diff
+ metadata:
+-  coherent:
+-    phase_engine_protocol: 2
++  coherent_phase_engine_protocol: "2"
+```
+
+`readSkillProtocol()` now reads three locations in priority order:
+1. **v0.15.5+:** flat `metadata.coherent_phase_engine_protocol: "N"` (spec-compliant)
+2. **v0.15.2-v0.15.4:** nested `metadata.coherent.phase_engine_protocol: N` (legacy, non-compliant but readable)
+3. **≤v0.15.1:** top-level `phase_engine_protocol: N` (pre-spec-alignment)
+
+Existing installed skills keep working until next `coherent update` regenerates them.
+
+#### 2. `COHERENT_HOME` → `COHERENT_TEST_HOME` rename
+
+Codex flagged that `COHERENT_HOME=/x` resolving to `/x/.coherent` (parent + `.coherent` appendix) is the kind of semantics users would not expect — `COHERENT_HOME` reads like "the data dir". Renamed to `COHERENT_TEST_HOME` (clearly internal) so we can reserve `COHERENT_HOME` for a future user-facing override that points directly at the data dir.
+
+Internal-only rename. No public API consumed `COHERENT_HOME`.
+
+#### 3. Unknown `design.*` prefs keys now actually inject into the prompt
+
+`coherent prefs set design.tone editorial` was previously stored, displayed by `prefs show`, but **silently NOT** injected into the AI prompt — only the four hardcoded keys (`style`, `density`, `avoid`, `notes`) made it through. Codex called this an accept-don't-render disconnect.
+
+Fixed: `renderPreferencesBlock()` now iterates all `design.*` keys, rendering string values as-is and string arrays joined by commas. Non-string scalars and nested objects are still skipped (avoid leaking malformed config into prompts). Forward-compatible for fields we add later — set `coherent prefs set design.typefaces "inter, serif"` today and it appears in the next chat run.
+
+### Internal
+
+- Tests: 1731 passing (+5 new — flat-string metadata reader, legacy nested reader, legacy top-level reader, unknown-string-key render, unknown-array-key render, malformed-value skip).
+- Affected files: `packages/cli/src/utils/claude-code.ts` (flat metadata + triple-location reader), `packages/cli/src/utils/preferences.ts` (env rename + generic render), corresponding tests.
+
+### Not breaking
+
+- `metadata` shape is breaking *for the spec*, not for users — installed v0.15.2-v0.15.4 skills still parse via the legacy reader. The change makes us spec-compliant where we weren't.
+- `COHERENT_TEST_HOME` rename: env var was never publicly documented, only used internally for test isolation.
+- Unknown `design.*` keys: behavior change is additive (more fields now reach the prompt), no existing config breaks.
+
+---
+
 ## [0.15.4] — 2026-04-29
 
 ### Fixed — three correctness bugs flagged by codex review of v0.15.x
