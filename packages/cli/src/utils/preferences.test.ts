@@ -3,19 +3,19 @@ import { mkdtempSync, rmSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
-// preferences.ts honors COHERENT_HOME for test isolation — see file header.
+// preferences.ts honors COHERENT_TEST_HOME for test isolation — see file header.
 let tmpHome: string
-const originalCoherentHome = process.env.COHERENT_HOME
+const originalCoherentHome = process.env.COHERENT_TEST_HOME
 
 beforeEach(() => {
   tmpHome = mkdtempSync(join(tmpdir(), 'coherent-prefs-'))
-  process.env.COHERENT_HOME = tmpHome
+  process.env.COHERENT_TEST_HOME = tmpHome
 })
 
 afterEach(() => {
   rmSync(tmpHome, { recursive: true, force: true })
-  if (originalCoherentHome === undefined) delete process.env.COHERENT_HOME
-  else process.env.COHERENT_HOME = originalCoherentHome
+  if (originalCoherentHome === undefined) delete process.env.COHERENT_TEST_HOME
+  else process.env.COHERENT_TEST_HOME = originalCoherentHome
 })
 
 import {
@@ -102,10 +102,10 @@ describe('preferences store', () => {
 
   // v0.15.4 — write failure surfacing
   it('setPreference returns written:false when filesystem fails', () => {
-    // Point COHERENT_HOME at a path that cannot be created (a file, not a dir).
+    // Point COHERENT_TEST_HOME at a path that cannot be created (a file, not a dir).
     const blockerFile = join(tmpHome, 'blocker')
     writeFileSync(blockerFile, '', 'utf-8')
-    process.env.COHERENT_HOME = blockerFile // file at this path → mkdir fails
+    process.env.COHERENT_TEST_HOME = blockerFile // file at this path → mkdir fails
     const { written } = setPreference('design.density', 'compact')
     expect(written).toBe(false)
   })
@@ -141,5 +141,46 @@ describe('preferences store', () => {
     expect(block).not.toContain('Style preference')
     expect(block).not.toContain('Avoid')
     expect(block).not.toContain('Notes')
+  })
+
+  // v0.15.5 — codex flagged that unknown design.* keys were stored
+  // and shown but silently NOT injected into the prompt.
+  it('renderPreferencesBlock includes unknown string design.* keys (forward-compat)', () => {
+    const block = renderPreferencesBlock({
+      version: 1,
+      design: { tone: 'editorial', mood: 'dim' } as Record<string, unknown>,
+    })
+    expect(block).toContain('## USER DESIGN PREFERENCES')
+    expect(block).toContain('Tone: editorial')
+    expect(block).toContain('Mood: dim')
+  })
+
+  it('renderPreferencesBlock includes unknown string-array design.* keys', () => {
+    const block = renderPreferencesBlock({
+      version: 1,
+      design: { typefaces: ['inter', 'serif'] } as Record<string, unknown>,
+    })
+    expect(block).toContain('Typefaces: inter, serif')
+  })
+
+  it('renderPreferencesBlock skips unknown keys with non-string/non-array-of-string values', () => {
+    const block = renderPreferencesBlock({
+      version: 1,
+      design: {
+        weirdNumber: 42,
+        weirdObject: { nested: 'thing' },
+        emptyString: '',
+        mixedArray: ['ok', 7],
+      } as Record<string, unknown>,
+    })
+    expect(block).toBe('') // none of the unknown keys are renderable
+  })
+
+  it('setPreference persists unknown keys to the file (forward-compat)', () => {
+    setPreference('design.tone', 'editorial')
+    const after = readPreferences()
+    expect((after.design as Record<string, unknown>)?.tone).toBe('editorial')
+    // and they survive a render
+    expect(renderPreferencesBlock(after)).toContain('Tone: editorial')
   })
 })
