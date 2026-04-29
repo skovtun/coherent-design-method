@@ -1,5 +1,11 @@
 /**
- * Design System home page — Console skin. Placeholders: {{COMPONENTS_JSON}}, {{TOKENS_JSON}}.
+ * Design System home page — v0.17.0 redesign.
+ *
+ * Editorial-first per direction doc: opens with one paragraph of prose
+ * before any preview. Hero stats become a quiet aside, not the headline.
+ *
+ * Placeholders: {{COMPONENTS_JSON}}, {{TOKENS_JSON}}, {{PROJECT_NAME}},
+ * {{HAS_VOICE}} (string boolean from generator).
  */
 export const DESIGN_SYSTEM_HOME = `'use client'
 import Link from 'next/link'
@@ -13,14 +19,8 @@ const KNOWN_NAMES: Record<string, string> = {
   tooltip: 'Tooltip', 'radio-group': 'RadioGroup', slider: 'Slider',
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
-      <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
-      {children}
-    </div>
-  )
-}
+const PROJECT_NAME = '{{PROJECT_NAME}}'
+const HAS_VOICE = {{HAS_VOICE}}
 
 export default function DesignSystemPage() {
   const components = {{COMPONENTS_JSON}}
@@ -31,101 +31,108 @@ export default function DesignSystemPage() {
   const radiusCount = tokens?.radius ? Object.keys(tokens.radius).length : 0
   const tokenTotal = colorCount + spacingCount + radiusCount
 
-  const stats = [
-    { label: 'components', value: components.length, hint: 'view all', href: '/design-system/components' },
-    { label: 'tokens', value: tokenTotal, hint: 'colors · spacing · radius', href: '/design-system/tokens' },
-    { label: 'docs', value: '∞', hint: 'usage & practices', href: '/design-system/docs' },
-  ]
-
   return (
-    <div className="flex flex-col gap-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-[28px] font-medium leading-tight tracking-[-0.02em] text-foreground">
-          Design System
+    <article className="space-y-16">
+      {/* Editorial intro */}
+      <header className="space-y-4">
+        <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+          {PROJECT_NAME} · design system
+        </div>
+        <h1 className="text-[40px] font-semibold leading-[1.05] tracking-[-0.02em] text-foreground md:text-[48px]">
+          Foundations and components used across {PROJECT_NAME}.
         </h1>
-        <p className="mt-1 text-[13.5px] text-muted-foreground">
-          Interactive component library · tokens · recent activity.
+        <p className="max-w-[60ch] text-[16px] leading-[1.6] text-muted-foreground">
+          A working reference, not a sketch. Every token, component, and pattern
+          below is what ships in production — copy, paste, and stay in sync.
         </p>
-      </div>
+      </header>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        {stats.map((s) => (
-          <Link
-            key={s.label}
-            href={s.href}
-            className="group rounded-md border border-border bg-card p-4 outline-none transition-colors hover:border-primary/50 hover:bg-muted"
-          >
-            <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
-              {s.label}
-            </div>
-            <div className="mt-1.5 font-mono text-[28px] font-medium leading-none tracking-tight tabular-nums text-foreground">
-              {s.value}
-            </div>
-            <div className="mt-2 flex items-center justify-between font-mono text-[10.5px] text-muted-foreground/70">
-              <span>{s.hint}</span>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-primary"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-            </div>
-          </Link>
-        ))}
-      </div>
+      {/* Section index — numbered top-level groups per direction doc */}
+      <section className="grid gap-4 md:grid-cols-2">
+        <Link
+          href="/design-system/tokens/colors"
+          className="group block rounded-lg border border-border bg-card p-6 outline-none transition-colors hover:border-foreground/30"
+        >
+          <div className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground">01 — Foundations</div>
+          <div className="mt-2 text-[20px] font-semibold leading-tight tracking-tight text-foreground">Color, Type, Spacing</div>
+          <div className="mt-1 text-[14px] text-muted-foreground">{tokenTotal} tokens · light + dark palettes</div>
+          <div className="mt-4 inline-flex items-center gap-1.5 font-mono text-[12px] text-foreground/80 group-hover:text-foreground">
+            see foundations
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="transition-transform group-hover:translate-x-0.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </div>
+        </Link>
 
-      {/* Components Grid */}
-      <div>
-        <SectionLabel>components</SectionLabel>
+        <Link
+          href="/design-system/components"
+          className="group block rounded-lg border border-border bg-card p-6 outline-none transition-colors hover:border-foreground/30"
+        >
+          <div className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground">02 — Components</div>
+          <div className="mt-2 text-[20px] font-semibold leading-tight tracking-tight text-foreground">{components.length} primitives</div>
+          <div className="mt-1 text-[14px] text-muted-foreground">Button, Input, Card, Dialog, …</div>
+          <div className="mt-4 inline-flex items-center gap-1.5 font-mono text-[12px] text-foreground/80 group-hover:text-foreground">
+            see components
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="transition-transform group-hover:translate-x-0.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </div>
+        </Link>
+
+        <Link
+          href="/design-system/shared"
+          className="group block rounded-lg border border-border bg-card p-6 outline-none transition-colors hover:border-foreground/30"
+        >
+          <div className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground">03 — Patterns</div>
+          <div className="mt-2 text-[20px] font-semibold leading-tight tracking-tight text-foreground">Shared blocks</div>
+          <div className="mt-1 text-[14px] text-muted-foreground">Header, footer, layout assemblies</div>
+          <div className="mt-4 inline-flex items-center gap-1.5 font-mono text-[12px] text-foreground/80 group-hover:text-foreground">
+            see patterns
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="transition-transform group-hover:translate-x-0.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </div>
+        </Link>
+
+        <Link
+          href={HAS_VOICE ? '/design-system/voice' : '/design-system/recommendations'}
+          className="group block rounded-lg border border-border bg-card p-6 outline-none transition-colors hover:border-foreground/30"
+        >
+          <div className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground">04 — Voice</div>
+          <div className="mt-2 text-[20px] font-semibold leading-tight tracking-tight text-foreground">
+            {HAS_VOICE ? 'How this product talks' : 'Set a voice profile'}
+          </div>
+          <div className="mt-1 text-[14px] text-muted-foreground">
+            {HAS_VOICE ? 'Tone, copywriting rules, banned words' : 'Configure voice in design-system.config.ts'}
+          </div>
+          <div className="mt-4 inline-flex items-center gap-1.5 font-mono text-[12px] text-foreground/80 group-hover:text-foreground">
+            {HAS_VOICE ? 'see voice' : 'how to set voice'}
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="transition-transform group-hover:translate-x-0.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </div>
+        </Link>
+      </section>
+
+      {/* Components quick grid (kept from prior version, simplified) */}
+      <section>
+        <div className="mb-6 flex items-baseline justify-between">
+          <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-foreground">Component primitives</h2>
+          <Link href="/design-system/components" className="font-mono text-[12px] text-muted-foreground transition-colors hover:text-foreground">all components →</Link>
+        </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {components.map((comp: any) => (
+          {components.slice(0, 9).map((comp: any) => (
             <Link
               key={comp.id}
               href={\`/design-system/components/\${comp.id}\`}
-              className="group flex items-center justify-between rounded-md border border-border bg-card px-4 py-3 outline-none transition-colors hover:border-primary/50 hover:bg-muted"
+              className="group flex items-center justify-between rounded-md border border-border bg-card px-4 py-3 outline-none transition-colors hover:border-foreground/30"
             >
               <div className="min-w-0">
-                <div className="truncate text-[13.5px] font-medium text-foreground">
+                <div className="truncate text-[14px] font-medium text-foreground">
                   {KNOWN_NAMES[comp.id] || comp.name}
                 </div>
-                <div className="mt-0.5 font-mono text-[10.5px] text-muted-foreground/70">
+                <div className="mt-0.5 font-mono text-[10.5px] text-muted-foreground">
                   {(comp.variants?.length ?? 0)} variant{comp.variants?.length === 1 ? '' : 's'} · {(comp.sizes?.length ?? 0)} size{comp.sizes?.length === 1 ? '' : 's'}
                 </div>
               </div>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="ml-2 shrink-0 text-muted-foreground/60 transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-primary"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="ml-2 shrink-0 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
             </Link>
           ))}
         </div>
-      </div>
-
-      {/* Quick Links */}
-      <div>
-        <SectionLabel>quick links</SectionLabel>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <Link
-            href="/design-system/tokens/colors"
-            className="group flex items-center justify-between rounded-md border border-border bg-card p-5 outline-none transition-colors hover:border-primary/50 hover:bg-muted"
-          >
-            <div>
-              <div className="text-[14px] font-medium text-foreground">Color Tokens</div>
-              <div className="mt-0.5 font-mono text-[10.5px] text-muted-foreground/70">
-                light + dark palettes
-              </div>
-            </div>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="text-muted-foreground/60 transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-primary"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-          </Link>
-          <Link
-            href="/design-system/docs"
-            className="group flex items-center justify-between rounded-md border border-border bg-card p-5 outline-none transition-colors hover:border-primary/50 hover:bg-muted"
-          >
-            <div>
-              <div className="text-[14px] font-medium text-foreground">Documentation</div>
-              <div className="mt-0.5 font-mono text-[10.5px] text-muted-foreground/70">
-                usage · best practices
-              </div>
-            </div>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="text-muted-foreground/60 transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-primary"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-          </Link>
-        </div>
-      </div>
-    </div>
+      </section>
+    </article>
   )
 }
 `

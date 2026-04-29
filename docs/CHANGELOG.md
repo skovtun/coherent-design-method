@@ -11,6 +11,63 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.17.0] — 2026-04-29
+
+### Added — `/design-system/` viewer redesign per direction doc
+
+The viewer in every generated project gets a foundational redesign aimed at the brief: **confident, professional, comfortable, clear, easy to read.** Implementation follows the direction document at `~/.gstack/projects/skovtun-coherent-design-method/design-system-viewer-direction-2026-04-29.md` (Primer + Atlassian + Geist references).
+
+**Layout** (`design-system-layout.ts` rewritten):
+- **Permanent left sidebar** (260px) replaces the top nav. Dark even in light mode — inverted rail because it's Coherent's meta-shell, not the project's own surface.
+- **Section-level numbering** in the sidebar: `01 Foundations`, `02 Components`, `03 Patterns`, `04 Voice`. Subsections alphabetized, not numbered (Cmd-F friendly).
+- **Sidebar footer** carries metadata: project name, version, generated date, theme toggle. Quiet, mono, secondary text.
+- **Light by default** — `bg-background` reads `#fafafa`-ish via project tokens. Dark is a toggle, not the brand.
+- Mobile: sidebar collapses into a top header + slide-down menu (preserves the dark rail aesthetic).
+
+**Home page** (`design-system-home.ts` rewritten):
+- **Editorial-first**: opens with a paragraph of prose ("A working reference, not a sketch") before any preview.
+- **Four section cards** matching the new IA — each card teases a top-level group with one stat and a "see ___" link.
+- Component grid kept (top 9), simplified visually — one card per component with mono variant/size counts.
+
+**Voice page** (new — `/design-system/voice`):
+- Reads `config.voice` from v0.16.0 schema and renders it as a real reference page.
+- **No voice configured**: shows an opt-in empty state with a copy-paste config snippet so users can configure voice in 30 seconds.
+- **Voice configured**: renders tone + ctaStyle as eyebrow facts, copyRules + transparencyRules as numbered directive lists, avoidWords as red-circled chips, and a "How this reaches the AI" wiring section explaining the prompt injection.
+- Coherent's superpower made visible: the voice rules shown on the page are the exact rules being injected into every `coherent chat` run.
+
+### Three things this is NOT
+
+Direction doc explicit "do nots", followed:
+- **No default-dark mode.** Light is hospitable; dark is impressive. Reference docs need to be readable in daylight.
+- **No subsection numbering.** Top-level sections numbered for orientation only; subsections alphabetized to keep Cmd-F sharp.
+- **No purple gradients, glassmorphism, or AI flourishes.** The viewer is the calmest UI in any generated app — by design, this is the look Coherent exists to make impossible elsewhere.
+
+### Wiring
+
+- New `generateLayout()` method substitutes `{{PROJECT_NAME}}`, `{{PROJECT_VERSION}}`, `{{GENERATED_AT}}` placeholders.
+- New `generateVoicePage()` method emits the voice page with the project's actual `config.voice` JSON inlined.
+- Existing dynamic home (`generateDynamicHome`) preserved for runtime data fetching — left as-is for v0.17.0; full editorial replacement deferred to v0.17.1 if needed.
+
+### Internal
+
+- Tests: 1746 passing (no new — viewer redesign is template content, validated via build + manual review).
+- Affected files: `packages/core/src/generators/templates/design-system/design-system-layout.ts`, `design-system-home.ts`, `packages/core/src/generators/DesignSystemGenerator.ts`.
+
+### Not breaking
+
+- Layout API surface unchanged — same routes, same children prop.
+- `coherent update` regenerates layout + voice page on existing projects without touching user pages or components.
+- Sidebar's inverted dark rail in light mode is opinionated visual choice; can be re-themed in a future config option if users push back.
+
+### What ships next
+
+Direction doc identifies open scoping questions for v0.17.x:
+- Geist font: ship directly or fall back to Inter and let users opt in?
+- Sidebar dark rail in light mode: visually striking but tensions "calmest UI" rule — A/B before next release.
+- Pattern pages (forms, empty states): defer to v0.18.
+
+---
+
 ## [0.16.1] — 2026-04-29
 
 ### Added — Semantic color usage notes (Rollur borrow #2)
