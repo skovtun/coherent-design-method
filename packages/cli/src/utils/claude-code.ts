@@ -518,8 +518,12 @@ description: UX and accessibility rules for Coherent UI
 
 const SKILL_COHERENT_CHAT = `---
 name: coherent-chat
-description: Coherent Design Method skill — generate multi-page UI from a prompt inside Claude Code.
-phase_engine_protocol: ${PHASE_ENGINE_PROTOCOL}
+description: Generate and modify Coherent Design Method Next.js UIs by driving the Coherent CLI phase rail. Use in a Coherent project when asked to build, generate, add, update, or remove pages/components without a direct API key.
+license: MIT
+compatibility: Requires coherent CLI on PATH, Node 18+, filesystem read/write, shell or terminal execution, and a Coherent project root. Optimized for Claude Code; portable to other agents that follow the agentskills.io standard with equivalent shell/file tools.
+metadata:
+  coherent:
+    phase_engine_protocol: ${PHASE_ENGINE_PROTOCOL}
 ---
 
 # coherent-chat — skill-mode orchestrator
@@ -928,14 +932,32 @@ export const COHERENT_CHAT_SKILL_BODY = SKILL_COHERENT_CHAT
 
 /**
  * Extract the declared `phase_engine_protocol` from a coherent-chat
- * SKILL.md body. Returns `null` when the frontmatter key is missing or
- * unparseable — callers treat that as "pre-protocol-guard markdown".
+ * SKILL.md body. v0.15.2 (agentskills.io alignment) moved the field
+ * from top-level frontmatter into `metadata.coherent.phase_engine_protocol`.
+ *
+ * This reader checks the new location first, falls back to the legacy
+ * top-level key. Returns `null` when neither is present — callers treat
+ * that as "pre-protocol-guard markdown".
+ *
+ * The dual-location read is one-release backwards compatibility so
+ * existing installed skills (top-level format) keep working until the
+ * next `coherent update` regenerates them in the new shape.
  */
 export function readSkillProtocol(markdown: string): number | null {
-  const match = markdown.match(/^phase_engine_protocol:\s*(\d+)\s*$/m)
-  if (!match) return null
-  const n = Number(match[1])
-  return Number.isFinite(n) ? n : null
+  // Preferred (v0.15.2+): under metadata.coherent — agentskills.io spec
+  // doesn't allow unknown top-level keys.
+  const nestedMatch = markdown.match(/^\s{4}phase_engine_protocol:\s*(\d+)\s*$/m)
+  if (nestedMatch) {
+    const n = Number(nestedMatch[1])
+    if (Number.isFinite(n)) return n
+  }
+  // Legacy (≤v0.15.1): top-level frontmatter key.
+  const topMatch = markdown.match(/^phase_engine_protocol:\s*(\d+)\s*$/m)
+  if (topMatch) {
+    const n = Number(topMatch[1])
+    if (Number.isFinite(n)) return n
+  }
+  return null
 }
 
 export function writeClaudeSkills(projectRoot: string): void {
