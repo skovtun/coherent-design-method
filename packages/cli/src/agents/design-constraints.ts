@@ -228,9 +228,39 @@ COMPONENT VARIANT RULES (CRITICAL):
   BAD:  <Button className="text-muted-foreground hover:bg-accent">Tab</Button>
   GOOD: <Button variant="ghost" className="text-muted-foreground">Tab</Button>
   BEST: Use shadcn <Tabs> / <TabsList> / <TabsTrigger> for tab-style navigation.
-- For sidebar navigation buttons, ALWAYS use variant="ghost" with active-state classes:
-  <Button variant="ghost" className={cn("w-full justify-start", isActive && "bg-accent font-medium")}>
+- For sidebar navigation, use shadcn's domain primitive **\`SidebarMenuButton\`** (from \`@/components/ui/sidebar\`), NOT plain <Button>. SidebarMenuButton handles active state, keyboard nav, and tap-target sizing correctly. Reserve <Button variant="ghost"> for buttons in toolbars / cards / dialogs — places where it's actually a button, not a row.
 - For filter toggle buttons, use variant={isActive ? 'default' : 'outline'} — NOT className toggling.
+
+BUTTON AS CONTAINER RULES (v0.14.4 — critical, observed bug class):
+\`<Button>\` is for **command controls**: trigger an action, submit a form, open a dialog. Its CVA defaults are tuned for that use case: \`h-9\` fixed height, \`inline-flex items-center justify-center\` row layout, \`whitespace-nowrap\` single-line text. When AI uses \`<Button>\` as a generic clickable wrapper for **list rows / calendar cells / cards / sidebar nav rows**, the CVA defaults silently break the layout — content overflows the 36px container, two children render side-by-side instead of stacked, long text fights nowrap. Calendar (35 day cells) + Notifications (mapped list rows) reproduced 2026-04-28.
+
+For row/cell wrappers, choose ONE:
+
+(A) **Use the domain shadcn primitive.** It is designed for that role:
+  - Sidebar nav row → \`SidebarMenuButton\` (not \`<Button variant="ghost">\`)
+  - Tab trigger → \`<TabsTrigger>\` (not \`<Button>\`)
+  - Nav menu link → \`<NavigationMenuLink>\`
+  - Sheet/Dialog trigger → \`<SheetTrigger>\` / \`<DialogTrigger>\` with \`asChild\`
+
+(B) **Override every conflicting CVA default explicitly** when sticking with \`<Button>\` as container. The minimum override set:
+  - \`h-auto\` — kill the fixed h-9 height so content can be tall
+  - \`flex-col items-start justify-start\` — switch axis to vertical, top-left align
+  - \`min-w-0\` — make Button a shrinkable grid/flex item so child \`truncate\` works
+  - \`whitespace-normal\` — allow multi-line text inside (e.g., notification descriptions)
+  - \`text-left\` — most row/cell wrappers want left-aligned content
+  Example for a notification row:
+  \`\`\`
+  <Button variant="ghost" className="h-auto w-full flex-col items-start justify-start min-w-0 whitespace-normal text-left p-4 gap-2">...</Button>
+  \`\`\`
+  Example for a calendar cell with day number on top + events below:
+  \`\`\`
+  <Button variant="ghost" className="min-h-[92px] flex-col items-start justify-start min-w-0 text-left p-2">
+    <div className="flex items-center justify-between w-full"><span>{day}</span><span>{count}</span></div>
+    <div className="mt-1.5 space-y-1 w-full min-w-0">{events.map(...)}</div>
+  </Button>
+  \`\`\`
+
+The \`\`\`cn(buttonVariants(...), className)\`\`\` merge uses tailwind-merge, so explicit \`h-auto\` / \`flex-col\` / \`whitespace-normal\` in className DO override CVA defaults. Just include them.
 
 CONTENT (zero placeholders, zero generic):
 - NEVER: "Lorem ipsum", "Card content", "Description here"

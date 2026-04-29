@@ -18,6 +18,8 @@ Purpose: future rule-writing and debugging should lean on these patterns. If you
 
 - **Mixes heights on form controls.** Default Input is h-10, default Button is h-10, default SelectTrigger is h-10 — but Claude will set some and leave others default, producing visual mismatch. Fix: always specify h-10 on every control in the pattern, even when redundant.
 
+- **Uses `<Button>` as a clickable wrapper for rows and cells without overriding CVA defaults.** When a page needs a clickable list item or grid cell, Claude reaches for `<Button>` (it gets keyboard + focus ring + hover for free) and adds container classes (`min-h-[92px]`, `p-3`, `flex-col items-start`) on top. But shadcn's `Button` CVA bakes in `inline-flex items-center justify-center gap-2 whitespace-nowrap h-9` — adding more classes doesn't unset those, the row stays 36px and children stay horizontal. Claude does not realize this because the broken classes are not in the page source — they come from the imported component. Fix: validators `BUTTON_AS_ROW_NO_HEIGHT_OVERRIDE` and `BUTTON_AS_CELL_NO_VERTICAL_LAYOUT` (v0.14.4) detect the pattern; the CORE rule recommends domain primitives (`SidebarMenuButton`, `TabsTrigger`) instead, or explicit `h-auto` + `flex-col items-start` overrides if `Button` is unavoidable. See PJ-012.
+
 ### JSON/code shape
 
 - **Truncates on long pages.** At ~300 lines of generated TSX, Claude hits `max_tokens=16384` and cuts off mid-JSX. Symptom: `Unterminated string` or `RESPONSE_TRUNCATED` error. Mitigation: `--page X` now fails fast with guidance instead of cascading to full-project regen.
