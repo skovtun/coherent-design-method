@@ -63,6 +63,7 @@ import { statusCommand } from './commands/status.js'
 import { regenerateDocsCommand } from './commands/regenerate-docs.js'
 import { reportIssueCommand } from './commands/report-issue.js'
 import { journalListCommand, journalAggregateCommand, journalPruneCommand } from './commands/journal.js'
+import { prefsSetCommand, prefsShowCommand, prefsClearCommand } from './commands/prefs.js'
 import { baselineCommand } from './commands/baseline.js'
 import {
   wikiReflectCommand,
@@ -339,6 +340,19 @@ journalCmd
   .option('--dry-run', 'Preview what would be deleted without touching the filesystem')
   .action(journalPruneCommand)
 program.addCommand(journalCmd)
+
+// v0.15.3 — user design preferences (~/.coherent/preferences.json)
+const prefsCmd = new Command('prefs').description('Manage local user design preferences (injected into every chat run)')
+prefsCmd
+  .command('set <key> <value>')
+  .description('Set a design preference. Keys: design.style | design.density | design.avoid | design.notes')
+  .action(prefsSetCommand)
+prefsCmd.command('show').description('Print current preferences').action(prefsShowCommand)
+prefsCmd
+  .command('clear [key]')
+  .description('Clear all preferences, or just the named key (e.g. design.style)')
+  .action(prefsClearCommand)
+program.addCommand(prefsCmd)
 
 program
   .command('report-issue')

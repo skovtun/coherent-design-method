@@ -13,6 +13,7 @@ import {
 import { pickGoldenPatterns } from '../../agents/golden-patterns.js'
 import { buildProjectContextFromRoot } from './project-context.js'
 import { retrieveWikiContext } from './wiki-context.js'
+import { readPreferences, renderPreferencesBlock } from '../../utils/preferences.js'
 
 export interface BuildModificationPromptOptions {
   isExpandedPageRequest?: boolean
@@ -74,6 +75,9 @@ For editing an existing shared component use type "modify-layout-block" with tar
 
   const designThinking = DESIGN_THINKING
   const coreRules = CORE_CONSTRAINTS
+  // v0.15.3 — inject user design preferences (~/.coherent/preferences.json).
+  // Empty when no prefs configured — contributes nothing to the prompt.
+  const userPrefs = renderPreferencesBlock(readPreferences())
   // Use type-specific quality rules instead of legacy DESIGN_QUALITY composite.
   // Prefer caller-supplied pageType (skill rail passes it from the plan); fall
   // back to route inference when absent (chat rail's short-message case).
@@ -93,6 +97,7 @@ Parse the user's natural language request into structured modification requests.
 ${sharedSection}
 ${designThinking}
 ${coreRules}
+${userPrefs}
 ${designQuality}
 ${visualDepth}
 ${contextualRules}
