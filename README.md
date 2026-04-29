@@ -333,7 +333,7 @@ The viewer updates automatically when you add pages or run `coherent sync`.
 
 ## Quality System
 
-Coherent validates generated code against 100+ design rules covering typography, spacing, accessibility, color usage, touch targets, and interaction states.
+Coherent validates generated code against 38+ validators covering typography, spacing, accessibility, color usage, touch targets, interaction states, and CVA-inheritance traps (Button-as-container patterns).
 
 ### `coherent check` (read-only diagnostics)
 
