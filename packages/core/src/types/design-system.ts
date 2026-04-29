@@ -122,6 +122,28 @@ export const DesignTokensSchema = z.object({
 
 export type DesignTokens = z.infer<typeof DesignTokensSchema>
 
+/**
+ * Semantic usage notes for tokens. v0.16.1 (Rollur borrow #2). Sidecar
+ * metadata that tells the AI **where** each token should be used —
+ * "primary: Primary actions, active nav, focus rings" — without changing
+ * the token values themselves.
+ *
+ * Codex pre-impl gate: "Validators already force semantic tokens; usage
+ * notes tell the model where to use them." Closes a real failure mode
+ * where AI knows to use bg-primary but applies it as a hero background.
+ *
+ * All fields optional — projects without usage notes get no extra prompt
+ * cost. When set, notes are included in the harness prompt's token
+ * summary block and surfaced in the /design-system/tokens viewer.
+ */
+export const TokenUsageSchema = z.object({
+  /** Per-token usage hints for color tokens. Key = token name, value = one-line guidance. */
+  colors: z.record(z.string()).optional(),
+  /** Future: typography, spacing, radius. v0.16.1 ships colors only. */
+})
+
+export type TokenUsage = z.infer<typeof TokenUsageSchema>
+
 // ============================================================================
 // COMPONENTS
 // ============================================================================
@@ -501,6 +523,12 @@ export const DesignSystemConfigSchema = z.object({
 
   // Design tokens
   tokens: DesignTokensSchema,
+
+  /**
+   * v0.16.1 — semantic usage hints attached to tokens. Tells AI WHERE
+   * to use each token. Optional; absent tokenUsage = AI uses defaults.
+   */
+  tokenUsage: TokenUsageSchema.optional(),
 
   // Theme preferences
   theme: z.object({
