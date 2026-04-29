@@ -1677,6 +1677,235 @@ describe('Visual Sanity Layer v1 (v0.14.0)', () => {
       expect(issues.some(i => i.type === 'BUTTON_NO_VARIANT_IN_MAP')).toBe(false)
     })
   })
+
+  describe('BUTTON_AS_ROW_NO_HEIGHT_OVERRIDE (v0.14.4)', () => {
+    it('flags mapped ghost Button with avatar + py-4 but no h-auto', () => {
+      const code = `
+        {notifications.map(n => (
+          <li key={n.id}>
+            <Button variant="ghost" className="flex w-full items-start gap-4 px-4 py-4 hover:bg-muted/40">
+              <img src={n.avatar} className="size-10" />
+              <div className="flex-1">
+                <span>{n.name}</span>
+                <p>{n.context}</p>
+              </div>
+            </Button>
+          </li>
+        ))}
+      `
+      const issues = validatePageQuality(code)
+      const hit = issues.find(i => i.type === 'BUTTON_AS_ROW_NO_HEIGHT_OVERRIDE')
+      expect(hit).toBeDefined()
+      expect(hit?.severity).toBe('error')
+    })
+
+    it('flags mapped ghost Button with Avatar component', () => {
+      const code = `
+        {users.map(u => (
+          <Button variant="ghost" className="w-full items-start py-4">
+            <Avatar><AvatarImage src={u.image} /></Avatar>
+            <span>{u.name}</span>
+          </Button>
+        ))}
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'BUTTON_AS_ROW_NO_HEIGHT_OVERRIDE')).toBe(true)
+    })
+
+    it('passes when h-auto is present', () => {
+      const code = `
+        {notifications.map(n => (
+          <Button variant="ghost" className="h-auto w-full flex-col items-start py-4">
+            <img src={n.avatar} className="size-10" />
+            <p>{n.context}</p>
+          </Button>
+        ))}
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'BUTTON_AS_ROW_NO_HEIGHT_OVERRIDE')).toBe(false)
+    })
+
+    it('passes when min-h-[*] is present', () => {
+      const code = `
+        {items.map(i => (
+          <Button variant="ghost" className="min-h-[60px] py-4">
+            <img src={i.icon} className="size-10" />
+            {i.label}
+          </Button>
+        ))}
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'BUTTON_AS_ROW_NO_HEIGHT_OVERRIDE')).toBe(false)
+    })
+
+    it('does NOT fire on single-line mapped Button without avatar (false-positive guard)', () => {
+      const code = `
+        {filters.map(f => (
+          <Button variant="ghost" className="px-3" onClick={() => setFilter(f)}>
+            {f.label}
+          </Button>
+        ))}
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'BUTTON_AS_ROW_NO_HEIGHT_OVERRIDE')).toBe(false)
+    })
+  })
+
+  describe('BUTTON_AS_CELL_NO_VERTICAL_LAYOUT (v0.14.4)', () => {
+    it('flags mapped Button with min-h + events.map but no flex-col', () => {
+      const code = `
+        export default function Calendar() {
+          return (
+            <div>
+              {cells.map(cell => (
+                <Button variant="ghost" className="min-h-[92px] p-2 hover:bg-muted/50">
+                  <div className="flex">
+                    <span>{cell.day}</span>
+                  </div>
+                  <div className="space-y-1">
+                    {cell.events.map(e => <span>{e.title}</span>)}
+                  </div>
+                </Button>
+              ))}
+            </div>
+          )
+        }
+      `
+      const issues = validatePageQuality(code)
+      const hit = issues.find(i => i.type === 'BUTTON_AS_CELL_NO_VERTICAL_LAYOUT')
+      expect(hit).toBeDefined()
+      expect(hit?.severity).toBe('error')
+    })
+
+    it('passes when flex-col is present', () => {
+      const code = `
+        {cells.map(cell => (
+          <Button variant="ghost" className="min-h-[92px] flex-col items-start p-2">
+            <div>{cell.day}</div>
+            <div>{cell.events.map(e => <span>{e.title}</span>)}</div>
+          </Button>
+        ))}
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'BUTTON_AS_CELL_NO_VERTICAL_LAYOUT')).toBe(false)
+    })
+
+    it('does NOT fire when no min-h (not a tall cell)', () => {
+      const code = `
+        {tabs.map(t => (
+          <Button variant="ghost" className="px-3" onClick={() => setTab(t.id)}>
+            <span>{t.icon}</span>
+            <span>{t.label}</span>
+          </Button>
+        ))}
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'BUTTON_AS_CELL_NO_VERTICAL_LAYOUT')).toBe(false)
+    })
+
+    it('does NOT fire on min-h Button with single child (no stacking needed)', () => {
+      const code = `
+        {items.map(i => (
+          <Button variant="ghost" className="min-h-[60px] p-2">
+            {i.label}
+          </Button>
+        ))}
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'BUTTON_AS_CELL_NO_VERTICAL_LAYOUT')).toBe(false)
+    })
+
+    // Real dogfood-v13 calendar miss — Tailwind classes built into a const
+    // array, then passed via className={cellClasses}. Block-scoped detection
+    // catches this; tag-only detection misses it.
+    it('flags calendar with className={varName} containing min-h', () => {
+      const code = `
+        {grid.map((cell, i) => {
+          const cellClasses = [
+            "min-h-[92px] border-t p-2",
+            cell.inMonth ? "" : "bg-muted/20",
+          ].filter(Boolean).join(" ")
+          return (
+            <Button variant="ghost" key={cell.date} className={cellClasses}>
+              <div>{cell.day}</div>
+              <div>{cell.events.map(e => <span>{e.title}</span>)}</div>
+            </Button>
+          )
+        })}
+      `
+      const issues = validatePageQuality(code)
+      expect(issues.some(i => i.type === 'BUTTON_AS_CELL_NO_VERTICAL_LAYOUT')).toBe(true)
+    })
+  })
+
+  describe('BUTTON_AS_CELL auto-fix (v0.14.4 conservative)', () => {
+    it('inserts flex-col + items-start + min-w-0 + text-left when calendar signals present', async () => {
+      const code = `
+        {cells.map(cell => (
+          <Button variant="ghost" className="min-h-[92px] p-2 hover:bg-muted/50">
+            <div>{cell.day}</div>
+            <div>{cell.events.map(e => <span>{e.title}</span>)}</div>
+          </Button>
+        ))}
+      `
+      const { code: fixed, fixes } = await autoFixCode(code)
+      expect(fixed).toContain('flex-col')
+      expect(fixed).toContain('items-start')
+      expect(fixed).toContain('min-w-0')
+      expect(fixed).toContain('text-left')
+      expect(fixes).toContain('Button as calendar/grid cell → flex-col items-start min-w-0 text-left')
+    })
+
+    it('does NOT autofix when calendar signals absent (filter buttons)', async () => {
+      const code = `
+        {filters.map(f => (
+          <Button variant="ghost" className="min-h-[40px] px-3">
+            <span>{f.icon}</span>
+            <span>{f.label}</span>
+          </Button>
+        ))}
+      `
+      const { fixes } = await autoFixCode(code)
+      expect(fixes).not.toContain('Button as calendar/grid cell → flex-col items-start min-w-0 text-left')
+    })
+
+    it('does NOT add classes that are already present (idempotent)', async () => {
+      const code = `
+        {cells.map(c => (
+          <Button variant="ghost" className="min-h-[92px] flex-col items-start min-w-0 p-2">
+            <div>{c.day}</div>
+            <div>{c.events.map(e => <span>{e.title}</span>)}</div>
+          </Button>
+        ))}
+      `
+      const { code: fixed, fixes } = await autoFixCode(code)
+      // Already has flex-col → validator silent path → no fix entry
+      expect(fixes).not.toContain('Button as calendar/grid cell → flex-col items-start min-w-0 text-left')
+      // Original tag preserved
+      expect(fixed).toContain('flex-col items-start min-w-0')
+    })
+  })
+
+  describe('CORE_CONSTRAINTS — BUTTON AS CONTAINER RULES present', () => {
+    it('design-constraints.ts contains the v0.14.4 Button-as-container guidance', async () => {
+      const { CORE_CONSTRAINTS } = await import('../agents/design-constraints.js')
+      expect(CORE_CONSTRAINTS).toContain('BUTTON AS CONTAINER RULES')
+      expect(CORE_CONSTRAINTS).toContain('SidebarMenuButton')
+      expect(CORE_CONSTRAINTS).toContain('TabsTrigger')
+      expect(CORE_CONSTRAINTS).toContain('h-auto')
+      expect(CORE_CONSTRAINTS).toContain('flex-col items-start')
+      expect(CORE_CONSTRAINTS).toContain('min-w-0')
+      expect(CORE_CONSTRAINTS).toContain('whitespace-normal')
+    })
+
+    it('removed sidebar Button variant="ghost" recommendation drift', async () => {
+      const { CORE_CONSTRAINTS } = await import('../agents/design-constraints.js')
+      // The old line was: "For sidebar navigation buttons, ALWAYS use variant='ghost'..."
+      // It contradicted shadcn-provider.ts:153 which bans Button for sidebar.
+      // v0.14.4 replaced it with SidebarMenuButton recommendation.
+      expect(CORE_CONSTRAINTS).not.toMatch(/For sidebar navigation buttons, ALWAYS use variant="ghost"/)
+    })
+  })
 })
 
 describe('CHART_PLACEHOLDER detection', () => {

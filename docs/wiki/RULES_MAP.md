@@ -74,6 +74,8 @@ Every validator fires a typed issue. Grep for the type in `quality-validator.ts`
 | `SMALL_TOUCH_TARGET` | Icon button may be < 44px touch target — add min-h-[44px] or increase padding |
 | `EMOJI_IN_UI` | Emoji character in UI — use Lucide icon instead (vector, scalable, theme-aware) |
 | `BUTTON_NO_VARIANT_IN_MAP` | <Button> inside .map() callback without explicit variant — default variant is bg-primary, every mapped item will render with the brand color |
+| `BUTTON_AS_ROW_NO_HEIGHT_OVERRIDE` | <Button> in .map() with avatar/multi-line content but no height override (h-auto / min-h-*) — shadcn Button has h-9 (36px) default; tall con |
+| `BUTTON_AS_CELL_NO_VERTICAL_LAYOUT` | <Button> in .map() with min-h-[*] (calendar/grid cell) and stacked children but no flex-col — shadcn Button defaults to inline-flex row layo |
 | `STUCK_ON_SELECTION` | Unconditional selection background inside .map() callback — every list item will look selected. Use conditional cn(isActive &&  |
 | `CALENDAR_OVER_SELECTED` | Calendar/grid has ${maxCellsInWindow} cells with unconditional bg-primary/accent in a 60-line window — only ONE day should carry today/selec |
 | `CELL_OVERFLOW_NO_CONTAIN` | Calendar/grid maps events into cells without overflow containment — long titles will bleed across cell borders. Add overflow-hidden on the c |

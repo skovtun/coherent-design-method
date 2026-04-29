@@ -1195,6 +1195,103 @@ export function validatePageQuality(
     break // one error per file is enough
   }
 
+  // BUTTON_AS_ROW_NO_HEIGHT_OVERRIDE (v0.14.4) — shadcn <Button> used as a
+  // tall list row (avatar + multi-line content) without overriding the CVA
+  // default h-9 (36px). Content overflows 36px container; rows visually
+  // pile up. Companion to BUTTON_NO_VARIANT_IN_MAP, but FOR cases where
+  // the variant IS set (typically ghost) but the height override is
+  // missing.
+  //
+  // Codex pre-impl gate (2026-04-28) tightened heuristic:
+  //  - Must be inside .map() — keys row-context
+  //  - Has avatar/img/size-10 OR items-start OR py-3|4|p-4 — keys "tall row"
+  //  - Missing h-auto / min-h-* / size-* / h-[*] — keys missing override
+  // False positive risk: medium. Mapped Button with single-line label +
+  // small icon does NOT need h-auto, would not trip the avatar/items-start
+  // checks. Net: detection-first, NO autofix in v0.14.4 (manual review).
+  //
+  // Block bound: stop at </Button>. Earlier validators used </div>|</li>
+  // bound but those misfire when Button has nested divs (e.g., calendar
+  // cell with stacked children). For BUTTON_* validators specifically,
+  // </Button> is the right anchor since we ARE searching for a Button.
+  {
+    const buttonRowBlockRe =
+      /\.map\s*\(\s*(?:\([^)]*\)|[a-zA-Z_$][\w$]*)\s*=>\s*[\s\S]*?<\/Button>/g
+    let m
+    while ((m = buttonRowBlockRe.exec(code)) !== null) {
+      const block = m[0]
+      const tag = (block.match(/<Button\b[^>]*?>/g) || []).pop()
+      if (!tag) continue
+      // Check block (not just tag) so we pick up className={varName} arrays.
+      const hasHeightOverride = /\bh-auto\b|\bmin-h-/.test(block) || /\bsize=/.test(tag) || /\bh-\[/.test(block)
+      if (hasHeightOverride) continue
+      // Tall-row signals: any one of these strongly suggests the Button
+      // is being used as a list row that needs h-auto.
+      const hasAvatarSignal =
+        /<Avatar\b/.test(block) ||
+        /<img\b/.test(block) ||
+        /\bsize-10\b/.test(tag) ||
+        /\bsize-10\b/.test(block) ||
+        /\bitems-start\b/.test(tag) ||
+        /\bpy-(?:3|4|5|6)\b/.test(tag) ||
+        /\bp-(?:3|4|5|6)\b/.test(tag)
+      if (!hasAvatarSignal) continue
+      const tagIdx = code.indexOf(tag, m.index)
+      const line = tagIdx >= 0 ? code.slice(0, tagIdx).split('\n').length : 1
+      issues.push({
+        line,
+        type: 'BUTTON_AS_ROW_NO_HEIGHT_OVERRIDE',
+        message:
+          '<Button> in .map() with avatar/multi-line content but no height override (h-auto / min-h-*) — shadcn Button has h-9 (36px) default; tall content (avatar 40px + text) overflows. Add `h-auto` to className, or use a domain primitive (e.g., SidebarMenuButton).',
+        severity: 'error',
+      })
+      break
+    }
+  }
+
+  // BUTTON_AS_CELL_NO_VERTICAL_LAYOUT (v0.14.4) — shadcn <Button> used as
+  // a calendar/grid cell (min-h-[*] + 2+ block children OR events.map)
+  // without flex-col. Button cva defaults to inline-flex row; children
+  // render side-by-side instead of stacked. Long event titles inside the
+  // events div without min-w-0 also bleed across grid columns.
+  //
+  // Codex pre-impl gate (2026-04-28) heuristic:
+  //  - Must be inside .map() — keys cell-grid context
+  //  - Button has min-h-[*] — keys "tall cell" intent
+  //  - Block has events.map OR 2+ <div> children inside Button
+  //  - Missing flex-col — the actual conflict
+  // Tight signals → low false positive risk per codex.
+  {
+    const buttonCellBlockRe =
+      /\.map\s*\(\s*(?:\([^)]*\)|[a-zA-Z_$][\w$]*)\s*=>\s*[\s\S]*?<\/Button>/g
+    let m
+    while ((m = buttonCellBlockRe.exec(code)) !== null) {
+      const block = m[0]
+      const tag = (block.match(/<Button\b[^>]*?>/g) || []).pop()
+      if (!tag) continue
+      // Check block (not just tag) — calendar pages often build cellClasses
+      // as a const array and pass via className={cellClasses}.
+      const hasMinH = /\bmin-h-\[/.test(block)
+      if (!hasMinH) continue
+      const hasFlexCol = /\bflex-col\b/.test(block)
+      if (hasFlexCol) continue
+      // Must contain stacked content — events.map or multiple direct child divs.
+      const hasEventsMap = /events?\.map\(|appointments?\.map\(|sessions?\.map\(|days?\.map\(/i.test(block)
+      const directChildDivs = (block.match(/>\s*<div\b/g) || []).length
+      if (!hasEventsMap && directChildDivs < 2) continue
+      const tagIdx = code.indexOf(tag, m.index)
+      const line = tagIdx >= 0 ? code.slice(0, tagIdx).split('\n').length : 1
+      issues.push({
+        line,
+        type: 'BUTTON_AS_CELL_NO_VERTICAL_LAYOUT',
+        message:
+          '<Button> in .map() with min-h-[*] (calendar/grid cell) and stacked children but no flex-col — shadcn Button defaults to inline-flex row layout; children render side-by-side instead of stacked. Add `flex-col items-start justify-start min-w-0 text-left` to className.',
+        severity: 'error',
+      })
+      break
+    }
+  }
+
   // STUCK_ON_SELECTION: unconditional selection background inside .map()
   // callbacks. Pattern: a list item element with bg-primary/accent/etc.
   // class that doesn't go through cn() or a conditional. Every list item
@@ -2402,6 +2499,44 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
     })
   })
   if (hadVariantFix) fixes.push('Button in .map() → variant="ghost"')
+
+  // 7c. BUTTON_AS_CELL_NO_VERTICAL_LAYOUT auto-fix (v0.14.4) — when a
+  //    mapped Button has min-h-[*] AND calendar/grid context (events.map),
+  //    insert `flex-col items-start justify-start min-w-0 text-left` after
+  //    the existing className. Conservative — only fires when ALL signals
+  //    are present (codex: "deterministic detection matters more than
+  //    aggressive rewrite"). Not applied to row case (h-auto would break
+  //    actual uniform-height button groups).
+  let hadCellLayoutFix = false
+  // Block bound = </Button>. Same rationale as v0.14.4 validators —
+  // earlier </div>/</li> bound misfires when Button has nested divs.
+  const cellAutoFixRe = /\.map\s*\(\s*(?:\([^)]*\)|[a-zA-Z_$][\w$]*)\s*=>\s*[\s\S]*?<\/Button>/g
+  fixed = fixed.replace(cellAutoFixRe, mapBlock => {
+    const tag = (mapBlock.match(/<Button\b[^>]*?>/g) || []).pop()
+    if (!tag) return mapBlock
+    // Detection scans block (catches className={varName} arrays); patch step
+    // below only mutates inline className strings (skips var-array case —
+    // those need a manual fix).
+    if (!/\bmin-h-\[/.test(mapBlock)) return mapBlock
+    if (/\bflex-col\b/.test(mapBlock)) return mapBlock
+    const calendarSignal =
+      /\bcalendar\b|\bisToday\b|\bsetMonth\b|days?\.map\(|events?\.map\(|appointments?\.map\(/i.test(mapBlock)
+    if (!calendarSignal) return mapBlock
+    // Build patched tag: append the layout overrides inside the existing
+    // className value. Tailwind-merge in the project's cn() resolves the
+    // conflicts at runtime so order doesn't matter, but appending is the
+    // least invasive textual edit.
+    const patchedTag = tag.replace(/className=("|')([^"']*)(\1)/, (_m, q: string, cls: string, q2: string) => {
+      const additions = ['flex-col', 'items-start', 'justify-start', 'min-w-0', 'text-left']
+      const missing = additions.filter(a => !new RegExp(`\\b${a.replace(/[-/]/g, '\\$&')}\\b`).test(cls))
+      if (missing.length === 0) return _m
+      return `className=${q}${cls.trim()} ${missing.join(' ')}${q2}`
+    })
+    if (patchedTag === tag) return mapBlock
+    hadCellLayoutFix = true
+    return mapBlock.replace(tag, patchedTag)
+  })
+  if (hadCellLayoutFix) fixes.push('Button as calendar/grid cell → flex-col items-start min-w-0 text-left')
 
   // 8. MISSING_ARIA_LABEL — for icon-only Button/button with a lucide icon child,
   //    infer aria-label from the icon component name. Lucide icons are

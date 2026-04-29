@@ -11,6 +11,49 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.14.4] — 2026-04-28
+
+### Added — Button-as-container detection (calendar bleed + notifications stacking)
+
+v0.14.3 left two visual bugs unfixed in dogfood-v13: notifications page items stacked on top of each other (avatar + multi-line content overflowing the default `h-9` shadcn Button), and calendar event labels bleeding across grid columns (cell built as a `<Button>` without `flex-col`). Both are CVA inheritance: shadcn `Button` defaults to `inline-flex items-center justify-center gap-2 whitespace-nowrap h-9`. When AI generates row/cell wrappers as `<Button>` and forgets the override, content collapses into a 36px row.
+
+Two new validators (severity: error):
+
+- **`BUTTON_AS_ROW_NO_HEIGHT_OVERRIDE`** — `<Button>` inside `.map()` with avatar/img/`size-10`/`items-start`/`py-3-6`/`p-3-6` signals but no `h-auto` / `min-h-*` / `size-*` / `h-[*]` override. Notifications, comments, search-results pattern.
+- **`BUTTON_AS_CELL_NO_VERTICAL_LAYOUT`** — `<Button>` inside `.map()` with `min-h-[*]` and 2+ direct child divs OR `events.map(...)` but no `flex-col`. Calendar/grid cell pattern.
+
+One new conservative auto-fix:
+
+- **`BUTTON_AS_CELL_NO_VERTICAL_LAYOUT`** auto-fix — only fires when calendar markers (`calendar` / `isToday` / `setMonth` / `days.map` / `events.map`) are present. Inserts `flex-col items-start justify-start min-w-0 text-left` into the existing className. Mutates inline className strings only — `className={varName}` arrays need manual fix.
+
+CORE_CONSTRAINTS gained a "BUTTON AS CONTAINER RULES" section: use domain primitives (`SidebarMenuButton`, `TabsTrigger`) for nav; if you must use `Button` as a row/cell wrapper, override the CVA defaults explicitly (`h-auto`, `flex-col items-start`, `min-w-0`, `whitespace-normal`).
+
+The earlier sidebar guidance in CORE that said `Button variant="ghost"` was reframed to `SidebarMenuButton` — it had been silently contradicting `shadcn-provider.ts:153` which already said never to use `Button` for sidebar nav.
+
+### Codex pre-implementation gate
+
+Plan went through `/codex consult` before writing any validator. Codex caught the contradiction with native-button rules at `design-constraints.ts:149/191`, tightened the validator scope (don't key on broad "multi-line content"; key on Avatar/img/size-10/items-start/py-3-6 for row, `min-h-[*]` + 2+ child divs OR `events.map` for cell), and recommended detection-first with conservative auto-fix only. Verdict: **Go, With Scope Tightening**.
+
+### Verified
+
+End-to-end on `/tmp/dogfood-v13/`:
+- `calendar/page.tsx:204` — fires `BUTTON_AS_CELL_NO_VERTICAL_LAYOUT` ✓
+- `notifications/page.tsx:266` — fires `BUTTON_AS_ROW_NO_HEIGHT_OVERRIDE` ✓
+- `tasks/page.tsx:232` — fires `BUTTON_AS_CELL_NO_VERTICAL_LAYOUT` ✓
+
+Initial regression: validator missed the calendar case because the page built `cellClasses` as a const array and passed `className={cellClasses}`. Tag-only scan didn't see `min-h-[92px]`. Fixed by scanning the whole `.map()` block scope (bounded by `</Button>`), not just the Button tag.
+
+### Internal
+
+- Tests: 1691 passing (+15 new — 5 row, 4 cell, 3 autofix, 2 CORE_CONSTRAINTS, 1 const-array regression).
+- Affected files: `packages/cli/src/utils/quality-validator.ts`, `packages/cli/src/agents/design-constraints.ts`.
+
+### Not breaking
+
+Two new validators fire on real bugs that were previously silent. Existing projects may surface new errors — intended behavior, fix per the validator message.
+
+---
+
 ## [0.14.3] — 2026-04-28
 
 ### Fixed — false positive in `BUTTON_NO_VARIANT_IN_MAP`
