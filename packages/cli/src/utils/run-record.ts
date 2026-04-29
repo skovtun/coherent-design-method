@@ -51,6 +51,32 @@ export interface RunRecordValidatorSummary {
   infos: number
 }
 
+/**
+ * Quality retry telemetry — one entry per page that triggered the
+ * `validatePageQuality` → AI fix retry loop in modification-handler.
+ *
+ * Captures retry dynamics that the post-hoc `validators` field cannot
+ * see: how many initial errors fired, how many AI retry attempts ran,
+ * whether the page resolved cleanly or shipped with residual errors.
+ *
+ * Pure passive telemetry — never injected back into prompts in v1.
+ * Codex pre-impl gate (2026-04-29) verdict: GO with scope tightening.
+ */
+export interface RunRecordQualityRetry {
+  /** Page id or display name (e.g., "notifications", "Calendar"). */
+  page: string
+  /** Inferred page type at validation time ("app" | "marketing" | "auth"). */
+  pageType: string
+  /** Error counts BEFORE the first retry, grouped by validator type. */
+  initialErrors: { type: string; count: number }[]
+  /** Number of AI retry attempts run (0 means errors auto-cleared without retry). */
+  attempts: number
+  /** True if final validator pass had zero errors. */
+  resolved: boolean
+  /** Error counts AFTER all retries, grouped by validator type. */
+  finalErrors: { type: string; count: number }[]
+}
+
 export interface RunRecord {
   /** ISO 8601 timestamp at run start. */
   timestamp: string
@@ -70,6 +96,11 @@ export interface RunRecord {
   validators?: RunRecordValidator[]
   /** Aggregate validator counts. Absent when validators didn't run. */
   validatorSummary?: RunRecordValidatorSummary
+  /**
+   * Per-page quality retry telemetry. Empty/absent when no retry loop
+   * ran (no errors at first validation, or AI provider unavailable).
+   */
+  qualityRetries?: RunRecordQualityRetry[]
   /** Milliseconds from chat command entry to finally-block. */
   durationMs: number
   /**
@@ -188,6 +219,36 @@ const renderValidatorSummary = (summary: RunRecordValidatorSummary | undefined):
   ]
 }
 
+const renderQualityRetries = (retries: RunRecordQualityRetry[] | undefined): string[] => {
+  if (!retries || retries.length === 0) return []
+  const lines: string[] = ['qualityRetries:']
+  for (const r of retries) {
+    lines.push(`  - page: ${yamlEscape(r.page)}`)
+    lines.push(`    pageType: ${yamlEscape(r.pageType)}`)
+    lines.push(`    attempts: ${r.attempts}`)
+    lines.push(`    resolved: ${r.resolved}`)
+    if (r.initialErrors.length === 0) {
+      lines.push('    initialErrors: []')
+    } else {
+      lines.push('    initialErrors:')
+      for (const e of r.initialErrors) {
+        lines.push(`      - type: ${yamlEscape(e.type)}`)
+        lines.push(`        count: ${e.count}`)
+      }
+    }
+    if (r.finalErrors.length === 0) {
+      lines.push('    finalErrors: []')
+    } else {
+      lines.push('    finalErrors:')
+      for (const e of r.finalErrors) {
+        lines.push(`      - type: ${yamlEscape(e.type)}`)
+        lines.push(`        count: ${e.count}`)
+      }
+    }
+  }
+  return lines
+}
+
 export function renderRunRecordYaml(record: RunRecord): string {
   const lines: string[] = [
     '# coherent chat run — generation outcome record',
@@ -201,6 +262,7 @@ export function renderRunRecordYaml(record: RunRecord): string {
     ...renderList('sharedComponentsWritten', record.sharedComponentsWritten),
     ...renderValidators(record.validators),
     ...renderValidatorSummary(record.validatorSummary),
+    ...renderQualityRetries(record.qualityRetries),
     `durationMs: ${record.durationMs}`,
     `outcome: ${record.outcome}`,
   ]

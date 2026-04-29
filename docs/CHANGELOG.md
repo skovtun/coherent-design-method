@@ -11,6 +11,65 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.15.0] — 2026-04-29
+
+### Added — Quality retry telemetry (Phase 1 of self-improving loop)
+
+The `coherent chat` retry loop already pressures the AI to fix validator errors before write. Until v0.15.0 that pressure left no trace — we knew the final validator state but not the retry dynamics that produced it. v0.15.0 captures the missing signal: which validators triggered retries, how many attempts each took, which pages converged cleanly, which shipped with residual errors.
+
+**New `RunRecord.qualityRetries` block** (written to `.coherent/runs/<timestamp>.yaml`):
+
+```yaml
+qualityRetries:
+  - page: "calendar"
+    pageType: "app"
+    attempts: 2
+    resolved: false
+    initialErrors:
+      - type: "BUTTON_AS_CELL_NO_VERTICAL_LAYOUT"
+        count: 2
+    finalErrors:
+      - type: "BUTTON_AS_CELL_NO_VERTICAL_LAYOUT"
+        count: 1
+```
+
+Captured in both retry sites (`add-page` + `update-page`) inside `applyModificationRequest`. Only emitted when initial errors existed (clean-from-the-start pages produce no entry).
+
+**Extended `coherent journal aggregate`** to surface retry signal alongside the existing `fix-sessions` analysis:
+
+- **Top validators needing AI retry** — sorted by page count, with average attempts and resolution rate
+- **Validators AI failed to self-fix** — pages where retry maxed out without resolving (highest-signal PJ candidates: AI knows the rule but cannot apply it)
+
+### Codex pre-implementation gate
+
+Plan went through `/codex consult` before any code change. Verdict: **GO with scope tightening**. Codex pushed back on three things:
+
+1. **Phase 1 = capture only, no re-injection.** Auto-editing CORE_CONSTRAINTS is risky. Building the data layer first means we can review patterns before deciding if/how to feed them back into prompts.
+2. **No raw snippet capture.** Privacy-conscious default — we record validator type + count + page type, not user prompts or generated code excerpts.
+3. **Per-project storage only.** No `~/.coherent/learnings.jsonl` global file in v1. Reuse existing `.coherent/runs/*.yaml` as the storage substrate.
+
+Estimate: 6-8 hours. Actual: ~1 hour, primarily because the telemetry hooks slot into existing retry loops cleanly.
+
+### Not included (deferred to Phase 2)
+
+- Auto-editing CORE_CONSTRAINTS or generating a `learned-constraints.ts` sibling file
+- Prompt re-injection of captured patterns
+- Global cross-project storage
+- `coherent journal reflect` — convert retry telemetry into PJ-NNN draft skeletons
+
+These ship after Phase 1 produces enough captured data to evaluate which patterns are worth re-injecting.
+
+### Internal
+
+- Tests: 1699 passing (+8 new — 3 run-record YAML rendering, 5 parseRunRetries cases including unresolved + multi-entry)
+- Affected files: `packages/cli/src/utils/run-record.ts`, `packages/cli/src/commands/chat/modification-handler.ts`, `packages/cli/src/commands/chat.ts`, `packages/cli/src/commands/journal.ts`, `packages/cli/src/apply-requests/types.ts`
+
+### Not breaking
+
+`qualityRetries` is an optional field on `RunRecord`. Older readers tolerate missing fields per the existing additive-evolution policy. New runs include the block; old runs do not — `coherent journal aggregate` skips runs that lack it without complaining.
+
+---
+
 ## [0.14.4] — 2026-04-28
 
 ### Added — Button-as-container detection (calendar bleed + notifications stacking)

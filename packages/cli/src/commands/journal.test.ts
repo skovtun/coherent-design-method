@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readdirSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { pruneJournalSessions } from './journal.js'
+import { pruneJournalSessions, parseRunRetries } from './journal.js'
 
 describe('pruneJournalSessions', () => {
   let projectRoot: string
@@ -100,5 +100,94 @@ describe('pruneJournalSessions', () => {
 
     expect(result.kept).toBe(1)
     expect(result.deleted).toHaveLength(0)
+  })
+})
+
+// v0.15.0 — quality retry telemetry parser
+describe('parseRunRetries', () => {
+  it('returns null when timestamp is missing', () => {
+    const result = parseRunRetries('outcome: success\n', 'test.yaml')
+    expect(result).toBeNull()
+  })
+
+  it('returns empty retries when block is absent', () => {
+    const yaml = 'timestamp: 2026-04-29T10:00:00.000Z\noutcome: success\n'
+    const result = parseRunRetries(yaml, 'test.yaml')
+    expect(result?.retries).toEqual([])
+  })
+
+  it('parses a single resolved retry entry', () => {
+    const yaml = `timestamp: 2026-04-29T10:00:00.000Z
+qualityRetries:
+  - page: "notifications"
+    pageType: "app"
+    attempts: 1
+    resolved: true
+    initialErrors:
+      - type: "BUTTON_AS_ROW_NO_HEIGHT_OVERRIDE"
+        count: 1
+    finalErrors: []
+durationMs: 5000
+`
+    const result = parseRunRetries(yaml, 'test.yaml')
+    expect(result?.retries).toHaveLength(1)
+    expect(result?.retries[0]).toEqual({
+      page: 'notifications',
+      pageType: 'app',
+      attempts: 1,
+      resolved: true,
+      initialErrors: [{ type: 'BUTTON_AS_ROW_NO_HEIGHT_OVERRIDE', count: 1 }],
+      finalErrors: [],
+    })
+  })
+
+  it('parses unresolved retry with finalErrors populated', () => {
+    const yaml = `timestamp: 2026-04-29T10:00:00.000Z
+qualityRetries:
+  - page: "calendar"
+    pageType: "app"
+    attempts: 2
+    resolved: false
+    initialErrors:
+      - type: "BUTTON_AS_CELL_NO_VERTICAL_LAYOUT"
+        count: 2
+    finalErrors:
+      - type: "BUTTON_AS_CELL_NO_VERTICAL_LAYOUT"
+        count: 1
+durationMs: 5000
+`
+    const result = parseRunRetries(yaml, 'test.yaml')
+    expect(result?.retries[0].resolved).toBe(false)
+    expect(result?.retries[0].attempts).toBe(2)
+    expect(result?.retries[0].finalErrors).toEqual([{ type: 'BUTTON_AS_CELL_NO_VERTICAL_LAYOUT', count: 1 }])
+  })
+
+  it('parses multiple retry entries', () => {
+    const yaml = `timestamp: 2026-04-29T10:00:00.000Z
+qualityRetries:
+  - page: "notifications"
+    pageType: "app"
+    attempts: 1
+    resolved: true
+    initialErrors:
+      - type: "BUTTON_AS_ROW_NO_HEIGHT_OVERRIDE"
+        count: 1
+    finalErrors: []
+  - page: "calendar"
+    pageType: "app"
+    attempts: 2
+    resolved: false
+    initialErrors:
+      - type: "BUTTON_AS_CELL_NO_VERTICAL_LAYOUT"
+        count: 1
+    finalErrors:
+      - type: "BUTTON_AS_CELL_NO_VERTICAL_LAYOUT"
+        count: 1
+durationMs: 5000
+`
+    const result = parseRunRetries(yaml, 'test.yaml')
+    expect(result?.retries).toHaveLength(2)
+    expect(result?.retries[0].page).toBe('notifications')
+    expect(result?.retries[1].page).toBe('calendar')
   })
 })

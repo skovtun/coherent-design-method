@@ -1268,6 +1268,13 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
       runRecord.validatorSummary = summarizeValidators(validators)
     }
 
+    // v0.15.0 — collect per-page quality retry telemetry from results
+    // (populated inside applyModificationRequest when retry loop ran).
+    const allRetries = results.flatMap(r => r.qualityRetries || [])
+    if (allRetries.length > 0) {
+      runRecord.qualityRetries = allRetries
+    }
+
     const updatedConfig = dsm.getConfig()
 
     // Auto-detect theme mode

@@ -119,6 +119,58 @@ describe('renderRunRecordYaml', () => {
     const out = renderRunRecordYaml(baseRecord())
     expect(out.endsWith('\n')).toBe(true)
   })
+
+  // v0.15.0 — quality retry telemetry
+  it('renders qualityRetries block with attempts and resolved status', () => {
+    const out = renderRunRecordYaml(
+      baseRecord({
+        qualityRetries: [
+          {
+            page: 'notifications',
+            pageType: 'app',
+            initialErrors: [{ type: 'BUTTON_AS_ROW_NO_HEIGHT_OVERRIDE', count: 1 }],
+            attempts: 1,
+            resolved: true,
+            finalErrors: [],
+          },
+        ],
+      }),
+    )
+    expect(out).toContain('qualityRetries:')
+    expect(out).toContain('- page: "notifications"')
+    expect(out).toContain('pageType: "app"')
+    expect(out).toContain('attempts: 1')
+    expect(out).toContain('resolved: true')
+    expect(out).toContain('type: "BUTTON_AS_ROW_NO_HEIGHT_OVERRIDE"')
+    expect(out).toContain('finalErrors: []')
+  })
+
+  it('renders unresolved retry (attempts maxed, finalErrors non-empty)', () => {
+    const out = renderRunRecordYaml(
+      baseRecord({
+        qualityRetries: [
+          {
+            page: 'calendar',
+            pageType: 'app',
+            initialErrors: [{ type: 'BUTTON_AS_CELL_NO_VERTICAL_LAYOUT', count: 2 }],
+            attempts: 2,
+            resolved: false,
+            finalErrors: [{ type: 'BUTTON_AS_CELL_NO_VERTICAL_LAYOUT', count: 1 }],
+          },
+        ],
+      }),
+    )
+    expect(out).toContain('attempts: 2')
+    expect(out).toContain('resolved: false')
+    expect(out).toContain('count: 1')
+  })
+
+  it('omits qualityRetries block when undefined or empty', () => {
+    const out1 = renderRunRecordYaml(baseRecord())
+    expect(out1).not.toContain('qualityRetries:')
+    const out2 = renderRunRecordYaml(baseRecord({ qualityRetries: [] }))
+    expect(out2).not.toContain('qualityRetries:')
+  })
 })
 
 describe('writeRunRecord', () => {
