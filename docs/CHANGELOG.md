@@ -11,6 +11,61 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.16.0] — 2026-04-29
+
+### Added — Voice Profile (first-class generation constraint for COPY)
+
+Coherent had `--atmosphere` controlling visual style across pages. v0.16.0 adds the parallel for **copy**: a `voice` field on `DesignSystemConfig` that shapes every CTA label, empty state, error message, pricing line, and FAQ answer the AI generates.
+
+```ts
+// design-system.config.ts
+voice: {
+  tone: "confident-direct",
+  ctaStyle: "imperative-action",
+  copyRules: [
+    "Plain English. No hedging.",
+    "Numbers, dates, timelines — never 'starting from'.",
+  ],
+  avoidWords: ["amazing", "revolutionary", "delve", "leverage"],
+  transparencyRules: [
+    "Show the cost upfront. No 'request a demo'.",
+    "Quiet confidence over hype.",
+  ],
+}
+```
+
+Injected into the modification prompt as a `## VOICE DIRECTIVE` block, sitting between `CORE_CONSTRAINTS` and design-quality rules so the AI treats it as a constraint, not flavor text. Empty/absent voice = zero token cost, AI uses its defaults.
+
+### Why this matters
+
+Most "AI slop" complaints don't trace to broken layouts — they trace to generic copy. "Welcome to your dashboard!" "Click here to get started." "Empower your workflow." No validator catches that today, no atmosphere constrains it.
+
+Voice profile is borrowed from the Atlassian Design pattern (and recently surfaced in claude.ai/design's "Rollur" output): name the tone, list the rules, ban the words. Treat copy as a first-class artifact, not an afterthought.
+
+### Codex pre-implementation gate
+
+Verdict: **Pick #1 from Rollur** — highest leverage among 5 candidates. Quote: "Affects every generated page's copy, CTAs, labels, empty states, pricing language, and 'AI slop' feel." Codex specified the schema fields and file layout; v0.16.0 ships per spec.
+
+### Internal
+
+- New schema: `VoiceProfileSchema` in `packages/core/src/types/design-system.ts` (z.object, all fields optional)
+- New renderer: `packages/cli/src/phase-engine/prompt-builders/voice-directive.ts` (`renderVoiceDirective(voice)`)
+- Wired into `modification.ts` prompt builder between user-prefs and design-quality blocks
+- Tests: 1742 passing (+11 new — empty/single-field/multi-field/edge cases for voice directive renderer)
+
+### Not breaking
+
+- `voice` is optional on `DesignSystemConfig`. Existing projects load with `voice: undefined` and behave identically.
+- Empty voice produces empty prompt block — no token cost or behavior change for users who haven't opted in.
+
+### What ships next (v0.16.x roadmap)
+
+- **v0.16.1** — semantic color usage notes (Rollur borrow #2). Sidecar `tokenUsage.colors` mapping ("primary: Primary actions, active nav, focus rings"). 0.5-1d.
+- **v0.16.2** — surface hidden code snippets in `/design-system/components/[id]` viewer. ~30 min quick win flagged by audit (`usageCode` exists in showcase but never renders).
+- **v0.17.x** — `/design-system/` viewer redesign. Direction document at `~/.gstack/projects/skovtun-coherent-design-method/design-system-viewer-direction-2026-04-29.md`. References: Primer (anatomy), Atlassian (voice), Geist (typography). 3-5d.
+
+---
+
 ## [0.15.5] — 2026-04-29
 
 ### Fixed — three deferred codex findings from v0.15.0-v0.15.3 review
