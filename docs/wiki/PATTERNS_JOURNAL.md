@@ -320,6 +320,42 @@ Node version: 19.8.0 (macOS, Kiboko-AirM1). Also reproduces on Node 20+ — this
 **Test gap to close:** the `coherent` smoke test suite never did a `npm pack → npm install -g <tgz>` on a clean Node image. Adding that as a release-gate step would have caught PJ-011 pre-publish. Not done in this PR — deferred as a follow-up task.
 
 ---
+id: PJ-012
+type: bug
+confidence: verified
+status: resolved
+date: 2026-04-28
+fixed_in: [0.14.4]
+evidence: [sha:beaab69, repo:///tmp/dogfood-v13/calendar/page.tsx:204, repo:///tmp/dogfood-v13/notifications/page.tsx:266]
+---
+
+### PJ-012 — `<Button>` as row/cell wrapper inherits CVA defaults (notifications stack, calendar bleeds)
+
+**Observed:** Two distinct visual failures in dogfood-v13, same root cause:
+
+1. **Notifications page** — list items rendered as `<Button>` rows. Avatar + multi-line title + timestamp collapsed into a 36px-tall row, content overflowing horizontally and stacking on top of each other. Items unreadable.
+2. **Calendar page** — month-grid cells built as `<Button>`. Day number + event chips bled across grid columns horizontally because the cell laid children out as `inline-flex items-center justify-center gap-2 whitespace-nowrap`.
+
+Both look like layout bugs but neither page set the broken classes — they came from the shadcn `Button` CVA defaults: `inline-flex items-center justify-center gap-2 whitespace-nowrap h-9`. Adding container classes (`min-h-[92px]`, `p-3`) on top of `<Button>` doesn't override CVA — the row stays 36px tall and children stay horizontal until you explicitly write `h-auto` + `flex-col items-start`.
+
+**Root cause:** AI uses `<Button>` as a "clickable wrapper" because it gets keyboard handling, focus ring, and hover state for free. But Button's CVA was tuned for actual buttons (single line of text, ~36px tall). When the wrapper holds an Avatar + multi-line content, CVA defaults visibly bleed through — and AI does not realize it because the broken classes are not in the page source.
+
+Two `design-constraints.ts` rules already addressed sidebar nav (`SidebarMenuButton` over `Button variant="ghost"`) and native `<button>` over `<Button>` for icon-only triggers — but neither covered the row/cell wrapper case. Sidebar guidance in CORE was even still recommending `Button variant="ghost"`, silently contradicting `shadcn-provider.ts:153` which had said "never use `Button` for sidebar nav" since v0.6.
+
+**Fix shipped (v0.14.4):**
+- New CORE_CONSTRAINTS section "BUTTON AS CONTAINER RULES" — domain primitives (`SidebarMenuButton`, `TabsTrigger`) for nav; if you must use `Button` as a row/cell wrapper, override CVA explicitly (`h-auto`, `flex-col items-start`, `min-w-0`, `whitespace-normal`).
+- Sidebar guidance reframed from `Button variant="ghost"` to `SidebarMenuButton` so CORE matches `shadcn-provider.ts`.
+- **Validator `BUTTON_AS_ROW_NO_HEIGHT_OVERRIDE`** (severity: error) — `<Button>` inside `.map()` with avatar/img/`size-10`/`items-start`/`py-3-6`/`p-3-6` signals but no `h-auto` / `min-h-*` / `size-*` / `h-[*]` override. Notifications, comments, search-results pattern.
+- **Validator `BUTTON_AS_CELL_NO_VERTICAL_LAYOUT`** (severity: error) — `<Button>` inside `.map()` with `min-h-[*]` and 2+ direct child divs OR `events.map(...)` but no `flex-col`. Calendar/grid cell pattern.
+- **Conservative auto-fix** for the cell case — only fires when calendar markers (`calendar` / `isToday` / `setMonth` / `days.map` / `events.map`) are present. Mutates inline className strings to insert `flex-col items-start justify-start min-w-0 text-left`. `className={varName}` arrays still need a manual fix — the regression test in this PR pinned that boundary.
+
+**Initial regression caught during dogfood:** validator missed the calendar case because the page built `cellClasses` as a const array and passed `className={cellClasses}`. Tag-only scan didn't see `min-h-[92px]`. Fixed by scanning the whole `.map()` block scope (bounded by `</Button>`), not just the Button tag.
+
+**Codex pre-implementation gate:** plan went through `/codex consult` before any validator code. Codex caught the contradiction with the existing native-button rules at `design-constraints.ts:149/191`, tightened the validator scope (don't key on broad "multi-line content"; key on Avatar/img/size-10/items-start for row, `min-h-[*]` + 2+ child divs OR `events.map` for cell), and recommended detection-first with conservative auto-fix only. Verdict: **Go, With Scope Tightening**.
+
+**Tests:** 15 new (5 row, 4 cell, 3 autofix, 2 CORE_CONSTRAINTS, 1 const-array regression). 1691 total passing.
+
+---
 
 ## How to add a new entry
 
