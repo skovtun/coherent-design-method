@@ -11,6 +11,78 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.17.2] — 2026-04-29
+
+### Fixed — viewer feedback after v0.17.1 ship (4 user-reported issues)
+
+User reviewed v0.17.1 live and surfaced 4 more issues. All addressed in this patch.
+
+#### 1. Sidebar header reordered — brand top, Back to App below
+
+v0.17.1 had Back to App ABOVE the brand block. User feedback: project name should sit at the top (it's the page anchor), Back to App is chrome and belongs below.
+
+New order: brand block (project name + "Design System" subtitle) → divider → Back to App link → divider → nav.
+
+#### 2. IA restructure — flat groups, no numbering, Voice inside Foundations
+
+v0.17.0/v0.17.1 used 4 numbered groups (01 Foundations, 02 Components, 03 Patterns, 04 Voice). User found the numbering noisy and wanted a flatter, more semantic IA.
+
+New structure:
+
+```
+Foundations
+├── Color
+├── Typography
+├── Spacing
+└── Voice                ← moved INTO Foundations
+Base Components            ← was "Components"
+└── <dynamic shadcn list>
+Shared Components          ← was "Patterns"
+└── <dynamic generated list>
+─────────────────────       ← soft divider
+Sitemap                    ← flat, no children
+Documentation              ← flat
+Recommendations            ← flat
+```
+
+Reasons:
+
+- **Voice is a foundation primitive.** It governs every CTA, empty state, and copy line — same conceptual layer as Color and Typography. Material and Carbon both put Writing/Voice inside Foundations.
+- **Flat tail (Sitemap/Docs/Recs)** without children — single-page references shouldn't pretend to be expandable groups. Tail sits below a soft divider for visual hierarchy without the numbering noise.
+- **"Base Components" / "Shared Components"** clearer than "Components / Patterns" — describes what they actually are.
+
+Crumbs and home page quick-links updated to match the new IA.
+
+#### 3. Sidebar dark-mode color rethink — quiet panel, both modes
+
+v0.17.1 used `#0a0a0a` inverted black rail in light mode and `bg-card` (project dark blue) in dark mode. User feedback: black + dark blue clash visually.
+
+New approach: sidebar uses `bg-background` in BOTH modes with a single `border-r border-border` divider. Quiet panel, not inverted rail. Matches Geist, Primer, and Atlassian DS viewers — they all keep the sidebar in the project palette rather than fighting it with an inverted block.
+
+Side benefit: nav items use semantic tokens (`text-muted-foreground` / `text-foreground` / `bg-muted`) instead of `text-white/55` style overrides. Cleaner CSS, theme-correct in both modes automatically.
+
+#### 4. Reduced inner content padding
+
+v0.17.1 used `px-5 py-8 lg:px-8 lg:py-10` on the main content wrapper. v0.17.2 tightens to `px-4 py-6 lg:px-6 lg:py-8` — less air around blocks, more density on viewer pages where users scan reference material.
+
+### Files changed
+
+```
+packages/core/src/generators/templates/design-system/design-system-layout.ts   ─ rewrite
+packages/core/src/generators/DesignSystemGenerator.ts                          ─ home cards/links + voice eyebrow
+docs/CHANGELOG.md
+packages/{core,cli}/package.json   ─ 0.17.1 → 0.17.2
+```
+
+### Verified
+
+- 1746 tests passing
+- TypeScript clean
+- Smoke project regenerated via `coherent update`: all DS routes 200, new IA visible, sidebar uses neutral panel in both themes
+- Codex pre-impl consult on sidebar color strategy + IA shape (Voice-inside-Foundations)
+
+---
+
 ## [0.17.1] — 2026-04-29
 
 ### Fixed — viewer feedback after v0.17.0 ship (7 user-reported issues)
