@@ -81,4 +81,10 @@ export interface ApplyResult {
   success: boolean
   message: string
   modified: string[]
+  /**
+   * Per-page quality retry telemetry produced inside applyModificationRequest.
+   * Empty/absent when no retry loop ran (no errors, no provider, etc.).
+   * Bubbled up to the runRecord by the chat-rail caller.
+   */
+  qualityRetries?: import('../utils/run-record.js').RunRecordQualityRetry[]
 }

@@ -193,6 +193,19 @@ function normalizePageWrapper(code: string): { code: string; fixed: boolean } {
  * would persist the page edit but silently revert the color change because
  * the page modification's dsm.updateConfig overwrites the token mutation.
  */
+/**
+ * Group quality validator errors by `type` and emit `[{type, count}, ...]`,
+ * sorted by count desc then type asc. Used for `qualityRetries` telemetry
+ * (v0.15.0). Filters out non-error severities — caller pre-filters.
+ */
+function aggregateErrorCounts(errors: Array<{ type: string }>): Array<{ type: string; count: number }> {
+  const map = new Map<string, number>()
+  for (const e of errors) map.set(e.type, (map.get(e.type) || 0) + 1)
+  return Array.from(map.entries())
+    .map(([type, count]) => ({ type, count }))
+    .sort((a, b) => b.count - a.count || a.type.localeCompare(b.type))
+}
+
 function applyManagerResult(
   dsm: DesignSystemManager,
   cm: ComponentManager,
@@ -213,7 +226,15 @@ export async function applyModification(
   projectRoot: string,
   aiProvider?: 'claude' | 'openai' | 'auto',
   originalMessage?: string,
-): Promise<{ success: boolean; message: string; modified: string[] }> {
+): Promise<{
+  success: boolean
+  message: string
+  modified: string[]
+  qualityRetries?: import('../../utils/run-record.js').RunRecordQualityRetry[]
+}> {
+  // v0.15.0 — quality retry telemetry. Captured by add-page / update-page
+  // retry loops below. Codex pre-impl gate: passive only, no re-injection.
+  const qualityRetries: import('../../utils/run-record.js').RunRecordQualityRetry[] = []
   switch (request.type) {
     case 'modify-layout-block': {
       const target = request.target
@@ -707,9 +728,14 @@ export async function applyModification(
           let issues = validatePageQuality(codeToWrite, undefined, qualityPageType)
           const errors = issues.filter(i => i.severity === 'error')
 
+          // v0.15.0 — capture initial state for retry telemetry
+          const initialErrorCounts = aggregateErrorCounts(errors)
+          let attemptsRun = 0
+
           const MAX_QUALITY_FIX_ATTEMPTS = 2
           let currentErrors = errors
           for (let attempt = 0; attempt < MAX_QUALITY_FIX_ATTEMPTS && currentErrors.length > 0; attempt++) {
+            attemptsRun = attempt + 1
             if (!aiProvider) break
             console.log(
               chalk.yellow(
@@ -747,6 +773,20 @@ export async function applyModification(
           }
           issues = validatePageQuality(codeToWrite, undefined, qualityPageType)
 
+          // v0.15.0 — push retry telemetry only when there were initial errors
+          // (the loop ran). Skip pages that were clean from the start.
+          if (initialErrorCounts.length > 0) {
+            const finalErrorCounts = aggregateErrorCounts(issues.filter(i => i.severity === 'error'))
+            qualityRetries.push({
+              page: page.name || page.id || route,
+              pageType: qualityPageType,
+              initialErrors: initialErrorCounts,
+              attempts: attemptsRun,
+              resolved: finalErrorCounts.length === 0,
+              finalErrors: finalErrorCounts,
+            })
+          }
+
           const summary = summarizeIssuesCompact(issues)
           if (summary) {
             console.log(chalk.dim(`     · ${summary}`))
@@ -763,6 +803,7 @@ export async function applyModification(
         success: result.success,
         message: result.message,
         modified: result.modified,
+        qualityRetries: qualityRetries.length > 0 ? qualityRetries : undefined,
       }
     }
 
@@ -947,8 +988,14 @@ export async function applyModification(
 
             let issues = validatePageQuality(codeToWrite, undefined, qualityPageType2)
             let qualityErrors = issues.filter(i => i.severity === 'error')
+
+            // v0.15.0 — capture initial state for retry telemetry
+            const initialUpdateErrorCounts = aggregateErrorCounts(qualityErrors)
+            let attemptsRunUpdate = 0
+
             const MAX_UPDATE_QUALITY_FIX_ATTEMPTS = 2
             for (let attempt = 0; attempt < MAX_UPDATE_QUALITY_FIX_ATTEMPTS && qualityErrors.length > 0; attempt++) {
+              attemptsRunUpdate = attempt + 1
               if (!aiProvider) break
               try {
                 const ai = await createAIProvider(aiProvider)
@@ -985,6 +1032,20 @@ export async function applyModification(
               }
             }
             issues = validatePageQuality(codeToWrite, undefined, qualityPageType2)
+
+            // v0.15.0 — push retry telemetry (only when initial errors existed)
+            if (initialUpdateErrorCounts.length > 0) {
+              const finalUpdateErrorCounts = aggregateErrorCounts(issues.filter(i => i.severity === 'error'))
+              qualityRetries.push({
+                page: pageDef.name || pageDef.id || route,
+                pageType: qualityPageType2,
+                initialErrors: initialUpdateErrorCounts,
+                attempts: attemptsRunUpdate,
+                resolved: finalUpdateErrorCounts.length === 0,
+                finalErrors: finalUpdateErrorCounts,
+              })
+            }
+
             const summary = summarizeIssuesCompact(issues)
             if (summary) {
               console.log(chalk.dim(`     · ${summary}`))
@@ -1047,6 +1108,7 @@ export async function applyModification(
         success: result.success,
         message: result.message,
         modified: result.modified,
+        qualityRetries: qualityRetries.length > 0 ? qualityRetries : undefined,
       }
     }
 

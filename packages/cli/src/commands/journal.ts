@@ -18,6 +18,7 @@ import { resolve, join } from 'path'
 import { findConfig } from '../utils/find-config.js'
 
 const SESSIONS_DIR = join('.coherent', 'fix-sessions')
+const RUNS_DIR = join('.coherent', 'runs')
 
 interface ParsedSession {
   file: string
@@ -96,6 +97,133 @@ function parseSession(raw: string, file: string): ParsedSession | null {
   }
 
   return session.timestamp ? session : null
+}
+
+/**
+ * Quality retry telemetry parsed from `.coherent/runs/*.yaml`. v0.15.0+
+ * runs include a `qualityRetries:` block per page that hit the AI fix
+ * loop. Each entry records initial errors, retry attempts, and whether
+ * the page resolved cleanly.
+ */
+interface ParsedRetry {
+  page: string
+  pageType: string
+  attempts: number
+  resolved: boolean
+  initialErrors: { type: string; count: number }[]
+  finalErrors: { type: string; count: number }[]
+}
+
+interface ParsedRun {
+  file: string
+  timestamp: string
+  retries: ParsedRetry[]
+}
+
+/**
+ * Tiny state-machine parser for the `qualityRetries:` block in a run
+ * YAML. Stops at the first non-list, non-indented line. Tolerant of
+ * older runs that don't include the block — returns an empty array.
+ */
+export function parseRunRetries(raw: string, file: string): ParsedRun | null {
+  const lines = raw.split('\n')
+  const out: ParsedRun = { file, timestamp: '', retries: [] }
+  let inBlock = false
+  let cur: ParsedRetry | null = null
+  let listSection: 'initialErrors' | 'finalErrors' | null = null
+  let pendingType: string | null = null
+
+  const flush = () => {
+    if (cur) out.retries.push(cur)
+    cur = null
+    listSection = null
+    pendingType = null
+  }
+
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/\r$/, '')
+    const tsMatch = /^timestamp:\s*(\S+)/.exec(line)
+    if (tsMatch) {
+      out.timestamp = tsMatch[1]
+      continue
+    }
+    if (/^qualityRetries:/.test(line)) {
+      inBlock = true
+      continue
+    }
+    if (!inBlock) continue
+    if (line.length > 0 && !/^[ \t]/.test(line)) {
+      flush()
+      inBlock = false
+      continue
+    }
+    const newEntry = /^\s{2}-\s*page:\s*"([^"]*)"/.exec(line)
+    if (newEntry) {
+      flush()
+      cur = { page: newEntry[1], pageType: '', attempts: 0, resolved: false, initialErrors: [], finalErrors: [] }
+      continue
+    }
+    if (!cur) continue
+    const ptMatch = /^\s{4}pageType:\s*"([^"]*)"/.exec(line)
+    if (ptMatch) {
+      cur.pageType = ptMatch[1]
+      continue
+    }
+    const aMatch = /^\s{4}attempts:\s*(\d+)/.exec(line)
+    if (aMatch) {
+      cur.attempts = Number(aMatch[1])
+      continue
+    }
+    const rMatch = /^\s{4}resolved:\s*(true|false)/.exec(line)
+    if (rMatch) {
+      cur.resolved = rMatch[1] === 'true'
+      continue
+    }
+    if (/^\s{4}initialErrors:/.test(line)) {
+      listSection = /\[\]/.test(line) ? null : 'initialErrors'
+      pendingType = null
+      continue
+    }
+    if (/^\s{4}finalErrors:/.test(line)) {
+      listSection = /\[\]/.test(line) ? null : 'finalErrors'
+      pendingType = null
+      continue
+    }
+    if (listSection) {
+      const tMatch = /^\s{6}-\s*type:\s*"([^"]+)"/.exec(line)
+      if (tMatch) {
+        pendingType = tMatch[1]
+        continue
+      }
+      const cMatch = /^\s{8}count:\s*(\d+)/.exec(line)
+      if (cMatch && pendingType) {
+        cur[listSection].push({ type: pendingType, count: Number(cMatch[1]) })
+        pendingType = null
+        continue
+      }
+    }
+  }
+  flush()
+  return out.timestamp ? out : null
+}
+
+function readAllRunRecords(projectRoot: string): ParsedRun[] {
+  const dir = resolve(projectRoot, RUNS_DIR)
+  if (!existsSync(dir)) return []
+  const files = readdirSync(dir)
+    .filter(f => f.endsWith('.yaml'))
+    .sort()
+  const runs: ParsedRun[] = []
+  for (const f of files) {
+    try {
+      const raw = readFileSync(resolve(dir, f), 'utf-8')
+      const parsed = parseRunRetries(raw, f)
+      if (parsed) runs.push(parsed)
+    } catch {
+      /* skip malformed — same policy as fix-sessions reader */
+    }
+  }
+  return runs
 }
 
 function readAllSessions(projectRoot: string): ParsedSession[] {
@@ -227,6 +355,79 @@ export async function journalAggregateCommand(): Promise<void> {
       ),
     )
     console.log(chalk.dim('  (Manually draft a PJ-NNN entry with confidence: hypothesis for each.)\n'))
+  }
+
+  // v0.15.0 \u2014 retry telemetry from .coherent/runs (additional signal beyond
+  // post-hoc fix-sessions). Surfaces validators that the AI struggles to
+  // self-fix in-flight: high attempts, low resolved rate.
+  const runs = readAllRunRecords(project.root)
+  const allRetries = runs.flatMap(r => r.retries)
+  if (allRetries.length === 0) return
+
+  interface RetryAgg {
+    type: string
+    totalRetryCount: number // sum of initialErrors[].count where this validator fired
+    pageCount: number // pages where this validator triggered the retry loop
+    resolvedPageCount: number // pages where retry succeeded
+    avgAttempts: number
+    sumAttempts: number
+  }
+  const retryAgg: Record<string, RetryAgg> = {}
+  for (const retry of allRetries) {
+    const seenInitial = new Set<string>()
+    for (const ie of retry.initialErrors) {
+      if (seenInitial.has(ie.type)) continue
+      seenInitial.add(ie.type)
+      if (!retryAgg[ie.type]) {
+        retryAgg[ie.type] = {
+          type: ie.type,
+          totalRetryCount: 0,
+          pageCount: 0,
+          resolvedPageCount: 0,
+          avgAttempts: 0,
+          sumAttempts: 0,
+        }
+      }
+      retryAgg[ie.type].totalRetryCount += ie.count
+      retryAgg[ie.type].pageCount += 1
+      retryAgg[ie.type].sumAttempts += retry.attempts
+      if (retry.resolved) retryAgg[ie.type].resolvedPageCount += 1
+    }
+  }
+  const retryRows = Object.values(retryAgg).map(r => ({
+    ...r,
+    avgAttempts: r.pageCount > 0 ? r.sumAttempts / r.pageCount : 0,
+  }))
+
+  console.log(chalk.cyan(`  Retry telemetry \u2014 ${runs.length} run(s), ${allRetries.length} retry event(s)\n`))
+
+  // Validators most often needing retry
+  const byCount = [...retryRows].sort((a, b) => b.pageCount - a.pageCount).slice(0, 5)
+  if (byCount.length > 0) {
+    console.log(chalk.yellow('  Top validators needing AI retry:'))
+    for (const r of byCount) {
+      const resolveRate = r.pageCount > 0 ? Math.round((r.resolvedPageCount / r.pageCount) * 100) : 0
+      console.log(
+        `    ${chalk.dim(r.type.padEnd(34))} ${r.pageCount} page(s)  avg ${r.avgAttempts.toFixed(1)} attempts  ${resolveRate}% resolved`,
+      )
+    }
+    console.log('')
+  }
+
+  // Validators unresolved after retry \u2014 highest signal for PJ candidates
+  const stubborn = retryRows
+    .filter(r => r.pageCount - r.resolvedPageCount > 0)
+    .sort((a, b) => b.pageCount - b.resolvedPageCount - (a.pageCount - a.resolvedPageCount))
+    .slice(0, 5)
+  if (stubborn.length > 0) {
+    console.log(chalk.red('  Validators AI failed to self-fix:'))
+    for (const r of stubborn) {
+      const failed = r.pageCount - r.resolvedPageCount
+      console.log(
+        `    ${chalk.dim(r.type.padEnd(34))} ${failed}/${r.pageCount} unresolved  avg ${r.avgAttempts.toFixed(1)} attempts`,
+      )
+    }
+    console.log(chalk.dim('  (These are PJ-NNN candidates \u2014 AI knows the rule but cannot apply it.)\n'))
   }
 }
 
