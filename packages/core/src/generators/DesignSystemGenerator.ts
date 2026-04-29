@@ -175,18 +175,20 @@ export default function DesignSystemPage() {
   }
 
   const summary = [
-    { href: '/design-system/components', label: 'components', value: components.length, hint: 'view all' },
+    { href: '/design-system/tokens', label: 'foundations', value: tokenTotal, hint: 'tokens · colors · type' },
+    { href: '/design-system/components', label: 'base', value: components.length, hint: 'shadcn primitives' },
     { href: '/design-system/shared', label: 'shared', value: sharedCount, hint: 'header · footer · etc' },
-    { href: '/design-system/tokens', label: 'tokens', value: tokenTotal, hint: 'colors · spacing · radius' },
     { href: '/design-system/sitemap', label: 'pages', value: pages.length, hint: 'sitemap & analysis' },
   ]
 
   const quickLinks = [
-    { href: '/design-system/components', label: 'Components', meta: String(components.length) },
-    { href: '/design-system/shared', label: 'Shared Components', meta: String(sharedCount) },
     { href: '/design-system/tokens/colors', label: 'Colors', meta: String(colorCount), swatches: true },
     { href: '/design-system/tokens/typography', label: 'Typography', meta: '' },
     { href: '/design-system/tokens/spacing', label: 'Spacing & Radius', meta: String(spacingCount + radiusCount) },
+    { href: '/design-system/voice', label: 'Voice', meta: '' },
+    { href: '/design-system/components', label: 'Base Components', meta: String(components.length) },
+    { href: '/design-system/shared', label: 'Shared Components', meta: String(sharedCount) },
+    { href: '/design-system/sitemap', label: 'Sitemap', meta: String(pages.length) },
     { href: '/design-system/docs', label: 'Documentation', meta: '' },
     { href: '/design-system/recommendations', label: 'Recommendations', meta: '' },
   ]
@@ -1106,7 +1108,7 @@ export default function VoicePage() {
   return (
     <article className="space-y-12">
       <header className="space-y-4">
-        <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">04 — Voice</div>
+        <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Foundations · Voice</div>
         <h1 className="text-[40px] font-semibold leading-[1.05] tracking-[-0.02em] text-foreground">
           How this product talks.
         </h1>

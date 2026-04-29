@@ -1,17 +1,17 @@
 /**
- * Design System layout — v0.17.1 redesign per user feedback on v0.17.0.
+ * Design System layout — v0.17.2 redesign per user feedback on v0.17.1.
  *
- * Changes from v0.17.0:
- * - Two-level navigation: top categories with auto-expanded subitems
- * - Components list dynamically fetched from /api/design-system/config
- * - Back to App link above project brand (chrome, not IA)
- * - Theme toggle moved to top-right of main content (sticky bar)
- * - "C" logo letter removed — project name only
- * - Sidebar hybrid: #0a0a0a in light mode (inverted rail), bg-card in
- *   dark mode (matches project palette per codex consult)
- * - Mono usage reduced — kept only for: number prefixes, version/date,
- *   code blocks. Sans for nav labels, group names, headings.
- * - Reduced content padding
+ * Changes from v0.17.1:
+ * - Sidebar header reordered: brand block top → divider → Back to App → divider → nav
+ * - IA restructure (no numbering): Foundations (Color/Typography/Spacing/Voice) /
+ *   Base Components (dynamic) / Shared Components (dynamic) / Sitemap /
+ *   Documentation / Recommendations. Tail-3 are flat (no children).
+ * - Sidebar uses bg-background in BOTH modes (no more #0a0a0a inverted rail).
+ *   Reason: black inverted rail clashes with project dark blue in dark mode.
+ *   Now a quiet panel with border-r — matches Geist/Primer/Atlassian.
+ * - Reduced inner content padding (px-4 py-6 lg:px-6 lg:py-8)
+ * - Voice moved INSIDE Foundations (semantic primitive, not own group)
+ * - Tail groups (Sitemap/Documentation/Recommendations) below a soft divider
  *
  * Placeholders: {{PROJECT_NAME}}, {{PROJECT_VERSION}}, {{GENERATED_AT}}.
  */
@@ -33,18 +33,18 @@ const KNOWN_NAMES: Record<string, string> = {
   tooltip: 'Tooltip', 'radio-group': 'RadioGroup', slider: 'Slider',
 }
 
-// Static IA. 'Components' and 'Patterns' get dynamic children appended at runtime.
-type StaticGroup = {
-  num: string
+// IA — flat, 2 sections in nav. Top: Foundations / Base Components /
+// Shared Components. Tail: Sitemap / Documentation / Recommendations.
+type NavGroup = {
   label: string
-  href: string                // group overview link (clicking the label navigates here)
-  links: { href: string; label: string }[]
-  routePrefix: string         // for active-state matching
+  href: string                         // group overview link
+  routePrefix: string                  // for active-state matching
+  links: { href: string; label: string }[]   // children (empty = no expand)
+  dynamic?: 'base-components' | 'shared-components'
 }
 
-const STATIC_GROUPS: StaticGroup[] = [
+const TOP_GROUPS: NavGroup[] = [
   {
-    num: '01',
     label: 'Foundations',
     href: '/design-system/tokens',
     routePrefix: '/design-system/tokens',
@@ -52,36 +52,43 @@ const STATIC_GROUPS: StaticGroup[] = [
       { href: '/design-system/tokens/colors', label: 'Color' },
       { href: '/design-system/tokens/typography', label: 'Typography' },
       { href: '/design-system/tokens/spacing', label: 'Spacing' },
-      { href: '/design-system/tokens', label: 'All tokens' },
+      { href: '/design-system/voice', label: 'Voice' },
     ],
   },
   {
-    num: '02',
-    label: 'Components',
+    label: 'Base Components',
     href: '/design-system/components',
     routePrefix: '/design-system/components',
-    links: [],   // populated dynamically
+    links: [],
+    dynamic: 'base-components',
   },
   {
-    num: '03',
-    label: 'Patterns',
+    label: 'Shared Components',
     href: '/design-system/shared',
     routePrefix: '/design-system/shared',
-    links: [
-      { href: '/design-system/shared', label: 'Shared blocks' },
-      { href: '/design-system/sitemap', label: 'Sitemap' },
-    ],
+    links: [],
+    dynamic: 'shared-components',
+  },
+]
+
+const TAIL_GROUPS: NavGroup[] = [
+  {
+    label: 'Sitemap',
+    href: '/design-system/sitemap',
+    routePrefix: '/design-system/sitemap',
+    links: [],
   },
   {
-    num: '04',
-    label: 'Voice',
-    href: '/design-system/voice',
-    routePrefix: '/design-system/voice',
-    links: [
-      { href: '/design-system/voice', label: 'Principles' },
-      { href: '/design-system/recommendations', label: 'Recommendations' },
-      { href: '/design-system/docs', label: 'Documentation' },
-    ],
+    label: 'Documentation',
+    href: '/design-system/docs',
+    routePrefix: '/design-system/docs',
+    links: [],
+  },
+  {
+    label: 'Recommendations',
+    href: '/design-system/recommendations',
+    routePrefix: '/design-system/recommendations',
+    links: [],
   },
 ]
 
@@ -142,44 +149,47 @@ export default function DesignSystemLayout({
   const isPathActive = (href: string) =>
     pathname === href || (href !== '/design-system' && pathname?.startsWith(href + '/'))
 
-  const isGroupActive = (group: StaticGroup) =>
+  const isGroupActive = (group: NavGroup) =>
     pathname === group.routePrefix || pathname?.startsWith(group.routePrefix + '/')
 
-  const buildGroupLinks = (group: StaticGroup): { href: string; label: string }[] => {
-    if (group.label === 'Components') {
+  const buildGroupLinks = (group: NavGroup): { href: string; label: string }[] => {
+    if (group.dynamic === 'base-components') {
       const dynamic = components.map(c => ({
         href: \`/design-system/components/\${c.id}\`,
         label: KNOWN_NAMES[c.id] || c.name || c.id,
       }))
       return [{ href: '/design-system/components', label: 'All components' }, ...dynamic]
     }
-    if (group.label === 'Patterns') {
+    if (group.dynamic === 'shared-components') {
+      if (shared.length === 0) return [{ href: '/design-system/shared', label: 'All shared blocks' }]
       const dynamic = shared.map(s => ({
         href: \`/design-system/shared/\${s.id}\`,
         label: s.name,
       }))
-      return [...group.links.filter(l => !l.href.includes('/shared/')), ...(dynamic.length ? [{ href: '/design-system/shared', label: 'Shared blocks' }, ...dynamic, { href: '/design-system/sitemap', label: 'Sitemap' }] : group.links)]
+      return [{ href: '/design-system/shared', label: 'All shared blocks' }, ...dynamic]
     }
     return group.links
   }
 
-  const renderGroup = (group: StaticGroup) => {
+  const renderGroup = (group: NavGroup) => {
     const active = isGroupActive(group)
     const links = buildGroupLinks(group)
+    const hasChildren = links.length > 0
     return (
-      <div key={group.num} className="mb-5">
+      <div key={group.label} className="mb-1">
         <Link
           href={group.href}
           onClick={() => setMobileMenuOpen(false)}
-          className={\`flex items-baseline gap-2 px-3 py-1 text-[11.5px] font-medium uppercase tracking-[0.12em] transition-colors \${
-            active ? 'text-white' : 'text-white/55 hover:text-white/80'
+          className={\`block rounded-md px-3 py-1.5 text-[12px] font-medium uppercase tracking-[0.12em] transition-colors \${
+            active
+              ? 'text-foreground'
+              : 'text-muted-foreground hover:text-foreground'
           }\`}
         >
-          <span className="font-mono text-[10.5px] text-white/30">{group.num}</span>
-          <span>{group.label}</span>
+          {group.label}
         </Link>
-        {active && links.length > 0 && (
-          <div className="mt-1 flex flex-col gap-[1px]">
+        {active && hasChildren && (
+          <div className="mt-1 mb-3 flex flex-col gap-[1px]">
             {links.map((link) => {
               const linkActive = isPathActive(link.href)
               return (
@@ -187,10 +197,10 @@ export default function DesignSystemLayout({
                   key={link.href}
                   href={link.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={\`rounded-md px-3 py-[7px] text-[13.5px] outline-none transition-colors \${
+                  className={\`rounded-md px-3 py-[6px] text-[13px] outline-none transition-colors \${
                     linkActive
-                      ? 'bg-white/10 text-white'
-                      : 'text-white/65 hover:bg-white/5 hover:text-white'
+                      ? 'bg-muted text-foreground'
+                      : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                   }\`}
                 >
                   {link.label}
@@ -210,24 +220,22 @@ export default function DesignSystemLayout({
     if (parts.length === 0) return []
     const crumbs: { label: string; href: string }[] = []
     if (parts[0] === 'components') {
-      crumbs.push({ label: 'Components', href: '/design-system/components' })
+      crumbs.push({ label: 'Base Components', href: '/design-system/components' })
       if (parts[1]) crumbs.push({ label: KNOWN_NAMES[parts[1]] || parts[1].replace(/-/g, ' '), href: pathname })
     } else if (parts[0] === 'tokens') {
       crumbs.push({ label: 'Foundations', href: '/design-system/tokens' })
       if (parts[1]) crumbs.push({ label: parts[1], href: pathname })
     } else if (parts[0] === 'shared') {
-      crumbs.push({ label: 'Patterns', href: '/design-system/shared' })
+      crumbs.push({ label: 'Shared Components', href: '/design-system/shared' })
       if (parts[1]) crumbs.push({ label: decodeURIComponent(parts[1]), href: pathname })
     } else if (parts[0] === 'docs') {
-      crumbs.push({ label: 'Voice', href: '/design-system/voice' })
       crumbs.push({ label: 'Documentation', href: '/design-system/docs' })
     } else if (parts[0] === 'voice') {
+      crumbs.push({ label: 'Foundations', href: '/design-system/tokens' })
       crumbs.push({ label: 'Voice', href: '/design-system/voice' })
     } else if (parts[0] === 'sitemap') {
-      crumbs.push({ label: 'Patterns', href: '/design-system/shared' })
       crumbs.push({ label: 'Sitemap', href: '/design-system/sitemap' })
     } else if (parts[0] === 'recommendations') {
-      crumbs.push({ label: 'Voice', href: '/design-system/voice' })
       crumbs.push({ label: 'Recommendations', href: '/design-system/recommendations' })
     }
     return crumbs
@@ -237,41 +245,45 @@ export default function DesignSystemLayout({
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-      {/* Permanent left sidebar — dark in light mode (inverted rail);
-          uses bg-card token in dark mode so it harmonizes with the rest. */}
-      <aside className="hidden md:flex w-[260px] shrink-0 flex-col bg-[#0a0a0a] dark:bg-card dark:border-r dark:border-border text-white dark:text-foreground">
+      {/* Permanent left sidebar — quiet panel, bg-background both modes,
+          divided from content by a single border. No more inverted rail. */}
+      <aside className="hidden md:flex w-[260px] shrink-0 flex-col border-r border-border bg-background">
         <div className="sticky top-0 flex h-screen flex-col">
-          {/* Back to App — chrome, sits above the brand */}
-          <div className="px-4 pt-4 pb-3">
+          {/* Brand block — name + DS subtitle, sits at the very top */}
+          <div className="px-5 pt-5 pb-4">
+            <Link href="/design-system" className="block outline-none">
+              <div className="text-[15px] font-semibold tracking-tight text-foreground">{PROJECT_NAME}</div>
+              <div className="mt-0.5 text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground">Design System</div>
+            </Link>
+          </div>
+
+          <div className="border-b border-border" />
+
+          {/* Back to App — chrome, sits below brand */}
+          <div className="px-3 py-2">
             <Link
               href="/"
-              className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-[12.5px] text-white/55 outline-none transition-colors hover:bg-white/5 hover:text-white dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-foreground"
+              className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-[12.5px] text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
               Back to App
             </Link>
           </div>
 
-          <div className="border-b border-white/5 dark:border-border" />
+          <div className="border-b border-border" />
 
-          {/* Brand — name only, no logo letter */}
-          <div className="px-5 pt-5 pb-5">
-            <Link href="/design-system" className="block outline-none">
-              <div className="text-[15px] font-semibold tracking-tight text-white dark:text-foreground">{PROJECT_NAME}</div>
-              <div className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-white/40 dark:text-muted-foreground">Design System</div>
-            </Link>
-          </div>
-
-          {/* Nav — scrollable, two-level, auto-expands active group */}
-          <nav aria-label="Design System navigation" className="flex-1 overflow-y-auto px-3 pb-6">
-            {STATIC_GROUPS.map(renderGroup)}
+          {/* Nav — scrollable, two-section (top + tail), auto-expands active group */}
+          <nav aria-label="Design System navigation" className="flex-1 overflow-y-auto px-3 py-4">
+            {TOP_GROUPS.map(renderGroup)}
+            <div className="my-3 border-t border-border/60" />
+            {TAIL_GROUPS.map(renderGroup)}
           </nav>
 
-          {/* Footer — metadata only (theme toggle moved to main content top-right) */}
-          <div className="border-t border-white/5 dark:border-border px-5 py-4">
-            <div className="flex flex-col gap-1 font-mono text-[10.5px] text-white/40 dark:text-muted-foreground">
-              <div><span className="text-white/30 dark:text-muted-foreground/70">version</span> · <span className="tabular-nums">{PROJECT_VERSION}</span></div>
-              <div><span className="text-white/30 dark:text-muted-foreground/70">generated</span> · <span className="tabular-nums">{GENERATED_AT}</span></div>
+          {/* Footer — version + generated metadata */}
+          <div className="border-t border-border px-5 py-3">
+            <div className="flex flex-col gap-0.5 font-mono text-[10.5px] text-muted-foreground">
+              <div><span className="opacity-70">version</span> · <span className="tabular-nums text-foreground/80">{PROJECT_VERSION}</span></div>
+              <div><span className="opacity-70">generated</span> · <span className="tabular-nums text-foreground/80">{GENERATED_AT}</span></div>
             </div>
           </div>
         </div>
@@ -331,27 +343,29 @@ export default function DesignSystemLayout({
 
         {/* Mobile drawer */}
         {mobileMenuOpen && (
-          <div className="border-b border-border bg-[#0a0a0a] dark:bg-card text-white dark:text-foreground md:hidden">
+          <div className="border-b border-border bg-background md:hidden">
             <div className="px-3 py-4">
               <Link
                 href="/"
                 onClick={() => setMobileMenuOpen(false)}
-                className="mb-3 inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-[12.5px] text-white/55 hover:bg-white/5 hover:text-white"
+                className="mb-3 inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-[12.5px] text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
                 Back to App
               </Link>
-              {STATIC_GROUPS.map(renderGroup)}
-              <div className="mt-4 border-t border-white/5 px-2 pt-3 font-mono text-[10.5px] text-white/40">
+              {TOP_GROUPS.map(renderGroup)}
+              <div className="my-3 border-t border-border/60" />
+              {TAIL_GROUPS.map(renderGroup)}
+              <div className="mt-4 border-t border-border px-2 pt-3 font-mono text-[10.5px] text-muted-foreground">
                 v{PROJECT_VERSION} · {GENERATED_AT}
               </div>
             </div>
           </div>
         )}
 
-        {/* Content — reduced padding from v0.17.0 */}
+        {/* Content — reduced padding from v0.17.1 (px-4 py-6 lg:px-6 lg:py-8) */}
         <main className="flex-1">
-          <div className="mx-auto w-full max-w-[1024px] px-5 py-8 lg:px-8 lg:py-10">
+          <div className="mx-auto w-full max-w-[1024px] px-4 py-6 lg:px-6 lg:py-8">
             {children}
           </div>
         </main>
