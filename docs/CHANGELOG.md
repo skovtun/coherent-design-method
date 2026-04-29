@@ -11,6 +11,26 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.15.1] — 2026-04-29
+
+### Fixed — `coherent journal aggregate` now renders retry telemetry on chat-only projects
+
+v0.15.0 shipped quality retry telemetry but the new `coherent journal aggregate` retry section was hidden on projects that had only run `coherent chat` (no `coherent fix --journal` sessions). The command early-returned on missing fix-sessions before reaching the retry rendering at the bottom.
+
+Fixed by reorganizing the function to read both data sources upfront, then bail only when BOTH are empty. Fix-sessions section now skips silently when empty; retry section always runs if `.coherent/runs/*.yaml` has any `qualityRetries` data.
+
+### Verified
+
+End-to-end on `/tmp/coh-v14.4-smoke/smoke` after fresh `coherent chat`:
+- `.coherent/runs/2026-04-29T17-12-57Z.yaml` populated with `qualityRetries: [Comments page, BUTTON_AS_CELL_NO_VERTICAL_LAYOUT, attempts: 1, resolved: false]` ✓
+- Confirmed AI failed-to-self-fix signal — exactly the highest-value insight codex predicted
+
+### Internal
+
+Tests: 1699 passing (no new tests — 4-line fix verified by manual smoke). Affected file: `packages/cli/src/commands/journal.ts`.
+
+---
+
 ## [0.15.0] — 2026-04-29
 
 ### Added — Quality retry telemetry (Phase 1 of self-improving loop)
