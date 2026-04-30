@@ -345,11 +345,28 @@ export default function DesignSystemLayout({
             {TAIL_GROUPS.map(renderGroup)}
           </nav>
 
-          {/* Footer — version + generated metadata */}
+          {/* Footer — version + generated + attribution */}
           <div className="border-t border-border px-5 py-3">
-            <div className="flex flex-col gap-0.5 font-mono text-[10.5px] text-muted-foreground">
+            <div className="flex flex-col gap-1 font-mono text-[10.5px] text-muted-foreground">
               <div><span className="opacity-70">version</span> · <span className="tabular-nums text-foreground/80">{PROJECT_VERSION}</span></div>
               <div><span className="opacity-70">generated</span> · <span className="tabular-nums text-foreground/80">{GENERATED_AT}</span></div>
+              <div className="mt-1.5 border-t border-border pt-2 text-[10px] leading-[1.5]">
+                <div className="text-muted-foreground/70">
+                  Coherent Design Method
+                </div>
+                <div className="mt-0.5 text-muted-foreground/70">
+                  by <a href="https://github.com/skovtun" target="_blank" rel="noopener noreferrer" className="text-foreground/70 outline-none transition-colors hover:text-foreground">Sergei Kovtun</a>
+                </div>
+                <a
+                  href="https://github.com/skovtun/coherent-design-method"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1.5 inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-[10px] text-muted-foreground/80 outline-none transition-colors hover:border-foreground/30 hover:text-foreground"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-success" aria-hidden />
+                  github · coherent-design-method
+                </a>
+              </div>
             </div>
           </div>
         </div>
