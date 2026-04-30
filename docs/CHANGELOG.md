@@ -11,6 +11,34 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.17.8] — 2026-04-29
+
+### Fixed — `coherent update` now force-regenerates overlay on same version
+
+Previously `coherent update` bailed early with "Project is already up to date" when project version equaled CLI version. This broke a real workflow: between patch publishes within the same SemVer version (e.g., v0.17.5 → v0.17.6 → v0.17.7), templates change but project versions stay aligned with CLI versions, so users had no way to pull template fixes without manually editing the version field.
+
+Now: when versions match, `coherent update` still regenerates the platform overlay (layout, viewer pages, docs, recommendations, API routes) and refreshes `.cursorrules` / `CLAUDE.md`. Migrations and the version stamp are skipped (nothing to migrate to). Version-mismatch path unchanged.
+
+Success message reflects state:
+- Versions differ → `Project updated: vX → vY`
+- Versions match → `Project refreshed at vX`
+
+### Files changed
+
+```
+packages/cli/src/commands/update.ts   ─ remove same-version bail-early, conditional migration step
+docs/CHANGELOG.md
+packages/{core,cli}/package.json   ─ 0.17.7 → 0.17.8
+```
+
+### Verified
+
+- 1746 tests passing
+- TypeScript clean
+- Landing repo: `coherent update` from v0.17.7 → v0.17.8 ran end-to-end, regenerated 20 overlay files, layout now has correct centered attribution
+
+---
+
 ## [0.17.7] — 2026-04-29
 
 ### Tightened — attribution footer cramped vertically and centered
