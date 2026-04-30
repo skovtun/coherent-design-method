@@ -48,7 +48,7 @@ interface UpdateReport {
   sidebarItemsBackfilled: number
 }
 
-export async function updateCommand(opts: { patchGlobals?: boolean }) {
+export async function updateCommand(opts: { patchGlobals?: boolean; force?: boolean }) {
   const project = findConfig()
   if (!project) {
     exitNotCoherent()
@@ -62,11 +62,10 @@ export async function updateCommand(opts: { patchGlobals?: boolean }) {
     const config = dsm.getConfig()
     const projectVersion = config.coherentVersion || '0.0.0'
 
-    if (compareSemver(projectVersion, CLI_VERSION) === 0) {
-      spinner.succeed('Project is already up to date')
-      console.log(chalk.gray(`   Version: v${CLI_VERSION}\n`))
-      return
-    }
+    // Versions equal: still regen overlay + docs (template-driven, idempotent,
+    // and may have changed between patch publishes within the same version).
+    // Skip migrations + version stamp. --force flag does the same explicitly.
+    const sameVersion = compareSemver(projectVersion, CLI_VERSION) === 0
 
     if (compareSemver(projectVersion, CLI_VERSION) > 0) {
       spinner.warn('Project was created with a newer CLI version')
@@ -87,22 +86,24 @@ export async function updateCommand(opts: { patchGlobals?: boolean }) {
       sidebarItemsBackfilled: 0,
     }
 
-    // Step 1: Config migrations
-    spinner.text = 'Running config migrations...'
-    const pendingMigrations = getPendingMigrations(projectVersion, CLI_VERSION)
+    // Step 1: Config migrations (only when versions differ)
+    if (!sameVersion) {
+      spinner.text = 'Running config migrations...'
+      const pendingMigrations = getPendingMigrations(projectVersion, CLI_VERSION)
 
-    if (pendingMigrations.length > 0) {
-      let rawConfig = config as unknown as Record<string, unknown>
-      for (const migration of pendingMigrations) {
-        rawConfig = migration.migrate(rawConfig)
-        report.migrationsApplied.push(migration.description)
+      if (pendingMigrations.length > 0) {
+        let rawConfig = config as unknown as Record<string, unknown>
+        for (const migration of pendingMigrations) {
+          rawConfig = migration.migrate(rawConfig)
+          report.migrationsApplied.push(migration.description)
+        }
       }
-    }
 
-    // Step 2: Stamp new version and save
-    spinner.text = 'Updating project version...'
-    ;(config as Record<string, unknown>).coherentVersion = CLI_VERSION
-    await dsm.save()
+      // Step 2: Stamp new version and save (only on version change)
+      spinner.text = 'Updating project version...'
+      ;(config as Record<string, unknown>).coherentVersion = CLI_VERSION
+      await dsm.save()
+    }
 
     // Step 3: Regenerate platform overlay
     spinner.text = 'Regenerating platform overlay...'
@@ -239,7 +240,11 @@ export async function updateCommand(opts: { patchGlobals?: boolean }) {
 
 function printReport(report: UpdateReport) {
   const from = report.fromVersion ? `v${report.fromVersion}` : 'unknown'
-  console.log(chalk.green(`\n✔ Project updated: ${from} → v${report.toVersion}\n`))
+  if (from === `v${report.toVersion}`) {
+    console.log(chalk.green(`\n✔ Project refreshed at v${report.toVersion}\n`))
+  } else {
+    console.log(chalk.green(`\n✔ Project updated: ${from} → v${report.toVersion}\n`))
+  }
 
   if (report.overlayFiles > 0) {
     console.log(chalk.white(`  ✔ Regenerated platform overlay (${report.overlayFiles} files)`))
