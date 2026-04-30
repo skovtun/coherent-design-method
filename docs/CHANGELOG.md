@@ -11,6 +11,58 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.17.5] — 2026-04-29
+
+### Fixed — viewer feedback after v0.17.4 ship (4 user-reported issues)
+
+#### 1. Footer attribution restored
+
+Earlier viewer versions credited the author + linked the GitHub repo. v0.17.0 redesign dropped both. Restored in the sidebar footer below version/generated metadata:
+
+```
+Coherent Design Method
+by Sergei Kovtun
+[● github · coherent-design-method]
+```
+
+The chip uses the `success` token for its status dot and links to the GitHub repository.
+
+#### 2. Shared Components — Name primary, ID secondary, description full
+
+In v0.17.4 the table had Name in muted gray and ID in primary color, even though Name was the actual click target. Inverted hierarchy. Now:
+
+- **Name** uses `font-medium text-primary` — the link styling matches the action
+- **ID** uses `text-muted-foreground/70` mono — quiet identifier
+- **Name moved to first column** so the click target leads
+- **Description column no longer truncates** (`max-w-xs truncate` dropped) — full text visible
+
+#### 3. Shared component detail — section header heights fixed
+
+`shared-components-pages.ts` was missed in the v0.17.3 `SectionLabel` `mb-2` strip — its `SectionLabel` definition still carried the bottom margin, so `USED IN` and `SOURCE` headers sat unusually tall (extra 8px below the label inside an already-padded wrapper). Stripped here, headers now match every other Card in the viewer.
+
+#### 4. Shared component detail — visual preview added
+
+The detail page previously showed only `USED IN` + `SOURCE` blocks — no rendered preview of the actual component. Now adds a `PREVIEW · IN CONTEXT` block at the top: a 420px iframe rendering one of the pages where the component is used (auto-picks the first non-layout, non-dynamic route from `usedIn`). Layout components like Header/Footer appear on whatever page is embedded; widgets like StatCard appear on their host page.
+
+The header includes an "open in new tab" link to view full-screen.
+
+### Files changed
+
+```
+packages/core/src/generators/templates/design-system/design-system-layout.ts        ─ footer attribution
+packages/core/src/generators/templates/design-system/shared-components-pages.ts      ─ ID/Name swap + mb-2 strip + iframe preview
+docs/CHANGELOG.md
+packages/{core,cli}/package.json   ─ 0.17.4 → 0.17.5
+```
+
+### Verified
+
+- 1746 tests passing
+- TypeScript clean
+- Smoke regen: all DS routes 200, shared detail pages render iframe preview cleanly
+
+---
+
 ## [0.17.4] — 2026-04-29
 
 ### Polished — viewer feedback after v0.17.3 ship (3 user-reported issues)
