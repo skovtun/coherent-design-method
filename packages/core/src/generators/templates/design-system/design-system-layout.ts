@@ -439,8 +439,9 @@ export default function DesignSystemLayout({
           </div>
 
           {/* Attribution footer — centered single row under content.
-              No bottom padding (sits flush against the viewport edge). */}
-          <div className="mx-auto w-full max-w-[1280px] px-4 lg:px-6">
+              1rem bottom padding so it doesn't sit flush against the
+              viewport edge. */}
+          <div className="mx-auto w-full max-w-[1280px] px-4 pb-4 lg:px-6">
             <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-t border-border pt-4 text-[12px] text-muted-foreground">
               <span>Coherent Design Method</span>
               <span aria-hidden className="text-muted-foreground/40">·</span>
