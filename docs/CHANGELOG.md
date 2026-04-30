@@ -11,6 +11,30 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.17.7] — 2026-04-29
+
+### Tightened — attribution footer cramped vertically and centered
+
+User feedback on v0.17.6: bottom padding too large, attribution should be centered, GitHub chip should sit inline with author name (not justify-between).
+
+Fixes:
+- **Padding**: `pb-8 lg:pb-10` → `pb-4 lg:pb-5`
+- **Top spacing**: `pt-5` → `pt-4`
+- **Layout**: `justify-between` → `justify-center`, all elements (Coherent Design Method · by Sergei Kovtun + GitHub chip) on one centered row
+- GitHub chip: smaller (`px-2 py-1` from `px-3 py-1.5`, 12px Octicon from 13px)
+
+Bottom of every viewer page now reads tight and balanced.
+
+### Files changed
+
+```
+packages/core/src/generators/templates/design-system/design-system-layout.ts
+docs/CHANGELOG.md
+packages/{core,cli}/package.json   ─ 0.17.6 → 0.17.7
+```
+
+---
+
 ## [0.17.6] — 2026-04-29
 
 ### Moved — viewer attribution from sidebar to content footer
