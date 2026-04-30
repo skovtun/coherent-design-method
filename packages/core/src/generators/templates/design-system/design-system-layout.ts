@@ -443,7 +443,7 @@ export default function DesignSystemLayout({
               viewport edge. */}
           <div className="mx-auto w-full max-w-[1280px] px-4 pb-4 lg:px-6">
             <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-t border-border pt-4 text-[12px] text-muted-foreground">
-              <span>Coherent Design Method</span>
+              <a href="https://getcoherent.design" target="_blank" rel="noopener noreferrer" className="font-medium text-foreground outline-none transition-colors hover:text-primary">Coherent Design Method</a>
               <span aria-hidden className="text-muted-foreground/40">·</span>
               <span>by <a href="https://www.linkedin.com/in/sergeikovtun/" target="_blank" rel="noopener noreferrer" className="font-medium text-foreground outline-none transition-colors hover:text-primary">Sergei Kovtun</a></span>
               <a
