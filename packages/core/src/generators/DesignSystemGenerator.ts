@@ -714,11 +714,13 @@ function ColorRow({
           <span className="font-mono text-[11px] text-muted-foreground/60">—</span>
         )}
       </button>
+      {/* Dark column — wrapped in .dark scope so the row reads as
+          the dark theme: dark bg, dark border, dark text. */}
       <button
         type="button"
         onClick={() => dark && copyToClipboard(dark, setCopied)}
         disabled={!dark}
-        className="flex items-center gap-3 rounded-md px-2 py-1.5 outline-none transition-colors hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-40"
+        className="dark flex items-center gap-3 rounded-md border border-border/50 bg-background px-2 py-1.5 outline-none transition-colors hover:border-border hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-40"
       >
         {dark ? (
           <>

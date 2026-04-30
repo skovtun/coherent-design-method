@@ -41,6 +41,7 @@ type NavGroup = {
   routePrefix: string                  // for active-state matching
   links: { href: string; label: string }[]   // children (empty = no expand)
   dynamic?: 'base-components' | 'shared-components'
+  icon: 'foundations' | 'base' | 'shared' | 'sitemap' | 'docs' | 'recs'
 }
 
 const TOP_GROUPS: NavGroup[] = [
@@ -48,6 +49,7 @@ const TOP_GROUPS: NavGroup[] = [
     label: 'Foundations',
     href: '/design-system/tokens',
     routePrefix: '/design-system/tokens',
+    icon: 'foundations',
     links: [
       { href: '/design-system/tokens/colors', label: 'Color' },
       { href: '/design-system/tokens/typography', label: 'Typography' },
@@ -59,6 +61,7 @@ const TOP_GROUPS: NavGroup[] = [
     label: 'Base Components',
     href: '/design-system/components',
     routePrefix: '/design-system/components',
+    icon: 'base',
     links: [],
     dynamic: 'base-components',
   },
@@ -66,6 +69,7 @@ const TOP_GROUPS: NavGroup[] = [
     label: 'Shared Components',
     href: '/design-system/shared',
     routePrefix: '/design-system/shared',
+    icon: 'shared',
     links: [],
     dynamic: 'shared-components',
   },
@@ -76,21 +80,52 @@ const TAIL_GROUPS: NavGroup[] = [
     label: 'Sitemap',
     href: '/design-system/sitemap',
     routePrefix: '/design-system/sitemap',
+    icon: 'sitemap',
     links: [],
   },
   {
     label: 'Documentation',
     href: '/design-system/docs',
     routePrefix: '/design-system/docs',
+    icon: 'docs',
     links: [],
   },
   {
     label: 'Recommendations',
     href: '/design-system/recommendations',
     routePrefix: '/design-system/recommendations',
+    icon: 'recs',
     links: [],
   },
 ]
+
+// Inline SVG icons — 14px stroke 1.5, picked to communicate the group's
+// concept at a glance. Lucide-style.
+function GroupIcon({ name }: { name: NavGroup['icon'] }) {
+  const common = { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true }
+  if (name === 'foundations') {
+    // Stack/layers — primitives
+    return <svg {...common}><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>
+  }
+  if (name === 'base') {
+    // Box — base component primitives
+    return <svg {...common}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+  }
+  if (name === 'shared') {
+    // Blocks — assembled from primitives
+    return <svg {...common}><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+  }
+  if (name === 'sitemap') {
+    // Network — page tree
+    return <svg {...common}><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v4"/><path d="M5 17v-2a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v2"/></svg>
+  }
+  if (name === 'docs') {
+    // Book — documentation
+    return <svg {...common}><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+  }
+  // recs — lightbulb (suggestions)
+  return <svg {...common}><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.5.4 1 .9 1 1.6V18h6v-1.7c0-.7.5-1.2 1-1.6A7 7 0 0 0 12 2Z"/></svg>
+}
 
 function ThemeToggle() {
   const [dark, setDark] = useState(false)
@@ -126,6 +161,7 @@ export default function DesignSystemLayout({
   const pathname = usePathname()
   const [components, setComponents] = useState<{ id: string; name: string; category?: string }[]>([])
   const [shared, setShared] = useState<{ id: string; name: string }[]>([])
+  const [pageCount, setPageCount] = useState(0)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   useEffect(() => {
@@ -138,6 +174,7 @@ export default function DesignSystemLayout({
           return an.localeCompare(bn)
         })
         setComponents(sorted)
+        setPageCount(Array.isArray(d.pages) ? d.pages.length : 0)
       })
       .catch(() => setComponents([]))
     fetch('/api/design-system/shared-components')
@@ -187,23 +224,29 @@ export default function DesignSystemLayout({
     const active = isGroupActive(group)
     const links = buildGroupLinks(group)
     const hasChildren = links.length > 0
-    // Subtle count badge for dynamic groups — quick scan of size.
+    // Count badge logic: dynamic groups show live count, Foundations
+    // shows static child count, Sitemap shows page count, others null.
     const count =
       group.dynamic === 'base-components' ? components.length :
       group.dynamic === 'shared-components' ? shared.length :
+      group.icon === 'foundations' ? group.links.length :
+      group.icon === 'sitemap' ? pageCount :
       null
     return (
       <div key={group.label} className="mb-1">
         <Link
           href={group.href}
           onClick={() => setMobileMenuOpen(false)}
-          className={\`flex items-center justify-between rounded-md px-3 py-1.5 text-[12px] font-medium uppercase tracking-[0.12em] transition-colors \${
+          className={\`flex items-center gap-2.5 rounded-md px-3 py-1.5 text-[12px] font-medium uppercase tracking-[0.12em] transition-colors \${
             active
-              ? 'text-foreground'
-              : 'text-muted-foreground hover:text-foreground'
+              ? 'bg-muted text-foreground'
+              : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
           }\`}
         >
-          <span>{group.label}</span>
+          <span className={\`shrink-0 \${active ? 'text-foreground' : 'text-muted-foreground/70'}\`}>
+            <GroupIcon name={group.icon} />
+          </span>
+          <span className="flex-1">{group.label}</span>
           {count !== null && count > 0 && (
             <span className="font-mono text-[10px] tabular-nums text-muted-foreground/60 normal-case tracking-normal">
               {count}
@@ -267,9 +310,10 @@ export default function DesignSystemLayout({
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-      {/* Permanent left sidebar — quiet panel, bg-background both modes,
-          divided from content by a single border. No more inverted rail. */}
-      <aside className="hidden md:flex w-[260px] shrink-0 flex-col border-r border-border bg-background">
+      {/* Permanent left sidebar — subtle muted/30 surface in both modes,
+          divided from content by a single border. Differentiates from
+          the white content area without going to inverted-rail. */}
+      <aside className="hidden md:flex w-[260px] shrink-0 flex-col border-r border-border bg-muted/30">
         <div className="sticky top-0 flex h-screen flex-col">
           {/* Brand block — name + DS subtitle, sits at the very top */}
           <div className="px-5 pt-5 pb-4">

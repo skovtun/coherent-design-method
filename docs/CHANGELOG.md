@@ -11,6 +11,80 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.17.4] — 2026-04-29
+
+### Polished — viewer feedback after v0.17.3 ship (3 user-reported issues)
+
+#### 1. Color page — dark cells get a dark surface
+
+In v0.17.3 the dark hex column lived on the same light card surface as the light column, with only the swatch itself being dark. Felt off — the dark column should READ as dark.
+
+Fix: dark hex buttons now wrap in `.dark bg-background` with their own border, so each row visually communicates "this side is the dark theme." Light/dark column visual contrast restored.
+
+#### 2. Sidebar — icons + subtle bg + counts everywhere applicable
+
+Three changes to the left rail:
+
+- **Subtle muted/30 background** — sidebar now sits on `bg-muted/30` instead of `bg-background`, so it differentiates from the white content area without going to inverted-rail.
+- **Icons on all 6 main groups** — Lucide-style 14px stroke-1.5 SVG icons:
+  - Foundations → stack/layers
+  - Base Components → box
+  - Shared Components → blocks
+  - Sitemap → network/page-tree
+  - Documentation → open book
+  - Recommendations → lightbulb
+- **Counts on every group where it's meaningful** — Foundations shows child count (4: Color, Typography, Spacing, Voice), Base/Shared Components show live counts, Sitemap shows page count from config. Documentation and Recommendations don't show counts (single-page references).
+
+#### 3. Documentation + Recommendations rewritten — purpose-explicit, useful
+
+Honest assessment first: in v0.17.3, both pages were written in the legacy `text-2xl font-bold` style and had unclear purpose. Documentation re-rendered tokens already on the live viewer. Recommendations had a one-line empty state that didn't explain when or how recommendations get added.
+
+**Documentation page (rewritten):**
+
+- **Purpose explicit**: "A print-ready snapshot of every component and token in this design system. Use to hand off to a designer, attach to a PR, or archive a release."
+- **Print button** at top-right that calls `window.print()`. ⌘P also works.
+- **Project meta header** — name / version / component count / token count in a 4-column dl block.
+- **v0.17 typography** — `SectionLabel` pattern, `text-[28px] font-medium`, semantic spacing. Matches the rest of the viewer.
+- **Components table** uses the same column style as the live viewer.
+- **Color tokens** with dark column wrapped in `.dark bg-background` (consistent with the Color page redesign).
+- **Footer cross-links** to Live viewer + Sitemap.
+- **Print-only header** with project name + version + date for the PDF cover.
+- Dropped: "How to work" + "Project structure" sections — those are CLI-onboarding info that belongs in README/docs site, not in the project's design-system docs.
+
+**Recommendations page (rewritten):**
+
+- **Better empty-state** explains exactly what gets added here, when, and what kinds of issues:
+  - 4-category grid (Accessibility / Layout / Consistency / Copy) with one-line hint per category.
+  - Numbered "How recommendations appear" — 4 steps from `coherent check` → markdown file → page renders.
+  - Dashed-border sample card showing what real output looks like (3 sample H2 sections + bullets).
+- **Live state** shows count + last-updated date in the header.
+- **Better markdown renderer** — handles \\\`\\\`\\\` code blocks (was skipped), \\\`inline code\\\`, **bold**, and groups consecutive bullets into proper `<ul>` lists.
+- **v0.17 typography** matched throughout.
+- Source filepath surfaced (\`recommendations.md\` in project root) so users know where to edit/delete entries.
+
+### Wiring fix
+
+`coherent update` now also runs `ProjectScaffolder.generateDocsPages()` so docs + recommendations templates refresh on every update (previously only `regenerate-docs` command did this — meaning docs/recs pages stayed stale until users explicitly ran that subcommand).
+
+### Files changed
+
+```
+packages/core/src/generators/templates/design-system/design-system-layout.ts   ─ icons + counts + bg-muted/30
+packages/core/src/generators/DesignSystemGenerator.ts                          ─ Color page dark surface
+packages/core/src/generators/ProjectScaffolder.ts                              ─ Docs + Recommendations rewrites
+packages/cli/src/commands/update.ts                                            ─ wire generateDocsPages into update
+docs/CHANGELOG.md
+packages/{core,cli}/package.json   ─ 0.17.3 → 0.17.4
+```
+
+### Verified
+
+- 1746 tests passing
+- TypeScript clean
+- Smoke project regenerated (via `regenerate-docs`): all 6 DS routes 200, no client errors
+
+---
+
 ## [0.17.3] — 2026-04-29
 
 ### Fixed — viewer feedback after v0.17.2 ship (8 user-reported issues)
