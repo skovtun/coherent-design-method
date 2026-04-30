@@ -445,7 +445,7 @@ export default function DesignSystemLayout({
             <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-t border-border pt-4 text-[12px] text-muted-foreground">
               <span>Coherent Design Method</span>
               <span aria-hidden className="text-muted-foreground/40">·</span>
-              <span>by <a href="https://github.com/skovtun" target="_blank" rel="noopener noreferrer" className="font-medium text-foreground outline-none transition-colors hover:text-primary">Sergei Kovtun</a></span>
+              <span>by <a href="https://www.linkedin.com/in/sergeikovtun/" target="_blank" rel="noopener noreferrer" className="font-medium text-foreground outline-none transition-colors hover:text-primary">Sergei Kovtun</a></span>
               <a
                 href="https://github.com/skovtun/coherent-design-method"
                 target="_blank"
