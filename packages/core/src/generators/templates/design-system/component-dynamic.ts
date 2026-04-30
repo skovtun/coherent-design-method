@@ -556,8 +556,12 @@ export default function ComponentShowcase({ component }: ComponentShowcaseProps)
         </p>
       </div>
 
-      <div className="overflow-hidden rounded-md border border-border bg-card">
-        <div className="border-b border-border bg-muted px-4 py-3">
+      {/* Preview block — overflow-visible so interactive components
+          (Select, DropdownMenu, Popover, Dialog) can break out of the
+          card without being clipped. Inner header gets rounded-t-md to
+          preserve the rounded top corners. */}
+      <div className="rounded-md border border-border bg-card">
+        <div className="rounded-t-md border-b border-border bg-muted px-4 py-3">
           <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
             <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
             preview
@@ -569,8 +573,8 @@ export default function ComponentShowcase({ component }: ComponentShowcaseProps)
       </div>
 
       {component.variants && component.variants.length > 0 && (
-        <div className="overflow-hidden rounded-md border border-border bg-card">
-          <div className="border-b border-border bg-muted px-4 py-3">
+        <div className="rounded-md border border-border bg-card">
+          <div className="rounded-t-md border-b border-border bg-muted px-4 py-3">
             <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
               <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
               variants
@@ -594,8 +598,8 @@ export default function ComponentShowcase({ component }: ComponentShowcaseProps)
       )}
 
       {component.sizes && component.sizes.length > 0 && (
-        <div className="overflow-hidden rounded-md border border-border bg-card">
-          <div className="border-b border-border bg-muted px-4 py-3">
+        <div className="rounded-md border border-border bg-card">
+          <div className="rounded-t-md border-b border-border bg-muted px-4 py-3">
             <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
               <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
               sizes
