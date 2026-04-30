@@ -740,126 +740,164 @@ This project was generated with [Coherent Design Method](https://github.com/skov
   }
 
   /**
-   * Single Documentation page: one scrollable page with all sections (no cards/sub-pages).
-   * Use browser Print / Save as PDF to download.
+   * Documentation page (v0.17.4): Print-ready snapshot of the design system.
+   *
+   * Single scrollable page that lists every component, every token, with a
+   * project meta header (name, version, generated date) and a Print button
+   * that calls window.print() so users can save as PDF.
+   *
+   * Style matches the rest of the v0.17 viewer: SectionLabel pattern,
+   * font-mono labels, semantic spacing, no `text-2xl font-bold` legacy.
    */
   private getDocsSinglePageContent(): string {
-    return `import { config } from '../../../design-system.config'
+    return `'use client'
+import { config } from '../../../design-system.config'
 import Link from 'next/link'
+
+const PROJECT_NAME = ${JSON.stringify(this.config.name ?? 'Project')}
+const PROJECT_VERSION = ${JSON.stringify(this.config.version ?? '0.1.0')}
+const GENERATED_AT = ${JSON.stringify(new Date().toISOString().slice(0, 10))}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+      <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
+      {children}
+    </div>
+  )
+}
 
 export default function DocumentationPage() {
   const components = Array.isArray(config.components) ? config.components : []
-  const tokens = config.tokens ?? {}
+  const tokens: any = config.tokens ?? {}
   const colors = tokens.colors ?? { light: {}, dark: {} }
   const spacing = tokens.spacing ?? {}
   const typography = tokens.typography ?? { fontFamily: {}, fontSize: {}, fontWeight: {}, lineHeight: {} }
   const radius = tokens.radius ?? {}
   const light = colors.light ?? {}
   const dark = colors.dark ?? {}
+  const colorCount = Object.keys(light).length
+  const spacingCount = Object.keys(spacing).length
+  const radiusCount = Object.keys(radius).length
+
+  const handlePrint = () => {
+    if (typeof window !== 'undefined') window.print()
+  }
 
   return (
-    <div className="flex flex-col gap-8 max-w-none print:max-w-none">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Documentation</h1>
-        <p className="text-sm text-muted-foreground">
-          Complete project reference: components, tokens, structure. Print or Save as PDF to download.
-        </p>
+    <div className="flex flex-col gap-8">
+      {/* Header — purpose explicit + Print button */}
+      <div className="flex flex-col gap-4 print:hidden">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-[28px] font-medium leading-tight tracking-[-0.02em] text-foreground">
+              Documentation
+            </h1>
+            <p className="mt-1 max-w-[68ch] text-[13.5px] leading-[1.55] text-muted-foreground">
+              A print-ready snapshot of every component and token in this design system. Use to hand off to a designer, attach to a PR, or archive a release. Click <strong>Print</strong> below or press <kbd className="font-mono text-[11px] text-muted-foreground/80">⌘P</kbd> and choose <em>Save as PDF</em>.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="inline-flex shrink-0 items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-[13px] font-medium text-foreground outline-none transition-colors hover:bg-muted"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+            Print / save as PDF
+          </button>
+        </div>
       </div>
 
-      {/* How to work */}
-      <section>
-        <h2 className="text-sm font-semibold mb-3">How to work</h2>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-lg border p-4">
-            <div className="text-sm font-medium mb-1">IDE + AI</div>
-            <p className="text-sm text-muted-foreground">
-              Edit code and <code className="rounded bg-muted px-1 text-xs">design-system.config.ts</code> directly. Changes appear via hot reload.
-            </p>
-          </div>
-          <div className="rounded-lg border p-4">
-            <div className="text-sm font-medium mb-1">CLI chat</div>
-            <p className="text-sm text-muted-foreground">
-              Use <code className="rounded bg-muted px-1 text-xs">coherent chat &quot;add pricing page&quot;</code> for quick generation, then refine in the IDE.
-            </p>
-          </div>
-        </div>
-      </section>
+      {/* Print-only header (no button) */}
+      <div className="hidden print:block">
+        <h1 className="text-[28px] font-bold tracking-tight text-foreground">{PROJECT_NAME} — Design System</h1>
+        <p className="mt-1 text-[13px] text-muted-foreground">Generated {GENERATED_AT} · v{PROJECT_VERSION}</p>
+      </div>
 
-      {/* Project structure */}
-      <section>
-        <h2 className="text-sm font-semibold mb-3">Project structure</h2>
-        <div className="rounded-lg border overflow-hidden text-sm">
-          {[
-            ['design-system.config.ts', 'Single source of truth'],
-            ['app/', 'Next.js pages and layouts'],
-            ['components/', 'Reusable UI components'],
-            ['/design-system', 'Design System viewer'],
-          ].map(([path, desc], i) => (
-            <div key={i} className="flex items-center gap-3 px-4 py-2.5 border-b last:border-0">
-              <code className="text-xs font-mono text-muted-foreground w-48">{path}</code>
-              <span className="text-sm text-muted-foreground">{desc}</span>
-            </div>
-          ))}
+      {/* Project meta — at-a-glance */}
+      <section className="rounded-md border border-border bg-card">
+        <div className="rounded-t-md border-b border-border bg-muted px-4 py-3 print:hidden">
+          <SectionLabel>project · meta</SectionLabel>
         </div>
+        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-md md:grid-cols-4">
+          <div className="bg-card px-4 py-3">
+            <dt className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">project</dt>
+            <dd className="mt-1 truncate text-[14px] font-medium text-foreground">{PROJECT_NAME}</dd>
+          </div>
+          <div className="bg-card px-4 py-3">
+            <dt className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">version</dt>
+            <dd className="mt-1 font-mono text-[14px] tabular-nums text-foreground">{PROJECT_VERSION}</dd>
+          </div>
+          <div className="bg-card px-4 py-3">
+            <dt className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">components</dt>
+            <dd className="mt-1 font-mono text-[14px] tabular-nums text-foreground">{components.length}</dd>
+          </div>
+          <div className="bg-card px-4 py-3">
+            <dt className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">tokens</dt>
+            <dd className="mt-1 font-mono text-[14px] tabular-nums text-foreground">{colorCount + spacingCount + radiusCount}</dd>
+          </div>
+        </dl>
       </section>
 
       {/* Components */}
-      <section>
-        <h2 className="text-sm font-semibold mb-3">Components ({components.length})</h2>
+      <section className="rounded-md border border-border bg-card">
+        <div className="rounded-t-md border-b border-border bg-muted px-4 py-3">
+          <SectionLabel>components · {components.length}</SectionLabel>
+        </div>
         {components.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No components registered yet.</p>
+          <p className="px-4 py-6 font-mono text-[11.5px] text-muted-foreground/70">No components registered yet.</p>
         ) : (
-          <div className="rounded-lg border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="text-left p-3 text-xs font-medium text-muted-foreground">Name</th>
-                  <th className="text-left p-3 text-xs font-medium text-muted-foreground">ID</th>
-                  <th className="text-left p-3 text-xs font-medium text-muted-foreground">Category</th>
-                  <th className="text-left p-3 text-xs font-medium text-muted-foreground">Source</th>
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/70">
+                <th className="px-4 py-2 text-left font-normal">Name</th>
+                <th className="px-4 py-2 text-left font-normal">ID</th>
+                <th className="px-4 py-2 text-left font-normal">Category</th>
+                <th className="px-4 py-2 text-left font-normal">Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {components.map((c: { id: string; name?: string; category?: string; source?: string }) => (
+                <tr key={c.id} className="border-b border-border last:border-0">
+                  <td className="px-4 py-2.5 text-[13px] font-medium text-foreground">
+                    <Link href={\`/design-system/components/\${c.id}\`} className="transition-colors hover:text-primary">{c.name ?? c.id}</Link>
+                  </td>
+                  <td className="px-4 py-2.5 font-mono text-[11.5px] text-muted-foreground">{c.id}</td>
+                  <td className="px-4 py-2.5 text-[12.5px] text-muted-foreground">{String(c.category ?? '—')}</td>
+                  <td className="px-4 py-2.5 font-mono text-[11.5px] text-muted-foreground">{String(c.source ?? '—')}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {components.map((c: { id: string; name?: string; category?: string; source?: string }) => (
-                  <tr key={c.id} className="border-t">
-                    <td className="p-3 text-sm font-medium">
-                      <Link href={\`/design-system/components/\${c.id}\`} className="hover:text-primary hover:underline">{c.name ?? c.id}</Link>
-                    </td>
-                    <td className="p-3 font-mono text-xs text-muted-foreground">{c.id}</td>
-                    <td className="p-3 text-sm text-muted-foreground">{String(c.category ?? '—')}</td>
-                    <td className="p-3 text-sm text-muted-foreground">{String(c.source ?? '—')}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         )}
       </section>
 
-      {/* Tokens: Colors */}
-      <section>
-        <h2 className="text-sm font-semibold mb-3">Color tokens</h2>
-        <div className="grid gap-6 md:grid-cols-2">
+      {/* Color tokens */}
+      <section className="rounded-md border border-border bg-card">
+        <div className="rounded-t-md border-b border-border bg-muted px-4 py-3">
+          <SectionLabel>color · {colorCount} tokens</SectionLabel>
+        </div>
+        <div className="grid gap-6 p-4 md:grid-cols-2">
           <div>
-            <h3 className="text-xs font-medium text-muted-foreground mb-2">Light</h3>
+            <div className="mb-2 font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">light</div>
             <div className="space-y-1.5">
               {Object.entries(light).map(([key, value]) => (
-                <div key={key} className="flex items-center gap-2 text-sm">
-                  <div className="size-4 rounded border shrink-0" style={{ backgroundColor: typeof value === 'string' ? value : undefined }} />
-                  <span className="font-mono text-xs w-24">{key}</span>
-                  <span className="text-xs text-muted-foreground">{String(value)}</span>
+                <div key={key} className="flex items-center gap-2.5 text-[12.5px]">
+                  <div className="size-4 shrink-0 rounded border border-border" style={{ backgroundColor: typeof value === 'string' ? value : undefined }} />
+                  <span className="w-28 font-mono text-[11.5px] text-foreground">{key}</span>
+                  <span className="font-mono text-[11px] tabular-nums text-muted-foreground">{String(value)}</span>
                 </div>
               ))}
             </div>
           </div>
-          <div>
-            <h3 className="text-xs font-medium text-muted-foreground mb-2">Dark</h3>
+          <div className="dark rounded-md bg-background px-3 py-2">
+            <div className="mb-2 font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">dark</div>
             <div className="space-y-1.5">
               {Object.entries(dark).map(([key, value]) => (
-                <div key={key} className="flex items-center gap-2 text-sm">
-                  <div className="size-4 rounded border shrink-0" style={{ backgroundColor: typeof value === 'string' ? value : undefined }} />
-                  <span className="font-mono text-xs w-24">{key}</span>
-                  <span className="text-xs text-muted-foreground">{String(value)}</span>
+                <div key={key} className="flex items-center gap-2.5 text-[12.5px]">
+                  <div className="size-4 shrink-0 rounded border border-border" style={{ backgroundColor: typeof value === 'string' ? value : undefined }} />
+                  <span className="w-28 font-mono text-[11.5px] text-foreground">{key}</span>
+                  <span className="font-mono text-[11px] tabular-nums text-muted-foreground">{String(value)}</span>
                 </div>
               ))}
             </div>
@@ -867,48 +905,66 @@ export default function DocumentationPage() {
         </div>
       </section>
 
-      {/* Tokens: Typography */}
-      <section>
-        <h2 className="text-sm font-semibold mb-3">Typography tokens</h2>
-        <div className="grid gap-4 md:grid-cols-2">
+      {/* Typography */}
+      <section className="rounded-md border border-border bg-card">
+        <div className="rounded-t-md border-b border-border bg-muted px-4 py-3">
+          <SectionLabel>typography</SectionLabel>
+        </div>
+        <div className="grid gap-6 p-4 md:grid-cols-2">
           {typeof typography === 'object' && typography !== null && !Array.isArray(typography) && Object.entries(typography).map(([group, values]) => (
             <div key={group}>
-              <h3 className="text-xs font-medium text-muted-foreground mb-2">{group}</h3>
-              <div className="space-y-1 text-sm">
+              <div className="mb-2 font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground">{group}</div>
+              <div className="space-y-1">
                 {typeof values === 'object' && values !== null && !Array.isArray(values)
                   ? Object.entries(values).map(([k, v]) => (
-                      <div key={k} className="flex gap-2"><span className="font-mono text-xs">{k}</span><span className="text-xs text-muted-foreground">{String(v)}</span></div>
+                      <div key={k} className="flex items-baseline gap-3 text-[12.5px]">
+                        <span className="w-20 font-mono text-[11.5px] text-foreground">{k}</span>
+                        <span className="font-mono text-[11px] tabular-nums text-muted-foreground">{String(v)}</span>
+                      </div>
                     ))
-                  : <div className="text-xs text-muted-foreground">{String(values)}</div>}
+                  : <div className="font-mono text-[11px] text-muted-foreground">{String(values)}</div>}
               </div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Tokens: Spacing & Radius */}
-      <section className="grid gap-6 md:grid-cols-2">
-        <div>
-          <h2 className="text-sm font-semibold mb-3">Spacing tokens</h2>
-          <div className="space-y-1.5">
+      {/* Spacing + Radius */}
+      <section className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-md border border-border bg-card">
+          <div className="rounded-t-md border-b border-border bg-muted px-4 py-3">
+            <SectionLabel>spacing · {spacingCount} tokens</SectionLabel>
+          </div>
+          <div className="space-y-1.5 p-4">
             {Object.entries(spacing).map(([key, value]) => (
-              <div key={key} className="flex items-center gap-2 text-sm">
-                <span className="font-mono text-xs w-12">{key}</span>
-                <span className="text-xs text-muted-foreground">{String(value)}</span>
+              <div key={key} className="flex items-center gap-2.5 text-[12.5px]">
+                <span className="w-12 font-mono text-[11.5px] text-foreground">{key}</span>
+                <span className="font-mono text-[11px] tabular-nums text-muted-foreground">{String(value)}</span>
               </div>
             ))}
           </div>
         </div>
-        <div>
-          <h2 className="text-sm font-semibold mb-3">Radius tokens</h2>
-          <div className="space-y-1.5">
+        <div className="rounded-md border border-border bg-card">
+          <div className="rounded-t-md border-b border-border bg-muted px-4 py-3">
+            <SectionLabel>radius · {radiusCount} tokens</SectionLabel>
+          </div>
+          <div className="space-y-1.5 p-4">
             {Object.entries(radius).map(([key, value]) => (
-              <div key={key} className="flex items-center gap-2 text-sm">
-                <span className="font-mono text-xs w-12">{key}</span>
-                <span className="text-xs text-muted-foreground">{String(value)}</span>
+              <div key={key} className="flex items-center gap-2.5 text-[12.5px]">
+                <span className="w-12 font-mono text-[11.5px] text-foreground">{key}</span>
+                <span className="font-mono text-[11px] tabular-nums text-muted-foreground">{String(value)}</span>
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Footer — print-only stamp + cross-links */}
+      <section className="border-t border-border pt-6 print:hidden">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[12.5px] text-muted-foreground">
+          <span className="font-mono text-[11px]">generated <span className="tabular-nums text-foreground/80">{GENERATED_AT}</span></span>
+          <Link href="/design-system" className="transition-colors hover:text-foreground">→ Live viewer</Link>
+          <Link href="/design-system/sitemap" className="transition-colors hover:text-foreground">→ Sitemap</Link>
         </div>
       </section>
     </div>
@@ -918,46 +974,163 @@ export default function DocumentationPage() {
   }
 
   private getDocsRecommendationsPageContent(): string {
-    return `import { readFileSync, existsSync } from 'fs'
+    return `import { readFileSync, existsSync, statSync } from 'fs'
 import { join } from 'path'
 
-function SimpleMarkdown({ children }: { children: string }) {
-  const lines = children.split('\\n')
-  const elements: React.ReactNode[] = []
-  lines.forEach((line, i) => {
-    if (line.startsWith('### ')) elements.push(<h3 key={i} className="text-lg font-medium mt-4 mb-2">{line.slice(4)}</h3>)
-    else if (line.startsWith('## ')) elements.push(<h2 key={i} className="text-xl font-semibold mt-6 mb-3">{line.slice(3)}</h2>)
-    else if (line.startsWith('# ')) elements.push(<h1 key={i} className="text-2xl font-bold mt-6 mb-3">{line.slice(2)}</h1>)
-    else if (line.startsWith('- ')) elements.push(<li key={i} className="ml-4 list-disc text-sm">{line.slice(2)}</li>)
-    else if (line.trim()) elements.push(<p key={i} className="text-sm text-muted-foreground my-1">{line}</p>)
-  })
-  return <>{elements}</>
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+      <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
+      {children}
+    </div>
+  )
 }
+
+// Better markdown renderer: handles headings, bullets, inline code,
+// code blocks (\`\`\`), and groups consecutive bullets into <ul>.
+function Markdown({ children }: { children: string }) {
+  const lines = children.split('\\n')
+  const out: React.ReactNode[] = []
+  let bullets: string[] = []
+  let codeLines: string[] = []
+  let inCode = false
+
+  const flushBullets = () => {
+    if (bullets.length === 0) return
+    out.push(
+      <ul key={\`ul-\${out.length}\`} className="my-3 ml-4 space-y-1.5 list-disc text-[13.5px] leading-[1.55] text-foreground marker:text-muted-foreground/60">
+        {bullets.map((b, i) => <li key={i} dangerouslySetInnerHTML={{ __html: renderInline(b) }} />)}
+      </ul>
+    )
+    bullets = []
+  }
+
+  const flushCode = () => {
+    if (codeLines.length === 0) return
+    out.push(
+      <pre key={\`pre-\${out.length}\`} className="my-3 overflow-x-auto rounded-md border border-border bg-muted/40 p-3 font-mono text-[12px] leading-[1.6] text-foreground">
+        <code>{codeLines.join('\\n')}</code>
+      </pre>
+    )
+    codeLines = []
+  }
+
+  // Convert \`inline code\` and **bold** to HTML.
+  function renderInline(text: string): string {
+    return text
+      .replace(/\`([^\`]+)\`/g, '<code class="rounded bg-muted px-1 py-0.5 font-mono text-[12px] text-foreground">$1</code>')
+      .replace(/\\*\\*([^*]+)\\*\\*/g, '<strong class="font-semibold text-foreground">$1</strong>')
+  }
+
+  lines.forEach((line, i) => {
+    if (line.startsWith('\`\`\`')) {
+      if (inCode) { flushCode(); inCode = false } else { flushBullets(); inCode = true }
+      return
+    }
+    if (inCode) { codeLines.push(line); return }
+    if (line.startsWith('### ')) { flushBullets(); out.push(<h3 key={i} className="mt-6 mb-2 text-[15px] font-semibold tracking-tight text-foreground">{line.slice(4)}</h3>) }
+    else if (line.startsWith('## ')) { flushBullets(); out.push(<h2 key={i} className="mt-7 mb-2 text-[18px] font-semibold tracking-tight text-foreground">{line.slice(3)}</h2>) }
+    else if (line.startsWith('# ')) { flushBullets(); out.push(<h1 key={i} className="mt-2 mb-3 text-[22px] font-semibold tracking-tight text-foreground">{line.slice(2)}</h1>) }
+    else if (line.startsWith('- ')) { bullets.push(line.slice(2)) }
+    else if (line.trim()) { flushBullets(); out.push(<p key={i} className="my-2 text-[13.5px] leading-[1.6] text-muted-foreground" dangerouslySetInnerHTML={{ __html: renderInline(line) }} />) }
+  })
+  flushBullets()
+  flushCode()
+  return <>{out}</>
+}
+
+const SAMPLE = \`## Accessibility · button labels
+- Buttons "OK" and "Cancel" lack aria-label context. Suggest "Confirm changes" / "Cancel and discard".
+- Icon-only buttons missing aria-label. Add descriptive labels for screen readers.
+
+## Layout · pricing page
+- Three-tier card grid wraps to single column on iPhone SE (320px). Consider a 2-tier mobile layout.
+- "Most popular" badge collides with card border on hover. Add 4px padding.
+
+## Copy · empty states
+- Dashboard empty state reads "No data". Replace with action-oriented copy: "Connect a source to see analytics here."\`
+
+const CATEGORIES = [
+  { label: 'Accessibility', hint: 'Missing aria-labels, low contrast, focus traps, keyboard navigation' },
+  { label: 'Layout', hint: 'Mobile breakpoints, overflow, alignment drift, density at scale' },
+  { label: 'Consistency', hint: 'Off-spec spacing, raw colors, ad-hoc components, pattern divergence' },
+  { label: 'Copy', hint: 'CTA clarity, empty-state guidance, error message tone, banned-word violations' },
+]
 
 export default function RecommendationsPage() {
   const path = join(process.cwd(), 'recommendations.md')
-  const raw = existsSync(path) ? readFileSync(path, 'utf-8') : ''
+  const exists = existsSync(path)
+  const raw = exists ? readFileSync(path, 'utf-8') : ''
+  // Strip placeholder header lines so we only render real content.
   const body = raw
-    .replace(/^#[^\\n]*\\n?/, '')
-    .replace(/^[^#\\n-][^\\n]*\\n?/, '')
-    .replace(/^---\\n?/, '')
+    .replace(/^# UX\\/UI Recommendations[\\s\\S]*?(?=^##|^[^#\\n].+\\n+##|\\$)/m, '')
     .trim()
+  const isPlaceholder = !body || body.length < 50
+  const lastUpdated = exists ? new Date(statSync(path).mtimeMs).toISOString().slice(0, 10) : null
+  // Rough count of recommendation items (## sections + - bullets)
+  const recCount = isPlaceholder ? 0 : (body.match(/^- /gm)?.length ?? 0) + (body.match(/^## /gm)?.length ?? 0)
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">UX/UI Recommendations</h1>
-        <p className="text-sm text-muted-foreground">
-          Generated as you build. The AI adds suggestions for accessibility, layout, and consistency.
+        <div className="flex flex-wrap items-baseline gap-3">
+          <h1 className="text-[28px] font-medium leading-tight tracking-[-0.02em] text-foreground">
+            Recommendations
+          </h1>
+          {!isPlaceholder && (
+            <span className="font-mono text-[12px] text-muted-foreground tabular-nums">
+              {recCount} item{recCount === 1 ? '' : 's'}
+              {lastUpdated && <> · updated <span className="text-foreground/80">{lastUpdated}</span></>}
+            </span>
+          )}
+        </div>
+        <p className="mt-1 max-w-[68ch] text-[13.5px] leading-[1.55] text-muted-foreground">
+          AI-generated suggestions to improve this project — accessibility, layout, copy, consistency. Populated by <code className="rounded bg-muted px-1 py-0.5 font-mono text-[12px]">coherent check</code> and during <code className="rounded bg-muted px-1 py-0.5 font-mono text-[12px]">coherent chat</code> when the AI spots issues. Source lives at <code className="rounded bg-muted px-1 py-0.5 font-mono text-[12px]">recommendations.md</code> in the project root.
         </p>
       </div>
-      {!body ? (
-        <p className="text-sm text-muted-foreground">
-          No recommendations yet. Use <code className="rounded bg-muted px-1.5 py-0.5 text-xs">coherent chat</code> to modify the interface — the AI will add UX suggestions here.
-        </p>
+
+      {isPlaceholder ? (
+        <div className="space-y-6">
+          {/* What gets recommended */}
+          <section className="rounded-md border border-border bg-card">
+            <div className="rounded-t-md border-b border-border bg-muted px-4 py-3">
+              <SectionLabel>what gets recommended</SectionLabel>
+            </div>
+            <div className="grid gap-px md:grid-cols-2">
+              {CATEGORIES.map((cat) => (
+                <div key={cat.label} className="border-b border-border bg-card px-4 py-3 last:border-0 md:[&:nth-last-child(-n+2)]:border-b-0">
+                  <div className="text-[13.5px] font-medium text-foreground">{cat.label}</div>
+                  <p className="mt-1 text-[12.5px] leading-[1.5] text-muted-foreground">{cat.hint}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* How they appear */}
+          <section className="rounded-md border border-border bg-card p-5">
+            <h2 className="text-[15px] font-semibold tracking-tight text-foreground">How recommendations appear</h2>
+            <ol className="mt-3 space-y-2.5 text-[13px] leading-[1.55] text-muted-foreground">
+              <li className="flex items-start gap-2.5"><span className="mt-1 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/10 font-mono text-[10px] tabular-nums text-primary">1</span><span>Run <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11.5px]">coherent check</code> — validators flag issues across pages and components.</span></li>
+              <li className="flex items-start gap-2.5"><span className="mt-1 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/10 font-mono text-[10px] tabular-nums text-primary">2</span><span>Or run <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11.5px]">coherent chat</code> — the AI flags concerns mid-modification.</span></li>
+              <li className="flex items-start gap-2.5"><span className="mt-1 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/10 font-mono text-[10px] tabular-nums text-primary">3</span><span>Findings append to <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11.5px]">recommendations.md</code>, grouped by category.</span></li>
+              <li className="flex items-start gap-2.5"><span className="mt-1 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/10 font-mono text-[10px] tabular-nums text-primary">4</span><span>This page renders them. Address them in your code, then re-run <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11.5px]">coherent check</code> — resolved items disappear from the file.</span></li>
+            </ol>
+          </section>
+
+          {/* Sample */}
+          <section className="rounded-md border border-dashed border-border bg-muted/30 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <SectionLabel>sample · what real output looks like</SectionLabel>
+              <span className="font-mono text-[10.5px] text-muted-foreground/70">illustrative only</span>
+            </div>
+            <div className="mt-4 rounded-md border border-border bg-card p-4">
+              <Markdown>{SAMPLE}</Markdown>
+            </div>
+          </section>
+        </div>
       ) : (
-        <div className="max-w-none">
-          <SimpleMarkdown>{body}</SimpleMarkdown>
+        <div className="rounded-md border border-border bg-card p-5">
+          <Markdown>{body}</Markdown>
         </div>
       )}
     </div>

@@ -109,6 +109,15 @@ export async function updateCommand(opts: { patchGlobals?: boolean }) {
     const overlayFiles = await writeDesignSystemFiles(project.root, config)
     report.overlayFiles = overlayFiles.length
 
+    // Step 3a: Regenerate docs + recommendations pages.
+    // These are not part of writeDesignSystemFiles (they live in
+    // ProjectScaffolder.generateDocsPages) but should refresh on
+    // every `coherent update` so template changes propagate.
+    const { ProjectScaffolder } = await import('@getcoherent/core')
+    const scaffolder = new ProjectScaffolder(config, project.root)
+    await scaffolder.generateDocsPages()
+    report.overlayFiles += 3 // layout + page + recs
+
     // Step 4: Regenerate .cursorrules / CLAUDE.md
     spinner.text = 'Updating .cursorrules and CLAUDE.md...'
     const rulesResult = await writeAllHarnessFiles(project.root)
