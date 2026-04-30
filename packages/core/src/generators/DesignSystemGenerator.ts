@@ -100,7 +100,7 @@ const TYPE_TONE: Record<string, string> = {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+    <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
       <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
       {children}
     </div>
@@ -379,7 +379,7 @@ import { useEffect, useState } from 'react'
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+    <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
       <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
       {children}
     </div>
@@ -563,7 +563,7 @@ export default function ComponentsIndexPage() {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+    <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
       <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
       {children}
     </div>
@@ -646,24 +646,91 @@ import { useEffect, useState } from 'react'
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+    <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
       <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
       {children}
     </div>
   )
 }
 
-function ColorRow({ name, value, cssVar }: { name: string; value: string; cssVar?: string }) {
+// Semantic groups — gives the page structure beyond a flat alphabetical list.
+// Each role explains WHEN to use the token, not just what it is.
+const ROLE_GROUPS: { id: string; label: string; tokens: string[]; hint: string }[] = [
+  { id: 'brand', label: 'Brand', hint: 'Primary brand identity. Use sparingly — main CTAs, active states.', tokens: ['primary', 'primary-foreground', 'secondary', 'secondary-foreground'] },
+  { id: 'surface', label: 'Surface', hint: 'Backgrounds and content layers. The neutral foundation.', tokens: ['background', 'foreground', 'card', 'card-foreground', 'popover', 'popover-foreground', 'muted', 'muted-foreground'] },
+  { id: 'accent', label: 'Accent & UI', hint: 'Borders, focus rings, hover backgrounds.', tokens: ['accent', 'accent-foreground', 'border', 'input', 'ring'] },
+  { id: 'status', label: 'Status', hint: 'Convey state: success, warning, error, info. Used in alerts, badges, validation.', tokens: ['success', 'success-foreground', 'warning', 'warning-foreground', 'error', 'error-foreground', 'info', 'info-foreground', 'destructive', 'destructive-foreground'] },
+]
+
+function copyToClipboard(text: string, setCopied: (s: string | null) => void) {
+  navigator.clipboard.writeText(text).then(() => {
+    setCopied(text)
+    setTimeout(() => setCopied(null), 1200)
+  })
+}
+
+function ColorRow({
+  name,
+  light,
+  dark,
+  copied,
+  setCopied,
+}: {
+  name: string
+  light: string
+  dark: string
+  copied: string | null
+  setCopied: (s: string | null) => void
+}) {
+  const cssVar = \`--\${name}\`
+  const varCall = \`var(\${cssVar})\`
   return (
-    <div className="flex items-center gap-4 border-b border-border px-3 py-2 font-mono last:border-0">
-      <div className="h-9 w-9 shrink-0 rounded-md border border-border" style={{ backgroundColor: value }} />
-      <div className="min-w-0 flex-1">
-        <div className="text-[12.5px] text-foreground">{name}</div>
-        <div className="mt-0.5 text-[10.5px] tabular-nums text-muted-foreground/70">
-          {value}
-          {cssVar && (<>{' · '}<span className="text-primary">var({cssVar})</span></>)}
-        </div>
+    <div className="grid grid-cols-[160px_1fr_1fr] items-center gap-4 border-b border-border px-4 py-3 last:border-0">
+      <div className="min-w-0">
+        <div className="font-mono text-[12.5px] text-foreground">{name}</div>
+        <button
+          type="button"
+          onClick={() => copyToClipboard(varCall, setCopied)}
+          className="mt-0.5 inline-flex items-center font-mono text-[10.5px] text-primary outline-none transition-colors hover:text-primary/80"
+          title="Copy CSS variable"
+        >
+          {copied === varCall ? 'copied!' : varCall}
+        </button>
       </div>
+      <button
+        type="button"
+        onClick={() => light && copyToClipboard(light, setCopied)}
+        disabled={!light}
+        className="flex items-center gap-3 rounded-md px-2 py-1.5 outline-none transition-colors hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {light ? (
+          <>
+            <span className="h-7 w-7 shrink-0 rounded border border-border shadow-sm" style={{ backgroundColor: light }} />
+            <span className="font-mono text-[11.5px] tabular-nums text-foreground">
+              {copied === light ? 'copied!' : light.toUpperCase()}
+            </span>
+          </>
+        ) : (
+          <span className="font-mono text-[11px] text-muted-foreground/60">—</span>
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={() => dark && copyToClipboard(dark, setCopied)}
+        disabled={!dark}
+        className="flex items-center gap-3 rounded-md px-2 py-1.5 outline-none transition-colors hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {dark ? (
+          <>
+            <span className="h-7 w-7 shrink-0 rounded border border-border shadow-sm" style={{ backgroundColor: dark }} />
+            <span className="font-mono text-[11.5px] tabular-nums text-foreground">
+              {copied === dark ? 'copied!' : dark.toUpperCase()}
+            </span>
+          </>
+        ) : (
+          <span className="font-mono text-[11px] text-muted-foreground/60">—</span>
+        )}
+      </button>
     </div>
   )
 }
@@ -671,6 +738,7 @@ function ColorRow({ name, value, cssVar }: { name: string; value: string; cssVar
 export default function ColorsPage() {
   const [tokens, setTokens] = useState<{ colors?: { light?: Record<string, string>; dark?: Record<string, string> } } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [copied, setCopied] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/design-system/config')
@@ -681,7 +749,15 @@ export default function ColorsPage() {
 
   const light = tokens?.colors?.light ?? {}
   const dark = tokens?.colors?.dark ?? {}
-  const keys = Array.from(new Set([...Object.keys(light), ...Object.keys(dark)]))
+  const allKeys = Array.from(new Set([...Object.keys(light), ...Object.keys(dark)]))
+
+  // Tokens not matched to any role group fall into 'Other'.
+  const claimed = new Set(ROLE_GROUPS.flatMap(g => g.tokens))
+  const otherKeys = allKeys.filter(k => !claimed.has(k))
+  const groups = [
+    ...ROLE_GROUPS.map(g => ({ id: g.id, label: g.label, hint: g.hint, presentTokens: g.tokens.filter(t => allKeys.includes(t)) })),
+    ...(otherKeys.length > 0 ? [{ id: 'other', label: 'Other', hint: 'Custom tokens defined in your config.', presentTokens: otherKeys }] : []),
+  ].filter(g => g.presentTokens.length > 0)
 
   return (
     <div className="flex flex-col gap-6">
@@ -689,47 +765,42 @@ export default function ColorsPage() {
         <h1 className="text-[28px] font-medium leading-tight tracking-[-0.02em] text-foreground">
           Color Tokens
         </h1>
-        <p className="mt-1 text-[13.5px] text-muted-foreground">
-          Design system color variables — light and dark themes.
+        <p className="mt-1 max-w-[68ch] text-[13.5px] leading-[1.55] text-muted-foreground">
+          Semantic color variables for light and dark themes. Click a swatch to copy the hex; click a variable name to copy the CSS reference. Use semantic tokens — not raw hex — so themes cascade correctly.
         </p>
       </div>
 
       {loading ? (
         <p className="font-mono text-[11.5px] text-muted-foreground/70">loading…</p>
+      ) : groups.length === 0 ? (
+        <p className="font-mono text-[11.5px] text-muted-foreground/70">no color tokens</p>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="overflow-hidden rounded-md border border-border bg-card">
-            <div className="border-b border-border bg-muted px-4 py-3">
-              <SectionLabel>light · palette</SectionLabel>
-            </div>
-            {keys.length === 0 ? (
-              <p className="px-4 py-6 font-mono text-[11.5px] text-muted-foreground/70">no color tokens</p>
-            ) : (
-              <div className="p-2">
-                {keys.map((key) => {
-                  const value = light[key]
-                  if (!value) return null
-                  return <ColorRow key={\`light-\${key}\`} name={key} value={value} cssVar={\`--\${key}\`} />
-                })}
+        <div className="space-y-4">
+          {groups.map(g => (
+            <section key={g.id} className="rounded-md border border-border bg-card">
+              <div className="rounded-t-md border-b border-border bg-muted px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <SectionLabel>{g.label.toLowerCase()} · {g.presentTokens.length} token{g.presentTokens.length === 1 ? '' : 's'}</SectionLabel>
+                  <span className="hidden font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70 md:inline">
+                    light  ·  dark
+                  </span>
+                </div>
+                <p className="mt-1.5 max-w-[68ch] text-[12px] leading-[1.5] text-muted-foreground">{g.hint}</p>
               </div>
-            )}
-          </div>
-          <div className="dark overflow-hidden rounded-md border border-border bg-card">
-            <div className="border-b border-border bg-muted px-4 py-3">
-              <SectionLabel>dark · palette</SectionLabel>
-            </div>
-            {keys.length === 0 ? (
-              <p className="px-4 py-6 font-mono text-[11.5px] text-muted-foreground/70">no color tokens</p>
-            ) : (
-              <div className="p-2">
-                {keys.map((key) => {
-                  const value = dark[key]
-                  if (!value) return null
-                  return <ColorRow key={\`dark-\${key}\`} name={key} value={value} />
-                })}
+              <div>
+                {g.presentTokens.map(name => (
+                  <ColorRow
+                    key={name}
+                    name={name}
+                    light={light[name] ?? ''}
+                    dark={dark[name] ?? ''}
+                    copied={copied}
+                    setCopied={setCopied}
+                  />
+                ))}
               </div>
-            )}
-          </div>
+            </section>
+          ))}
         </div>
       )}
     </div>
@@ -744,7 +815,7 @@ import { useEffect, useState } from 'react'
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+    <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
       <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
       {children}
     </div>
@@ -869,7 +940,7 @@ import { useEffect, useState } from 'react'
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+    <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
       <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
       {children}
     </div>
@@ -990,7 +1061,7 @@ function loadPages() {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+    <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
       <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
       {children}
     </div>
@@ -1118,18 +1189,91 @@ export default function VoicePage() {
       </header>
 
       {!HAS_VOICE && (
-        <section className="rounded-lg border border-border bg-card p-8">
-          <h2 className="text-[20px] font-semibold leading-tight tracking-tight text-foreground">No voice profile configured.</h2>
-          <p className="mt-2 max-w-[60ch] text-[14px] leading-[1.6] text-muted-foreground">
-            Add a <code className="rounded bg-muted px-1 py-0.5 font-mono text-[12px]">voice</code> field to your <code className="rounded bg-muted px-1 py-0.5 font-mono text-[12px]">design-system.config.ts</code> to constrain copy generation. All fields are optional.
-          </p>
-          <pre className="mt-6 overflow-x-auto rounded-md border border-border bg-muted/40 p-4 font-mono text-[12.5px] leading-[1.6] text-foreground">
-            <code>{SAMPLE_CONFIG}</code>
-          </pre>
-          <p className="mt-4 max-w-[60ch] text-[13px] leading-[1.6] text-muted-foreground">
-            Once set, this page renders your voice principles. The same rules are injected into every <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11.5px]">coherent chat</code> generation prompt.
-          </p>
-        </section>
+        <div className="space-y-6">
+          {/* What is Voice */}
+          <section className="rounded-lg border border-border bg-card p-6">
+            <h2 className="text-[18px] font-semibold leading-tight tracking-tight text-foreground">What is Voice?</h2>
+            <p className="mt-2 max-w-[64ch] text-[14px] leading-[1.65] text-muted-foreground">
+              Voice is the writing style your product uses everywhere — every CTA label, error message, empty state, pricing line, and microcopy snippet. It's a foundation primitive on the same layer as Color and Typography.
+            </p>
+            <p className="mt-3 max-w-[64ch] text-[14px] leading-[1.65] text-muted-foreground">
+              Without a voice profile, AI-generated copy drifts into generic SaaS speak: "Get Started Today!", "Amazing Features", "Click Here". With one, the AI follows your tone rules verbatim.
+            </p>
+          </section>
+
+          {/* How to set it */}
+          <section className="rounded-lg border border-border bg-card p-6">
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-[18px] font-semibold leading-tight tracking-tight text-foreground">How to set Voice</h2>
+              <span className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground">3 steps</span>
+            </div>
+
+            <ol className="mt-4 space-y-4">
+              <li className="flex items-start gap-3">
+                <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-mono text-[10.5px] font-semibold tabular-nums text-primary">1</span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[14px] font-medium text-foreground">Add a <code className="rounded bg-muted px-1 py-0.5 font-mono text-[12px]">voice</code> block to <code className="rounded bg-muted px-1 py-0.5 font-mono text-[12px]">design-system.config.ts</code></div>
+                  <p className="mt-1 text-[13px] leading-[1.55] text-muted-foreground">Sits at the top level alongside <code className="font-mono text-[11.5px]">colors</code>, <code className="font-mono text-[11.5px]">typography</code>, and <code className="font-mono text-[11.5px]">spacing</code>. All fields are optional.</p>
+                </div>
+              </li>
+
+              <li className="flex items-start gap-3">
+                <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-mono text-[10.5px] font-semibold tabular-nums text-primary">2</span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[14px] font-medium text-foreground">Run <code className="rounded bg-muted px-1 py-0.5 font-mono text-[12px]">coherent update</code></div>
+                  <p className="mt-1 text-[13px] leading-[1.55] text-muted-foreground">Regenerates this page with your voice principles, registers the profile in the generation pipeline.</p>
+                </div>
+              </li>
+
+              <li className="flex items-start gap-3">
+                <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-mono text-[10.5px] font-semibold tabular-nums text-primary">3</span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[14px] font-medium text-foreground">Generate copy</div>
+                  <p className="mt-1 text-[13px] leading-[1.55] text-muted-foreground">Every <code className="rounded bg-muted px-1 py-0.5 font-mono text-[12px]">coherent chat</code> run from now on injects your voice rules into the AI prompt as a <code className="rounded bg-muted px-1 py-0.5 font-mono text-[12px]">## VOICE DIRECTIVE</code> block.</p>
+                </div>
+              </li>
+            </ol>
+          </section>
+
+          {/* Example config */}
+          <section className="rounded-lg border border-border bg-card">
+            <div className="flex items-center justify-between rounded-t-lg border-b border-border bg-muted px-4 py-3">
+              <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+                <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" />
+                example · design-system.config.ts
+              </div>
+              <span className="font-mono text-[10.5px] text-muted-foreground/70">copy-paste, then edit</span>
+            </div>
+            <pre className="overflow-x-auto p-4 font-mono text-[12.5px] leading-[1.65] text-foreground"><code>{SAMPLE_CONFIG}</code></pre>
+          </section>
+
+          {/* What each field does */}
+          <section className="rounded-lg border border-border bg-card p-6">
+            <h2 className="text-[18px] font-semibold leading-tight tracking-tight text-foreground">What each field does</h2>
+            <dl className="mt-4 space-y-3">
+              <div className="grid grid-cols-[160px_1fr] items-start gap-4 border-b border-border pb-3">
+                <dt className="font-mono text-[12px] text-foreground">tone</dt>
+                <dd className="text-[13px] leading-[1.55] text-muted-foreground">A single label describing the overall posture (e.g., <code className="font-mono text-[11.5px]">"confident-direct"</code>, <code className="font-mono text-[11.5px]">"warm-conversational"</code>, <code className="font-mono text-[11.5px]">"clinical-precise"</code>).</dd>
+              </div>
+              <div className="grid grid-cols-[160px_1fr] items-start gap-4 border-b border-border pb-3">
+                <dt className="font-mono text-[12px] text-foreground">ctaStyle</dt>
+                <dd className="text-[13px] leading-[1.55] text-muted-foreground">How button labels are written (e.g., <code className="font-mono text-[11.5px]">"imperative-action"</code> for "Save", "Delete"; <code className="font-mono text-[11.5px]">"benefit-led"</code> for "Get unlimited reports").</dd>
+              </div>
+              <div className="grid grid-cols-[160px_1fr] items-start gap-4 border-b border-border pb-3">
+                <dt className="font-mono text-[12px] text-foreground">copyRules</dt>
+                <dd className="text-[13px] leading-[1.55] text-muted-foreground">Hard directives the AI follows verbatim. One short sentence per rule.</dd>
+              </div>
+              <div className="grid grid-cols-[160px_1fr] items-start gap-4 border-b border-border pb-3">
+                <dt className="font-mono text-[12px] text-foreground">avoidWords</dt>
+                <dd className="text-[13px] leading-[1.55] text-muted-foreground">Banned words. The AI will not generate any of these — flagged in <code className="font-mono text-[11.5px]">coherent check</code>.</dd>
+              </div>
+              <div className="grid grid-cols-[160px_1fr] items-start gap-4">
+                <dt className="font-mono text-[12px] text-foreground">transparencyRules</dt>
+                <dd className="text-[13px] leading-[1.55] text-muted-foreground">Promises about pricing, privacy, beta status, trade-offs. Shapes how the product talks about itself.</dd>
+              </div>
+            </dl>
+          </section>
+        </div>
       )}
 
       {HAS_VOICE && (

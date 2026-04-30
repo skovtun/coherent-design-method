@@ -11,6 +11,64 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.17.3] — 2026-04-29
+
+### Fixed — viewer feedback after v0.17.2 ship (8 user-reported issues)
+
+User reviewed v0.17.2 live and surfaced 8 issues. All addressed in this patch.
+
+#### Bugs
+
+**1. Foundations group collapsed when on Voice page.** Voice lives at `/design-system/voice` but is a child of Foundations (whose `routePrefix` is `/design-system/tokens`). `isGroupActive` only checked the prefix, so the group didn't auto-expand. Fix: `isGroupActive` now also returns true if any child link in the group matches the current pathname.
+
+**2. "All components" always selected when viewing a specific component.** The overview link `/design-system/components` was matched via `startsWith`, so on `/design-system/components/badge` both "All components" AND "Badge" lit up. Fix: nav children now use **exact** path match, not prefix match. Overview links are only active on their exact route.
+
+**3. Dropdowns/Selects clipped inside Preview blocks.** Component showcase Preview/Variants/Sizes blocks used `overflow-hidden` to clip the rounded card corners. That also clipped any dropdown menu, popover, or select content that opened beyond the block. Fix: dropped `overflow-hidden` on those blocks; rounded corners preserved via `rounded-t-md` on the inner header instead.
+
+#### UX consistency
+
+**4. Inner content padding still too wide.** `max-w-[1024px]` left big horizontal margins on wide displays. Bumped to `max-w-[1280px]` — content area is now 256px wider, less empty air on the sides without losing the readable column constraint.
+
+**5. Inconsistent section header heights.** Some headers (Card-rendered) sat taller than others (inline-rendered) because the `SectionLabel` component had a `mb-2` margin-bottom that added 8px inside Card headers. Stripped `mb-2` from all `SectionLabel` definitions — parent containers control spacing now.
+
+#### Polish
+
+**6. Voice page unclear "what is this code, how to control it?"** Replaced the empty-state with a 3-section explainer:
+
+- **What is Voice?** — concept ("the writing style your product uses everywhere") with a concrete example of what drifts without it ("Get Started Today!" / "Amazing Features").
+- **How to set Voice** — numbered 3 steps: (1) add `voice` block to `design-system.config.ts`, (2) run `coherent update`, (3) generate copy.
+- **What each field does** — definition list for `tone` / `ctaStyle` / `copyRules` / `avoidWords` / `transparencyRules` with examples.
+
+Plus a copy-paste-ready config card with the example.
+
+**7. Sidebar count badges.** Base Components and Shared Components groups now show the live count (e.g., `BASE COMPONENTS  14`) right-aligned in the group label. Subtle, mono, low-contrast — quick scan of size without clutter.
+
+**8. Color page redesign.** Was: two flat alphabetical lists side by side (light + dark), no semantic structure. Now:
+
+- **Grouped by role**: Brand / Surface / Accent & UI / Status / Other. Each group has a one-line hint explaining when to use it ("Status — convey state: success, warning, error, info").
+- **Side-by-side L+D in one row per token**: compare the same token across themes immediately.
+- **Click-to-copy**: click any swatch to copy the hex; click the variable name to copy `var(--token-name)`. Visual feedback ("copied!") for 1.2s.
+- **Bigger swatches** with subtle shadow.
+- **Token counts in headers** (`brand · 4 tokens`).
+
+### Files changed
+
+```
+packages/core/src/generators/templates/design-system/design-system-layout.ts   ─ active-state logic + counts + max-w
+packages/core/src/generators/templates/design-system/component-dynamic.ts      ─ overflow fix
+packages/core/src/generators/DesignSystemGenerator.ts                          ─ Voice empty-state + Color redesign + SectionLabel fix
+docs/CHANGELOG.md
+packages/{core,cli}/package.json   ─ 0.17.2 → 0.17.3
+```
+
+### Verified
+
+- 1746 tests passing
+- TypeScript clean
+- Smoke project regenerated via `coherent update`: all DS routes 200, no client-side errors
+
+---
+
 ## [0.17.2] — 2026-04-29
 
 ### Fixed — viewer feedback after v0.17.1 ship (4 user-reported issues)

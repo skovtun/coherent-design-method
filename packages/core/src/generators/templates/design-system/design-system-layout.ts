@@ -146,11 +146,23 @@ export default function DesignSystemLayout({
       .catch(() => setShared([]))
   }, [])
 
+  // Exact match — used for nav children. Prevents "All X" overview links
+  // from staying active when the user drills into /All/Badge etc.
+  const isExactActive = (href: string) => pathname === href
+
+  // Used for breadcrumbs — startsWith is correct there.
   const isPathActive = (href: string) =>
     pathname === href || (href !== '/design-system' && pathname?.startsWith(href + '/'))
 
-  const isGroupActive = (group: NavGroup) =>
-    pathname === group.routePrefix || pathname?.startsWith(group.routePrefix + '/')
+  // Group is active if its routePrefix matches OR any of its child links does.
+  // The child-link check makes Foundations expand when on /voice (Voice is
+  // a Foundations child but lives under a different routePrefix).
+  const isGroupActive = (group: NavGroup) => {
+    if (pathname === group.routePrefix || pathname?.startsWith(group.routePrefix + '/')) {
+      return true
+    }
+    return group.links.some(l => isPathActive(l.href))
+  }
 
   const buildGroupLinks = (group: NavGroup): { href: string; label: string }[] => {
     if (group.dynamic === 'base-components') {
@@ -175,23 +187,33 @@ export default function DesignSystemLayout({
     const active = isGroupActive(group)
     const links = buildGroupLinks(group)
     const hasChildren = links.length > 0
+    // Subtle count badge for dynamic groups — quick scan of size.
+    const count =
+      group.dynamic === 'base-components' ? components.length :
+      group.dynamic === 'shared-components' ? shared.length :
+      null
     return (
       <div key={group.label} className="mb-1">
         <Link
           href={group.href}
           onClick={() => setMobileMenuOpen(false)}
-          className={\`block rounded-md px-3 py-1.5 text-[12px] font-medium uppercase tracking-[0.12em] transition-colors \${
+          className={\`flex items-center justify-between rounded-md px-3 py-1.5 text-[12px] font-medium uppercase tracking-[0.12em] transition-colors \${
             active
               ? 'text-foreground'
               : 'text-muted-foreground hover:text-foreground'
           }\`}
         >
-          {group.label}
+          <span>{group.label}</span>
+          {count !== null && count > 0 && (
+            <span className="font-mono text-[10px] tabular-nums text-muted-foreground/60 normal-case tracking-normal">
+              {count}
+            </span>
+          )}
         </Link>
         {active && hasChildren && (
           <div className="mt-1 mb-3 flex flex-col gap-[1px]">
             {links.map((link) => {
-              const linkActive = isPathActive(link.href)
+              const linkActive = isExactActive(link.href)
               return (
                 <Link
                   key={link.href}
@@ -363,9 +385,11 @@ export default function DesignSystemLayout({
           </div>
         )}
 
-        {/* Content — reduced padding from v0.17.1 (px-4 py-6 lg:px-6 lg:py-8) */}
+        {/* Content — full-width with sensible cap. Wider max-w-[1280px]
+            (was 1024px) gives content area more room and reduces the
+            empty horizontal margins on wide displays. */}
         <main className="flex-1">
-          <div className="mx-auto w-full max-w-[1024px] px-4 py-6 lg:px-6 lg:py-8">
+          <div className="mx-auto w-full max-w-[1280px] px-4 py-6 lg:px-6 lg:py-8">
             {children}
           </div>
         </main>
