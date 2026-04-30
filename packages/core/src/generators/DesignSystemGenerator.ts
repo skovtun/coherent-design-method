@@ -972,7 +972,6 @@ export default function SpacingPage() {
     return n * 16
   }
   const spacingPx = Object.entries(spacing).map(([n, v]) => ({ name: n, value: v as string, px: toPx(v as string) }))
-  const maxPx = spacingPx.reduce((m, s) => Math.max(m, s.px), 0) || 1
 
   return (
     <div className="flex flex-col gap-8">
@@ -1003,9 +1002,7 @@ export default function SpacingPage() {
                       <div className="text-right font-medium text-foreground">{name}</div>
                       <div className="tabular-nums text-muted-foreground">{value}</div>
                       <div className="text-[10.5px] tabular-nums text-muted-foreground/60">{px}px</div>
-                      <div className="relative h-6 w-full">
-                        <div className="absolute inset-y-0 left-0 rounded-[3px] bg-primary" style={{ width: \`\${(px / maxPx) * 100}%\` }} />
-                      </div>
+                      <div className="h-5 rounded-[3px] bg-primary" style={{ width: \`\${px}px\` }} />
                     </div>
                   ))}
                 </div>
