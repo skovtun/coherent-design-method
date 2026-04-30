@@ -195,30 +195,35 @@ export default function SharedComponentDetailPage() {
         )}
       </div>
 
-      {/* Visual preview — embeds a page that uses the component so users
-          can see it rendered in real context. Layout components (Header/
-          Footer) appear on any page; widgets show on their host page. */}
+      {/* See it live — explicit link to the page where this component
+          renders, NOT an inline iframe. Iframes mislead when multiple
+          shared components live on the same host page (all previews
+          look identical). Source code below is the truthful representation;
+          this card directs users to the live render. */}
       {previewRoute && (
-        <div className="rounded-md border border-border bg-card">
-          <div className="flex items-center justify-between rounded-t-md border-b border-border bg-muted px-4 py-3">
-            <SectionLabel>preview · in context</SectionLabel>
+        <div className="rounded-md border border-border bg-card p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <SectionLabel>see it live</SectionLabel>
+              <p className="mt-2 max-w-[58ch] text-[13px] leading-[1.6] text-muted-foreground">
+                <span className="font-medium text-foreground">{entry.name}</span> renders on the live page below. Open it in a new tab to see the component in real context — same data, same layout, surrounded by the components it actually ships with.
+              </p>
+            </div>
             <a
               href={previewRoute}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 font-mono text-[10.5px] text-muted-foreground/70 transition-colors hover:text-foreground"
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-[12.5px] font-medium text-foreground outline-none transition-colors hover:bg-muted"
             >
-              {previewRoute} ↗
+              <span className="font-mono text-[11.5px] text-muted-foreground">{previewRoute}</span>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>
             </a>
           </div>
-          <div className="relative h-[420px] overflow-hidden rounded-b-md bg-background">
-            <iframe
-              src={previewRoute}
-              title={\`\${entry.name} preview\`}
-              className="h-full w-full border-0"
-              loading="lazy"
-            />
-          </div>
+          {entry.type === 'layout' && (
+            <p className="mt-3 max-w-[58ch] text-[12px] leading-[1.55] text-muted-foreground/80">
+              <span className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-muted-foreground/60">layout</span> · this component appears on every page that uses the parent layout, so any route is a valid preview surface.
+            </p>
+          )}
         </div>
       )}
 
