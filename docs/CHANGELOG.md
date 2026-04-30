@@ -11,6 +11,34 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.17.6] — 2026-04-29
+
+### Moved — viewer attribution from sidebar to content footer
+
+v0.17.5 placed the attribution block ("Coherent Design Method · by Sergei Kovtun" + GitHub chip) inside the sidebar footer, below version and generated metadata. User feedback: it competed with the existing meta block and felt cramped.
+
+Moved to the bottom of the main content column instead. Now sits in a horizontal layout below `children`, with a top border separating it from page content:
+
+- **Left**: "Coherent Design Method · by [Sergei Kovtun](https://github.com/skovtun)"
+- **Right**: GitHub chip with proper Octicon (replaces the success-dot indicator) and external-link arrow → links to the repository
+
+This placement gives the attribution proper breathing room and a logical reading order — the user finishes the page content, then sees who built the tool.
+
+### Files changed
+
+```
+packages/core/src/generators/templates/design-system/design-system-layout.ts   ─ moved attribution block
+docs/CHANGELOG.md
+packages/{core,cli}/package.json   ─ 0.17.5 → 0.17.6
+```
+
+### Verified
+
+- 1746 tests passing
+- Smoke regen: attribution renders in main column footer, sidebar back to clean version + generated only
+
+---
+
 ## [0.17.5] — 2026-04-29
 
 ### Fixed — viewer feedback after v0.17.4 ship (4 user-reported issues)
