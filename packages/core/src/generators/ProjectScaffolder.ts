@@ -158,11 +158,34 @@ export class ProjectScaffolder {
 
   /**
    * Generate next.config.js
+   *
+   * Includes outputFileTracingIncludes for the design-system API routes —
+   * Vercel's auto-tracing skips raw .tsx source files (they're imported as
+   * compiled JS, not text), so the shared-components/[id] route returns
+   * 404 in production without explicit bundle hints.
    */
   private async generateNextConfig(): Promise<void> {
     const content = `/** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Force-bundle DS manifest + component sources into serverless API
+  // function bundles. Without this, /api/design-system/shared-components/[id]
+  // returns 404 on Vercel because raw .tsx files aren't auto-traced.
+  outputFileTracingIncludes: {
+    '/api/design-system/shared-components/[id]': [
+      './coherent.components.json',
+      './components/**/*.tsx',
+    ],
+    '/api/design-system/shared-components': [
+      './coherent.components.json',
+    ],
+    '/api/design-system/config': [
+      './design-system.config.ts',
+    ],
+    '/api/design-system/changes': [
+      './coherent.changes.json',
+    ],
+  },
 }
 
 module.exports = nextConfig
