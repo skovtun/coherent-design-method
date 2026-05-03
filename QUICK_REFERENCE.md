@@ -7,6 +7,7 @@ A cheat sheet for Coherent CLI commands and workflows.
 ```bash
 coherent init                    # Create a new project
 coherent chat "<message>"        # Generate/modify pages with AI (needs API key)
+coherent chat "use @PricingTable + @CID-001 for ..."  # v0.18: pin shared components by name or CID via @-syntax
 coherent chat --page "X" "..."   # Edit only page X
 coherent chat --component "X" "..."  # Edit shared component X
 coherent chat --dry-run "..."       # Preview changes without applying
@@ -41,6 +42,21 @@ coherent baseline                # Structural regression check (fingerprints + c
 coherent baseline --save         # Record new baseline without comparing
 coherent report-issue --page X   # Pre-filled GitHub issue URL with project context
 ```
+
+## v0.18.0 — DESIGN.md output
+
+Every `coherent chat` writes a `DESIGN.md` in the project root summarizing the project's design system: atmosphere, color tokens (light + dark), typography, spacing, radius, voice, shared components, pages. Human-readable, GitHub-renderable, portable seed for other AI tools.
+
+## v0.18.0 — @-syntax for shared components
+
+In any `coherent chat` message, prefix a name with `@` to pin that shared component:
+
+```bash
+coherent chat "build pricing using @PricingTable + @TestimonialGrid"
+coherent chat "regenerate landing with @CID-001 header"
+```
+
+Resolution: exact CID match (case-insensitive) → exact name match → fall back to keyword match with inline warning. Unresolved tokens print `⚠ @<name> did not match...`. Email addresses (`user@example.com`) are NOT extracted.
 
 ## Typical Workflow
 

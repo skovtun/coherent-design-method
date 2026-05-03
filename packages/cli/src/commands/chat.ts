@@ -451,7 +451,29 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
       }
     }
 
-    const sharedComponentsSummary = buildSharedComponentsSummary(manifest)
+    const baseSharedComponentsSummary = buildSharedComponentsSummary(manifest)
+
+    // v0.18.0 — @-syntax: explicit `@<name>` / `@CID-XXX` mentions in the
+    // user message get a louder "MUST USE" directive prepended to the
+    // shared components summary. Falls back to keyword match silently
+    // when nothing pins.
+    const {
+      directive: pinnedDirective,
+      unresolvedWarnings: pinnedUnresolved,
+      pinnedCount,
+    } = await import('../utils/at-syntax.js').then(m => m.processAtMentions(message ?? '', manifest))
+
+    let sharedComponentsSummary = baseSharedComponentsSummary
+    if (pinnedDirective) {
+      sharedComponentsSummary = baseSharedComponentsSummary
+        ? `${pinnedDirective}\n\n${baseSharedComponentsSummary}`
+        : pinnedDirective
+      console.log(chalk.cyan(`  📌 Pinned ${pinnedCount} shared component(s) via @-syntax`))
+    }
+    for (const w of pinnedUnresolved) {
+      console.log(chalk.yellow(`  ⚠ ${w}`))
+    }
+
     if (DEBUG && sharedComponentsSummary) {
       console.log(chalk.dim('[add-page] sharedComponentsSummary in prompt:\n' + sharedComponentsSummary))
     }
@@ -1445,6 +1467,21 @@ Return JSON: { "requests": [{ "type": "add-page", "changes": { "name": "${compon
 
     const backupPath = createBackup(projectRoot)
     logBackupCreated(backupPath)
+
+    // v0.18.0 — DESIGN.md output artifact. Best-effort, never breaks chat.
+    try {
+      const { buildDesignMarkdown, DESIGN_MD_FILENAME } = await import('../utils/design-md.js')
+      const manifestForDesignMd = await loadManifest(projectRoot).catch(() => undefined)
+      const planForDesignMd = projectRoot ? loadPlan(projectRoot) : null
+      const designMd = buildDesignMarkdown({
+        config: updatedConfig,
+        manifest: manifestForDesignMd,
+        atmosphere: planForDesignMd?.atmosphere,
+      })
+      await writeFile(resolve(projectRoot, DESIGN_MD_FILENAME), designMd)
+    } catch {
+      /* best-effort — DESIGN.md is a derived artifact, never block chat */
+    }
 
     // F4/F5 post-apply summary: for each modified page, diff the before/after
     // snapshot captured above. If --page was used and no observable change

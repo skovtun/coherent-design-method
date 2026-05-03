@@ -85,6 +85,36 @@ Deferred work captured during planning. Each item has enough context to be picke
 
 ---
 
+## T9 — URL import for style seeding (post-v0.18 candidate)
+
+**What:** `coherent atmosphere from-url <url>` — scrape any website, extract computed colors / typography / base spacing rhythm, normalize to OKLCH + map to CDM atmosphere primitives, save as new atmosphere seed.
+
+**Why:** Bypass to Refero's curated-brand-references moat. They curate manually; CDM automates the first pass. Unlocks "scaffold a Linear-style app" onboarding wedge — user paste URL, get atmosphere.
+
+**Current state:** No infra. Greenfield. Deferred at v0.18 cherry-pick ceremony 2026-05-03 because cost (4-6h CC + production-quality 2 days) is materially higher than the 3 accepted v0.18 gaps, leverage from existing infra is zero, and there is non-zero legal/ToS risk on style scraping.
+
+**Trigger condition:** revisit after v0.18 ships AND atmosphere visual gallery ships on landing AND we have at least one external user signal that "more atmospheres" is the bottleneck (vs. quality of existing 5).
+
+**Design sketch:**
+1. Headless browser (Puppeteer or Playwright) — anti-bot stealth basics
+2. Computed-style extraction on key elements (h1/body/cta button/card)
+3. OKLCH normalization + role assignment (primary/accent/muted by usage frequency + contrast)
+4. Font-family detection → Google Fonts mapping
+5. Spacing rhythm inference from layout grid (CSS gap / margin patterns)
+6. Output: `coherent.config.ts` patch + new atmosphere file under user's project
+
+**Risks:**
+- Poor extraction → user disappointed when result diverges from source brand
+- Scraping legality (style facts vs. trade dress)
+- Anti-bot blocks on key sites (Linear/Stripe/Vercel)
+- Aura doesn't ship this — may be a reason
+
+**Not doing now because:** v0.18 cherry-pick said other 3 features have better effort/value. Validate hypothesis with cheaper wins first.
+
+**Source:** /plan-ceo-review competitive positioning, 2026-05-03. Cherry-pick 4 deferred.
+
+---
+
 ## T3 — MCP server (`@getcoherent/mcp`) (v0.11+ candidate)
 
 **What:** MCP (Model Context Protocol) server package exposing phase-engine operations as MCP tools. Editor-agnostic layer that works with any MCP-compliant host (Claude Code, Cursor, Cline, Continue).
