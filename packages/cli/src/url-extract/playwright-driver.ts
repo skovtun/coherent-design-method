@@ -1,4 +1,4 @@
-import type { BrowserDriverFactory, PageLike } from '@getcoherent/core'
+import type { BrowserDriverFactory, NavigationResponse, PageLike } from '@getcoherent/core'
 
 /**
  * Playwright adapter implementing the BrowserDriverFactory contract from
@@ -35,12 +35,54 @@ export async function createPlaywrightDriver(opts: PlaywrightDriverOptions = {})
   return {
     async newPage(): Promise<PageLike> {
       const page = await context.newPage()
-      // Adapter: Playwright's Page already matches PageLike exactly.
-      return page as unknown as PageLike
+      return wrapPage(page)
     },
     async close(): Promise<void> {
       await context.close().catch(() => {})
       await browser.close().catch(() => {})
+    },
+  }
+}
+
+/**
+ * Build an explicit PageLike wrapper. We can no longer use a structural cast
+ * because PageLike now carries `interceptMainFrameRequests`, which Playwright
+ * does not expose — we synthesize it from `page.route` here.
+ */
+function wrapPage(page: import('playwright').Page): PageLike {
+  return {
+    goto: (url, opts) => page.goto(url, opts) as unknown as Promise<NavigationResponse | null>,
+    evaluate: ((fn: unknown, arg?: unknown) =>
+      arg === undefined
+        ? page.evaluate(fn as never)
+        : page.evaluate(fn as never, arg as never)) as PageLike['evaluate'],
+    content: () => page.content(),
+    screenshot: opts => page.screenshot(opts) as Promise<Buffer>,
+    title: () => page.title(),
+    url: () => page.url(),
+    waitForTimeout: ms => page.waitForTimeout(ms),
+    close: () => page.close(),
+    async interceptMainFrameRequests(handler) {
+      await page.route('**/*', async (route, request) => {
+        // Subresources (script, img, fetch, css) pass through unchecked. Scope
+        // is main-frame navigation only — we are guarding redirect chains, not
+        // building a full content-blocker.
+        if (request.isNavigationRequest() && request.frame() === page.mainFrame()) {
+          let allow = false
+          try {
+            allow = await handler(request.url())
+          } catch {
+            allow = false
+          }
+          if (allow) {
+            await route.continue().catch(() => {})
+          } else {
+            await route.abort().catch(() => {})
+          }
+          return
+        }
+        await route.continue().catch(() => {})
+      })
     },
   }
 }

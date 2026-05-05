@@ -18,14 +18,18 @@ export interface ExtractOptions {
   json?: boolean
   out?: string
   timeout?: string
-  noHeadless?: boolean
+  // Commander maps `--no-headless` to `opts.headless === false` (default true).
+  // Field MUST be `headless`, not `noHeadless`, or the flag is dead code.
+  headless?: boolean
 }
 
 export async function extractCommand(url: string, opts: ExtractOptions = {}): Promise<void> {
   // Pre-navigation SSRF gate. Surfaces the rejection before browser launch
-  // (cheaper than waiting on Playwright bootstrap to fail).
+  // (cheaper than waiting on Playwright bootstrap to fail). Async because
+  // hostnames must DNS-resolve and every A/AAAA record is validated against
+  // the private-IP blocklist.
   try {
-    defaultSsrfGuard(url)
+    await defaultSsrfGuard(url)
   } catch (err) {
     console.error(chalk.red('✗ ' + (err as Error).message))
     process.exit(1)
@@ -36,7 +40,7 @@ export async function extractCommand(url: string, opts: ExtractOptions = {}): Pr
   const spinner = ora({ text: `Launching browser…`, color: 'cyan' }).start()
   let driver: Awaited<ReturnType<typeof createPlaywrightDriver>> | null = null
   try {
-    driver = await createPlaywrightDriver({ headless: !opts.noHeadless })
+    driver = await createPlaywrightDriver({ headless: opts.headless ?? true })
     spinner.text = `Navigating to ${url}…`
 
     const snapshot = await captureSnapshot(url, driver, { timeoutMs })

@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+import { lookup as dnsLookupDefault } from 'node:dns/promises'
 import type { CapturedSnapshot, ComputedStyleSample, ExtractOptions, HeroDetection } from './types.js'
 
 export const DEFAULT_TIMEOUT_MS = 30_000
@@ -13,6 +14,14 @@ export interface NavigationResponse {
   url(): string
 }
 
+/** Result of a DNS A/AAAA lookup. Matches node:dns/promises lookup({all:true}) shape. */
+export interface DnsLookupResult {
+  address: string
+  family: 4 | 6
+}
+
+export type DnsLookupFn = (hostname: string, opts: { all: true }) => Promise<DnsLookupResult[]>
+
 export interface PageLike {
   goto(url: string, opts: { timeout: number; waitUntil: 'networkidle' }): Promise<NavigationResponse | null>
   evaluate<T>(fn: string | ((...a: unknown[]) => T)): Promise<T>
@@ -23,6 +32,11 @@ export interface PageLike {
   url(): string
   waitForTimeout(ms: number): Promise<void>
   close(): Promise<void>
+  /**
+   * Intercept every main-frame navigation request (initial + each redirect hop).
+   * Handler returns true to allow, false to abort. Subresource requests pass through.
+   */
+  interceptMainFrameRequests(handler: (url: string) => Promise<boolean>): Promise<void>
 }
 
 export interface BrowserDriverFactory {
@@ -275,10 +289,42 @@ export const EXTRACT_COPY_TEXT_SCRIPT = `(${extractCopyTextInPage.toString()})()
 const MAX_REDIRECT_HOPS = 3
 
 /**
- * Default SSRF guard. Block file/data/blob, private/loopback/metadata IPs.
- * Pure URL inspection; resolves DNS lazily only if a hostname looks like an IP.
+ * Throws if `addr` is a private/loopback/metadata IP. Caller passes raw IP literal
+ * (either from the URL hostname or from a DNS lookup result).
  */
-export function defaultSsrfGuard(rawUrl: string): void {
+function assertNotPrivateIp(addr: string, family: 4 | 6, source: string): void {
+  if (family === 4) {
+    const m = addr.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
+    if (!m) return
+    const [a, b] = [parseInt(m[1], 10), parseInt(m[2], 10)]
+    if (a === 0) throw new Error(`URL_INVALID: ${source} resolves to 0.0.0.0/8 (${addr})`)
+    if (a === 10) throw new Error(`URL_INVALID: ${source} resolves to private IPv4 10/8 (${addr})`)
+    if (a === 127) throw new Error(`URL_INVALID: ${source} resolves to loopback IPv4 127/8 (${addr})`)
+    if (a === 169 && b === 254) throw new Error(`URL_INVALID: ${source} resolves to metadata IPv4 169.254/16 (${addr})`)
+    if (a === 172 && b >= 16 && b <= 31)
+      throw new Error(`URL_INVALID: ${source} resolves to private IPv4 172.16/12 (${addr})`)
+    if (a === 192 && b === 168) throw new Error(`URL_INVALID: ${source} resolves to private IPv4 192.168/16 (${addr})`)
+    return
+  }
+  // family === 6
+  const lower = addr.toLowerCase()
+  if (lower === '::1' || lower === '::') throw new Error(`URL_INVALID: ${source} resolves to IPv6 loopback (${addr})`)
+  if (lower.startsWith('fe80:')) throw new Error(`URL_INVALID: ${source} resolves to IPv6 link-local (${addr})`)
+  if (lower.startsWith('fc') || lower.startsWith('fd'))
+    throw new Error(`URL_INVALID: ${source} resolves to IPv6 unique-local fc00::/7 (${addr})`)
+  // IPv4-mapped IPv6 (::ffff:10.0.0.1) — re-check the v4 portion
+  const v4mapped = lower.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/)
+  if (v4mapped) assertNotPrivateIp(v4mapped[1], 4, source)
+}
+
+/**
+ * Default SSRF guard. Async because hostnames must be DNS-resolved and every
+ * resolved A/AAAA record validated — literal-string checks alone allow trivial
+ * bypass via "internal.example → 10.0.0.5".
+ *
+ * Pass `opts.lookup` to inject a stub resolver in tests.
+ */
+export async function defaultSsrfGuard(rawUrl: string, opts: { lookup?: DnsLookupFn } = {}): Promise<void> {
   let u: URL
   try {
     u = new URL(rawUrl)
@@ -292,19 +338,31 @@ export function defaultSsrfGuard(rawUrl: string): void {
   if (host === 'localhost' || host.endsWith('.localhost') || host === '0.0.0.0') {
     throw new Error('URL_INVALID: localhost')
   }
-  // IPv4 literal check
-  const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
-  if (ipv4) {
-    const [a, b] = [parseInt(ipv4[1], 10), parseInt(ipv4[2], 10)]
-    if (a === 10) throw new Error('URL_INVALID: private IPv4 10/8')
-    if (a === 127) throw new Error('URL_INVALID: loopback IPv4 127/8')
-    if (a === 169 && b === 254) throw new Error('URL_INVALID: metadata IPv4 169.254/16')
-    if (a === 172 && b >= 16 && b <= 31) throw new Error('URL_INVALID: private IPv4 172.16/12')
-    if (a === 192 && b === 168) throw new Error('URL_INVALID: private IPv4 192.168/16')
+  // Strip IPv6 brackets for parsing.
+  const bareHost = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host
+  const ipv4Literal = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.test(bareHost)
+  const ipv6Literal = bareHost.includes(':')
+  if (ipv4Literal) {
+    assertNotPrivateIp(bareHost, 4, 'host')
+    return
   }
-  // IPv6 link-local + loopback
-  if (host === '::1' || host.startsWith('[::1') || host.startsWith('fe80:') || host.startsWith('[fe80:')) {
-    throw new Error('URL_INVALID: IPv6 loopback/link-local')
+  if (ipv6Literal) {
+    assertNotPrivateIp(bareHost, 6, 'host')
+    return
+  }
+  // Hostname — must DNS-resolve and validate every A/AAAA address.
+  const lookup = opts.lookup ?? (dnsLookupDefault as unknown as DnsLookupFn)
+  let addrs: DnsLookupResult[]
+  try {
+    addrs = await lookup(bareHost, { all: true })
+  } catch (e) {
+    throw new Error(`URL_INVALID: dns_lookup_failed for ${bareHost}: ${(e as Error).message}`)
+  }
+  if (addrs.length === 0) {
+    throw new Error(`URL_INVALID: dns_lookup_empty for ${bareHost}`)
+  }
+  for (const { address, family } of addrs) {
+    assertNotPrivateIp(address, family, bareHost)
   }
 }
 
@@ -329,11 +387,29 @@ export async function captureSnapshot(
 
   const page = await driver.newPage()
   const startedAt = Date.now()
+
+  // Install per-request guard BEFORE goto so every redirect hop is validated
+  // against the same SSRF rules. Without this, a public URL that 302s to
+  // 169.254.169.254 would be fetched before any post-goto check could fire.
+  let blockedRedirect: string | null = null
+  await page.interceptMainFrameRequests(async reqUrl => {
+    try {
+      await guard(reqUrl)
+      return true
+    } catch (e) {
+      if (!blockedRedirect) blockedRedirect = `${reqUrl} (${(e as Error).message})`
+      return false
+    }
+  })
+
   try {
     let response: NavigationResponse | null = null
     try {
       response = await page.goto(url, { timeout: timeoutMs, waitUntil: 'networkidle' })
     } catch (e) {
+      if (blockedRedirect) {
+        throw new Error(`URL_INVALID: navigation aborted at redirect target ${blockedRedirect}`)
+      }
       throw new Error(`NAVIGATION_TIMEOUT: ${(e as Error).message}`)
     }
 
@@ -345,8 +421,6 @@ export async function captureSnapshot(
       throw new Error(`NAVIGATION_FAILED: status ${status}`)
     }
     const finalUrl = response?.url() ?? page.url()
-    // Re-run SSRF on final URL after redirect chain (redirect hops capped by Playwright; we just guard the final).
-    await guard(finalUrl)
 
     // Scroll to bottom + grace to surface lazy content.
     await page.evaluate(`window.scrollTo(0, document.body.scrollHeight)`)
