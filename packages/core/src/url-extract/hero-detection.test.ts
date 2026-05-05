@@ -38,10 +38,11 @@ describe('detectHeroInPage (3-tier, happy-dom)', () => {
   })
 
   describe('Tier 1: semantic <h1>', () => {
-    it('returns h1 when present (stripe-pattern)', () => {
+    it('returns h1 when present and visible (stripe-pattern)', () => {
       document.body.innerHTML = '<h1>Build a real online business</h1>'
       const h1 = document.querySelector('h1')!
       setStyle(h1, { 'font-size': '56px' })
+      fakeRect(h1, 100, 800, 90)
       const r = detectHeroInPage()
       expect(r.source).toBe('h1')
       expect(r.text).toBe('Build a real online business')
@@ -56,6 +57,49 @@ describe('detectHeroInPage (3-tier, happy-dom)', () => {
       fakeRect(div, 100, 800, 200)
       const r = detectHeroInPage()
       expect(r.source).not.toBe('h1')
+    })
+
+    // P2 fix coverage (codex iter-4): hidden SEO/a11y h1 + visual hero in
+    // styled divs is a common pattern. Pre-fix, we returned the hidden text.
+    it('skips display:none h1 and falls to Tier 2', () => {
+      document.body.innerHTML = '<h1>Hidden SEO Title</h1><div id="hero">Real Hero</div>'
+      const h1 = document.querySelector('h1')!
+      setStyle(h1, { 'font-size': '32px', display: 'none' })
+      // happy-dom doesn't compute layout for display:none — fakeRect(0,0,0)
+      // models how a real browser would report it.
+      fakeRect(h1, 0, 0, 0)
+      const hero = document.querySelector('#hero')!
+      setStyle(hero, { 'font-size': '64px' })
+      fakeRect(hero, 100, 800, 100)
+      const r = detectHeroInPage()
+      expect(r.source).toBe('largest-visible-text')
+      expect(r.text).toBe('Real Hero')
+    })
+
+    it('skips visibility:hidden h1 (sr-only-style) and falls to Tier 2', () => {
+      document.body.innerHTML = '<h1>screenreader only</h1><div id="hero">Visible Hero</div>'
+      const h1 = document.querySelector('h1')!
+      setStyle(h1, { 'font-size': '24px', visibility: 'hidden' })
+      fakeRect(h1, 100, 600, 30) // sr-only often has rect but hidden
+      const hero = document.querySelector('#hero')!
+      setStyle(hero, { 'font-size': '72px' })
+      fakeRect(hero, 100, 800, 100)
+      const r = detectHeroInPage()
+      expect(r.source).toBe('largest-visible-text')
+      expect(r.text).toBe('Visible Hero')
+    })
+
+    it('skips opacity:0 h1 and falls to Tier 2', () => {
+      document.body.innerHTML = '<h1>fully transparent</h1><div id="hero">Real Hero</div>'
+      const h1 = document.querySelector('h1')!
+      setStyle(h1, { 'font-size': '40px', opacity: '0' })
+      fakeRect(h1, 100, 600, 50)
+      const hero = document.querySelector('#hero')!
+      setStyle(hero, { 'font-size': '60px' })
+      fakeRect(hero, 100, 800, 80)
+      const r = detectHeroInPage()
+      expect(r.source).toBe('largest-visible-text')
+      expect(r.text).toBe('Real Hero')
     })
   })
 

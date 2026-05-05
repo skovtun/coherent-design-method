@@ -59,15 +59,35 @@ export interface BrowserDriverFactory {
  * Exported as a function reference so it can be unit-tested in jsdom without spinning a real browser.
  */
 export function detectHeroInPage(): HeroDetection {
-  // Tier 1: semantic <h1>
-  const h1 = document.querySelector('h1')
-  if (h1 && (h1.textContent || '').trim().length > 0) {
-    const fs = parseFloat(getComputedStyle(h1).fontSize)
-    return {
-      text: (h1.textContent || '').trim(),
-      fontSize: Number.isFinite(fs) ? fs : null,
-      source: 'h1',
-      selector: 'h1',
+  // Tier 1: semantic <h1>, but ONLY if it's actually visible. SEO/a11y pages
+  // often hide an off-screen h1 with sr-only / clip / display:none while the
+  // visual hero text lives in styled divs. Pre-iter-4 we accepted any h1 with
+  // text, returning hidden metadata as the hero. Now apply the same rect/
+  // visibility/opacity gates Tier 2 uses.
+  const h1 = document.querySelector<HTMLElement>('h1')
+  if (h1) {
+    const text = (h1.textContent || '').trim()
+    if (text.length > 0) {
+      const cs = getComputedStyle(h1)
+      const rect = h1.getBoundingClientRect()
+      // Mirror Tier 2's gating: only block when explicitly hidden. Default
+      // opacity computes to '1' in real browsers but happy-dom returns '' →
+      // parseFloat('') === NaN, which we accept as visible.
+      const visible =
+        rect.width > 0 &&
+        rect.height > 0 &&
+        cs.visibility !== 'hidden' &&
+        cs.display !== 'none' &&
+        parseFloat(cs.opacity) !== 0
+      if (visible) {
+        const fs = parseFloat(cs.fontSize)
+        return {
+          text,
+          fontSize: Number.isFinite(fs) ? fs : null,
+          source: 'h1',
+          selector: 'h1',
+        }
+      }
     }
   }
   // Tier 2: largest visible text in viewport (works for awwwards/larevoltosa custom hero markup)
@@ -327,14 +347,37 @@ function assertNotPrivateIp(addr: string, family: 4 | 6, source: string): void {
   if (family === 4) {
     const m = addr.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
     if (!m) return
-    const [a, b] = [parseInt(m[1], 10), parseInt(m[2], 10)]
-    if (a === 0) throw new Error(`URL_INVALID: ${source} resolves to 0.0.0.0/8 (${addr})`)
+    const [a, b, c, d] = [parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10), parseInt(m[4], 10)]
+    // IANA IPv4 Special-Purpose Address Registry (RFC 6890 + later updates).
+    // We block every non-globally-routable range — codex iter-4 caught us
+    // missing CGNAT (100.64/10, hosts Alibaba metadata at 100.100.100.200)
+    // and benchmarking (198.18/15). Documentation/multicast/reserved are
+    // non-routable but listed defensively for completeness.
+    if (a === 0) throw new Error(`URL_INVALID: ${source} resolves to 0.0.0.0/8 current-network (${addr})`)
     if (a === 10) throw new Error(`URL_INVALID: ${source} resolves to private IPv4 10/8 (${addr})`)
+    if (a === 100 && b >= 64 && b <= 127)
+      throw new Error(`URL_INVALID: ${source} resolves to CGNAT 100.64/10 (${addr})`)
     if (a === 127) throw new Error(`URL_INVALID: ${source} resolves to loopback IPv4 127/8 (${addr})`)
     if (a === 169 && b === 254) throw new Error(`URL_INVALID: ${source} resolves to metadata IPv4 169.254/16 (${addr})`)
     if (a === 172 && b >= 16 && b <= 31)
       throw new Error(`URL_INVALID: ${source} resolves to private IPv4 172.16/12 (${addr})`)
+    if (a === 192 && b === 0 && c === 0)
+      throw new Error(`URL_INVALID: ${source} resolves to IETF protocol assignment 192.0.0/24 (${addr})`)
+    if (a === 192 && b === 0 && c === 2)
+      throw new Error(`URL_INVALID: ${source} resolves to TEST-NET-1 192.0.2/24 (${addr})`)
+    if (a === 192 && b === 88 && c === 99)
+      throw new Error(`URL_INVALID: ${source} resolves to 6to4 anycast 192.88.99/24 (${addr})`)
     if (a === 192 && b === 168) throw new Error(`URL_INVALID: ${source} resolves to private IPv4 192.168/16 (${addr})`)
+    if (a === 198 && (b === 18 || b === 19))
+      throw new Error(`URL_INVALID: ${source} resolves to benchmarking 198.18/15 (${addr})`)
+    if (a === 198 && b === 51 && c === 100)
+      throw new Error(`URL_INVALID: ${source} resolves to TEST-NET-2 198.51.100/24 (${addr})`)
+    if (a === 203 && b === 0 && c === 113)
+      throw new Error(`URL_INVALID: ${source} resolves to TEST-NET-3 203.0.113/24 (${addr})`)
+    if (a >= 224 && a <= 239) throw new Error(`URL_INVALID: ${source} resolves to multicast 224/4 (${addr})`)
+    if (a >= 240) throw new Error(`URL_INVALID: ${source} resolves to reserved 240/4 (${addr})`)
+    if (a === 255 && b === 255 && c === 255 && d === 255)
+      throw new Error(`URL_INVALID: ${source} resolves to broadcast 255.255.255.255 (${addr})`)
     return
   }
   // family === 6

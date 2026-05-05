@@ -68,18 +68,42 @@ describe('url-extract bootstrap', () => {
     it.each([
       ['http://localhost', /localhost/],
       ['http://127.0.0.1/x', /loopback/],
-      ['http://10.0.0.5', /private IPv4/],
-      ['http://192.168.1.1', /private IPv4/],
-      ['http://172.16.0.1', /private IPv4/],
-      ['http://172.31.255.255', /private IPv4/],
+      ['http://10.0.0.5', /private IPv4 10/],
+      ['http://192.168.1.1', /private IPv4 192\.168/],
+      ['http://172.16.0.1', /private IPv4 172\.16/],
+      ['http://172.31.255.255', /private IPv4 172\.16/],
       ['http://169.254.169.254/latest/meta-data/', /metadata/],
-    ])('blocks private/loopback/metadata IP literals: %s', async (url, pattern) => {
+      // codex iter-4: ranges we previously missed
+      // 0.0.0.0 is caught by the explicit localhost-name check before reaching
+      // the IPv4 branch — both rejections are correct, accept either pattern.
+      ['http://0.0.0.0', /localhost|current-network/],
+      ['http://100.64.0.1', /CGNAT/],
+      ['http://100.100.100.200', /CGNAT/], // Alibaba metadata
+      ['http://100.127.255.255', /CGNAT/],
+      ['http://192.0.0.1', /IETF protocol assignment/],
+      ['http://192.0.2.5', /TEST-NET-1/],
+      ['http://192.88.99.1', /6to4 anycast/],
+      ['http://198.18.0.1', /benchmarking/],
+      ['http://198.19.0.1', /benchmarking/],
+      ['http://198.51.100.42', /TEST-NET-2/],
+      ['http://203.0.113.42', /TEST-NET-3/],
+      ['http://224.0.0.1', /multicast/],
+      ['http://239.255.255.255', /multicast/],
+      ['http://240.0.0.1', /reserved/],
+      ['http://255.255.255.255', /reserved|broadcast/],
+    ])('blocks non-globally-routable IPv4 literals: %s', async (url, pattern) => {
       await expect(defaultSsrfGuard(url, { lookup: benignLookup })).rejects.toThrow(pattern)
     })
 
-    it('allows public IPs that look private but are not (172.32, 11.0)', async () => {
+    it('allows public IPs that look private but are not', async () => {
       await expect(defaultSsrfGuard('http://172.32.0.1', { lookup: benignLookup })).resolves.toBeDefined()
       await expect(defaultSsrfGuard('http://11.0.0.1', { lookup: benignLookup })).resolves.toBeDefined()
+      // 100.0.0.1 is public — CGNAT range is 100.64.0.0/10
+      await expect(defaultSsrfGuard('http://100.0.0.1', { lookup: benignLookup })).resolves.toBeDefined()
+      await expect(defaultSsrfGuard('http://100.128.0.1', { lookup: benignLookup })).resolves.toBeDefined()
+      // 198.0.0.1 is public — benchmarking range is 198.18.0.0/15
+      await expect(defaultSsrfGuard('http://198.17.0.1', { lookup: benignLookup })).resolves.toBeDefined()
+      await expect(defaultSsrfGuard('http://198.20.0.1', { lookup: benignLookup })).resolves.toBeDefined()
     })
 
     it('rejects malformed URLs', async () => {
