@@ -42,7 +42,7 @@ export async function extractCommand(url: string, opts: ExtractOptions = {}): Pr
     const snapshot = await captureSnapshot(url, driver, { timeoutMs })
     spinner.text = 'Extracting deterministic tokens…'
 
-    const tokens = extractDesignTokens(snapshot.computedStyles)
+    const tokens = extractDesignTokens(snapshot.computedStyles, { mediaQueries: snapshot.mediaQueries })
     spinner.succeed(`Captured in ${snapshot.loadTimeMs}ms (mode: ${snapshot.mode})`)
 
     const payload = {
@@ -132,8 +132,27 @@ function printSummary(payload: {
     }
     console.log()
   }
+  if (tokens.gradients.length > 0) {
+    console.log(chalk.bold('GRADIENTS') + chalk.dim(`  (${tokens.gradients.length})`))
+    for (const g of tokens.gradients.slice(0, 4)) {
+      console.log(line(g.kind, truncate(g.raw, 70)))
+    }
+    console.log()
+  }
+  if (tokens.patterns.length > 0) {
+    console.log(chalk.bold('PATTERNS') + chalk.dim(`  (${tokens.patterns.length})`))
+    for (const p of tokens.patterns.slice(0, 4)) {
+      console.log(line(p.kind, truncate(p.raw, 70)))
+    }
+    console.log()
+  }
+  if (tokens.breakpoints.values.length > 0) {
+    console.log(chalk.bold('BREAKPOINTS') + chalk.dim(`  ${tokens.breakpoints.strategy}`))
+    console.log('  ' + tokens.breakpoints.values.map(b => `${b.name}:${b.px}px`).join(', '))
+    console.log()
+  }
 
-  console.log(chalk.dim(`Note: gradients/patterns/breakpoints + semantic LLM pass land in next commits.`))
+  console.log(chalk.dim(`Note: semantic LLM pass + DESIGN.md serializer land in next commits.`))
 }
 
 function truncate(s: string, n: number): string {

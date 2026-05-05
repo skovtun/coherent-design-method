@@ -1,4 +1,10 @@
 import type { ComputedStyleSample, ExtractedColorToken, ExtractedDesignTokens } from './types.js'
+import { parseBreakpoints, parseGradients, parsePatterns } from './stylesheet-parser.js'
+
+export interface ExtractDesignTokensOptions {
+  /** @media rule text captured by extractMediaQueriesInPage. */
+  mediaQueries?: string[]
+}
 
 /**
  * Pure transform: ComputedStyleSample[] → ExtractedDesignTokens.
@@ -6,8 +12,14 @@ import type { ComputedStyleSample, ExtractedColorToken, ExtractedDesignTokens } 
  *
  * Numerical fields come straight from getComputedStyle — no LLM hallucination.
  * Role inference (brand vs accent) is left to the semantic-inference layer.
+ *
+ * Pass `opts.mediaQueries` to populate breakpoints; otherwise breakpoints
+ * stays at strategy:'unknown'.
  */
-export function extractDesignTokens(samples: ComputedStyleSample[]): ExtractedDesignTokens {
+export function extractDesignTokens(
+  samples: ComputedStyleSample[],
+  opts: ExtractDesignTokensOptions = {},
+): ExtractedDesignTokens {
   const colors = extractColors(samples)
   const typography = extractTypography(samples)
   const spacing = extractSpacingScale(samples)
@@ -32,14 +44,14 @@ export function extractDesignTokens(samples: ComputedStyleSample[]): ExtractedDe
     shadows,
     motion,
     backgrounds,
-    gradients: [], // populated by stylesheet-parser
-    patterns: [], // populated by stylesheet-parser
+    gradients: parseGradients(samples),
+    patterns: parsePatterns(samples),
     glassmorphism,
     zIndexScale,
     focusRings,
     linkStates,
     formControlStates,
-    breakpoints: { strategy: 'unknown', values: [] }, // populated by stylesheet-parser
+    breakpoints: parseBreakpoints(opts.mediaQueries ?? []),
     containerWidths,
     borderStyles,
     iconStyle,
