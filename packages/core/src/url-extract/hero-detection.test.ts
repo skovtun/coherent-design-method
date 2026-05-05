@@ -101,6 +101,48 @@ describe('detectHeroInPage (3-tier, happy-dom)', () => {
       expect(r.source).toBe('largest-visible-text')
       expect(r.text).toBe('Real Hero')
     })
+
+    // P2 fix coverage (codex iter-5): sr-only patterns that have non-zero rect
+    // but are off-screen (left: -9999px) or clipped (1px×1px). Pre-fix these
+    // passed the basic visibility check.
+    it('skips off-screen position:-9999px h1 (sr-only pattern)', () => {
+      document.body.innerHTML = '<h1>off-screen SEO title</h1><div id="hero">Visible Hero</div>'
+      const h1 = document.querySelector('h1')!
+      setStyle(h1, { 'font-size': '32px', position: 'absolute', left: '-9999px' })
+      // Off-screen rect: positioned far left of viewport.
+      ;(h1 as unknown as { getBoundingClientRect: () => DOMRect }).getBoundingClientRect = () =>
+        ({
+          top: 0,
+          left: -9999,
+          right: -9799,
+          bottom: 40,
+          width: 200,
+          height: 40,
+          x: -9999,
+          y: 0,
+          toJSON: () => ({}),
+        }) as DOMRect
+      const hero = document.querySelector('#hero')!
+      setStyle(hero, { 'font-size': '64px' })
+      fakeRect(hero, 100, 800, 100)
+      const r = detectHeroInPage()
+      expect(r.source).toBe('largest-visible-text')
+      expect(r.text).toBe('Visible Hero')
+    })
+
+    it('skips 1×1px clipped h1 (clip:rect(0,0,0,0) sr-only pattern)', () => {
+      document.body.innerHTML = '<h1>clipped a11y title</h1><div id="hero">Real Hero</div>'
+      const h1 = document.querySelector('h1')!
+      setStyle(h1, { 'font-size': '32px' })
+      // 1px × 1px = 1px² visible area, below 100px² threshold.
+      fakeRect(h1, 100, 1, 1)
+      const hero = document.querySelector('#hero')!
+      setStyle(hero, { 'font-size': '64px' })
+      fakeRect(hero, 100, 800, 100)
+      const r = detectHeroInPage()
+      expect(r.source).toBe('largest-visible-text')
+      expect(r.text).toBe('Real Hero')
+    })
   })
 
   describe('Tier 2: largest visible text in viewport', () => {

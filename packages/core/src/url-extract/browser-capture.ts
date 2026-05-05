@@ -70,12 +70,22 @@ export function detectHeroInPage(): HeroDetection {
     if (text.length > 0) {
       const cs = getComputedStyle(h1)
       const rect = h1.getBoundingClientRect()
+      // Visible-rect intersection with viewport. Catches sr-only patterns the
+      // basic display/visibility/opacity check misses: position:-9999px (rect
+      // off-screen, no intersection) and clip:rect(0,0,0,0) on 1px×1px (rect
+      // 1px² below 100px² threshold).
+      const vw = (window as Window).innerWidth || 1440
+      const vh = (window as Window).innerHeight || 800
+      const visW = Math.max(0, Math.min(rect.right, vw) - Math.max(rect.left, 0))
+      const visH = Math.max(0, Math.min(rect.bottom, vh) - Math.max(rect.top, 0))
+      const visibleArea = visW * visH
       // Mirror Tier 2's gating: only block when explicitly hidden. Default
       // opacity computes to '1' in real browsers but happy-dom returns '' →
       // parseFloat('') === NaN, which we accept as visible.
       const visible =
         rect.width > 0 &&
         rect.height > 0 &&
+        visibleArea >= 100 &&
         cs.visibility !== 'hidden' &&
         cs.display !== 'none' &&
         parseFloat(cs.opacity) !== 0
@@ -513,6 +523,23 @@ export async function captureSnapshot(
   // the same SSRF rules: main-frame navigation (initial + each redirect hop)
   // AND subresources. Without subresource coverage, a public page could embed
   // `<img src="http://169.254.169.254/...">` and the browser would fetch it.
+  //
+  // KNOWN RESIDUAL RISK — cross-origin DNS rebinding (codex iter-5).
+  //
+  // The initial host is pinned via Chromium `--host-resolver-rules`, so the
+  // browser uses exactly the IPs Node validated. For cross-origin redirects
+  // and subresources, this guard re-validates each new hostname via Node DNS,
+  // but Chromium then performs its OWN DNS lookup for the connect. A
+  // sufficiently aggressive attacker DNS (very low TTL, two A records served
+  // alternately) can return a public IP to Node and 169.254/10.x to Chromium
+  // milliseconds later — bypassing the per-request check for cross-origin.
+  //
+  // Closing this fully requires a route.fulfill-based proxy: Node fetches
+  // every cross-origin URL with its validated IP pinned via `lookup` option,
+  // and serves the response back to Chromium. ~80 LOC + TLS SNI + cookie
+  // forwarding + content-encoding handling. Deferred to Week 2 hosted-service
+  // hardening — for the local CLI tool, the user supplies the URL themselves
+  // and the threat surface is limited.
   let blockedNavigation: string | null = null
   await page.interceptRequests(async (reqUrl, isNavigation) => {
     try {
