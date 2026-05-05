@@ -4,11 +4,17 @@ import type { CapturedSnapshot, ComputedStyleSample, ExtractOptions, HeroDetecti
 export const DEFAULT_TIMEOUT_MS = 30_000
 export const DEFAULT_SCROLL_GRACE_MS = 1_000
 
+/**
+ * Playwright Response shape: methods not properties (status() and url() return synchronously).
+ * We don't depend on Playwright at this layer — defining the minimal contract here.
+ */
+export interface NavigationResponse {
+  status(): number
+  url(): string
+}
+
 export interface PageLike {
-  goto(
-    url: string,
-    opts: { timeout: number; waitUntil: 'networkidle' },
-  ): Promise<{ status: number; url: string } | null>
+  goto(url: string, opts: { timeout: number; waitUntil: 'networkidle' }): Promise<NavigationResponse | null>
   evaluate<T>(fn: string | ((...a: unknown[]) => T)): Promise<T>
   evaluate<T, A>(fn: string | ((arg: A) => T), arg: A): Promise<T>
   content(): Promise<string>
@@ -324,21 +330,21 @@ export async function captureSnapshot(
   const page = await driver.newPage()
   const startedAt = Date.now()
   try {
-    let response: { url: string; status: number } | null = null
+    let response: NavigationResponse | null = null
     try {
       response = await page.goto(url, { timeout: timeoutMs, waitUntil: 'networkidle' })
     } catch (e) {
       throw new Error(`NAVIGATION_TIMEOUT: ${(e as Error).message}`)
     }
 
-    const status = response?.status ?? 0
+    const status = response?.status() ?? 0
     if (status >= 400) {
       if (status === 403 || status === 429 || status === 503) {
         throw new Error(`BOT_BLOCKED_${status}`)
       }
       throw new Error(`NAVIGATION_FAILED: status ${status}`)
     }
-    const finalUrl = response?.url ?? page.url()
+    const finalUrl = response?.url() ?? page.url()
     // Re-run SSRF on final URL after redirect chain (redirect hops capped by Playwright; we just guard the final).
     await guard(finalUrl)
 

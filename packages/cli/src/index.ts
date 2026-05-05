@@ -56,6 +56,7 @@ import { initCommand, type InitOptions } from './commands/init.js'
 import { authStatusCommand, authSetKeyCommand, authUnsetKeyCommand } from './commands/auth.js'
 import { chatCommand } from './commands/chat.js'
 import { promptCommand } from './commands/prompt.js'
+import { extractCommand } from './commands/extract.js'
 import { memoryShowCommand, memoryDiffCommand } from './commands/memory.js'
 import { previewCommand } from './commands/preview.js'
 import { exportCommand } from './commands/export.js'
@@ -408,6 +409,16 @@ hidden(
     .option('--compare', 'Compare against the latest baseline without saving a new one')
     .action(baselineCommand),
 )
+
+program
+  .command('extract')
+  .description('Extract atmosphere from a live URL → DESIGN.md tokens (Tool 1, v0.19.0 beta)')
+  .argument('<url>', 'URL to extract (http/https only; private IPs blocked)')
+  .option('--json', 'Print full JSON payload (default: human summary)')
+  .option('--out <file>', 'Write JSON payload to file')
+  .option('--timeout <ms>', 'Navigation timeout in ms (default: 30000)')
+  .option('--no-headless', 'Show the browser window (debugging)')
+  .action((url: string, opts) => extractCommand(url, opts))
 
 // Wiki maintenance — only meaningful when running inside the Coherent source
 // repo (operates on docs/wiki/*). Hidden for generated projects.
