@@ -62,26 +62,23 @@ function wrapPage(page: import('playwright').Page): PageLike {
     url: () => page.url(),
     waitForTimeout: ms => page.waitForTimeout(ms),
     close: () => page.close(),
-    async interceptMainFrameRequests(handler) {
+    async interceptRequests(handler) {
+      // Guards EVERY request: main-frame navigation + subresources. A public
+      // page can embed <img src="http://169.254.169.254/..."> to probe the
+      // internal network — subresource SSRF coverage closes that hole.
       await page.route('**/*', async (route, request) => {
-        // Subresources (script, img, fetch, css) pass through unchecked. Scope
-        // is main-frame navigation only — we are guarding redirect chains, not
-        // building a full content-blocker.
-        if (request.isNavigationRequest() && request.frame() === page.mainFrame()) {
-          let allow = false
-          try {
-            allow = await handler(request.url())
-          } catch {
-            allow = false
-          }
-          if (allow) {
-            await route.continue().catch(() => {})
-          } else {
-            await route.abort().catch(() => {})
-          }
-          return
+        const isNavigation = request.isNavigationRequest() && request.frame() === page.mainFrame()
+        let allow = false
+        try {
+          allow = await handler(request.url(), isNavigation)
+        } catch {
+          allow = false
         }
-        await route.continue().catch(() => {})
+        if (allow) {
+          await route.continue().catch(() => {})
+        } else {
+          await route.abort().catch(() => {})
+        }
       })
     },
   }

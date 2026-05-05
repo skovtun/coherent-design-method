@@ -3,10 +3,13 @@ import {
   DETECT_MODE_SCRIPT,
   EXTRACT_COPY_TEXT_SCRIPT,
   EXTRACT_MEDIA_QUERIES_SCRIPT,
+  EXTRACT_META_DESCRIPTION_SCRIPT,
   HERO_DETECTION_SCRIPT,
   SAMPLE_COMPUTED_STYLES_SCRIPT,
   captureSnapshot,
   defaultSsrfGuard,
+  detectModeInPage,
+  extractMetaDescriptionInPage,
   type BrowserDriverFactory,
   type DnsLookupFn,
   type DnsLookupResult,
@@ -35,6 +38,7 @@ describe('url-extract bootstrap', () => {
       ['EXTRACT_MEDIA_QUERIES_SCRIPT', EXTRACT_MEDIA_QUERIES_SCRIPT],
       ['DETECT_MODE_SCRIPT', DETECT_MODE_SCRIPT],
       ['EXTRACT_COPY_TEXT_SCRIPT', EXTRACT_COPY_TEXT_SCRIPT],
+      ['EXTRACT_META_DESCRIPTION_SCRIPT', EXTRACT_META_DESCRIPTION_SCRIPT],
     ])('%s wraps an IIFE for page.evaluate', (_name, script) => {
       // self-invoking arrow form; must not reference module-scope identifiers
       expect(script.startsWith('(')).toBe(true)
@@ -117,11 +121,36 @@ describe('url-extract bootstrap', () => {
       await expect(defaultSsrfGuard('http://v6ula.example/', { lookup })).rejects.toThrow(/IPv6 unique-local/)
     })
 
-    it('blocks IPv4-mapped IPv6 that points at a private v4', async () => {
+    it('blocks IPv4-mapped IPv6 that points at a private v4 (dotted form)', async () => {
       const lookup = stubLookup({
         'v4mapped.example': [{ address: '::ffff:10.0.0.5', family: 6 }],
       })
       await expect(defaultSsrfGuard('http://v4mapped.example/', { lookup })).rejects.toThrow(/private IPv4 10\/8/)
+    })
+
+    // P1 fix coverage (codex iteration 2): WHATWG URL canonicalizes
+    // [::ffff:127.0.0.1] to [::ffff:7f00:1] — the hex-form slipped through
+    // the original v4-mapped regex. Test BOTH literal URL canonicalization
+    // and DNS-resolved hex-form payloads.
+    it('blocks IPv4-mapped IPv6 LITERAL URL after WHATWG canonicalization', async () => {
+      // Note: new URL('http://[::ffff:127.0.0.1]/').hostname → "[::ffff:7f00:1]"
+      await expect(defaultSsrfGuard('http://[::ffff:127.0.0.1]/', { lookup: benignLookup })).rejects.toThrow(
+        /loopback IPv4 127\/8/,
+      )
+      await expect(defaultSsrfGuard('http://[::ffff:10.0.0.5]/', { lookup: benignLookup })).rejects.toThrow(
+        /private IPv4 10\/8/,
+      )
+      await expect(defaultSsrfGuard('http://[::ffff:169.254.169.254]/', { lookup: benignLookup })).rejects.toThrow(
+        /metadata IPv4/,
+      )
+    })
+
+    it('blocks DNS lookup that returns IPv4-mapped IPv6 in canonical hex form', async () => {
+      const lookup = stubLookup({
+        // DNS resolver returns the canonical hex form (rare but possible).
+        'hex-mapped.example': [{ address: '::ffff:7f00:1', family: 6 }], // = 127.0.0.1
+      })
+      await expect(defaultSsrfGuard('http://hex-mapped.example/', { lookup })).rejects.toThrow(/loopback IPv4 127\/8/)
     })
 
     it('rejects when DNS lookup itself fails (cannot resolve = cannot validate)', async () => {
@@ -137,20 +166,22 @@ describe('url-extract bootstrap', () => {
     })
   })
 
-  // P1 fix coverage: every redirect hop must be guarded BEFORE the browser
-  // fetches it. captureSnapshot installs the interception via PageLike.
-  describe('captureSnapshot redirect interception', () => {
+  // P1 fix coverage: every request (navigation + subresource) must be guarded
+  // BEFORE the browser fetches it. captureSnapshot installs the interception
+  // via PageLike.interceptRequests.
+  describe('captureSnapshot request interception', () => {
+    type Handler = (url: string, isNavigation: boolean) => Promise<boolean>
+
     function makeStubDriver(initialResponse: { status: number; url: string }): {
       driver: BrowserDriverFactory
-      capturedHandler: { current: ((u: string) => Promise<boolean>) | null }
+      capturedHandler: { current: Handler | null }
     } {
-      const capturedHandler = { current: null as ((u: string) => Promise<boolean>) | null }
+      const capturedHandler = { current: null as Handler | null }
       const page: PageLike = {
         async goto(url) {
-          // Simulate Playwright invoking the route handler for the initial request.
-          // If the handler aborts, we throw the way Playwright's goto would.
+          // Simulate Playwright invoking the route handler for the navigation request.
           if (capturedHandler.current) {
-            const allow = await capturedHandler.current(url)
+            const allow = await capturedHandler.current(url, true)
             if (!allow) throw new Error('net::ERR_ABORTED')
           }
           return { status: () => initialResponse.status, url: () => initialResponse.url }
@@ -172,7 +203,7 @@ describe('url-extract bootstrap', () => {
         },
         async waitForTimeout() {},
         async close() {},
-        async interceptMainFrameRequests(handler) {
+        async interceptRequests(handler) {
           capturedHandler.current = handler
         },
       }
@@ -186,26 +217,21 @@ describe('url-extract bootstrap', () => {
     }
 
     it('aborts navigation when the initial URL would be redirected to a private IP', async () => {
-      const { driver } = makeStubDriver({ status: 200, url: 'http://allowed.example/' })
-      // Custom guard that rejects 169.254.169.254 specifically; simulates a
-      // public→metadata redirect by failing the handler on the second URL.
       let firstCall = true
       const ssrfGuard = async (u: string) => {
         if (firstCall) {
           firstCall = false
-          return // initial URL passes
+          return
         }
         if (u.includes('169.254.169.254')) throw new Error('URL_INVALID: metadata IPv4')
       }
-      // Need a stub driver whose goto invokes the handler twice (initial + redirect).
-      const capturedHandler = { current: null as ((u: string) => Promise<boolean>) | null }
+      const capturedHandler = { current: null as Handler | null }
       const page: PageLike = {
         async goto(url) {
           if (!capturedHandler.current) throw new Error('handler not installed')
-          const ok1 = await capturedHandler.current(url)
+          const ok1 = await capturedHandler.current(url, true)
           if (!ok1) throw new Error('net::ERR_ABORTED')
-          // Simulate a redirect hop to the metadata IP.
-          const ok2 = await capturedHandler.current('http://169.254.169.254/latest/meta-data/')
+          const ok2 = await capturedHandler.current('http://169.254.169.254/latest/meta-data/', true)
           if (!ok2) throw new Error('net::ERR_ABORTED')
           return { status: () => 200, url: () => url }
         },
@@ -226,7 +252,7 @@ describe('url-extract bootstrap', () => {
         },
         async waitForTimeout() {},
         async close() {},
-        async interceptMainFrameRequests(handler) {
+        async interceptRequests(handler) {
           capturedHandler.current = handler
         },
       }
@@ -243,12 +269,156 @@ describe('url-extract bootstrap', () => {
 
     it('passes through when no redirect to private IP occurs', async () => {
       const { driver } = makeStubDriver({ status: 200, url: 'http://allowed.example/' })
-      // Guard always allows for this happy path. captureSnapshot must resolve
-      // (not get aborted by interception on a clean URL).
       const ssrfGuard = async () => {}
       const snapshot = await captureSnapshot('http://allowed.example/', driver, { ssrfGuard })
       expect(snapshot.url).toBe('http://allowed.example/')
       expect(snapshot.finalUrl).toBe('http://allowed.example/')
+    })
+
+    // P1 fix coverage (codex iteration 2): subresource SSRF. A public page that
+    // includes <img src="http://169.254.169.254/..."> would let Playwright fetch
+    // the metadata IP even with main-frame-only interception. interceptRequests
+    // now guards subresources too — silently aborts (no goto crash).
+    it('blocks subresource requests to private IPs without aborting navigation', async () => {
+      const subresourceCalls: { url: string; isNavigation: boolean }[] = []
+      const subresourceResults: boolean[] = []
+      const capturedHandler = { current: null as Handler | null }
+      const page: PageLike = {
+        async goto(url) {
+          if (!capturedHandler.current) throw new Error('handler not installed')
+          // Initial navigation passes.
+          await capturedHandler.current(url, true)
+          // Page then issues subresource requests, including one to a private IP.
+          for (const sub of [
+            { url: 'https://cdn.public.example/app.js', isNavigation: false },
+            { url: 'http://169.254.169.254/iam/credentials', isNavigation: false },
+            { url: 'https://fonts.public.example/inter.woff2', isNavigation: false },
+          ]) {
+            subresourceCalls.push(sub)
+            subresourceResults.push(await capturedHandler.current(sub.url, sub.isNavigation))
+          }
+          return { status: () => 200, url: () => url }
+        },
+        async evaluate() {
+          return null as never
+        },
+        async content() {
+          return ''
+        },
+        async screenshot() {
+          return Buffer.from('')
+        },
+        async title() {
+          return ''
+        },
+        url() {
+          return 'http://allowed.example/'
+        },
+        async waitForTimeout() {},
+        async close() {},
+        async interceptRequests(handler) {
+          capturedHandler.current = handler
+        },
+      }
+      const driver: BrowserDriverFactory = {
+        async newPage() {
+          return page
+        },
+        async close() {},
+      }
+      // Custom guard: passes the navigation URL; rejects 169.254 explicitly.
+      const ssrfGuard = async (u: string) => {
+        if (u.includes('169.254.169.254')) throw new Error('URL_INVALID: metadata IPv4')
+      }
+      // Navigation completes — subresource block does NOT crash captureSnapshot.
+      const snapshot = await captureSnapshot('http://allowed.example/', driver, { ssrfGuard })
+      expect(snapshot.url).toBe('http://allowed.example/')
+      // Verify the metadata-IP subresource was rejected; the public ones allowed.
+      expect(subresourceCalls).toHaveLength(3)
+      expect(subresourceResults).toEqual([true, false, true])
+    })
+  })
+
+  // P2 fix coverage (codex iteration 2): default-canvas pages report
+  // backgroundColor as rgba(0,0,0,0). Naively parsed as black → wrong mode.
+  describe('detectModeInPage', () => {
+    function withDom(bodyBg: string, htmlBg: string, fn: () => 'light' | 'dark' | 'cream'): 'light' | 'dark' | 'cream' {
+      const originalGetComputedStyle = (globalThis as { getComputedStyle?: typeof getComputedStyle }).getComputedStyle
+      ;(globalThis as { getComputedStyle?: unknown }).getComputedStyle = (el: Element) => {
+        if (el === (globalThis as { document?: Document }).document?.body)
+          return { backgroundColor: bodyBg } as CSSStyleDeclaration
+        return { backgroundColor: htmlBg } as CSSStyleDeclaration
+      }
+      ;(globalThis as { document?: { body: object; documentElement: object } }).document = {
+        body: {} as object,
+        documentElement: {} as object,
+      } as { body: object; documentElement: object } & Document
+      try {
+        return fn()
+      } finally {
+        ;(globalThis as { getComputedStyle?: typeof getComputedStyle }).getComputedStyle = originalGetComputedStyle
+      }
+    }
+
+    it('returns light when body bg is fully transparent (default canvas)', () => {
+      const mode = withDom('rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)', detectModeInPage)
+      expect(mode).toBe('light')
+    })
+
+    it('returns dark when body bg is opaque dark', () => {
+      const mode = withDom('rgb(8, 9, 10)', 'rgba(0, 0, 0, 0)', detectModeInPage)
+      expect(mode).toBe('dark')
+    })
+
+    it('falls through to html when body bg is transparent but html is opaque dark', () => {
+      const mode = withDom('rgba(0, 0, 0, 0)', 'rgb(20, 20, 20)', detectModeInPage)
+      expect(mode).toBe('dark')
+    })
+
+    it('returns light for white body', () => {
+      const mode = withDom('rgb(255, 255, 255)', 'rgba(0, 0, 0, 0)', detectModeInPage)
+      expect(mode).toBe('light')
+    })
+  })
+
+  // P2 fix coverage (codex iteration 2): the previous inline `(m as HTMLMetaElement).content`
+  // string was TypeScript-only syntax — Chromium parsed it as JS and threw a SyntaxError,
+  // so metaDescription was always empty. Function form below is real JS.
+  describe('extractMetaDescriptionInPage', () => {
+    function withMeta<T>(html: string, fn: () => T): T {
+      const originalDocument = (globalThis as { document?: Document }).document
+      ;(globalThis as { document?: unknown }).document = {
+        querySelector: (sel: string) => {
+          if (sel !== 'meta[name="description"]') return null
+          const m = html.match(/<meta name="description" content="([^"]*)"/)
+          if (!m) return null
+          return { content: m[1] } as HTMLMetaElement
+        },
+      } as unknown as Document
+      try {
+        return fn()
+      } finally {
+        ;(globalThis as { document?: Document | undefined }).document = originalDocument
+      }
+    }
+
+    it('returns the meta[name=description] content when present', () => {
+      const out = withMeta('<meta name="description" content="Coherent design">', extractMetaDescriptionInPage)
+      expect(out).toBe('Coherent design')
+    })
+
+    it('returns empty string when no meta description exists', () => {
+      const out = withMeta('<meta charset="utf-8">', extractMetaDescriptionInPage)
+      expect(out).toBe('')
+    })
+
+    it('script string is pure JS (no TS-only syntax that Chromium would reject)', () => {
+      // Chromium parses page.evaluate strings as JS. The string MUST NOT contain
+      // TypeScript-only constructs like `as HTMLMetaElement`. The exported
+      // function is TS, but tsc strips type assertions before stringification —
+      // verify the runtime string is clean.
+      expect(EXTRACT_META_DESCRIPTION_SCRIPT).not.toMatch(/\bas\s+HTML/)
+      expect(EXTRACT_META_DESCRIPTION_SCRIPT).not.toMatch(/:\s*HTMLMetaElement/)
     })
   })
 

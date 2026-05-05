@@ -33,10 +33,17 @@ export interface PageLike {
   waitForTimeout(ms: number): Promise<void>
   close(): Promise<void>
   /**
-   * Intercept every main-frame navigation request (initial + each redirect hop).
-   * Handler returns true to allow, false to abort. Subresource requests pass through.
+   * Intercept every request the page issues — main-frame navigation (initial +
+   * each redirect hop) AND subresources (img/script/css/fetch/xhr). Handler
+   * returns true to allow, false to abort. The `isNavigation` flag lets the
+   * caller treat navigation aborts (which fail page.goto) differently from
+   * subresource aborts (which are silent and don't crash navigation).
+   *
+   * Subresource interception is required for SSRF coverage: a public page can
+   * include `<img src="http://169.254.169.254/...">` to probe internal hosts
+   * even when the navigation URL itself is fine.
    */
-  interceptMainFrameRequests(handler: (url: string) => Promise<boolean>): Promise<void>
+  interceptRequests(handler: (url: string, isNavigation: boolean) => Promise<boolean>): Promise<void>
 }
 
 export interface BrowserDriverFactory {
@@ -246,14 +253,26 @@ export function extractMediaQueriesInPage(): string[] {
 export const EXTRACT_MEDIA_QUERIES_SCRIPT = `(${extractMediaQueriesInPage.toString()})()`
 
 /**
- * In-page background-mode detection. Returns 'light' | 'dark' | 'cream' based on body background luminance.
+ * In-page background-mode detection. Returns 'light' | 'dark' | 'cream' based
+ * on body background luminance.
+ *
+ * Default-canvas pages (no body background set) report `rgba(0,0,0,0)` here —
+ * parsing that as black mislabeled them `dark`. Walk body → html → fall back
+ * to light when every layer is transparent (the browser canvas is white).
  */
 export function detectModeInPage(): 'light' | 'dark' | 'cream' {
-  const cs = getComputedStyle(document.body)
-  const bg = cs.backgroundColor || 'rgb(255, 255, 255)'
-  const m = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)
-  if (!m) return 'light'
-  const [r, g, b] = [parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10)]
+  function parseOpaqueRgb(raw: string): { r: number; g: number; b: number } | null {
+    const m = raw.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/)
+    if (!m) return null
+    const alpha = m[4] === undefined ? 1 : parseFloat(m[4])
+    if (!Number.isFinite(alpha) || alpha === 0) return null
+    return { r: parseInt(m[1], 10), g: parseInt(m[2], 10), b: parseInt(m[3], 10) }
+  }
+  const layers: { r: number; g: number; b: number } | null =
+    parseOpaqueRgb(getComputedStyle(document.body).backgroundColor || '') ||
+    parseOpaqueRgb(getComputedStyle(document.documentElement).backgroundColor || '')
+  if (!layers) return 'light' // every layer transparent → browser canvas (white)
+  const { r, g, b } = layers
   // Rec. 709 luminance
   const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
   if (lum < 0.25) return 'dark'
@@ -262,6 +281,18 @@ export function detectModeInPage(): 'light' | 'dark' | 'cream' {
   return 'light'
 }
 export const DETECT_MODE_SCRIPT = `(${detectModeInPage.toString()})()`
+
+/**
+ * In-page meta-description extraction. Returns the meta[name=description] value
+ * or empty string. Defined as an exported function (testable in happy-dom) and
+ * stringified to an IIFE so page.evaluate gets pure JS — TS-syntax in a string
+ * literal silently breaks at runtime because Chromium parses it as JS.
+ */
+export function extractMetaDescriptionInPage(): string {
+  const m = document.querySelector('meta[name="description"]') as HTMLMetaElement | null
+  return m ? m.content : ''
+}
+export const EXTRACT_META_DESCRIPTION_SCRIPT = `(${extractMetaDescriptionInPage.toString()})()`
 
 /**
  * In-page copy-text extraction. Pulls hero + first H2 + first paragraph + CTA labels.
@@ -312,9 +343,22 @@ function assertNotPrivateIp(addr: string, family: 4 | 6, source: string): void {
   if (lower.startsWith('fe80:')) throw new Error(`URL_INVALID: ${source} resolves to IPv6 link-local (${addr})`)
   if (lower.startsWith('fc') || lower.startsWith('fd'))
     throw new Error(`URL_INVALID: ${source} resolves to IPv6 unique-local fc00::/7 (${addr})`)
-  // IPv4-mapped IPv6 (::ffff:10.0.0.1) — re-check the v4 portion
-  const v4mapped = lower.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/)
-  if (v4mapped) assertNotPrivateIp(v4mapped[1], 4, source)
+  // IPv4-mapped IPv6 — re-check the v4 portion. WHATWG URL canonicalizes
+  // `::ffff:127.0.0.1` to `::ffff:7f00:1`, so we must handle both:
+  //   dotted form  ::ffff:a.b.c.d
+  //   hex form     ::ffff:HHHH:HHHH    (each HHHH is 16 bits = 2 octets)
+  const v4mappedDotted = lower.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/)
+  if (v4mappedDotted) {
+    assertNotPrivateIp(v4mappedDotted[1], 4, source)
+    return
+  }
+  const v4mappedHex = lower.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/)
+  if (v4mappedHex) {
+    const high = parseInt(v4mappedHex[1], 16)
+    const low = parseInt(v4mappedHex[2], 16)
+    const dotted = `${(high >> 8) & 0xff}.${high & 0xff}.${(low >> 8) & 0xff}.${low & 0xff}`
+    assertNotPrivateIp(dotted, 4, source)
+  }
 }
 
 /**
@@ -388,16 +432,21 @@ export async function captureSnapshot(
   const page = await driver.newPage()
   const startedAt = Date.now()
 
-  // Install per-request guard BEFORE goto so every redirect hop is validated
-  // against the same SSRF rules. Without this, a public URL that 302s to
-  // 169.254.169.254 would be fetched before any post-goto check could fire.
-  let blockedRedirect: string | null = null
-  await page.interceptMainFrameRequests(async reqUrl => {
+  // Install per-request guard BEFORE goto so every request is validated against
+  // the same SSRF rules: main-frame navigation (initial + each redirect hop)
+  // AND subresources. Without subresource coverage, a public page could embed
+  // `<img src="http://169.254.169.254/...">` and the browser would fetch it.
+  let blockedNavigation: string | null = null
+  await page.interceptRequests(async (reqUrl, isNavigation) => {
     try {
       await guard(reqUrl)
       return true
     } catch (e) {
-      if (!blockedRedirect) blockedRedirect = `${reqUrl} (${(e as Error).message})`
+      // Navigation aborts crash page.goto and need to surface as a clear error.
+      // Subresource aborts are silent (the page just renders without that asset).
+      if (isNavigation && !blockedNavigation) {
+        blockedNavigation = `${reqUrl} (${(e as Error).message})`
+      }
       return false
     }
   })
@@ -407,8 +456,8 @@ export async function captureSnapshot(
     try {
       response = await page.goto(url, { timeout: timeoutMs, waitUntil: 'networkidle' })
     } catch (e) {
-      if (blockedRedirect) {
-        throw new Error(`URL_INVALID: navigation aborted at redirect target ${blockedRedirect}`)
+      if (blockedNavigation) {
+        throw new Error(`URL_INVALID: navigation aborted at redirect target ${blockedNavigation}`)
       }
       throw new Error(`NAVIGATION_TIMEOUT: ${(e as Error).message}`)
     }
@@ -437,11 +486,7 @@ export async function captureSnapshot(
       page.title(),
     ])
 
-    const metaDescription = await page
-      .evaluate<string>(
-        `(() => { const m = document.querySelector('meta[name="description"]'); return m ? (m as HTMLMetaElement).content : ''; })()`,
-      )
-      .catch(() => '')
+    const metaDescription = await page.evaluate<string>(EXTRACT_META_DESCRIPTION_SCRIPT).catch(() => '')
 
     const domHtml = await page.content()
     let screenshotPng: Buffer | null = null
