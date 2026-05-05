@@ -11,7 +11,7 @@
 import chalk from 'chalk'
 import { writeFile } from 'fs/promises'
 import ora from 'ora'
-import { captureSnapshot, defaultSsrfGuard, extractDesignTokens } from '@getcoherent/core'
+import { buildExtractedDesignMarkdown, captureSnapshot, defaultSsrfGuard, extractDesignTokens } from '@getcoherent/core'
 import { createPlaywrightDriver } from '../url-extract/playwright-driver.js'
 
 export interface ExtractOptions {
@@ -59,9 +59,13 @@ export async function extractCommand(url: string, opts: ExtractOptions = {}): Pr
     }
 
     if (opts.out) {
-      // For now, write JSON. DESIGN.md serializer extension lands in next commit.
-      await writeFile(opts.out, JSON.stringify(payload, null, 2), 'utf-8')
-      console.log(chalk.green(`✓ Wrote ${opts.out}`))
+      // .md / .markdown → DESIGN.md artifact; everything else → JSON dump.
+      const wantsMd = /\.(md|markdown)$/i.test(opts.out)
+      const body = wantsMd
+        ? buildExtractedDesignMarkdown({ source: payload.source, hero: payload.hero, tokens: payload.tokens })
+        : JSON.stringify(payload, null, 2)
+      await writeFile(opts.out, body, 'utf-8')
+      console.log(chalk.green(`✓ Wrote ${opts.out}${wantsMd ? ' (DESIGN.md)' : ' (JSON)'}`))
     } else if (opts.json) {
       console.log(JSON.stringify(payload, null, 2))
     } else {
