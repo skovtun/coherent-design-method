@@ -361,14 +361,28 @@ function assertNotPrivateIp(addr: string, family: 4 | 6, source: string): void {
   }
 }
 
+/** Result of SSRF validation: the bare host + every IP that passed the private-IP check. */
+export interface SsrfGuardResult {
+  /** Bare hostname (brackets stripped) or IP literal as it appeared in the URL. */
+  host: string
+  /** Validated IP addresses (one per A/AAAA record for hostnames; one entry for IP literals). */
+  addresses: DnsLookupResult[]
+}
+
 /**
  * Default SSRF guard. Async because hostnames must be DNS-resolved and every
  * resolved A/AAAA record validated — literal-string checks alone allow trivial
  * bypass via "internal.example → 10.0.0.5".
  *
+ * Returns the validated addresses so callers can pin Chromium's resolver to
+ * the same IPs (`--host-resolver-rules`), closing the DNS-rebinding window
+ * between Node's lookup and Chromium's. Without pinning, an attacker domain
+ * with very-short TTL can return a public IP to Node and a private IP to
+ * Chromium milliseconds later.
+ *
  * Pass `opts.lookup` to inject a stub resolver in tests.
  */
-export async function defaultSsrfGuard(rawUrl: string, opts: { lookup?: DnsLookupFn } = {}): Promise<void> {
+export async function defaultSsrfGuard(rawUrl: string, opts: { lookup?: DnsLookupFn } = {}): Promise<SsrfGuardResult> {
   let u: URL
   try {
     u = new URL(rawUrl)
@@ -388,11 +402,11 @@ export async function defaultSsrfGuard(rawUrl: string, opts: { lookup?: DnsLooku
   const ipv6Literal = bareHost.includes(':')
   if (ipv4Literal) {
     assertNotPrivateIp(bareHost, 4, 'host')
-    return
+    return { host: bareHost, addresses: [{ address: bareHost, family: 4 }] }
   }
   if (ipv6Literal) {
     assertNotPrivateIp(bareHost, 6, 'host')
-    return
+    return { host: bareHost, addresses: [{ address: bareHost, family: 6 }] }
   }
   // Hostname — must DNS-resolve and validate every A/AAAA address.
   const lookup = opts.lookup ?? (dnsLookupDefault as unknown as DnsLookupFn)
@@ -408,6 +422,26 @@ export async function defaultSsrfGuard(rawUrl: string, opts: { lookup?: DnsLooku
   for (const { address, family } of addrs) {
     assertNotPrivateIp(address, family, bareHost)
   }
+  return { host: bareHost, addresses: addrs }
+}
+
+/**
+ * Build a Chromium `--host-resolver-rules` value pinning a hostname to the
+ * given IPv4/IPv6 addresses. Closes the DNS-rebind window between Node's
+ * resolution and Chromium's: the browser will only ever connect to addresses
+ * that already passed defaultSsrfGuard.
+ *
+ * Format per Chromium: "MAP host addr[, MAP host2 addr2 ...]". IPv6 addresses
+ * must be bracketed.
+ *
+ * Caveat: only pins the supplied host. Cross-origin redirects/subresources
+ * still hit Chromium's resolver — they get a fresh defaultSsrfGuard call via
+ * interceptRequests, but a sufficiently aggressive attacker DNS could rebind
+ * between that check and Chromium's connect.
+ */
+export function buildHostResolverRules(host: string, addresses: DnsLookupResult[]): string {
+  if (addresses.length === 0) return ''
+  return addresses.map(({ address, family }) => `MAP ${host} ${family === 6 ? `[${address}]` : address}`).join(',')
 }
 
 /**

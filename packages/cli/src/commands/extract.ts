@@ -11,7 +11,14 @@
 import chalk from 'chalk'
 import { writeFile } from 'fs/promises'
 import ora from 'ora'
-import { buildExtractedDesignMarkdown, captureSnapshot, defaultSsrfGuard, extractDesignTokens } from '@getcoherent/core'
+import {
+  buildExtractedDesignMarkdown,
+  buildHostResolverRules,
+  captureSnapshot,
+  defaultSsrfGuard,
+  extractDesignTokens,
+  type SsrfGuardResult,
+} from '@getcoherent/core'
 import { createPlaywrightDriver } from '../url-extract/playwright-driver.js'
 
 export interface ExtractOptions {
@@ -24,23 +31,25 @@ export interface ExtractOptions {
 }
 
 export async function extractCommand(url: string, opts: ExtractOptions = {}): Promise<void> {
-  // Pre-navigation SSRF gate. Surfaces the rejection before browser launch
-  // (cheaper than waiting on Playwright bootstrap to fail). Async because
-  // hostnames must DNS-resolve and every A/AAAA record is validated against
-  // the private-IP blocklist.
+  // Pre-navigation SSRF gate. Async because hostnames must DNS-resolve and
+  // every A/AAAA record is validated against the private-IP blocklist. The
+  // resolved addresses also pin Chromium's resolver, closing the DNS-rebind
+  // window between Node's lookup and the browser's.
+  let validated: SsrfGuardResult
   try {
-    await defaultSsrfGuard(url)
+    validated = await defaultSsrfGuard(url)
   } catch (err) {
     console.error(chalk.red('✗ ' + (err as Error).message))
     process.exit(1)
   }
 
   const timeoutMs = opts.timeout ? parseInt(opts.timeout, 10) : undefined
+  const hostResolverRules = buildHostResolverRules(validated.host, validated.addresses)
 
   const spinner = ora({ text: `Launching browser…`, color: 'cyan' }).start()
   let driver: Awaited<ReturnType<typeof createPlaywrightDriver>> | null = null
   try {
-    driver = await createPlaywrightDriver({ headless: opts.headless ?? true })
+    driver = await createPlaywrightDriver({ headless: opts.headless ?? true, hostResolverRules })
     spinner.text = `Navigating to ${url}…`
 
     const snapshot = await captureSnapshot(url, driver, { timeoutMs })

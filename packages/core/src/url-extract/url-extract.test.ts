@@ -6,6 +6,7 @@ import {
   EXTRACT_META_DESCRIPTION_SCRIPT,
   HERO_DETECTION_SCRIPT,
   SAMPLE_COMPUTED_STYLES_SCRIPT,
+  buildHostResolverRules,
   captureSnapshot,
   defaultSsrfGuard,
   detectModeInPage,
@@ -51,8 +52,8 @@ describe('url-extract bootstrap', () => {
 
   describe('defaultSsrfGuard', () => {
     it('allows public https URLs (hostname → public IP)', async () => {
-      await expect(defaultSsrfGuard('https://stripe.com', { lookup: benignLookup })).resolves.toBeUndefined()
-      await expect(defaultSsrfGuard('http://example.com:8080/path', { lookup: benignLookup })).resolves.toBeUndefined()
+      await expect(defaultSsrfGuard('https://stripe.com', { lookup: benignLookup })).resolves.toBeDefined()
+      await expect(defaultSsrfGuard('http://example.com:8080/path', { lookup: benignLookup })).resolves.toBeDefined()
     })
 
     it.each([
@@ -77,8 +78,8 @@ describe('url-extract bootstrap', () => {
     })
 
     it('allows public IPs that look private but are not (172.32, 11.0)', async () => {
-      await expect(defaultSsrfGuard('http://172.32.0.1', { lookup: benignLookup })).resolves.toBeUndefined()
-      await expect(defaultSsrfGuard('http://11.0.0.1', { lookup: benignLookup })).resolves.toBeUndefined()
+      await expect(defaultSsrfGuard('http://172.32.0.1', { lookup: benignLookup })).resolves.toBeDefined()
+      await expect(defaultSsrfGuard('http://11.0.0.1', { lookup: benignLookup })).resolves.toBeDefined()
     })
 
     it('rejects malformed URLs', async () => {
@@ -463,6 +464,64 @@ describe('url-extract bootstrap', () => {
       const r = ExtractedAtmosphereSchema.safeParse(minimal)
       if (!r.success) console.error(JSON.stringify(r.error.format(), null, 2))
       expect(r.success).toBe(true)
+    })
+  })
+
+  // P1 fix coverage (codex iteration 3): defaultSsrfGuard returns the
+  // validated host + addresses so callers can pin Chromium's resolver via
+  // --host-resolver-rules. Without pinning, Node and Chromium do separate
+  // DNS lookups and a short-TTL attacker domain can rebind between them.
+  describe('defaultSsrfGuard return value (for resolver pinning)', () => {
+    it('returns the bare hostname + every resolved A/AAAA address', async () => {
+      const lookup = stubLookup({
+        'multi.example': [
+          { address: '1.2.3.4', family: 4 },
+          { address: '5.6.7.8', family: 4 },
+        ],
+      })
+      const result = await defaultSsrfGuard('https://multi.example/', { lookup })
+      expect(result.host).toBe('multi.example')
+      expect(result.addresses).toEqual([
+        { address: '1.2.3.4', family: 4 },
+        { address: '5.6.7.8', family: 4 },
+      ])
+    })
+
+    it('returns bareHost + the literal IP for IPv4-literal URLs (no DNS)', async () => {
+      const result = await defaultSsrfGuard('http://1.2.3.4:8080/path', { lookup: benignLookup })
+      expect(result.host).toBe('1.2.3.4')
+      expect(result.addresses).toEqual([{ address: '1.2.3.4', family: 4 }])
+    })
+
+    it('returns the bracket-stripped host for IPv6-literal URLs', async () => {
+      const result = await defaultSsrfGuard('http://[2606:4700:4700::1111]/', { lookup: benignLookup })
+      expect(result.host).toBe('2606:4700:4700::1111')
+      expect(result.addresses).toEqual([{ address: '2606:4700:4700::1111', family: 6 }])
+    })
+  })
+
+  describe('buildHostResolverRules', () => {
+    it('emits a single MAP rule for one IPv4 address', () => {
+      expect(buildHostResolverRules('example.com', [{ address: '1.2.3.4', family: 4 }])).toBe('MAP example.com 1.2.3.4')
+    })
+
+    it('joins multi-address output with commas', () => {
+      expect(
+        buildHostResolverRules('multi.example', [
+          { address: '1.2.3.4', family: 4 },
+          { address: '5.6.7.8', family: 4 },
+        ]),
+      ).toBe('MAP multi.example 1.2.3.4,MAP multi.example 5.6.7.8')
+    })
+
+    it('brackets IPv6 addresses (Chromium requirement)', () => {
+      expect(buildHostResolverRules('v6.example', [{ address: '2606:4700::1', family: 6 }])).toBe(
+        'MAP v6.example [2606:4700::1]',
+      )
+    })
+
+    it('returns empty string for empty address list', () => {
+      expect(buildHostResolverRules('nope.example', [])).toBe('')
     })
   })
 })

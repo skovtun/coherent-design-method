@@ -10,6 +10,13 @@ import type { BrowserDriverFactory, NavigationResponse, PageLike } from '@getcoh
 export interface PlaywrightDriverOptions {
   headless?: boolean
   userAgent?: string
+  /**
+   * Chromium `--host-resolver-rules` value (e.g. "MAP example.com 1.2.3.4").
+   * Pins the browser's DNS resolution to addresses already validated by the
+   * SSRF guard, closing the DNS-rebind window between Node's lookup and
+   * Chromium's. See buildHostResolverRules in @getcoherent/core.
+   */
+  hostResolverRules?: string
 }
 
 const DEFAULT_USER_AGENT =
@@ -27,7 +34,11 @@ export async function createPlaywrightDriver(opts: PlaywrightDriverOptions = {})
         '    npx playwright install chromium',
     )
   }
-  const browser = await pw.chromium.launch({ headless: opts.headless ?? true })
+  const launchArgs: string[] = []
+  if (opts.hostResolverRules) {
+    launchArgs.push(`--host-resolver-rules=${opts.hostResolverRules}`)
+  }
+  const browser = await pw.chromium.launch({ headless: opts.headless ?? true, args: launchArgs })
   const context = await browser.newContext({
     userAgent: opts.userAgent ?? DEFAULT_USER_AGENT,
     viewport: { width: 1440, height: 900 },
