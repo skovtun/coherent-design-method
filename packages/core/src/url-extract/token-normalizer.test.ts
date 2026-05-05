@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   normalizeTokens,
   normalizeColors,
+  normalizeBackgrounds,
   normalizeSpacing,
   normalizeRadius,
   normalizeMotion,
@@ -164,6 +165,77 @@ describe('normalizeColors', () => {
     const out = normalizeColors(input)
     expect(out).toHaveLength(2)
   })
+
+  it('REGRESSION (codex P1#2): complete-linkage prevents chain merge beyond threshold', () => {
+    // ΔE(#101010, #141414) ≈ 1.6, ΔE(#141414, #181818) ≈ 1.6, ΔE(#101010, #181818) ≈ 3.6.
+    // Single-link with seed=#141414 would collapse all three; complete-linkage keeps endpoints split.
+    const input: ExtractedColorToken[] = [
+      { hex: '#101010', role: 'text' },
+      { hex: '#141414', role: 'text' },
+      { hex: '#181818', role: 'text' },
+    ]
+    const externalCounts = new Map([
+      ['#101010', 1],
+      ['#141414', 5], // most-frequent → seed
+      ['#181818', 1],
+    ])
+    const out = normalizeColors(input, externalCounts)
+    // Endpoints (#101010, #181818) are 3.6 apart and MUST NOT be in the same group.
+    expect(out.length).toBeGreaterThanOrEqual(2)
+  })
+})
+
+describe('normalizeBackgrounds (codex P1#1 regression)', () => {
+  it('clusters near-identical backgrounds AND remaps roles to centroid', () => {
+    const input: ExtractedDesignTokens['backgrounds'] = {
+      solid: [
+        { hex: '#ffffff', role: 'page' },
+        { hex: '#fefefe', role: 'page' },
+      ],
+      roles: { page: '#fefefe', section: undefined, card: undefined, elevated: undefined },
+    }
+    const externalCounts = new Map([
+      ['#ffffff', 50],
+      ['#fefefe', 1],
+    ])
+    const out = normalizeBackgrounds(input, externalCounts)
+    expect(out.solid).toHaveLength(1)
+    expect(out.solid[0].hex).toBe('#ffffff')
+    // Roles must be remapped — was '#fefefe' (dropped variant), now points to centroid.
+    expect(out.roles.page).toBe('#ffffff')
+  })
+
+  it('preserves untouched role labels (undefined stays undefined)', () => {
+    const input: ExtractedDesignTokens['backgrounds'] = {
+      solid: [{ hex: '#ffffff', role: 'page' }],
+      roles: { page: '#ffffff' },
+    }
+    const out = normalizeBackgrounds(input)
+    expect(out.roles.section).toBeUndefined()
+    expect(out.roles.card).toBeUndefined()
+    expect(out.roles.elevated).toBeUndefined()
+  })
+
+  it('passthrough on empty solid', () => {
+    const input: ExtractedDesignTokens['backgrounds'] = {
+      solid: [],
+      roles: { page: '#ffffff' },
+    }
+    const out = normalizeBackgrounds(input)
+    expect(out).toBe(input)
+  })
+
+  it('different roles do not merge', () => {
+    const input: ExtractedDesignTokens['backgrounds'] = {
+      solid: [
+        { hex: '#ffffff', role: 'page' },
+        { hex: '#fefefe', role: 'card' },
+      ],
+      roles: {},
+    }
+    const out = normalizeBackgrounds(input)
+    expect(out.solid).toHaveLength(2)
+  })
 })
 
 describe('normalizeSpacing', () => {
@@ -240,17 +312,31 @@ describe('normalizeMotion', () => {
 })
 
 describe('normalizeTokens (orchestrator)', () => {
-  it('passes through untouched fields', () => {
+  it('passes through untouched fields and normalizes backgrounds', () => {
     const tokens = stubTokens({
       colors: [{ hex: '#635BFF', role: 'brand' }],
       spacing: [{ px: 7.998 }],
       radius: [{ px: 4 }],
       motion: { tokens: [{ duration: '240.5ms', easing: 'ease' }] },
+      backgrounds: {
+        solid: [
+          { hex: '#ffffff', role: 'page' },
+          { hex: '#fefefe', role: 'page' },
+        ],
+        roles: { page: '#fefefe' },
+      },
     })
-    const out = normalizeTokens(tokens)
+    const out = normalizeTokens(tokens, {
+      colorOccurrences: new Map([
+        ['#ffffff', 50],
+        ['#fefefe', 1],
+      ]),
+    })
     expect(out.colors).toEqual([{ hex: '#635BFF', role: 'brand' }])
     expect(out.spacing).toEqual([{ px: 8 }])
     expect(out.motion.tokens[0].duration).toBe('240ms')
+    expect(out.backgrounds.solid).toHaveLength(1)
+    expect(out.backgrounds.roles.page).toBe('#ffffff') // remapped from dropped #fefefe
     expect(out.typography).toBe(tokens.typography) // untouched ref
     expect(out.shadows).toBe(tokens.shadows) // untouched ref
   })

@@ -39,8 +39,8 @@ export function deltaE(a: OklchColor, b: OklchColor): number {
   return Math.sqrt(dL * dL + da * da + db * db)
 }
 
-export function pickCentroid(group: ExtractedColorToken[], counts: Map<string, number>): ExtractedColorToken {
-  const tally = new Map<string, { token: ExtractedColorToken; count: number }>()
+export function pickCentroid<T extends { hex: string }>(group: T[], counts: Map<string, number>): T {
+  const tally = new Map<string, { token: T; count: number }>()
   for (const t of group) {
     const k = t.hex
     if (!tally.has(k)) tally.set(k, { token: t, count: counts.get(k) ?? 1 })
@@ -78,8 +78,16 @@ export function normalizeColors(
   return out
 }
 
-function mergeWithinRole(items: ExtractedColorToken[], counts: Map<string, number>): ExtractedColorToken[] {
-  const uniqHex = new Map<string, ExtractedColorToken>()
+/**
+ * Cluster items by ΔE_OK with COMPLETE LINKAGE: a candidate joins a group only
+ * if it's within DELTA_E_MERGE_THRESHOLD of EVERY existing member, not just the
+ * seed. Single-link merging would silently widen groups beyond the threshold
+ * along chains (A↔B<2, B↔C<2, A↔C≈3.6 → all merged at seed=B).
+ *
+ * Returns the cluster groups (each a list of input items sharing a hex bucket).
+ */
+function clusterByDeltaE<T extends { hex: string }>(items: T[], counts: Map<string, number>): T[][] {
+  const uniqHex = new Map<string, T>()
   for (const t of items) if (!uniqHex.has(t.hex)) uniqHex.set(t.hex, t)
   const unique = [...uniqHex.values()]
 
@@ -89,16 +97,22 @@ function mergeWithinRole(items: ExtractedColorToken[], counts: Map<string, numbe
   const sorted = [...unique].sort((a, b) => (counts.get(b.hex) ?? 0) - (counts.get(a.hex) ?? 0))
 
   const visited = new Set<string>()
-  const groups: ExtractedColorToken[][] = []
+  const groups: T[][] = []
   for (const seed of sorted) {
     if (visited.has(seed.hex)) continue
-    const group: ExtractedColorToken[] = [seed]
+    const group: T[] = [seed]
     visited.add(seed.hex)
-    const seedC = oklch.get(seed.hex)!
     for (const other of sorted) {
       if (visited.has(other.hex)) continue
       const otherC = oklch.get(other.hex)!
-      if (deltaE(seedC, otherC) * 100 < DELTA_E_MERGE_THRESHOLD) {
+      let joins = true
+      for (const member of group) {
+        if (deltaE(oklch.get(member.hex)!, otherC) * 100 >= DELTA_E_MERGE_THRESHOLD) {
+          joins = false
+          break
+        }
+      }
+      if (joins) {
         group.push(other)
         visited.add(other.hex)
       }
@@ -106,7 +120,11 @@ function mergeWithinRole(items: ExtractedColorToken[], counts: Map<string, numbe
     groups.push(group)
   }
 
-  return groups.map(g => pickCentroid(g, counts))
+  return groups
+}
+
+function mergeWithinRole(items: ExtractedColorToken[], counts: Map<string, number>): ExtractedColorToken[] {
+  return clusterByDeltaE(items, counts).map(g => pickCentroid(g, counts))
 }
 
 export function normalizeSpacing(spacing: ExtractedDesignTokens['spacing']): ExtractedDesignTokens['spacing'] {
@@ -161,6 +179,60 @@ export function normalizeTokens(
     spacing: normalizeSpacing(tokens.spacing),
     radius: normalizeRadius(tokens.radius),
     motion: { ...tokens.motion, tokens: normalizeMotion(tokens.motion.tokens) },
+    backgrounds: normalizeBackgrounds(tokens.backgrounds, opts.colorOccurrences),
+  }
+}
+
+/**
+ * Cluster background.solid hexes the same way as colors, then remap
+ * background.roles values to the canonical centroid hex. Without this,
+ * design-md-serializer prints a single normalized solid in the color table
+ * while leaving the dropped variant referenced under role labels — DESIGN.md
+ * looks self-contradictory.
+ */
+export function normalizeBackgrounds(
+  backgrounds: ExtractedDesignTokens['backgrounds'],
+  externalCounts?: Map<string, number>,
+): ExtractedDesignTokens['backgrounds'] {
+  if (backgrounds.solid.length === 0) {
+    return backgrounds
+  }
+
+  const counts = new Map<string, number>()
+  for (const s of backgrounds.solid) counts.set(s.hex, (counts.get(s.hex) ?? 0) + 1)
+  if (externalCounts) {
+    for (const [hex, n] of externalCounts) counts.set(hex, n)
+  }
+
+  const buckets = new Map<string | undefined, ExtractedDesignTokens['backgrounds']['solid']>()
+  for (const s of backgrounds.solid) {
+    const arr = buckets.get(s.role) ?? []
+    arr.push(s)
+    buckets.set(s.role, arr)
+  }
+
+  const hexMap = new Map<string, string>()
+  const solid: ExtractedDesignTokens['backgrounds']['solid'] = []
+  for (const [, items] of buckets) {
+    const groups = clusterByDeltaE(items, counts)
+    for (const g of groups) {
+      const centroid = pickCentroid(g, counts)
+      solid.push(centroid)
+      for (const member of g) hexMap.set(member.hex, centroid.hex)
+    }
+  }
+
+  const remap = (hex: string | undefined): string | undefined =>
+    hex === undefined ? undefined : (hexMap.get(hex) ?? hex)
+
+  return {
+    solid,
+    roles: {
+      page: remap(backgrounds.roles.page),
+      section: remap(backgrounds.roles.section),
+      card: remap(backgrounds.roles.card),
+      elevated: remap(backgrounds.roles.elevated),
+    },
   }
 }
 

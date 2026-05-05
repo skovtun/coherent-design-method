@@ -68,7 +68,8 @@ function countColorOccurrences(samples: ComputedStyleSample[]): Map<string, numb
     const fg = rgbToHex(s.styles['color'] || '')
     const bg = rgbToHex(s.styles['background-color'] || '')
     if (fg) counts.set(fg, (counts.get(fg) ?? 0) + 1)
-    if (bg) counts.set(bg, (counts.get(bg) ?? 0) + 1)
+    // Mirror extractColors: skip bg for icon role (icons paint via fg, bg is incidental).
+    if (bg && s.role !== 'icon') counts.set(bg, (counts.get(bg) ?? 0) + 1)
   }
   return counts
 }
