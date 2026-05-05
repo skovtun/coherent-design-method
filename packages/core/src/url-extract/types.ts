@@ -303,7 +303,10 @@ export interface ComputedStyleSample {
 export interface ExtractOptions {
   timeoutMs?: number
   scrollGraceMs?: number
+  /** When true (default), fetches robots.txt and aborts if the target path is disallowed. */
   honorRobotsTxt?: boolean
+  /** Override robots.txt check (for tests / custom UA). Default: defaultRobotsCheck. */
+  robotsCheck?: (url: string) => Promise<{ allowed: boolean; reason: string; matchedRule?: string }>
   llmCall?: (input: SemanticLlmInput) => Promise<SemanticLlmOutput>
   capture?: (url: string, opts: ExtractOptions) => Promise<CapturedSnapshot>
   ssrfGuard?: (url: string) => Promise<void> | void

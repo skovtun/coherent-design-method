@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   DETECT_MODE_SCRIPT,
   EXTRACT_COPY_TEXT_SCRIPT,
@@ -546,6 +546,98 @@ describe('url-extract bootstrap', () => {
 
     it('returns empty string for empty address list', () => {
       expect(buildHostResolverRules('nope.example', [])).toBe('')
+    })
+  })
+
+  describe('captureSnapshot honorRobotsTxt wire-in', () => {
+    type Handler = (url: string, isNavigation: boolean) => Promise<boolean>
+    function makeStubDriver(): { driver: BrowserDriverFactory } {
+      const capturedHandler = { current: null as Handler | null }
+      const page: PageLike = {
+        async goto(url) {
+          if (capturedHandler.current) {
+            const allow = await capturedHandler.current(url, true)
+            if (!allow) throw new Error('net::ERR_ABORTED')
+          }
+          return { status: () => 200, url: () => url }
+        },
+        async evaluate() {
+          return null as never
+        },
+        async content() {
+          return '<html></html>'
+        },
+        async screenshot() {
+          return Buffer.from('')
+        },
+        async title() {
+          return ''
+        },
+        url() {
+          return ''
+        },
+        async waitForTimeout() {},
+        async close() {},
+        async interceptRequests(handler) {
+          capturedHandler.current = handler
+        },
+      }
+      return {
+        driver: {
+          async newPage() {
+            return page
+          },
+          async close() {},
+        },
+      }
+    }
+
+    it('throws ROBOTS_DISALLOWED when robotsCheck returns allowed: false', async () => {
+      const { driver } = makeStubDriver()
+      const ssrfGuard = async () => undefined
+      const robotsCheck = async () => ({
+        allowed: false,
+        reason: 'disallowed-by-rule',
+        matchedRule: 'Disallow: /',
+      })
+      await expect(captureSnapshot('https://example.com/', driver, { ssrfGuard, robotsCheck })).rejects.toThrow(
+        /ROBOTS_DISALLOWED.*Disallow: \//,
+      )
+    })
+
+    it('proceeds when robotsCheck returns allowed: true', async () => {
+      const { driver } = makeStubDriver()
+      const ssrfGuard = async () => undefined
+      const robotsCheck = async () => ({ allowed: true, reason: 'allowed-by-rule' as const })
+      await expect(captureSnapshot('https://example.com/', driver, { ssrfGuard, robotsCheck })).resolves.toBeDefined()
+    })
+
+    it('skips robots check entirely when honorRobotsTxt: false', async () => {
+      const { driver } = makeStubDriver()
+      const ssrfGuard = async () => undefined
+      const robotsCheck = vi.fn()
+      await expect(
+        captureSnapshot('https://example.com/', driver, {
+          ssrfGuard,
+          honorRobotsTxt: false,
+          robotsCheck,
+        }),
+      ).resolves.toBeDefined()
+      expect(robotsCheck).not.toHaveBeenCalled()
+    })
+
+    it('honorRobotsTxt defaults ON (uses defaultRobotsCheck which fail-opens on missing)', async () => {
+      // No robotsCheck override → defaultRobotsCheck runs. Default fetch will fail
+      // (no real network in this stub world), and fail-open returns allowed.
+      const { driver } = makeStubDriver()
+      const ssrfGuard = async () => undefined
+      // Stub global fetch to simulate 404 (no robots.txt published).
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: false, status: 404 } as Response)
+      try {
+        await expect(captureSnapshot('https://example.com/', driver, { ssrfGuard })).resolves.toBeDefined()
+      } finally {
+        fetchSpy.mockRestore()
+      }
     })
   })
 })
