@@ -367,6 +367,51 @@ describe('detectHeroInPage (3-tier, happy-dom)', () => {
     })
   })
 
+  describe('Tier 2 DOM-depth penalty (issue #96 — awwwards rich case)', () => {
+    it('prefers shallow candidate over deeper candidate of similar size', () => {
+      // Two candidates near each other in size. The shallower one (fewer
+      // ancestors) wins because page heroes are normally not deeply nested.
+      document.body.innerHTML = `
+        <h2 id="shallow">PAGE HERO</h2>
+        <div><div><div><div><div><div><h3 id="deep">DEEP WIDGET TITLE</h3></div></div></div></div></div></div>
+      `
+      const shallow = document.querySelector('#shallow')!
+      setStyle(shallow, { 'font-size': '60px' })
+      fakeRect(shallow, 100, 1200, 80)
+
+      const deep = document.querySelector('#deep')!
+      setStyle(deep, { 'font-size': '64px' }) // very slightly larger
+      fakeRect(deep, 200, 1200, 80)
+
+      const r = detectHeroInPage()
+      // 60 / log(2+2) ≈ 43.3 vs 64 / log(8+2) ≈ 27.8 → shallow wins
+      expect(r.text).toBe('PAGE HERO')
+    })
+
+    it('still picks the giant when size delta dwarfs the depth penalty', () => {
+      // 2x size beats DOM-depth. Don't over-correct.
+      // Use h2 (not h1) for the deep candidate so Tier 1 falls through to
+      // Tier 2 — otherwise the new depth scorer is bypassed entirely
+      // (codex iter-1 P3 catch).
+      document.body.innerHTML = `
+        <h2 id="shallow">small</h2>
+        <div><div><div><h3 id="deep">BIG DEEP HERO</h3></div></div></div>
+      `
+      const shallow = document.querySelector('#shallow')!
+      setStyle(shallow, { 'font-size': '32px' })
+      fakeRect(shallow, 100, 1200, 40)
+
+      const deep = document.querySelector('#deep')!
+      setStyle(deep, { 'font-size': '120px' })
+      fakeRect(deep, 200, 1200, 130)
+
+      const r = detectHeroInPage()
+      // 32 / log(2+2) ≈ 23.1 vs 120 / log(5+2) ≈ 61.7 → deep wins on size
+      expect(r.text).toBe('BIG DEEP HERO')
+      expect(r.source).toBe('largest-visible-text') // verify Tier 2 path
+    })
+  })
+
   describe('Tier 3 escape: source none', () => {
     it('returns source:none on truly empty page', () => {
       document.body.innerHTML = ''

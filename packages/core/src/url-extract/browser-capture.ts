@@ -102,9 +102,11 @@ export function detectHeroInPage(): HeroDetection {
     }
   }
   // Tier 2: largest visible text in viewport (works for awwwards/larevoltosa custom hero markup)
-  const candidates: { el: Element; size: number; text: string; top: number }[] = []
+  type Candidate = { el: Element; size: number; text: string; top: number; depth: number }
+  const candidates: Candidate[] = []
   const all = document.querySelectorAll<HTMLElement>('div, span, p, section, article, header, h2, h3, strong, em')
   const vh = (window as Window).innerHeight || 800
+
   for (const el of Array.from(all)) {
     const rect = el.getBoundingClientRect()
     // Must intersect the viewport at all: a sticky/animated element scrolled
@@ -125,21 +127,33 @@ export function detectHeroInPage(): HeroDetection {
     if (directText.length < 2) continue
     const size = parseFloat(cs.fontSize)
     if (!Number.isFinite(size)) continue
-    candidates.push({ el, size, text: directText, top: rect.top })
+    // DOM depth: ancestors up to <html>. Shallower = more likely a page-level
+    // hero than a deep widget/showcase span.
+    let depth = 0
+    let p: Element | null = el.parentElement
+    while (p) {
+      depth++
+      p = p.parentElement
+    }
+    candidates.push({ el, size, text: directText, top: rect.top, depth })
   }
   if (candidates.length === 0) {
     return { text: null, fontSize: null, source: 'none' }
   }
-  candidates.sort((a, b) => b.size - a.size)
 
-  // Top-half bias (issue #96): the page hero almost always lives above the
-  // fold's midpoint; below-fold giants are usually project showcases or
-  // promotional overlays. awwwards.com proved this — its 126px project-title
-  // overlay beat the actual page hero with pure-largest ranking. When ANY
-  // candidate ≥48px sits in the top half of the viewport, prefer the
-  // largest among those; otherwise fall back to the global largest. Items
-  // with rect.top < 0 (scrolled-above-the-fold but still attached) count as
-  // top-half — they are above-the-fold by definition.
+  // Score = fontSize penalized by log of DOM depth. Two candidates of equal
+  // size: shallower (closer to <body>) wins. A 2× depth roughly costs 1 score
+  // point — meaningful only when sizes are within ~2x. Pure largest-text
+  // ordering still wins on big size deltas.
+  const score = (c: Candidate): number => c.size / Math.log(c.depth + 2)
+  candidates.sort((a, b) => score(b) - score(a))
+
+  // Top-half bias (issue #96 part 1): the page hero almost always lives
+  // above the fold's midpoint; below-fold giants are usually project
+  // showcases or promotional overlays. When ANY candidate ≥48px sits in
+  // the top half of the viewport, prefer the largest-scored among those;
+  // otherwise fall back to the global largest. Items with rect.top < 0
+  // (scrolled-above-the-fold but still attached) count as top-half.
   const HERO_MIN_SIZE = 48
   const topHalfCutoff = vh / 2
   const topHalfLarge = candidates.filter(c => c.size >= HERO_MIN_SIZE && c.top < topHalfCutoff)
