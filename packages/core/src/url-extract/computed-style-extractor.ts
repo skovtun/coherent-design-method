@@ -183,14 +183,32 @@ function extractTypography(samples: ComputedStyleSample[]): ExtractedDesignToken
     f => f.family.toLowerCase(),
   )
 
+  const body = samples.find(s => s.role === 'body' || s.role === 'p')
+  // Prefer the paragraph sample for the heading-vs-body comparison: a CSS
+  // reset can declare `body { font-size: 14px }` while real copy uses
+  // `p { font-size: 16px }`, and the sampler emits body BEFORE the first
+  // paragraph (so `find(body || p)` would otherwise lock onto the wrapper
+  // size and miss suspect h2=15px on a 16px-paragraph page). Codex iter-1
+  // caught this gap. Body is the fallback when no paragraph survived.
+  const paragraph = samples.find(s => s.role === 'p')
+  const comparisonSource = paragraph ?? body
+  const bodySizePx = comparisonSource ? parsePx(comparisonSource.styles['font-size']) : null
+
   const HEADING_ROLES = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as const
-  const scale: ExtractedDesignTokens['typography']['scale'] = []
+  const headingEntries: ExtractedDesignTokens['typography']['scale'] = []
+  // Suspect-landmark filter (issue #98): on h1-less / portfolio sites, the
+  // first <h2> element on the page is often a tiny nav label or eyebrow —
+  // awwwards.com surfaced h2=14px alongside body=14px, polluting the type
+  // scale. A real heading is provably bigger than body copy. Drop any
+  // heading whose computed fontSize is not strictly greater than body.
+  // Unparseable sizes (`em`, `rem`, `clamp(...)`) survive — we can only
+  // drop on hard numerical evidence.
   for (const role of HEADING_ROLES) {
     const sample = samples.find(s => s.role === role)
     if (!sample) continue
     const size = sample.styles['font-size']
     if (!size) continue
-    scale.push({
+    headingEntries.push({
       role,
       fontSize: size,
       lineHeight: sample.styles['line-height'] || undefined,
@@ -199,7 +217,15 @@ function extractTypography(samples: ComputedStyleSample[]): ExtractedDesignToken
       fontFamily: firstFamily(sample.styles['font-family']),
     })
   }
-  const body = samples.find(s => s.role === 'body' || s.role === 'p')
+  const survivors =
+    bodySizePx === null
+      ? headingEntries
+      : headingEntries.filter(e => {
+          const px = parsePx(e.fontSize)
+          return px === null || px > bodySizePx
+        })
+
+  const scale: ExtractedDesignTokens['typography']['scale'] = [...survivors]
   if (body && body.styles['font-size']) {
     scale.push({
       role: 'body',
