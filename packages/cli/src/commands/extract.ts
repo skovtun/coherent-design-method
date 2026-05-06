@@ -49,6 +49,25 @@ export function isStdoutSink(value: string | undefined): boolean {
   return STDOUT_SINKS.has(value.toLowerCase())
 }
 
+/**
+ * Strict non-negative integer parse for --settle-ms. Returns undefined for
+ * unset; throws SettleMsParseError on malformed input. parseInt would silently
+ * accept "1.5" → 1 and "100abc" → 100 — both partial parses that violate the
+ * advertised contract (codex P3 on PR #103).
+ */
+export class SettleMsParseError extends Error {
+  constructor(public readonly raw: string) {
+    super(`--settle-ms must be a non-negative integer (got "${raw}")`)
+    this.name = 'SettleMsParseError'
+  }
+}
+export function parseSettleMs(raw: string | undefined): number | undefined {
+  if (raw === undefined) return undefined
+  const trimmed = String(raw).trim()
+  if (!/^\d+$/.test(trimmed)) throw new SettleMsParseError(raw)
+  return Number(trimmed)
+}
+
 export async function extractCommand(url: string, opts: ExtractOptions = {}): Promise<void> {
   // Mutually exclusive output flags. `--json` writes JSON to stdout; `--out`
   // chooses a sink (file or `-`) and the file extension picks the format.
@@ -74,9 +93,11 @@ export async function extractCommand(url: string, opts: ExtractOptions = {}): Pr
   }
 
   const timeoutMs = opts.timeout ? parseInt(opts.timeout, 10) : undefined
-  const settleMs = opts.settleMs ? parseInt(opts.settleMs, 10) : undefined
-  if (opts.settleMs !== undefined && (!Number.isFinite(settleMs!) || settleMs! < 0)) {
-    console.error(chalk.red(`✗ --settle-ms must be a non-negative integer (got "${opts.settleMs}")`))
+  let settleMs: number | undefined
+  try {
+    settleMs = parseSettleMs(opts.settleMs)
+  } catch (err) {
+    console.error(chalk.red(`✗ ${(err as Error).message}`))
     process.exit(1)
   }
   const hostResolverRules = buildHostResolverRules(validated.host, validated.addresses)
