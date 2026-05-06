@@ -105,7 +105,19 @@ export async function extractCommand(url: string, opts: ExtractOptions = {}): Pr
       // .md / .markdown → DESIGN.md artifact; everything else → JSON dump.
       const wantsMd = /\.(md|markdown)$/i.test(opts.out)
       const body = wantsMd
-        ? buildExtractedDesignMarkdown({ source: payload.source, hero: payload.hero, tokens: payload.tokens })
+        ? buildExtractedDesignMarkdown({
+            source: payload.source,
+            hero: payload.hero,
+            tokens: payload.tokens,
+            semantic: payload.semantic
+              ? {
+                  summary: payload.semantic.summary,
+                  voice: payload.semantic.voice,
+                  density: payload.semantic.density,
+                  colorRoles: payload.semantic.colorRoles,
+                }
+              : undefined,
+          })
         : JSON.stringify(payload, null, 2)
       await writeFile(opts.out, body, 'utf-8')
       console.log(chalk.green(`✓ Wrote ${opts.out}${wantsMd ? ' (DESIGN.md)' : ' (JSON)'}`))

@@ -12,7 +12,13 @@
  */
 
 import { z } from 'zod'
-import { ConfidenceSchema, type CategoryKey, type SemanticLlmInput, type SemanticLlmOutput } from './types.js'
+import {
+  ConfidenceSchema,
+  type CategoryKey,
+  type ExtractedDesignTokens,
+  type SemanticLlmInput,
+  type SemanticLlmOutput,
+} from './types.js'
 
 const COLOR_ROLE = z.enum(['brand', 'accent', 'neutral', 'semantic', 'text', 'border', 'background'])
 const VOICE_SOURCE = z.enum(['hero', 'cta', 'body', 'meta-description'])
@@ -155,9 +161,31 @@ export function parseSemanticResponse(raw: string): SemanticLlmOutput {
 }
 
 /**
+ * Drop colorRoles whose hex is not present in the deterministic palette. The
+ * module contract is "NEVER invent hex values" — schema validation alone can't
+ * enforce that (any 6-digit hex parses), so we pin the LLM output to the
+ * extractor's actual color set after parse. Lossy-but-honest beats letting
+ * hallucinated brand colors leak into DESIGN.md.
+ */
+export function pinColorRolesToPalette(
+  output: SemanticLlmOutput,
+  deterministic: ExtractedDesignTokens,
+): { pinned: SemanticLlmOutput; dropped: string[] } {
+  const palette = new Set(deterministic.colors.map(c => c.hex.toLowerCase()))
+  const dropped: string[] = []
+  const filtered = output.colorRoles.filter(cr => {
+    if (palette.has(cr.hex.toLowerCase())) return true
+    dropped.push(cr.hex)
+    return false
+  })
+  return { pinned: { ...output, colorRoles: filtered }, dropped }
+}
+
+/**
  * Drive a single semantic-inference call with up to `retries` retries on
  * malformed output. Underlying network errors propagate immediately (no point
- * retrying a 401 or rate-limit on the same call).
+ * retrying a 401 or rate-limit on the same call). After parse, colorRoles are
+ * pinned to the deterministic palette so hallucinated hexes never leak.
  */
 export async function runSemanticInference(
   input: SemanticLlmInput,
@@ -170,7 +198,9 @@ export async function runSemanticInference(
   for (let attempt = 0; attempt <= retries; attempt++) {
     const response = await llmCall(prompt)
     try {
-      return parseSemanticResponse(response.text)
+      const parsed = parseSemanticResponse(response.text)
+      const { pinned } = pinColorRolesToPalette(parsed, input.deterministic)
+      return pinned
     } catch (err) {
       lastErr = err
       if (!(err instanceof SemanticInferenceError)) throw err

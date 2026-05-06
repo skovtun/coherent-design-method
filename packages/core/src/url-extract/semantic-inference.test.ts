@@ -5,6 +5,7 @@ import {
   buildSemanticPrompt,
   extractJsonFromResponse,
   parseSemanticResponse,
+  pinColorRolesToPalette,
   runSemanticInference,
   type SemanticLlmFn,
 } from './semantic-inference.js'
@@ -166,12 +167,64 @@ describe('parseSemanticResponse', () => {
   })
 })
 
+describe('pinColorRolesToPalette', () => {
+  it('keeps colorRoles whose hex is in the deterministic palette', () => {
+    const { pinned, dropped } = pinColorRolesToPalette(validOutput, baseTokens)
+    expect(pinned.colorRoles).toHaveLength(3)
+    expect(dropped).toEqual([])
+  })
+
+  it('drops colorRoles whose hex is NOT in the deterministic palette', () => {
+    const hallucinated = {
+      ...validOutput,
+      colorRoles: [
+        { hex: '#635BFF', role: 'brand' as const },
+        { hex: '#FFFFFF', role: 'background' as const }, // invented
+        { hex: '#0A2540', role: 'text' as const },
+      ],
+    }
+    const { pinned, dropped } = pinColorRolesToPalette(hallucinated, baseTokens)
+    expect(pinned.colorRoles.map(c => c.hex)).toEqual(['#635BFF', '#0A2540'])
+    expect(dropped).toEqual(['#FFFFFF'])
+  })
+
+  it('compares case-insensitively (LLM may normalize case)', () => {
+    const lowered = {
+      ...validOutput,
+      colorRoles: [{ hex: '#635bff', role: 'brand' as const }],
+    }
+    const { pinned, dropped } = pinColorRolesToPalette(lowered, baseTokens)
+    expect(pinned.colorRoles).toHaveLength(1)
+    expect(dropped).toEqual([])
+  })
+
+  it('preserves the rest of the output untouched', () => {
+    const { pinned } = pinColorRolesToPalette(validOutput, baseTokens)
+    expect(pinned.summary).toBe(validOutput.summary)
+    expect(pinned.voice).toEqual(validOutput.voice)
+    expect(pinned.density).toBe(validOutput.density)
+  })
+})
+
 describe('runSemanticInference', () => {
   it('returns parsed output on first success', async () => {
     const llm: SemanticLlmFn = vi.fn().mockResolvedValue({ text: JSON.stringify(validOutput) })
     const out = await runSemanticInference(baseInput, llm)
     expect(out.density).toBe('comfortable')
     expect(llm).toHaveBeenCalledTimes(1)
+  })
+
+  it('pins colorRoles to deterministic palette (drops hallucinated hexes)', async () => {
+    const hallucinated = {
+      ...validOutput,
+      colorRoles: [
+        { hex: '#635BFF', role: 'brand' as const },
+        { hex: '#FF00FF', role: 'accent' as const }, // not in baseTokens
+      ],
+    }
+    const llm: SemanticLlmFn = vi.fn().mockResolvedValue({ text: JSON.stringify(hallucinated) })
+    const out = await runSemanticInference(baseInput, llm)
+    expect(out.colorRoles.map(c => c.hex)).toEqual(['#635BFF'])
   })
 
   it('retries once on schema-validation failure', async () => {
