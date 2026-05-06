@@ -95,6 +95,68 @@ describe('extractDesignTokens', () => {
       const families = t.typography.families.map(f => f.family.toLowerCase())
       expect(families.filter(f => f === 'inter')).toHaveLength(1)
     })
+
+    describe('suspect-landmark filter (issue #98 — awwwards pattern)', () => {
+      it('drops heading whose fontSize equals body fontSize (awwwards h2=14, body=14)', () => {
+        const t = extractDesignTokens([
+          sample('h2', { 'font-size': '14px', 'font-family': 'Inter Tight' }), // nav label, NOT a real heading
+          sample('h3', { 'font-size': '126.732px', 'font-family': 'Inter Tight' }),
+          sample('body', { 'font-size': '14px', 'font-family': 'Inter Tight' }),
+        ])
+        const roles = t.typography.scale.map(s => s.role)
+        expect(roles).not.toContain('h2')
+        expect(roles).toContain('h3')
+        expect(roles).toContain('body')
+      })
+
+      it('drops heading whose fontSize is smaller than body', () => {
+        const t = extractDesignTokens([
+          sample('h2', { 'font-size': '12px' }), // smaller than body — clearly not a heading
+          sample('body', { 'font-size': '16px' }),
+        ])
+        expect(t.typography.scale.map(s => s.role)).toEqual(['body'])
+      })
+
+      it('keeps headings strictly bigger than body (the normal case)', () => {
+        const t = extractDesignTokens([
+          sample('h1', { 'font-size': '56px' }),
+          sample('h2', { 'font-size': '32px' }),
+          sample('h3', { 'font-size': '20px' }),
+          sample('body', { 'font-size': '16px' }),
+        ])
+        expect(t.typography.scale.map(s => s.role)).toEqual(['h1', 'h2', 'h3', 'body'])
+      })
+
+      it('keeps all headings when no body sample exists (cannot compare)', () => {
+        const t = extractDesignTokens([
+          sample('h1', { 'font-size': '40px' }),
+          sample('h2', { 'font-size': '14px' }), // would be suspect if body existed
+        ])
+        expect(t.typography.scale.map(s => s.role)).toEqual(['h1', 'h2'])
+      })
+
+      it('emits a heading-less scale when EVERY heading is body-sized (semantic layer fills the gap)', () => {
+        // Honest output: the extractor surfaces what it sees, no fallback.
+        // The deterministic layer is allowed to be sparse; semantic-inference
+        // (--semantic) can synthesize a display tier from hero text later.
+        const t = extractDesignTokens([
+          sample('h1', { 'font-size': '14px' }),
+          sample('h2', { 'font-size': '14px' }),
+          sample('body', { 'font-size': '14px' }),
+        ])
+        expect(t.typography.scale.map(s => s.role)).toEqual(['body'])
+      })
+
+      it('keeps unparseable heading sizes (em / rem / clamp) without filtering', () => {
+        // We can only filter when we have hard numerical evidence. Don't
+        // accidentally drop a valid em-sized heading.
+        const t = extractDesignTokens([
+          sample('h1', { 'font-size': '2.5rem' }),
+          sample('body', { 'font-size': '16px' }),
+        ])
+        expect(t.typography.scale.map(s => s.role)).toContain('h1')
+      })
+    })
   })
 
   describe('spacing scale', () => {
