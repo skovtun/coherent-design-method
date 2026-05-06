@@ -390,9 +390,12 @@ describe('detectHeroInPage (3-tier, happy-dom)', () => {
 
     it('still picks the giant when size delta dwarfs the depth penalty', () => {
       // 2x size beats DOM-depth. Don't over-correct.
+      // Use h2 (not h1) for the deep candidate so Tier 1 falls through to
+      // Tier 2 — otherwise the new depth scorer is bypassed entirely
+      // (codex iter-1 P3 catch).
       document.body.innerHTML = `
         <h2 id="shallow">small</h2>
-        <div><div><div><h1 id="deep">BIG DEEP HERO</h1></div></div></div>
+        <div><div><div><h3 id="deep">BIG DEEP HERO</h3></div></div></div>
       `
       const shallow = document.querySelector('#shallow')!
       setStyle(shallow, { 'font-size': '32px' })
@@ -405,6 +408,7 @@ describe('detectHeroInPage (3-tier, happy-dom)', () => {
       const r = detectHeroInPage()
       // 32 / log(2+2) ≈ 23.1 vs 120 / log(5+2) ≈ 61.7 → deep wins on size
       expect(r.text).toBe('BIG DEEP HERO')
+      expect(r.source).toBe('largest-visible-text') // verify Tier 2 path
     })
   })
 
