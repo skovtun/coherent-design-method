@@ -234,10 +234,7 @@ describe('extractDesignTokens', () => {
       // Negative z-index is common for behind-the-flow background layers.
       // The naive `z-${n}` template produced `z--1`; fix preserves Tailwind
       // convention.
-      const t = extractDesignTokens([
-        sample('section', { 'z-index': '-1' }),
-        sample('p', { 'z-index': '-10' }),
-      ])
+      const t = extractDesignTokens([sample('section', { 'z-index': '-1' }), sample('p', { 'z-index': '-10' })])
       expect(t.zIndexScale.map(z => z.layer)).toEqual(['-z-10', '-z-1']) // sorted ascending
       expect(t.zIndexScale.every(z => !z.layer.includes('--'))).toBe(true)
     })
