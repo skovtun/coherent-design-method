@@ -333,7 +333,8 @@ describe('detectHeroInPage (3-tier, happy-dom)', () => {
       `
       const scrolled = document.querySelector('#scrolled')!
       setStyle(scrolled, { 'font-size': '72px' })
-      fakeRect(scrolled, -20, 1200, 90) // top above viewport, still attached
+      // top=-20, height=90 → bottom=70 (still 70px visible inside viewport)
+      fakeRect(scrolled, -20, 1200, 90)
 
       const overlay = document.querySelector('#overlay')!
       setStyle(overlay, { 'font-size': '110px' })
@@ -342,6 +343,27 @@ describe('detectHeroInPage (3-tier, happy-dom)', () => {
       const r = detectHeroInPage()
       expect(r.text).toBe('SCROLLED HERO')
       expect(r.fontSize).toBe(72)
+    })
+
+    it('rejects elements fully above the viewport (rect.bottom <= 0)', () => {
+      // Codex challenge finding: a transformed/animated section scrolled
+      // entirely above the viewport (top<0 AND bottom<=0) must NOT
+      // qualify as a hero. The visible candidate below the midpoint wins.
+      document.body.innerHTML = `
+        <h2 id="phantom">PHANTOM ABOVE FOLD</h2>
+        <div id="visible-hero">VISIBLE HERO</div>
+      `
+      const phantom = document.querySelector('#phantom')!
+      setStyle(phantom, { 'font-size': '200px' }) // huge, but offscreen
+      fakeRect(phantom, -500, 1200, 200) // top=-500, bottom=-300, fully above
+
+      const visible = document.querySelector('#visible-hero')!
+      setStyle(visible, { 'font-size': '88px' })
+      fakeRect(visible, 500, 1200, 110) // below midpoint, in viewport
+
+      const r = detectHeroInPage()
+      expect(r.text).toBe('VISIBLE HERO')
+      expect(r.fontSize).toBe(88)
     })
   })
 

@@ -107,7 +107,12 @@ export function detectHeroInPage(): HeroDetection {
   const vh = (window as Window).innerHeight || 800
   for (const el of Array.from(all)) {
     const rect = el.getBoundingClientRect()
+    // Must intersect the viewport at all: a sticky/animated element scrolled
+    // fully above the fold has rect.top<0 AND rect.bottom<=0; pre-#96 the
+    // size-only ranking masked the hole, but the new top-half bias would
+    // otherwise pick those phantom heroes (codex challenge iter-1, P2).
     if (rect.top >= vh) continue
+    if (rect.bottom <= 0) continue
     if (rect.width <= 0 || rect.height <= 0) continue
     const cs = getComputedStyle(el)
     if (cs.visibility === 'hidden' || cs.display === 'none' || parseFloat(cs.opacity) === 0) continue
