@@ -196,6 +196,48 @@ describe('extractDesignTokens', () => {
       ])
       expect(t.zIndexScale.map(z => z.z)).toEqual([50, 100])
     })
+
+    it('preserves layer-meaningful role names (nav, footer)', () => {
+      const t = extractDesignTokens([sample('nav', { 'z-index': '50' }), sample('footer', { 'z-index': '100' })])
+      expect(t.zIndexScale.map(z => z.layer)).toEqual(['nav', 'footer'])
+    })
+
+    it('synthesizes z-${n} label for bare-tag roles (issue #97)', () => {
+      // awwwards.com produced { layer: "a", z: 1 } from a bare anchor.
+      // The synthetic z-1 label reads as a layer scale, not as a tag dump.
+      const t = extractDesignTokens([
+        sample('a', { 'z-index': '1' }),
+        sample('p', { 'z-index': '5' }),
+        sample('h1', { 'z-index': '10' }),
+      ])
+      expect(t.zIndexScale).toEqual([
+        { layer: 'z-1', z: 1 },
+        { layer: 'z-5', z: 5 },
+        { layer: 'z-10', z: 10 },
+      ])
+    })
+
+    it('mixes layer-meaningful and synthesized labels in one scale', () => {
+      const t = extractDesignTokens([
+        sample('a', { 'z-index': '1' }),
+        sample('nav', { 'z-index': '50' }),
+        sample('icon', { 'z-index': '999' }),
+      ])
+      expect(t.zIndexScale).toEqual([
+        { layer: 'z-1', z: 1 },
+        { layer: 'nav', z: 50 },
+        { layer: 'z-999', z: 999 },
+      ])
+    })
+
+    it('formats negative z-index as -z-N (Tailwind-style, no double dash) — codex iter-1', () => {
+      // Negative z-index is common for behind-the-flow background layers.
+      // The naive `z-${n}` template produced `z--1`; fix preserves Tailwind
+      // convention.
+      const t = extractDesignTokens([sample('section', { 'z-index': '-1' }), sample('p', { 'z-index': '-10' })])
+      expect(t.zIndexScale.map(z => z.layer)).toEqual(['-z-10', '-z-1']) // sorted ascending
+      expect(t.zIndexScale.every(z => !z.layer.includes('--'))).toBe(true)
+    })
   })
 
   describe('container widths', () => {
