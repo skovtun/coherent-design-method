@@ -340,6 +340,17 @@ function extractBackgrounds(samples: ComputedStyleSample[]): ExtractedDesignToke
 
 // ─── z-index / containers / glassmorphism ────────────────────────────────────
 
+/**
+ * Roles whose semantic name carries layer meaning. Everything else (`a`, `p`,
+ * `h1`, `body`, `icon`, …) is just an element that happens to have a z-index;
+ * its tag name is not a useful layer label. For those we synthesize `z-${n}`
+ * so DESIGN.md "Z-index scale" reads as a real scale instead of a tag dump.
+ *
+ * Issue #97: awwwards.com produced `{ layer: "a", z: 1 }` from a bare anchor.
+ * The Tailwind-style `z-${n}` scheme is the convention readers already expect.
+ */
+const LAYER_MEANINGFUL_ROLES = new Set<ComputedStyleSample['role']>(['nav', 'footer'])
+
 function extractZIndex(samples: ComputedStyleSample[]): ExtractedDesignTokens['zIndexScale'] {
   const out: ExtractedDesignTokens['zIndexScale'] = []
   const seen = new Set<number>()
@@ -350,7 +361,8 @@ function extractZIndex(samples: ComputedStyleSample[]): ExtractedDesignTokens['z
     if (!Number.isFinite(n)) continue
     if (seen.has(n)) continue
     seen.add(n)
-    out.push({ layer: s.role, z: n })
+    const layer = LAYER_MEANINGFUL_ROLES.has(s.role) ? s.role : `z-${n}`
+    out.push({ layer, z: n })
   }
   return out.sort((a, b) => a.z - b.z)
 }
