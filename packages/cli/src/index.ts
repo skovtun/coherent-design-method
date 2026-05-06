@@ -418,6 +418,7 @@ program
   .option('--out <file>', 'Write JSON payload to file')
   .option('--timeout <ms>', 'Navigation timeout in ms (default: 30000)')
   .option('--no-headless', 'Show the browser window (debugging)')
+  .option('--semantic', 'Run semantic LLM pass (role inference + voice + density). Needs ANTHROPIC_API_KEY.')
   .action((url: string, opts) => extractCommand(url, opts))
 
 // Wiki maintenance — only meaningful when running inside the Coherent source

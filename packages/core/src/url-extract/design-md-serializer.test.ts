@@ -170,6 +170,44 @@ describe('buildExtractedDesignMarkdown', () => {
     expect(withVoice).toContain('density: `comfortable`')
   })
 
+  it('augments color rows with LLM-inferred role when deterministic role is blank', () => {
+    const md = buildExtractedDesignMarkdown(
+      baseInput({
+        tokens: {
+          ...baseTokens(),
+          colors: [
+            { hex: '#635BFF', usage: 'button-primary' }, // no role
+            { hex: '#0a2540', role: 'text', usage: 'h1' }, // deterministic role wins
+          ],
+        },
+        semantic: {
+          colorRoles: [
+            { hex: '#635BFF', role: 'brand' },
+            { hex: '#0a2540', role: 'accent' }, // would be ignored — deterministic role wins
+          ],
+        },
+      }),
+    )
+    // LLM role fills the blank slot
+    expect(md).toContain('| `#635BFF` |')
+    expect(md).toMatch(/`#635BFF`.*\| brand \|/)
+    // deterministic role is preserved over LLM
+    expect(md).toMatch(/`#0a2540`.*\| text \|/)
+  })
+
+  it('omits "pending LLM pass" footer once semantic has run', () => {
+    const without = buildExtractedDesignMarkdown(baseInput())
+    expect(without).toContain('Semantic fields')
+    expect(without).toContain('pending LLM pass')
+
+    const withSemantic = buildExtractedDesignMarkdown(
+      baseInput({
+        semantic: { summary: 's', density: 'comfortable' },
+      }),
+    )
+    expect(withSemantic).not.toContain('pending LLM pass')
+  })
+
   it('emits gradients/patterns/borders/focus-rings when present', () => {
     const md = buildExtractedDesignMarkdown(
       baseInput({

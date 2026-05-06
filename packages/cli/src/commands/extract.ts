@@ -17,9 +17,13 @@ import {
   captureSnapshot,
   defaultSsrfGuard,
   extractDesignTokens,
+  runSemanticInference,
+  SemanticInferenceError,
+  type SemanticLlmOutput,
   type SsrfGuardResult,
 } from '@getcoherent/core'
 import { createPlaywrightDriver } from '../url-extract/playwright-driver.js'
+import { createAnthropicSemanticCall } from '../url-extract/anthropic-semantic-call.js'
 
 export interface ExtractOptions {
   json?: boolean
@@ -28,6 +32,7 @@ export interface ExtractOptions {
   // Commander maps `--no-headless` to `opts.headless === false` (default true).
   // Field MUST be `headless`, not `noHeadless`, or the flag is dead code.
   headless?: boolean
+  semantic?: boolean
 }
 
 export async function extractCommand(url: string, opts: ExtractOptions = {}): Promise<void> {
@@ -58,6 +63,30 @@ export async function extractCommand(url: string, opts: ExtractOptions = {}): Pr
     const tokens = extractDesignTokens(snapshot.computedStyles, { mediaQueries: snapshot.mediaQueries })
     spinner.succeed(`Captured in ${snapshot.loadTimeMs}ms (mode: ${snapshot.mode})`)
 
+    let semantic: SemanticLlmOutput | null = null
+    if (opts.semantic) {
+      const semSpinner = ora({ text: 'Running semantic inference (LLM)…', color: 'cyan' }).start()
+      try {
+        const llmCall = createAnthropicSemanticCall()
+        semantic = await runSemanticInference(
+          {
+            url,
+            copyText: snapshot.copyText,
+            hero: snapshot.hero,
+            metaDescription: snapshot.metaDescription,
+            deterministic: tokens,
+          },
+          llmCall,
+        )
+        semSpinner.succeed(`Semantic pass: ${semantic.density} · ${semantic.voice.tone.slice(0, 3).join(', ')}`)
+      } catch (err) {
+        const msg =
+          err instanceof SemanticInferenceError ? `LLM output invalid: ${err.message}` : (err as Error).message
+        semSpinner.fail(`Semantic pass failed — continuing without (${msg})`)
+        semantic = null
+      }
+    }
+
     const payload = {
       source: {
         url,
@@ -69,13 +98,26 @@ export async function extractCommand(url: string, opts: ExtractOptions = {}): Pr
       },
       hero: snapshot.hero,
       tokens,
+      semantic,
     }
 
     if (opts.out) {
       // .md / .markdown → DESIGN.md artifact; everything else → JSON dump.
       const wantsMd = /\.(md|markdown)$/i.test(opts.out)
       const body = wantsMd
-        ? buildExtractedDesignMarkdown({ source: payload.source, hero: payload.hero, tokens: payload.tokens })
+        ? buildExtractedDesignMarkdown({
+            source: payload.source,
+            hero: payload.hero,
+            tokens: payload.tokens,
+            semantic: payload.semantic
+              ? {
+                  summary: payload.semantic.summary,
+                  voice: payload.semantic.voice,
+                  density: payload.semantic.density,
+                  colorRoles: payload.semantic.colorRoles,
+                }
+              : undefined,
+          })
         : JSON.stringify(payload, null, 2)
       await writeFile(opts.out, body, 'utf-8')
       console.log(chalk.green(`✓ Wrote ${opts.out}${wantsMd ? ' (DESIGN.md)' : ' (JSON)'}`))
@@ -96,8 +138,9 @@ function printSummary(payload: {
   source: { url: string; finalUrl: string; mode: string; title: string; loadTimeMs: number }
   hero: { text: string | null; source: string; fontSize: number | null }
   tokens: ReturnType<typeof extractDesignTokens>
+  semantic?: SemanticLlmOutput | null
 }): void {
-  const { source, hero, tokens } = payload
+  const { source, hero, tokens, semantic } = payload
   const line = (label: string, value: string) => `  ${chalk.dim(label.padEnd(14))} ${value}`
 
   console.log()
@@ -169,7 +212,29 @@ function printSummary(payload: {
     console.log()
   }
 
-  console.log(chalk.dim(`Note: semantic LLM pass + DESIGN.md serializer land in next commits.`))
+  if (semantic) {
+    console.log(chalk.bold('SEMANTIC') + chalk.dim('  (LLM)'))
+    console.log(line('summary', semantic.summary))
+    console.log(line('density', semantic.density))
+    console.log(line('voice', semantic.voice.tone.join(', ')))
+    for (const s of semantic.voice.samples.slice(0, 3)) {
+      console.log(line(s.source, truncate(s.text, 70)))
+    }
+    if (semantic.colorRoles.length > 0) {
+      console.log(
+        line(
+          'roles',
+          semantic.colorRoles
+            .slice(0, 6)
+            .map(c => `${c.hex}=${c.role}`)
+            .join('  '),
+        ),
+      )
+    }
+    console.log()
+  } else {
+    console.log(chalk.dim(`Note: pass --semantic to add LLM role inference + voice + density.`))
+  }
 }
 
 function truncate(s: string, n: number): string {

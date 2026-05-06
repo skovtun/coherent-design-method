@@ -19,6 +19,16 @@ export interface ExtractedAtmosphereForMd {
     summary?: string
     voice?: z.infer<typeof VoiceSchema>
     density?: 'compact' | 'comfortable' | 'spacious'
+    /**
+     * LLM-inferred color roles, pinned to the deterministic palette by
+     * `pinColorRolesToPalette` before reaching here. Hex values match those in
+     * `tokens.colors`; the role label augments the role-less deterministic
+     * extraction.
+     */
+    colorRoles?: Array<{
+      hex: string
+      role: 'brand' | 'accent' | 'neutral' | 'semantic' | 'text' | 'border' | 'background'
+    }>
   }
 }
 
@@ -67,10 +77,17 @@ export function buildExtractedDesignMarkdown(input: ExtractedAtmosphereForMd): s
   if (tokens.colors.length > 0) {
     line('## Color')
     push()
+    // Semantic role pins (LLM, post-validated against deterministic palette)
+    // augment the role column when the deterministic extractor left it blank.
+    const roleByHex = new Map<string, string>()
+    for (const cr of semantic?.colorRoles ?? []) {
+      roleByHex.set(cr.hex.toLowerCase(), cr.role)
+    }
     line('| Token | Hex | Role | Usage |')
     line('|-------|-----|------|-------|')
     for (const c of tokens.colors) {
-      line(`| \`${c.hex}\` | ${swatch(c.hex)} | ${c.role || '—'} | ${c.usage || '—'} |`)
+      const role = c.role || roleByHex.get(c.hex.toLowerCase()) || '—'
+      line(`| \`${c.hex}\` | ${swatch(c.hex)} | ${role} | ${c.usage || '—'} |`)
     }
     push()
     if (tokens.backgrounds.solid.length > 0) {
