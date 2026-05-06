@@ -294,25 +294,65 @@ function truncate(s: string, n: number): string {
 }
 
 /**
+ * Strip / neutralize byte sequences that turn rendered hero text into an
+ * attack surface. Page text is untrusted; once it lands in DESIGN.md or the
+ * stdout pipeline it can be cat'd to a TTY, fed to an AI agent, or rendered
+ * by a Markdown viewer. We close three classes of payload:
+ *
+ * 1. C0 / C1 control bytes (incl. ESC / OSC / DCS) — ANSI / terminal hijacks
+ *    when output is piped to a TTY. Strip outright. Tab / newline are kept
+ *    only briefly; whitespace collapse normalizes them away.
+ * 2. Bidi override / isolate controls (RLO, LRO, RLI, LRI, FSI, PDI, PDF)
+ *    — Trojan-source / spoofed display. Strip outright; legitimate RTL text
+ *    works without explicit overrides.
+ * 3. Markdown / HTML metacharacters — a hostile hero could inject
+ *    `[click](https://attacker)`, `![tracker](url)`, `<script>`, raw HTML,
+ *    or `> ` to break out of the blockquote. Backslash-escape so they
+ *    render as literals.
+ *
+ * Exported for tests; called from `truncateHero`.
+ */
+export function sanitizeHeroText(raw: string): string {
+  // 1. C0 controls (\x00-\x1F) except common whitespace, plus DEL (\x7F),
+  // and C1 controls (\x80-\x9F).
+  let out = raw.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '')
+  // 2. Bidi overrides + isolates: U+202A..U+202E, U+2066..U+2069
+  out = out.replace(/[‪-‮⁦-⁩]/g, '')
+  // 3. Markdown + HTML metacharacters that can construct links, images,
+  // emphasis, code, blockquote breakouts, tags, or attribute injections.
+  out = out.replace(/([\\`*_{}\[\]()#+\-!<>|~])/g, '\\$1')
+  return out
+}
+
+/**
  * Hero-text normalizer for the Markdown blockquote.
  *
- * 1. Collapses every whitespace run (newlines, tabs, multi-space — common in
+ * 1. Sanitize: drop control bytes + bidi overrides; escape MD/HTML metachars.
+ * 2. Collapse every whitespace run (newlines, tabs, multi-space — common in
  *    multi-span heroes assembled by build pipelines) to a single space.
- * 2. Trims leading / trailing whitespace.
- * 3. Caps to `max` chars at a word boundary when possible (within the last 20
- *    chars), falling back to a hard cut. Adds an ellipsis when truncated.
+ * 3. Trim leading / trailing whitespace.
+ * 4. Cap to `max` Unicode CODE POINTS (not UTF-16 code units; emoji and
+ *    surrogate pairs are intact at the boundary). Break on word boundary
+ *    near the cap when possible, hard-cut otherwise. Add ellipsis when
+ *    truncated.
  *
  * Exported for tests; used here only.
  */
 export function truncateHero(raw: string, max: number): string {
-  const collapsed = raw.replace(/\s+/g, ' ').trim()
-  if (collapsed.length <= max) return collapsed
-  const head = collapsed.slice(0, max - 1)
-  const lastSpace = head.lastIndexOf(' ')
-  // Only break on a word boundary if it's near the end — otherwise we'd cut
-  // off too much (e.g. one giant 200-char span with no spaces).
-  const cut = lastSpace > max - 20 ? head.slice(0, lastSpace) : head
-  return cut + '…'
+  const sanitized = sanitizeHeroText(raw)
+  const collapsed = sanitized.replace(/\s+/g, ' ').trim()
+  // Iterate by code points, not UTF-16 code units, so a 4-byte emoji counts
+  // as ONE step and never splits across the boundary as a lone surrogate.
+  const codePoints = Array.from(collapsed)
+  if (codePoints.length <= max) return collapsed
+  const head = codePoints.slice(0, max - 1)
+  const lastSpaceIdx = head.lastIndexOf(' ')
+  // Word-boundary break only when (a) a space exists, and (b) it's near the
+  // tail (within last 20 code points). Otherwise hard-cut at the head end.
+  // Index math is on the code-point array, not UTF-16, so a slice never
+  // splits an emoji across the boundary.
+  const cutPoints = lastSpaceIdx > 0 && lastSpaceIdx > max - 20 ? head.slice(0, lastSpaceIdx) : head
+  return cutPoints.join('') + '…'
 }
 
 /**

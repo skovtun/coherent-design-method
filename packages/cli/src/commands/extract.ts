@@ -35,7 +35,31 @@ export interface ExtractOptions {
   semantic?: boolean
 }
 
+/**
+ * Stdout sink markers. `--out -` (raw, JSON default) plus explicit `.json` /
+ * `.md` / `.markdown` variants so pipelines can pick the serialization
+ * format. Case-insensitive — `-` and `-.MD` both route to stdout. The single
+ * source of truth for both `extractCommand` and `shouldSkipUpdateCheck`
+ * (banner suppression).
+ */
+const STDOUT_SINKS = new Set(['-', '-.json', '-.md', '-.markdown'])
+export function isStdoutSink(value: string | undefined): boolean {
+  if (!value) return false
+  return STDOUT_SINKS.has(value.toLowerCase())
+}
+
 export async function extractCommand(url: string, opts: ExtractOptions = {}): Promise<void> {
+  // Mutually exclusive output flags. `--json` writes JSON to stdout; `--out`
+  // chooses a sink (file or `-`) and the file extension picks the format.
+  // Combining them is ambiguous (`--json --out -.md` would silently emit MD)
+  // — refuse early so scripts get a deterministic contract.
+  if (opts.json && opts.out) {
+    console.error(
+      chalk.red('✗ --json and --out are mutually exclusive. Pick one (--out -.json for stdout JSON via --out).'),
+    )
+    process.exit(1)
+  }
+
   // Pre-navigation SSRF gate. Async because hostnames must DNS-resolve and
   // every A/AAAA record is validated against the private-IP blocklist. The
   // resolved addresses also pin Chromium's resolver, closing the DNS-rebind
@@ -103,9 +127,8 @@ export async function extractCommand(url: string, opts: ExtractOptions = {}): Pr
 
     if (opts.out) {
       // .md / .markdown → DESIGN.md artifact; everything else → JSON dump.
-      // `-` is the canonical "stdout" sink — honors the same .md/.markdown
-      // suffix detection (e.g. `--out -.md`) so pipelines can choose either
-      // serialization without a temp file.
+      // `-` is the canonical stdout sink (JSON by default); `-.md` /
+      // `-.markdown` / `-.json` pick the explicit format.
       const wantsMd = /\.(md|markdown)$/i.test(opts.out)
       const body = wantsMd
         ? buildExtractedDesignMarkdown({
@@ -122,11 +145,13 @@ export async function extractCommand(url: string, opts: ExtractOptions = {}): Pr
               : undefined,
           })
         : JSON.stringify(payload, null, 2)
-      if (opts.out === '-' || opts.out === '-.md' || opts.out === '-.markdown') {
+      if (isStdoutSink(opts.out)) {
         // Bare write — no spinner / success line, so the artifact is the only
         // thing on stdout and `coherent extract <url> --out - | jq` works.
-        process.stdout.write(body)
-        if (!body.endsWith('\n')) process.stdout.write('\n')
+        // Single write of body+newline halves the broken-pipe error surface;
+        // `EPIPE` (downstream `head`/`jq` closed early) is graceful exit, not
+        // a crash.
+        await writeStdoutEpipeSafe(body.endsWith('\n') ? body : body + '\n')
       } else {
         await writeFile(opts.out, body, 'utf-8')
         console.log(chalk.green(`✓ Wrote ${opts.out}${wantsMd ? ' (DESIGN.md)' : ' (JSON)'}`))
@@ -249,4 +274,40 @@ function printSummary(payload: {
 
 function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n - 1) + '…' : s
+}
+
+/**
+ * Write a single payload to stdout, treating `EPIPE` as a graceful pipeline
+ * close (downstream `head` / `jq` exited early). Awaits the drain callback
+ * so very large bodies (`--semantic` payloads can be 50-100KB) do not race
+ * the process exiting. Any other error propagates to the caller.
+ */
+function writeStdoutEpipeSafe(body: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const onError = (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EPIPE') {
+        // Downstream consumer closed first; that's a normal pipeline end.
+        // Detach so we do not see the same error on the next tick.
+        process.stdout.off('error', onError)
+        resolve()
+        return
+      }
+      reject(err)
+    }
+    process.stdout.on('error', onError)
+    const ok = process.stdout.write(body, err => {
+      process.stdout.off('error', onError)
+      if (err) {
+        if ((err as NodeJS.ErrnoException).code === 'EPIPE') resolve()
+        else reject(err)
+        return
+      }
+      resolve()
+    })
+    // If write returned false the kernel buffer is full; the callback above
+    // will still fire once the buffer drains.
+    if (!ok) {
+      // No-op — Node guarantees the callback runs after the drain.
+    }
+  })
 }
