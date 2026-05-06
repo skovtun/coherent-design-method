@@ -103,6 +103,9 @@ export async function extractCommand(url: string, opts: ExtractOptions = {}): Pr
 
     if (opts.out) {
       // .md / .markdown → DESIGN.md artifact; everything else → JSON dump.
+      // `-` is the canonical "stdout" sink — honors the same .md/.markdown
+      // suffix detection (e.g. `--out -.md`) so pipelines can choose either
+      // serialization without a temp file.
       const wantsMd = /\.(md|markdown)$/i.test(opts.out)
       const body = wantsMd
         ? buildExtractedDesignMarkdown({
@@ -119,8 +122,15 @@ export async function extractCommand(url: string, opts: ExtractOptions = {}): Pr
               : undefined,
           })
         : JSON.stringify(payload, null, 2)
-      await writeFile(opts.out, body, 'utf-8')
-      console.log(chalk.green(`✓ Wrote ${opts.out}${wantsMd ? ' (DESIGN.md)' : ' (JSON)'}`))
+      if (opts.out === '-' || opts.out === '-.md' || opts.out === '-.markdown') {
+        // Bare write — no spinner / success line, so the artifact is the only
+        // thing on stdout and `coherent extract <url> --out - | jq` works.
+        process.stdout.write(body)
+        if (!body.endsWith('\n')) process.stdout.write('\n')
+      } else {
+        await writeFile(opts.out, body, 'utf-8')
+        console.log(chalk.green(`✓ Wrote ${opts.out}${wantsMd ? ' (DESIGN.md)' : ' (JSON)'}`))
+      }
     } else if (opts.json) {
       console.log(JSON.stringify(payload, null, 2))
     } else {

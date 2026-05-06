@@ -415,7 +415,7 @@ program
   .description('Extract atmosphere from a live URL → DESIGN.md tokens (Tool 1, v0.19.0 beta)')
   .argument('<url>', 'URL to extract (http/https only; private IPs blocked)')
   .option('--json', 'Print full JSON payload (default: human summary)')
-  .option('--out <file>', 'Write JSON payload to file')
+  .option('--out <file>', 'Write JSON payload to file (.md/.markdown → DESIGN.md; "-" → stdout)')
   .option('--timeout <ms>', 'Navigation timeout in ms (default: 30000)')
   .option('--no-headless', 'Show the browser window (debugging)')
   .option('--semantic', 'Run semantic LLM pass (role inference + voice + density). Needs ANTHROPIC_API_KEY.')

@@ -69,7 +69,11 @@ export function buildExtractedDesignMarkdown(input: ExtractedAtmosphereForMd): s
     push()
     line(`**Detected via:** \`${hero.source}\`${hero.fontSize ? ` (${hero.fontSize}px)` : ''}`)
     push()
-    line('> ' + hero.text.replace(/\n/g, ' '))
+    // Cap the blockquote at ~200 chars: design-portfolio sites (linear,
+    // awwwards, larevoltosa) often concat a multi-line hero into a single
+    // largest-text node, dragging product copy + footnotes into the H1. The
+    // long form is preserved in the JSON payload; the MD just stays scannable.
+    line('> ' + truncateHero(hero.text, 200))
     push()
   }
 
@@ -287,6 +291,28 @@ function humanDate(iso: string): string {
 
 function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n - 1) + '…' : s
+}
+
+/**
+ * Hero-text normalizer for the Markdown blockquote.
+ *
+ * 1. Collapses every whitespace run (newlines, tabs, multi-space — common in
+ *    multi-span heroes assembled by build pipelines) to a single space.
+ * 2. Trims leading / trailing whitespace.
+ * 3. Caps to `max` chars at a word boundary when possible (within the last 20
+ *    chars), falling back to a hard cut. Adds an ellipsis when truncated.
+ *
+ * Exported for tests; used here only.
+ */
+export function truncateHero(raw: string, max: number): string {
+  const collapsed = raw.replace(/\s+/g, ' ').trim()
+  if (collapsed.length <= max) return collapsed
+  const head = collapsed.slice(0, max - 1)
+  const lastSpace = head.lastIndexOf(' ')
+  // Only break on a word boundary if it's near the end — otherwise we'd cut
+  // off too much (e.g. one giant 200-char span with no spaces).
+  const cut = lastSpace > max - 20 ? head.slice(0, lastSpace) : head
+  return cut + '…'
 }
 
 /**

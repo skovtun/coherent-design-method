@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   EXTRACTED_DESIGN_MD_VERSION,
   buildExtractedDesignMarkdown,
+  truncateHero,
   type ExtractedAtmosphereForMd,
 } from './design-md-serializer.js'
 
@@ -253,5 +254,66 @@ describe('buildExtractedDesignMarkdown', () => {
     const a = buildExtractedDesignMarkdown(baseInput())
     const b = buildExtractedDesignMarkdown(baseInput())
     expect(a).toBe(b)
+  })
+
+  it('caps hero blockquote and collapses whitespace (long multi-span heroes)', () => {
+    // Reproduce the linear/awwwards pattern: largest visible text node is a
+    // concat of nav + hero + footnote + tagline run together by the build.
+    const heroBlob =
+      'Build the product\n  the\n\n team\twants to use.    ' +
+      'Then ship it before competitors. ' +
+      'Then iterate twenty more times before the year is out, ' +
+      'because shipping fast is the moat that compounds and that no one will outwork you on if you do it right.'
+    const md = buildExtractedDesignMarkdown(
+      baseInput({
+        hero: { text: heroBlob, fontSize: 64, source: 'largest-visible-text', selector: 'div' },
+      }),
+    )
+    // Find the hero blockquote, not the header `> Extracted by Coherent...`.
+    // It's the `> ` line that immediately follows `## Hero` + detection-method.
+    const lines = md.split('\n')
+    const heroIdx = lines.findIndex(l => l === '## Hero')
+    expect(heroIdx).toBeGreaterThan(-1)
+    const heroLine = lines.slice(heroIdx).find(l => l.startsWith('> ')) || ''
+    // Whitespace collapsed (no double spaces, no \n, no \t).
+    expect(heroLine).not.toMatch(/\s{2,}/)
+    expect(heroLine).not.toContain('\n')
+    expect(heroLine).not.toContain('\t')
+    // Capped (200 chars + leading "> " = 202; tolerate ellipsis).
+    expect(heroLine.length).toBeLessThanOrEqual(204)
+    expect(heroLine.endsWith('…')).toBe(true)
+  })
+})
+
+describe('truncateHero', () => {
+  it('returns string unchanged when under cap', () => {
+    expect(truncateHero('Build a real online business', 200)).toBe('Build a real online business')
+  })
+
+  it('collapses whitespace runs to single space', () => {
+    expect(truncateHero('a   b\nc\td', 200)).toBe('a b c d')
+  })
+
+  it('trims leading and trailing whitespace', () => {
+    expect(truncateHero('  hello  ', 200)).toBe('hello')
+  })
+
+  it('breaks on word boundary near the cap', () => {
+    const long = 'one two three four five six seven eight nine ten'
+    const out = truncateHero(long, 22)
+    // 22 chars: "one two three four fiv" — last space at "four" → cut there
+    expect(out).toBe('one two three four…')
+    expect(out.length).toBeLessThanOrEqual(22)
+  })
+
+  it('hard-cuts when no word boundary exists in the trailing 20 chars', () => {
+    const noSpaces = 'a'.repeat(50)
+    const out = truncateHero(noSpaces, 30)
+    // 29 chars + ellipsis
+    expect(out).toBe('a'.repeat(29) + '…')
+  })
+
+  it('handles non-breaking space and other Unicode whitespace', () => {
+    expect(truncateHero('a b c', 200)).toBe('a b c')
   })
 })
