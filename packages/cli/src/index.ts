@@ -417,6 +417,7 @@ program
   .option('--json', 'Print full JSON payload (default: human summary)')
   .option('--out <file>', 'Write JSON payload to file (.md/.markdown → DESIGN.md; "-" → stdout)')
   .option('--timeout <ms>', 'Navigation timeout in ms (default: 30000)')
+  .option('--settle-ms <ms>', 'Extra wait after networkidle for late-firing animations (default: 0)')
   .option('--no-headless', 'Show the browser window (debugging)')
   .option('--semantic', 'Run semantic LLM pass (role inference + voice + density). Needs ANTHROPIC_API_KEY.')
   .action((url: string, opts) => extractCommand(url, opts))

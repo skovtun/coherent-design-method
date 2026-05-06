@@ -29,6 +29,7 @@ export interface ExtractOptions {
   json?: boolean
   out?: string
   timeout?: string
+  settleMs?: string
   // Commander maps `--no-headless` to `opts.headless === false` (default true).
   // Field MUST be `headless`, not `noHeadless`, or the flag is dead code.
   headless?: boolean
@@ -73,6 +74,11 @@ export async function extractCommand(url: string, opts: ExtractOptions = {}): Pr
   }
 
   const timeoutMs = opts.timeout ? parseInt(opts.timeout, 10) : undefined
+  const settleMs = opts.settleMs ? parseInt(opts.settleMs, 10) : undefined
+  if (opts.settleMs !== undefined && (!Number.isFinite(settleMs!) || settleMs! < 0)) {
+    console.error(chalk.red(`✗ --settle-ms must be a non-negative integer (got "${opts.settleMs}")`))
+    process.exit(1)
+  }
   const hostResolverRules = buildHostResolverRules(validated.host, validated.addresses)
 
   const spinner = ora({ text: `Launching browser…`, color: 'cyan' }).start()
@@ -81,7 +87,7 @@ export async function extractCommand(url: string, opts: ExtractOptions = {}): Pr
     driver = await createPlaywrightDriver({ headless: opts.headless ?? true, hostResolverRules })
     spinner.text = `Navigating to ${url}…`
 
-    const snapshot = await captureSnapshot(url, driver, { timeoutMs })
+    const snapshot = await captureSnapshot(url, driver, { timeoutMs, settleMs })
     spinner.text = 'Extracting deterministic tokens…'
 
     const tokens = extractDesignTokens(snapshot.computedStyles, { mediaQueries: snapshot.mediaQueries })

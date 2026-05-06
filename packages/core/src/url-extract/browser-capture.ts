@@ -561,6 +561,7 @@ export async function captureSnapshot(
 
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const scrollGraceMs = opts.scrollGraceMs ?? DEFAULT_SCROLL_GRACE_MS
+  const settleMs = opts.settleMs ?? 0
 
   const page = await driver.newPage()
   const startedAt = Date.now()
@@ -626,6 +627,15 @@ export async function captureSnapshot(
     await page.waitForTimeout(scrollGraceMs)
     await page.evaluate(`window.scrollTo(0, 0)`)
     await page.waitForTimeout(150)
+
+    // Optional animation settle window. networkidle fires when network goes
+    // quiet, but Lottie/fade-in libs often kick off opacity:0→1 transitions
+    // AFTER that. Hero detection landing inside the transition window picks
+    // footer copyright instead of the actual headline (observed: larevoltosa.es).
+    // Default 0 = no behavior change; opt-in via --settle-ms for animation-heavy sites.
+    if (settleMs > 0) {
+      await page.waitForTimeout(settleMs)
+    }
 
     const [hero, computedStyles, mediaQueries, mode, copyText, title] = await Promise.all([
       page.evaluate<HeroDetection>(HERO_DETECTION_SCRIPT),

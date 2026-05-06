@@ -640,4 +640,79 @@ describe('url-extract bootstrap', () => {
       }
     })
   })
+
+  describe('captureSnapshot settleMs', () => {
+    type Handler = (url: string, isNavigation: boolean) => Promise<boolean>
+    function makeStubDriverWithWaits(): { driver: BrowserDriverFactory; waits: number[] } {
+      const waits: number[] = []
+      const capturedHandler = { current: null as Handler | null }
+      const page: PageLike = {
+        async goto(url) {
+          if (capturedHandler.current) await capturedHandler.current(url, true)
+          return { status: () => 200, url: () => url }
+        },
+        async evaluate() {
+          return null as never
+        },
+        async content() {
+          return '<html></html>'
+        },
+        async screenshot() {
+          return Buffer.from('')
+        },
+        async title() {
+          return ''
+        },
+        url() {
+          return ''
+        },
+        async waitForTimeout(ms: number) {
+          waits.push(ms)
+        },
+        async close() {},
+        async interceptRequests(handler) {
+          capturedHandler.current = handler
+        },
+      }
+      return {
+        driver: {
+          async newPage() {
+            return page
+          },
+          async close() {},
+        },
+        waits,
+      }
+    }
+
+    it('does NOT add an extra wait when settleMs is undefined (default)', async () => {
+      const { driver, waits } = makeStubDriverWithWaits()
+      await captureSnapshot('https://example.com/', driver, {
+        ssrfGuard: async () => undefined,
+        honorRobotsTxt: false,
+      })
+      // Default waits: scrollGraceMs (1000) + 150 post-scroll-to-top. No third wait.
+      expect(waits).toEqual([1000, 150])
+    })
+
+    it('does NOT add an extra wait when settleMs is 0', async () => {
+      const { driver, waits } = makeStubDriverWithWaits()
+      await captureSnapshot('https://example.com/', driver, {
+        ssrfGuard: async () => undefined,
+        honorRobotsTxt: false,
+        settleMs: 0,
+      })
+      expect(waits).toEqual([1000, 150])
+    })
+
+    it('appends settleMs as a third wait after scroll-to-top when > 0', async () => {
+      const { driver, waits } = makeStubDriverWithWaits()
+      await captureSnapshot('https://example.com/', driver, {
+        ssrfGuard: async () => undefined,
+        honorRobotsTxt: false,
+        settleMs: 1500,
+      })
+      expect(waits).toEqual([1000, 150, 1500])
+    })
+  })
 })
