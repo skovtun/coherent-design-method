@@ -156,6 +156,21 @@ describe('extractDesignTokens', () => {
         ])
         expect(t.typography.scale.map(s => s.role)).toContain('h1')
       })
+
+      it('compares against paragraph size when present, not body wrapper (codex iter-1)', () => {
+        // CSS reset pattern: body element has its own (smaller) size while
+        // actual prose lives in <p> with a larger size. The filter must use
+        // the paragraph sample, otherwise a suspect heading slightly larger
+        // than the body wrapper but smaller than real copy slips through.
+        const t = extractDesignTokens([
+          sample('body', { 'font-size': '14px' }), // wrapper / CSS reset
+          sample('p', { 'font-size': '16px' }), // actual body copy
+          sample('h2', { 'font-size': '15px' }), // suspect — bigger than body, SMALLER than copy
+        ])
+        // h2 must be dropped because 15 ≤ 16 (real paragraph size).
+        expect(t.typography.scale.map(s => s.role)).not.toContain('h2')
+        expect(t.typography.scale.map(s => s.role)).toContain('body')
+      })
     })
   })
 

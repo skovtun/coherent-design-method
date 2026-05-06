@@ -184,7 +184,15 @@ function extractTypography(samples: ComputedStyleSample[]): ExtractedDesignToken
   )
 
   const body = samples.find(s => s.role === 'body' || s.role === 'p')
-  const bodySizePx = body ? parsePx(body.styles['font-size']) : null
+  // Prefer the paragraph sample for the heading-vs-body comparison: a CSS
+  // reset can declare `body { font-size: 14px }` while real copy uses
+  // `p { font-size: 16px }`, and the sampler emits body BEFORE the first
+  // paragraph (so `find(body || p)` would otherwise lock onto the wrapper
+  // size and miss suspect h2=15px on a 16px-paragraph page). Codex iter-1
+  // caught this gap. Body is the fallback when no paragraph survived.
+  const paragraph = samples.find(s => s.role === 'p')
+  const comparisonSource = paragraph ?? body
+  const bodySizePx = comparisonSource ? parsePx(comparisonSource.styles['font-size']) : null
 
   const HEADING_ROLES = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as const
   const headingEntries: ExtractedDesignTokens['typography']['scale'] = []
