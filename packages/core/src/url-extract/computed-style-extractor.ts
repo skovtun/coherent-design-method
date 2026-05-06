@@ -1,5 +1,6 @@
 import type { ComputedStyleSample, ExtractedColorToken, ExtractedDesignTokens } from './types.js'
 import { parseBreakpoints, parseGradients, parsePatterns } from './stylesheet-parser.js'
+import { normalizeTokens } from './token-normalizer.js'
 
 export interface ExtractDesignTokensOptions {
   /** @media rule text captured by extractMediaQueriesInPage. */
@@ -36,26 +37,41 @@ export function extractDesignTokens(
   const glassmorphism = extractGlassmorphism(samples)
   const iconStyle = extractIconStyle(samples)
 
-  return {
-    colors,
-    typography,
-    spacing,
-    radius,
-    shadows,
-    motion,
-    backgrounds,
-    gradients: parseGradients(samples),
-    patterns: parsePatterns(samples),
-    glassmorphism,
-    zIndexScale,
-    focusRings,
-    linkStates,
-    formControlStates,
-    breakpoints: parseBreakpoints(opts.mediaQueries ?? []),
-    containerWidths,
-    borderStyles,
-    iconStyle,
+  return normalizeTokens(
+    {
+      colors,
+      typography,
+      spacing,
+      radius,
+      shadows,
+      motion,
+      backgrounds,
+      gradients: parseGradients(samples),
+      patterns: parsePatterns(samples),
+      glassmorphism,
+      zIndexScale,
+      focusRings,
+      linkStates,
+      formControlStates,
+      breakpoints: parseBreakpoints(opts.mediaQueries ?? []),
+      containerWidths,
+      borderStyles,
+      iconStyle,
+    },
+    { colorOccurrences: countColorOccurrences(samples) },
+  )
+}
+
+function countColorOccurrences(samples: ComputedStyleSample[]): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const s of samples) {
+    const fg = rgbToHex(s.styles['color'] || '')
+    const bg = rgbToHex(s.styles['background-color'] || '')
+    if (fg) counts.set(fg, (counts.get(fg) ?? 0) + 1)
+    // Mirror extractColors: skip bg for icon role (icons paint via fg, bg is incidental).
+    if (bg && s.role !== 'icon') counts.set(bg, (counts.get(bg) ?? 0) + 1)
   }
+  return counts
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
