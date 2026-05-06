@@ -361,7 +361,9 @@ function extractZIndex(samples: ComputedStyleSample[]): ExtractedDesignTokens['z
     if (!Number.isFinite(n)) continue
     if (seen.has(n)) continue
     seen.add(n)
-    const layer = LAYER_MEANINGFUL_ROLES.has(s.role) ? s.role : `z-${n}`
+    // Tailwind-style: positive `z-50`, negative `-z-1` (NOT `z--1`).
+    // Negative z-index is common for behind-the-flow background layers.
+    const layer = LAYER_MEANINGFUL_ROLES.has(s.role) ? s.role : n < 0 ? `-z-${Math.abs(n)}` : `z-${n}`
     out.push({ layer, z: n })
   }
   return out.sort((a, b) => a.z - b.z)

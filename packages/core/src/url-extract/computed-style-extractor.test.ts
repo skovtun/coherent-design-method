@@ -229,6 +229,18 @@ describe('extractDesignTokens', () => {
         { layer: 'z-999', z: 999 },
       ])
     })
+
+    it('formats negative z-index as -z-N (Tailwind-style, no double dash) — codex iter-1', () => {
+      // Negative z-index is common for behind-the-flow background layers.
+      // The naive `z-${n}` template produced `z--1`; fix preserves Tailwind
+      // convention.
+      const t = extractDesignTokens([
+        sample('section', { 'z-index': '-1' }),
+        sample('p', { 'z-index': '-10' }),
+      ])
+      expect(t.zIndexScale.map(z => z.layer)).toEqual(['-z-10', '-z-1']) // sorted ascending
+      expect(t.zIndexScale.every(z => !z.layer.includes('--'))).toBe(true)
+    })
   })
 
   describe('container widths', () => {
