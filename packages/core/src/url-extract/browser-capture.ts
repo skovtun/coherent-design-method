@@ -1,6 +1,7 @@
 /// <reference lib="dom" />
 import { lookup as dnsLookupDefault } from 'node:dns/promises'
 import type { CapturedSnapshot, ComputedStyleSample, ExtractOptions, HeroDetection } from './types.js'
+import { defaultRobotsCheck } from './robots-check.js'
 
 export const DEFAULT_TIMEOUT_MS = 30_000
 export const DEFAULT_SCROLL_GRACE_MS = 1_000
@@ -512,6 +513,20 @@ export async function captureSnapshot(
 
   const guard = opts.ssrfGuard || defaultSsrfGuard
   await guard(url)
+
+  // Honor robots.txt (RFC 9309). Default ON; pass `honorRobotsTxt: false` to opt out.
+  // Fail-open on fetch failure (no robots.txt published = allowed). The robots
+  // check runs its own SSRF guard on robots.txt URL via the same guard.
+  if (opts.honorRobotsTxt !== false) {
+    const guardForRobots = async (u: string): Promise<void> => {
+      await guard(u)
+    }
+    const robotsCheck = opts.robotsCheck ?? ((u: string) => defaultRobotsCheck(u, { ssrfGuard: guardForRobots }))
+    const result = await robotsCheck(url)
+    if (!result.allowed) {
+      throw new Error(`ROBOTS_DISALLOWED: ${result.matchedRule ?? result.reason}`)
+    }
+  }
 
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const scrollGraceMs = opts.scrollGraceMs ?? DEFAULT_SCROLL_GRACE_MS
