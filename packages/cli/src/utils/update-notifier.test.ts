@@ -108,6 +108,37 @@ describe('shouldSkipUpdateCheck', () => {
     delete process.env.COHERENT_NO_UPDATE_CHECK
     expect(shouldSkipUpdateCheck([])).toBe(false)
   })
+
+  it('skips when `extract --out -` writes to stdout (banner would corrupt artifact)', () => {
+    delete process.env.COHERENT_NO_UPDATE_CHECK
+    expect(shouldSkipUpdateCheck(['extract', 'https://example.com', '--out', '-'])).toBe(true)
+    expect(shouldSkipUpdateCheck(['extract', 'https://example.com', '--out=-'])).toBe(true)
+  })
+
+  it('skips for explicit `extract --out -.json` / -.md / -.markdown stdout sinks', () => {
+    delete process.env.COHERENT_NO_UPDATE_CHECK
+    expect(shouldSkipUpdateCheck(['extract', 'https://example.com', '--out', '-.json'])).toBe(true)
+    expect(shouldSkipUpdateCheck(['extract', 'https://example.com', '--out', '-.md'])).toBe(true)
+    expect(shouldSkipUpdateCheck(['extract', 'https://example.com', '--out=-.markdown'])).toBe(true)
+  })
+
+  it('skips case-insensitively for stdout sinks', () => {
+    delete process.env.COHERENT_NO_UPDATE_CHECK
+    expect(shouldSkipUpdateCheck(['extract', 'https://example.com', '--out', '-.MD'])).toBe(true)
+    expect(shouldSkipUpdateCheck(['extract', 'https://example.com', '--out=-.Markdown'])).toBe(true)
+  })
+
+  it('does NOT skip when `extract --out` writes to a real file path', () => {
+    delete process.env.COHERENT_NO_UPDATE_CHECK
+    expect(shouldSkipUpdateCheck(['extract', 'https://example.com', '--out', 'design.md'])).toBe(false)
+    expect(shouldSkipUpdateCheck(['extract', 'https://example.com', '--out=./out.json'])).toBe(false)
+  })
+
+  it('does NOT skip for plain `extract <url>` without --out', () => {
+    delete process.env.COHERENT_NO_UPDATE_CHECK
+    expect(shouldSkipUpdateCheck(['extract', 'https://example.com'])).toBe(false)
+    expect(shouldSkipUpdateCheck(['extract', 'https://example.com', '--json'])).toBe(false)
+  })
 })
 
 // `isNewer()` deliberately suppresses prerelease versions (a 0.11.1-rc.1 user

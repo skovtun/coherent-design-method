@@ -207,7 +207,28 @@ export function shouldSkipUpdateCheck(argv: readonly string[] = process.argv.sli
   if (first === '--version' || first === '-V') return true
   if (first === '--help' || first === '-h') return true
 
+  // `coherent extract --out -<.json|.md|.markdown>?` writes the artifact to
+  // stdout; PTY-based runners capture stdout directly so a banner racing the
+  // payload would corrupt JSON parsers / Markdown renderers downstream. We
+  // accept `--out=-` and `--out -` (commander supports both).
+  if (first === 'extract') {
+    for (let i = 1; i < argv.length; i++) {
+      const arg = argv[i]
+      if (arg.startsWith('--out=')) {
+        if (isStdoutSinkArg(arg.slice('--out='.length))) return true
+      } else if (arg === '--out') {
+        const next = argv[i + 1]
+        if (next && isStdoutSinkArg(next)) return true
+      }
+    }
+  }
+
   return false
+}
+
+const STDOUT_SINK_ARGS = new Set(['-', '-.json', '-.md', '-.markdown'])
+function isStdoutSinkArg(value: string): boolean {
+  return STDOUT_SINK_ARGS.has(value.toLowerCase())
 }
 
 /**
