@@ -19,7 +19,14 @@ const TEXT_BASE_RE = /\btext-base\b/g
 const HEAVY_SHADOW_RE = /\bshadow-(md|lg|xl|2xl)\b/g
 const TRANSITION_ALL_RE = /\btransition-all\b/g
 const EXCESSIVE_PADDING_RE = /\bp-(8|10|12|14|16|20)\b/g
-const BANNED_NAMES_RE = /['"](?:John\s+Doe|Jane\s+(?:Smith|Doe)|Acme\s+Corp|TechCorp|SmartFlow|Nexus\s+Inc)['"]/gi
+// Match banned placeholder names anywhere — quoted prop strings AND JSX text
+// content. Earlier shape required quotes around the name, so `<p>Product
+// Manager, TechCorp</p>` slipped through (real leak found in test-projector
+// landing 2026-05-06). The list is curated to generic-AI-corp placeholders
+// that have negligible overlap with real product names; word boundaries
+// prevent partial-token false positives.
+const BANNED_NAMES_RE =
+  /\b(?:John\s+Doe|Jane\s+(?:Smith|Doe)|Acme(?:\s+(?:Corp|Inc|Co))?|TechCorp|TechFlow|TechCo|DataCorp|CloudCorp|CloudCo|ProSync|SmartFlow|Nexus\s+Inc)\b/gi
 const BANNED_COPY_RE =
   /['"](?:[^'"]*\b(?:Seamless|Elevate|Unleash|Next-Gen|Game-changer|Cutting-edge|Delve)\b[^'"]*)['"]/gi
 const SM_BREAKPOINT_RE = /\bsm:/g
