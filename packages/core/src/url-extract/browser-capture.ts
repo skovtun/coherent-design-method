@@ -102,12 +102,17 @@ export function detectHeroInPage(): HeroDetection {
     }
   }
   // Tier 2: largest visible text in viewport (works for awwwards/larevoltosa custom hero markup)
-  const candidates: { el: Element; size: number; text: string }[] = []
+  const candidates: { el: Element; size: number; text: string; top: number }[] = []
   const all = document.querySelectorAll<HTMLElement>('div, span, p, section, article, header, h2, h3, strong, em')
   const vh = (window as Window).innerHeight || 800
   for (const el of Array.from(all)) {
     const rect = el.getBoundingClientRect()
+    // Must intersect the viewport at all: a sticky/animated element scrolled
+    // fully above the fold has rect.top<0 AND rect.bottom<=0; pre-#96 the
+    // size-only ranking masked the hole, but the new top-half bias would
+    // otherwise pick those phantom heroes (codex challenge iter-1, P2).
     if (rect.top >= vh) continue
+    if (rect.bottom <= 0) continue
     if (rect.width <= 0 || rect.height <= 0) continue
     const cs = getComputedStyle(el)
     if (cs.visibility === 'hidden' || cs.display === 'none' || parseFloat(cs.opacity) === 0) continue
@@ -120,13 +125,25 @@ export function detectHeroInPage(): HeroDetection {
     if (directText.length < 2) continue
     const size = parseFloat(cs.fontSize)
     if (!Number.isFinite(size)) continue
-    candidates.push({ el, size, text: directText })
+    candidates.push({ el, size, text: directText, top: rect.top })
   }
   if (candidates.length === 0) {
     return { text: null, fontSize: null, source: 'none' }
   }
   candidates.sort((a, b) => b.size - a.size)
-  const winner = candidates[0]
+
+  // Top-half bias (issue #96): the page hero almost always lives above the
+  // fold's midpoint; below-fold giants are usually project showcases or
+  // promotional overlays. awwwards.com proved this — its 126px project-title
+  // overlay beat the actual page hero with pure-largest ranking. When ANY
+  // candidate ≥48px sits in the top half of the viewport, prefer the
+  // largest among those; otherwise fall back to the global largest. Items
+  // with rect.top < 0 (scrolled-above-the-fold but still attached) count as
+  // top-half — they are above-the-fold by definition.
+  const HERO_MIN_SIZE = 48
+  const topHalfCutoff = vh / 2
+  const topHalfLarge = candidates.filter(c => c.size >= HERO_MIN_SIZE && c.top < topHalfCutoff)
+  const winner = topHalfLarge.length > 0 ? topHalfLarge[0] : candidates[0]
   return {
     text: winner.text,
     fontSize: winner.size,

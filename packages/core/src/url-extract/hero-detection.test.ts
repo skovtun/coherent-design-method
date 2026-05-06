@@ -241,6 +241,132 @@ describe('detectHeroInPage (3-tier, happy-dom)', () => {
     })
   })
 
+  describe('Tier 2 top-half bias (issue #96 — awwwards pattern)', () => {
+    // happy-dom default innerHeight is 800; top-half cutoff = 400.
+
+    it('prefers a top-half hero over a below-fold giant when both ≥48px', () => {
+      // Reproduces awwwards.com: real banner above the fold, project-title
+      // overlay (HUGE) lower in the viewport. Pre-fix, "ASTRODITHER" won.
+      document.body.innerHTML = `
+        <h2 id="real-hero">DESIGN INSPIRATION</h2>
+        <div id="overlay">FEATURED PROJECT TITLE</div>
+      `
+      const realHero = document.querySelector('#real-hero')!
+      setStyle(realHero, { 'font-size': '64px' })
+      fakeRect(realHero, 120, 1200, 80) // top-half (top=120, vh/2=400)
+
+      const overlay = document.querySelector('#overlay')!
+      setStyle(overlay, { 'font-size': '126px' }) // bigger
+      fakeRect(overlay, 500, 1200, 200) // below midpoint, still in viewport
+
+      const r = detectHeroInPage()
+      expect(r.text).toBe('DESIGN INSPIRATION')
+      expect(r.fontSize).toBe(64)
+      expect(r.source).toBe('largest-visible-text')
+    })
+
+    it('falls back to the global-largest below-fold candidate if NO top-half candidate ≥48px exists', () => {
+      // Edge case: every above-the-fold text is small (e.g. nav-only header)
+      // and the only display-sized text is below the midpoint. Use it.
+      document.body.innerHTML = `
+        <nav><a id="navlink">menu</a></nav>
+        <div id="below-hero">BIG TEXT BELOW MIDPOINT</div>
+      `
+      const navlink = document.querySelector('#navlink')!
+      setStyle(navlink, { 'font-size': '14px' })
+      fakeRect(navlink, 20, 60, 18) // top-half, but only 14px (< HERO_MIN_SIZE)
+
+      const below = document.querySelector('#below-hero')!
+      setStyle(below, { 'font-size': '92px' })
+      fakeRect(below, 600, 1200, 120) // below midpoint, in viewport
+
+      const r = detectHeroInPage()
+      expect(r.text).toBe('BIG TEXT BELOW MIDPOINT')
+      expect(r.fontSize).toBe(92)
+    })
+
+    it('does NOT prefer a top-half text under the 48px hero threshold', () => {
+      // A 32px caption in the top half should not trump a real 96px display hero
+      // farther down the viewport.
+      document.body.innerHTML = `
+        <span id="caption">tiny caption</span>
+        <div id="display-hero">REAL DISPLAY HERO</div>
+      `
+      const caption = document.querySelector('#caption')!
+      setStyle(caption, { 'font-size': '32px' }) // < HERO_MIN_SIZE
+      fakeRect(caption, 50, 200, 20)
+
+      const display = document.querySelector('#display-hero')!
+      setStyle(display, { 'font-size': '96px' })
+      fakeRect(display, 450, 1200, 130) // just below midpoint
+
+      const r = detectHeroInPage()
+      expect(r.text).toBe('REAL DISPLAY HERO')
+      expect(r.fontSize).toBe(96)
+    })
+
+    it('picks the LARGEST among multiple top-half candidates ≥48px', () => {
+      // Two heroes both above midpoint, both ≥48px. Largest wins.
+      document.body.innerHTML = `
+        <h2 id="primary">PRIMARY HERO</h2>
+        <h3 id="secondary">SECONDARY</h3>
+      `
+      const primary = document.querySelector('#primary')!
+      setStyle(primary, { 'font-size': '120px' })
+      fakeRect(primary, 80, 1200, 130)
+
+      const secondary = document.querySelector('#secondary')!
+      setStyle(secondary, { 'font-size': '64px' })
+      fakeRect(secondary, 250, 800, 80)
+
+      const r = detectHeroInPage()
+      expect(r.text).toBe('PRIMARY HERO')
+      expect(r.fontSize).toBe(120)
+    })
+
+    it('treats elements scrolled above the fold (rect.top < 0) as top-half', () => {
+      // Edge case: some pages scroll a sticky nav into negative rect.top.
+      // Negative top = even more above-the-fold than midpoint.
+      document.body.innerHTML = `
+        <h2 id="scrolled">SCROLLED HERO</h2>
+        <div id="overlay">OVERLAY</div>
+      `
+      const scrolled = document.querySelector('#scrolled')!
+      setStyle(scrolled, { 'font-size': '72px' })
+      // top=-20, height=90 → bottom=70 (still 70px visible inside viewport)
+      fakeRect(scrolled, -20, 1200, 90)
+
+      const overlay = document.querySelector('#overlay')!
+      setStyle(overlay, { 'font-size': '110px' })
+      fakeRect(overlay, 500, 1200, 130) // below midpoint
+
+      const r = detectHeroInPage()
+      expect(r.text).toBe('SCROLLED HERO')
+      expect(r.fontSize).toBe(72)
+    })
+
+    it('rejects elements fully above the viewport (rect.bottom <= 0)', () => {
+      // Codex challenge finding: a transformed/animated section scrolled
+      // entirely above the viewport (top<0 AND bottom<=0) must NOT
+      // qualify as a hero. The visible candidate below the midpoint wins.
+      document.body.innerHTML = `
+        <h2 id="phantom">PHANTOM ABOVE FOLD</h2>
+        <div id="visible-hero">VISIBLE HERO</div>
+      `
+      const phantom = document.querySelector('#phantom')!
+      setStyle(phantom, { 'font-size': '200px' }) // huge, but offscreen
+      fakeRect(phantom, -500, 1200, 200) // top=-500, bottom=-300, fully above
+
+      const visible = document.querySelector('#visible-hero')!
+      setStyle(visible, { 'font-size': '88px' })
+      fakeRect(visible, 500, 1200, 110) // below midpoint, in viewport
+
+      const r = detectHeroInPage()
+      expect(r.text).toBe('VISIBLE HERO')
+      expect(r.fontSize).toBe(88)
+    })
+  })
+
   describe('Tier 3 escape: source none', () => {
     it('returns source:none on truly empty page', () => {
       document.body.innerHTML = ''
