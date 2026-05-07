@@ -356,6 +356,77 @@ Two `design-constraints.ts` rules already addressed sidebar nav (`SidebarMenuBut
 **Tests:** 15 new (5 row, 4 cell, 3 autofix, 2 CORE_CONSTRAINTS, 1 const-array regression). 1691 total passing.
 
 ---
+id: PJ-013
+type: bug
+confidence: verified
+status: resolved
+date: 2026-05-06
+fixed_in: [0.20.0]
+evidence: [pr:#105, repo:///tmp/coherent-bench-20260506-161120/logistics-dispatch/]
+---
+
+### PJ-013 — Domain-specific app prompts route to single-page modification rail
+
+**Observed:** A founder runs `coherent chat "Build a B2B logistics dispatcher for refrigerated freight carriers..."` on a fresh project. CDM responds with **1 dashboard page + redirect home**, ignoring the four declared workflows (tender acceptance, in-transit tracking, dock scheduling, settlement) and six entity types (loads/lanes/carriers/brokers/drivers/trailers).
+
+Same prompt with "portal" or "platform" instead of "dispatcher" produced full multi-page apps. So the surface symptom — "CDM forgets to plan workflow pages" — was downstream of a routing bug.
+
+**Root cause:** `chat/utils.ts:isMultiPageRequest` had two narrow regexes:
+- `BROAD_APP_INTENT_RE` — only matched against generic-SaaS nouns (`app|website|saas|platform|portal|product|tool|system|suite`). Domain-specific app types (`dispatcher`, `scheduler`, `tracker`, `manager`, `monitor`) weren't in the list.
+- `MULTI_PAGE_KEYWORD_RE` — required ≥3 generic SaaS nouns (`login|dashboard|settings|pricing|...`). Domain-specific prompts using freight/medical/legal vocabulary scored 0.
+
+When neither regex fired, the message went to the modification rail (`parseModification` → 6 mods → 1 dashboard collapse). The split-generator multi-page pipeline never ran.
+
+**Empirical scope:** Of 4 stratified benchmark prompts (logistics-dispatch / clinic-scheduler / legal-intake / construction-punchlist), **2 fell to the modification rail** — logistics ("dispatcher" missed BROAD_APP) and clinic ("scheduler" missed BROAD_APP, no SaaS keywords).
+
+**Fix shipped (PR #105, v0.20.0):**
+- Expand `BROAD_APP_INTENT_RE` noun catalog: `dispatcher | scheduler | tracker | manager | monitor | handler | console | workspace | software | crm | cms | erp | interface | service`. Bump character window 60→80 to fit longer descriptors.
+- New `WORKFLOW_INTENT_RE` for structural prompt signals: `Primary workflows | Core entities | Main features | Workflows:`. Founders write these patterns when describing scope.
+- Both gates trip → multi-page rail.
+
+**Validation:** End-to-end re-generation of logistics-dispatch with the fix produced **20 pages** spanning all 4 declared workflows + 6 entity types with list+detail routes. Domain vocabulary handled cleanly: "Arctic Express LLC", "TRL-8847", "BOL-9847362", "$2,850 rate", "87 mi deadhead".
+
+**Tests:** 15 new (4 stratified benchmark prompts + 4 trivial-modification controls + 7 expanded-noun cases). Suite 2095 → 2110.
+
+---
+id: PJ-014
+type: bug
+confidence: verified
+status: resolved
+date: 2026-05-06
+fixed_in: [0.20.0]
+evidence: [pr:#106, repo:///tmp/coherent-bench-20260506-161120/logistics-dispatch/]
+---
+
+### PJ-014 — Validator detects but generation ignores: NO_EMPTY_STATE / NO_H1 / STUCK_ON_SELECTION
+
+**Observed:** Anti-slop benchmark scan on a fresh 20-page logistics-dispatch app (multi-page rail working post-PJ-013) surfaced systemic generation gaps:
+- 12 pages with `NO_EMPTY_STATE` warnings — list/grid/table without empty-state markup
+- 7 pages with `NO_H1` warnings — page missing semantic top-level heading (validator already gates on `pageType !== 'auth'`)
+- 3 pages with `STUCK_ON_SELECTION` warnings — unconditional `bg-primary/accent` inside `.map()` callback (= the #1 generated-app visual bug class per PJ-012 + 2026-04-28 dogfood)
+
+All three already had detection logic in `quality-validator.ts`. Validator caught them. Generation shipped them anyway.
+
+**Root cause:** All three rules emitted at `severity: 'warning'`. The gen-time AI quality-fix retry loop (`modification-handler.ts:742`) is wired to retry on `severity === 'error'` only. Warnings just log + continue. Validator detected the issue, retry loop didn't fire, page shipped with the issue.
+
+**Why these three specifically:**
+- `NO_EMPTY_STATE` is gated on `hasTableOrList` — non-list pages won't fire. Pages WITH lists must have empty-state UX (blank screen on no-data is broken).
+- `NO_H1` is gated on `pageType !== 'auth'` — auth pages legitimately use `CardTitle`. Every other page should have one h1.
+- `STUCK_ON_SELECTION` is the #1 generated-app visual bug per CLAUDE.md item 6 — list where every row looks selected is broken UI, not polish gap.
+
+These three are also at the highest-confidence end of the validator's coverage. Other warnings (e.g. `INLINE_MOCK_DATA`, `MULTIPLE_H1`) have legitimate edge cases where the AI fixer would force an unwanted change — kept at warning intentionally.
+
+**Fix shipped (PR #106, v0.20.0):** Promote severity from `warning` → `error` for the three rules. Existing AI fix loop now retries until rules pass. No new validator infrastructure needed.
+
+**Cost trade-off:** One extra AI retry per affected page when the fixer succeeds (typical), or graceful fallback to ship-with-error-log when it doesn't (no infinite loop). Net: visibly higher quality on generated apps.
+
+**Subtle gotcha caught pre-merge:** Comments placed BETWEEN `type:` and `message:` inside `issues.push({...})` broke the regex in `scripts/generate-rules-map.mjs:54` — affected types silently dropped from RULES_MAP.md (auto-generated wiki). Fixed by moving comments above the `issues.push` block. Logged as M18 in IDEAS_BACKLOG (long-term: AST-based regex replacement).
+
+**Tests:** 3 new severity-contract tests pin the new behavior. Validator suite 273 → 276. Full suite 2110 → 2113.
+
+**Methodology note:** Both PJ-013 and PJ-014 surfaced via stratified benchmark scan (logistics + clinic + legal + construction prompts), not single-app dogfood. n=1 sample on `test-projector` (CDM's strongest training territory) hid both bugs. R7 in IDEAS_BACKLOG codifies the benchmark methodology going forward.
+
+---
 
 ## How to add a new entry
 
