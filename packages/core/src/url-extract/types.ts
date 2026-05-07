@@ -303,6 +303,13 @@ export interface ComputedStyleSample {
 export interface ExtractOptions {
   timeoutMs?: number
   scrollGraceMs?: number
+  /**
+   * Extra wait (ms) after scroll-to-top before evaluations. For sites whose
+   * Lottie/fade-in animations start AFTER `networkidle` and leave hero text
+   * mid-animation at opacity:0. Default 0 (no extra wait). Recommended 1000-2000
+   * for animation-heavy sites (e.g. larevoltosa.es).
+   */
+  settleMs?: number
   /** When true (default), fetches robots.txt and aborts if the target path is disallowed. */
   honorRobotsTxt?: boolean
   /** Override robots.txt check (for tests / custom UA). Default: defaultRobotsCheck. */

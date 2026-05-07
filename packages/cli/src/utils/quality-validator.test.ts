@@ -1173,6 +1173,36 @@ describe('banned names detection', () => {
     const issues = validatePageQuality(code, [])
     expect(issues.some(i => i.type === 'BANNED_NAME')).toBe(false)
   })
+
+  // Regression: pre-fix regex required the entire quoted string to BE the name
+  // ("TechCorp"), so banned names embedded in longer strings or in JSX text
+  // content slipped through. test-projector landing leaked
+  // `<p>Product Manager, TechCorp</p>` past the validator (2026-05-06).
+  it('warns on banned name embedded in JSX text content', () => {
+    const code = `'use client'\nexport default function Page() {\n  return <p>Product Manager, TechCorp</p>\n}`
+    const issues = validatePageQuality(code, [])
+    expect(issues.some(i => i.type === 'BANNED_NAME')).toBe(true)
+  })
+
+  it('warns on banned name embedded in a longer quoted string', () => {
+    const code = `'use client'\nexport default function Page() {\n  return <img alt="Photo of John Doe at the office" />\n}`
+    const issues = validatePageQuality(code, [])
+    expect(issues.some(i => i.type === 'BANNED_NAME')).toBe(true)
+  })
+
+  it('warns on Acme variants (Inc / Co)', () => {
+    const codeInc = `'use client'\nexport default function Page() {\n  return <p>From Acme Inc.</p>\n}`
+    const codeCo = `'use client'\nexport default function Page() {\n  return <p>By Acme Co</p>\n}`
+    expect(validatePageQuality(codeInc, []).some(i => i.type === 'BANNED_NAME')).toBe(true)
+    expect(validatePageQuality(codeCo, []).some(i => i.type === 'BANNED_NAME')).toBe(true)
+  })
+
+  it('warns on expanded TechCorp / DataCorp / CloudCorp / ProSync placeholders', () => {
+    for (const name of ['DataCorp', 'CloudCorp', 'CloudCo', 'TechFlow', 'TechCo', 'ProSync']) {
+      const code = `'use client'\nexport default function Page() {\n  return <p>Built with ${name}</p>\n}`
+      expect(validatePageQuality(code, []).some(i => i.type === 'BANNED_NAME')).toBe(true)
+    }
+  })
 })
 
 describe('banned copy detection', () => {
