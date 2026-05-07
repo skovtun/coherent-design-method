@@ -850,6 +850,177 @@ confidence: verified
 **Target:** post-PR2 cleanup, ~30 min CC+gstack.
 
 ---
+id: R7
+type: idea
+status: open
+target: vNext (multi-quarter)
+effort: 1-2 weeks initial harness; ongoing
+date: 2026-05-06
+confidence: methodology-proven
+---
+
+### R7 — Anti-slop benchmark harness (stratified multi-domain)
+
+Codified methodology for measuring generation quality across domains. Avoids the n=1-then-overconfident-conclusions trap (which session 2026-05-06 walked into and codex challenge mode caught).
+
+**Methodology:**
+1. Stratified prompts spanning domains where CDM is likely weakest: B2B logistics, healthcare scheduling, legal intake, construction field ops, etc. Generic SaaS (CRM/dashboard/auth) gets the SaaS-template-friendly verdict for free; the test is whether CDM holds up outside.
+2. Each prompt declares **core entities** + **primary workflows** explicitly so the bench can verify domain-vocab adoption + workflow-to-page mapping.
+3. Detectors layered:
+   - Existing `quality-validator.ts` (already covers 60+ types — surface, hierarchy, state, accessibility, content-quality)
+   - Anti-slop scan script (`/tmp/anti-slop-scan.sh` 2026-05-06 prototype) — visual surface tells codex named: 4-stat-row, bento, "Built for X", buzzwords, fake-headshot testimonials, decorative gradients
+   - State-design coverage: `disabled={...}`, `useOptimistic`, AlertDialog confirms, empty states (validator already detects, harness measures coverage at scale)
+   - Card-overuse ratio: `<Card>` count / total structural-element count — possible "Everything is a Card" signal at scale
+4. Comparative baselines: same prompt against v0, Bolt/Lovable, raw Claude (no CDM) — codex's strongest critique was that "no slop tells" doesn't equal "doesn't look AI-generated"; pairwise human/LLM ranking against external baselines closes that loop.
+5. Behavioral runs (Playwright): primary user flow per app boots without runtime errors, navigation works, forms submit.
+
+**Empirical proof methodology works:** session 2026-05-06 ran 4 stratified prompts × ~$13 API spend. Found:
+- 1 critical bug (multi-page domain detection, fixed in PR #105 — domain-specific app prompts like "logistics dispatcher" routed to single-page modification rail)
+- 2 systemic gen-time gaps (NO_EMPTY_STATE + STUCK_ON_SELECTION not promoted to errors, fixed in PR #106)
+- 1 validator regex leak (banned names in JSX text content, fixed in PR #104)
+- Refuted peer-2's "font/icon swap = top ROI" claim (CDM already mandates Lucide, no Inter usage)
+- Refuted codex's "CDM degrades on specific domains" claim (real freight terminology generated cleanly)
+
+**Why R-prefix not F:** harness is research infrastructure, not a user-facing feature. It informs which F/M items ship, in what order. Output: data-grounded roadmap instead of vibes-grounded roadmap.
+
+**Effort:** Initial scaffold ~1 week (12-prompt corpus, Playwright integration, detector AST upgrade, comparative baselines). Then ongoing — every release runs the harness against current `coherent chat` to catch quality regressions.
+
+**Blocker:** Requires API budget per run (~$50-100 for 12 prompts × 3 outputs). Worth it pre-major-release; not worth it nightly.
+
+**Source:** Session 2026-05-06 anti-slop discussion + codex consult (medium reasoning) + codex challenge (high reasoning, demolished n=1 conclusions).
+
+---
+id: R8
+type: idea
+status: deferred
+target: vNext (post-R7)
+effort: 1-2 weeks
+date: 2026-05-06
+confidence: codex-recommended
+---
+
+### R8 — Structured anchor contract (not string field)
+
+Per codex consult 2026-05-06: peer-recommended `anchor: string` field is overstated — adding a string to config is just a longer prompt. Real paradigm shift is anchor as a **structured, testable design contract**:
+
+```ts
+anchor: {
+  thesis: string             // workflow assertion ("density-as-trust for high-frequency expert comparison")
+  references: string[]       // physical-world refs ("Bloomberg Terminal", "DOT signage")
+  refusals: string[]         // SaaS defaults to refuse ("4-stat-card row", "centered hero")
+  density: 'compact' | 'comfortable' | 'spacious'
+  interactionModel: 'keyboard-first' | 'touch-first' | 'mouse-with-shortcuts'
+  dataArtifacts: string[]    // domain-specific layouts ("invoice", "manifest", "BOL")
+  layoutGrammar: 'asymmetric-editorial' | 'symmetric-dashboard' | 'industrial-grid'
+  copyRules: { ban: string[]; require: string[] }
+  detectors: string[]        // 3-5 measurable patterns that prove anchor adherence
+}
+```
+
+**Path:** anchor field → compiled constraints → generated anchor page → screenshot audit against anchor → repair loop on drift.
+
+**Why deferred:** Big concept shift, deserves ADR. Should land AFTER R7 benchmark harness — without measurement we can't prove structured anchor outperforms current atmosphere system. Otherwise it's vibes-vs-vibes again.
+
+**Source:** Session 2026-05-06 codex consult identified this as "the 10x lever" (vs font/icon swap which codex called "fake leverage").
+
+---
+id: R9
+type: idea
+status: deferred
+target: vNext (post-R7, multi-quarter)
+effort: 4-8 weeks
+date: 2026-05-06
+confidence: codex-flagged-as-competitive-threat
+---
+
+### R9 — Reference retrieval before generation (Refero-style)
+
+Codex 2026-05-06: "A constraint system without references risks becoming a taste rulebook. A constraint system plus retrieval plus rendered audit is defensible."
+
+Refero.styles is positioned as the strategic threat — they sell **real product screens + flows for agents to study before building**. Their public positioning is "real design taste" via real screens, not anti-pattern bans. If Refero ships code generation + validators, they invade CDM's thesis from the stronger taste side.
+
+**Proposal:** Curated reference packs per atmosphere/domain. At chat time, retrieve 3-5 real product screen examples (HTML + CSS, not images) matching the request — inject as inspiration context for generation. Different from cargo-cult (we don't copy structure) — closer to "show, don't tell" prompting.
+
+**Why deferred:** Multi-quarter scope. Requires:
+- Reference corpus curation (hundreds of real apps tagged by domain/density/atmosphere)
+- Retrieval index (semantic embeddings + filtering)
+- Prompt-injection budget (token cost trade-off)
+- Legal/licensing for using real product screens
+
+**Why important enough to track:** Per codex, this is the **highest-leverage anti-slop move** — but we can't ship it cheaply. Document as the long-term direction so we don't drift toward incremental fixes that miss the strategic threat.
+
+**Source:** Session 2026-05-06 codex consult flagged Refero as the most strategically relevant competitor (more so than v0 / Aura / Galileo).
+
+---
+id: F11
+type: idea
+status: open
+target: v0.20
+effort: 4-6h
+date: 2026-05-06
+confidence: empirical-n3
+---
+
+### F11 — `disabled={...}` enforcement on mutating buttons
+
+Benchmark scan 2026-05-06: **0 instances of `disabled={...}` across 171 .tsx files** (test-projector 64 files + logistics-dispatch 72 + 35 from baseline run). Generated apps don't disable buttons during pending mutations — every form/action ships without the basic "click guard" that prevents double-submit.
+
+**Proposal:** Validator rule `BUTTON_NO_DISABLED_ON_MUTATING` triggered when:
+1. Button has async onClick OR is inside a form with onSubmit
+2. AND no `disabled={...}` prop on that button
+3. Severity: `error` (per PR #106 promotion pattern, gen-time AI fix loop kicks in)
+
+**Gating:** Skip pure-navigation buttons (variant="link", routes via `<Link>`). Skip if explicit `noDisableNeeded` prop or comment. False-positive risk: forms with optimistic mutations may not need disabled. Acceptable trade-off — AI fix loop adds the prop, doesn't change rendering until pending state exists.
+
+**Why F not R:** measurable gap (n=3 honest data), small effort, ships visible quality improvement. Not strategic, just hygiene.
+
+**Source:** Session 2026-05-06 benchmark gap-analysis. Codex consult correctly identified state design as real lever (vs visual surface which is already solved).
+
+---
+id: F12
+type: idea
+status: deferred
+target: post-F11 + R7 measurement
+effort: 8-12h
+date: 2026-05-06
+confidence: empirical-n3-but-may-be-domain-specific
+---
+
+### F12 — Optimistic UI / `useOptimistic` pattern coverage
+
+Same n=3 scan: **0 instances of `useOptimistic` / `useTransition` / `startTransition` across 171 files**. Codex flagged this as part of state-design gap.
+
+**Why deferred (not F11):** A static marketing page should not need optimistic rollback. Some legitimate domains (forms with server validation, payment flows) actively SHOULDN'T optimistic-render. Per codex challenge: "regex-weak and context-free — A static marketing page should not need optimistic rollback. A CRUD table probably should."
+
+**Gate harder than F11:** Only fire on app-page mutations against entity tables/lists where the mutation is idempotent (delete, status-toggle). Probably needs LLM-classifier in validator, not pure regex. Out of scope without R7 benchmark to validate the rule doesn't false-fire.
+
+**Blocker:** R7 measurement first. Otherwise we ship a rule that flags things AI can't fix → infinite retry loop fallback.
+
+**Source:** Session 2026-05-06 benchmark.
+
+---
+id: M18
+type: idea
+status: open
+target: v0.20
+effort: 1-2h
+date: 2026-05-06
+confidence: validated
+---
+
+### M18 — Comment placement convention for auto-generated wiki
+
+Discovered 2026-05-06 while writing PR #106: comments placed BETWEEN `type:` and `message:` inside `issues.push({...})` break the regex in `scripts/generate-rules-map.mjs:54` — affected types silently disappear from RULES_MAP.md (auto-generated wiki).
+
+**Convention:** Place rationale comments ABOVE the `issues.push({...})` block, not inside. Or above the `if (...)` gate. Both work. Inside breaks the regex.
+
+**Long-term fix:** Either tolerate comments in the regex (`generate-rules-map.mjs:54`), or migrate to AST parsing (TypeScript compiler API) since regex over JS is fragile. AST upgrade also unlocks better detection of validator rules in nested helpers.
+
+**Why open:** AST migration is the right answer but bigger effort. Convention codified here serves as a tripwire until then.
+
+**Source:** Session 2026-05-06 PR #106 first-commit had comments inline; auto-rebuild silently dropped 3 types from RULES_MAP. Caught by `git diff` review before push, fixed by amend.
+
+---
 
 ## Meta-ideas (about the process)
 
