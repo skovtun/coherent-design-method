@@ -11,6 +11,61 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.19.0] — 2026-05-07
+
+### Added — `coherent extract` (Tool 1, beta) + F11 click-guard validator
+
+This release closes Week 1 of the URL-extract initiative (Tool 1) and ships F11, the highest-confidence next item from the 2026-05-06 anti-slop benchmark gap-analysis.
+
+**1. `coherent extract <url>` — Tool 1 beta (PRs #90 → #102)**
+
+Extract atmosphere from any live URL into DESIGN.md tokens. Three-tier hero detection, deterministic token normalizer, optional semantic LLM pass.
+
+```bash
+coherent extract https://stripe.com
+coherent extract https://larevoltosa.es --settle-ms 1500
+coherent extract https://figma.com --semantic --out design.md
+```
+
+- **Bootstrap (#90):** url-extract package + 3-tier hero scoring + Zod schema + design-md serializer + 5 codex review iterations on SSRF hardening (DNS resolve guard, redirect interception, IPv6 v4-mapped, subresource block, host-resolver-rules pin against DNS-rebind, IANA IPv4 special-range coverage, h1 visibility).
+- **Token normalizer (#91):** OKLCH ΔE merge + px/ms canonicalization. Collapses near-duplicate colors and nearly-identical durations into single canonical tokens.
+- **HTML fixtures (#92):** hand-crafted regression coverage so structural changes can't silently regress hero detection.
+- **robots.txt (#93):** honored before navigation. Override flag for tests.
+- **Semantic LLM pass (#94):** optional `--semantic` flag adds role inference + voice + density via Claude. ANTHROPIC_API_KEY required.
+- **UX polish (#95):** `--out -` writes JSON to stdout, `.md`/`.markdown` extension auto-renders DESIGN.md, hero text truncated in human summary.
+- **Tier 2 hero refinement (#99-#102):** topmost bias for Tier 2 candidates, z-N labels for non-layer roles, dedup heading scale entries that match body size, DOM-depth penalty for deeper candidates. Net: hero detection stable across 5-site dogfood gate.
+- **`--settle-ms <ms>` flag (came in via #104 squash):** opt-in extra wait after `networkidle` for Lottie/fade-in heavy sites where animations kick off opacity:0→1 transitions AFTER networkidle. Default 0 = no behavior change. Recommended 1000-2000 for animation-heavy targets. Includes `parseSettleMs` helper with strict integer parse (codex P3 fix).
+
+**2. F11 — `BUTTON_NO_DISABLED_ON_MUTATING` validator (#108)**
+
+New validator rule at `severity: 'error'` (gen-time AI fix loop kicks in via the PR #106 promotion pattern). Detects mutating buttons missing `disabled={...}`:
+
+- **Signal A:** inline async onClick — `<Button onClick={async () => ...}>`
+- **Signal B:** submit button in a form-onSubmit page — `<Button type="submit">` + page contains `onSubmit={...}`
+
+Skip rules: `variant="link"`, `asChild`, already-disabled, explicit `data-no-disable-needed` opt-out. Tag scanner walks brace/string depth so JSX expressions like `onClick={() => x > 0}` don't truncate captured attrs (the v0.13.10 corruption hazard documented in `quality-validator.ts:2455`).
+
+`INTERACTION_PATTERNS` LOADING STATES section rewritten from soft prose to HARD RULE with two canonical patterns (`useTransition` + local pending flag). Empirical driver: 2026-05-06 stratified n=3 benchmark scan found **0 instances** of `disabled={...}` across 171 .tsx files in 3 generated apps — every form submit, every async-onClick action shipped without click-guard. Pure prose constraint didn't override AI's bias toward concise output; validator enforcement is the proven mechanism.
+
+11 unit tests cover both signals + each skip case + lowercase `<button>` + balance-guard edge case.
+
+### Fixed
+
+- **Multi-page rail routing (#105):** `isMultiPageRequest` now matches domain-specific app types (dispatcher, scheduler, tracker, manager, monitor, etc.) and structural founder-brief signals (`Core entities:`, `Primary workflows:`). Pre-fix: 2/4 stratified benchmark prompts (logistics + clinic) routed to single-page modification rail and produced 1 dashboard instead of full multi-page workflow apps. Post-fix: same logistics prompt produces 17-20 pages.
+- **Severity promotion (#106):** `NO_EMPTY_STATE`, `NO_H1`, `STUCK_ON_SELECTION` promoted from warning to error. Validator detected; generation ignored. Empirical proof on fresh 20-page logistics-dispatch generation: NO_EMPTY_STATE 12 pages → 0, NO_H1 7 pages → 0, STUCK_ON_SELECTION 3 pages → 0. 22 retry-fixes triggered, all succeeded.
+- **Banned-names regex shape (#104):** Pre-fix `BANNED_NAMES_RE` required entire quoted string to BE the name. JSX text like `<p>Product Manager, TechCorp</p>` slipped through (TechCorp inside text content, not a quoted prop). Now matches anywhere with word boundaries. Expanded list: DataCorp, CloudCorp, CloudCo, TechFlow, TechCo, ProSync, Acme Inc/Co variants.
+
+### Wiki
+
+- **PJ-013** (multi-page bug), **PJ-014** (severity promotion), **PJ-015** (F11 click-guard) added to PATTERNS_JOURNAL.
+- **R7, R8, R9** (anti-slop benchmark harness, structured anchor contract, reference retrieval), **F11, F12, M18** added to IDEAS_BACKLOG. F11 marked resolved this release.
+- New memory entry `feedback_benchmark_methodology.md` codifies the n≥3 stratified + codex challenge pattern that surfaced PJ-013 / PJ-014 / F11.
+
+### Test count
+
+- v0.18.0: 2078 passing.
+- v0.19.0: 2124 passing (+46 across the release: +13 settle-ms setup, +4 banned-names, +15 multi-page, +3 severity, +11 F11).
+
 ## [0.18.0] — 2026-05-03
 
 ### Added — DESIGN.md output artifact + @-syntax for explicit shared-component reference

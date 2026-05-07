@@ -41,7 +41,29 @@ coherent migrate                 # Run version migrations
 coherent baseline                # Structural regression check (fingerprints + compares pages)
 coherent baseline --save         # Record new baseline without comparing
 coherent report-issue --page X   # Pre-filled GitHub issue URL with project context
+coherent extract <url>           # Tool 1 (v0.19.0 beta) — extract atmosphere from a live URL → DESIGN.md tokens
+coherent extract <url> --json    # Print full JSON payload (default: human summary)
+coherent extract <url> --out -   # Write JSON payload to stdout (file path also supported, .md → DESIGN.md)
+coherent extract <url> --settle-ms 1500  # Extra wait after networkidle for late-firing animations (Lottie/fade-ins)
+coherent extract <url> --semantic # Add LLM role inference + voice + density (needs ANTHROPIC_API_KEY)
+coherent extract <url> --no-headless  # Show browser window (debugging)
 ```
+
+## v0.19.0 — `coherent extract` (Tool 1, beta)
+
+Extract atmosphere from any live URL. 3-tier hero detection (Tier 1 deterministic CSS, Tier 2 DOM-depth-weighted scoring, Tier 3 visible-text fallback) + token normalizer (OKLCH ΔE merge + px/ms canonicalization) + optional semantic LLM pass.
+
+```bash
+coherent extract https://stripe.com
+coherent extract https://larevoltosa.es --settle-ms 1500
+coherent extract https://figma.com --semantic --out design.md
+```
+
+SSRF-hardened (5 codex review iterations on PR #90: DNS resolve guard, redirect interception, IPv6 v4-mapped, subresource block, host-resolver-rules pin against DNS-rebind, IANA IPv4 special-range coverage). Honors robots.txt by default. Private IPs blocked at validation.
+
+## v0.19.0 — F11 mutating-button click-guard
+
+New validator rule `BUTTON_NO_DISABLED_ON_MUTATING` at error severity. Mutating buttons (async onClick OR `type="submit"` in a form-onSubmit page) MUST set `disabled={...}` to a pending flag. AI fix loop wires `disabled={isPending}` via `useTransition` or local state. Skip rules: `variant="link"`, `asChild`, `data-no-disable-needed`. Empirical driver: 2026-05-06 stratified n=3 benchmark found 0/171 instances across 3 generated apps — every form shipped without click-guard.
 
 ## v0.18.0 — DESIGN.md output
 
