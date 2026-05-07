@@ -389,8 +389,14 @@ export function resolvePageByFuzzyMatch<T extends { id: string; name: string; ro
  * screen) and "build login page" out by limiting the noun set to things that
  * imply >1 page.
  */
+// Noun catalog deliberately broader than just generic SaaS — domain-specific
+// app types ("dispatcher", "scheduler", "tracker", "manager", etc.) need to
+// trigger the multi-page rail too. Pre-2026-05-06 regex missed these, routing
+// "Build a freight dispatcher" to the single-page modification path. The 80
+// character window (was 60) accommodates longer descriptors like "B2B
+// logistics dispatcher for refrigerated freight carriers".
 const BROAD_APP_INTENT_RE =
-  /\b(?:create|build|generate|make|design|scaffold|develop|start)\b[^.!?\n]{0,60}\b(?:app|application|web.?app|website|site|saas|platform|portal|product|mvp|prototype|project|tool|system|suite)\b/i
+  /\b(?:create|build|generate|make|design|scaffold|develop|start)\b[^.!?\n]{0,80}\b(?:app|application|web.?app|website|site|saas|platform|portal|product|mvp|prototype|project|tool|system|suite|dispatcher|scheduler|tracker|manager|monitor|handler|console|workspace|software|crm|cms|erp|interface|service)\b/i
 
 export function hasBroadAppIntent(message: string): boolean {
   return BROAD_APP_INTENT_RE.test(message)
@@ -588,11 +594,27 @@ const MULTI_PAGE_KEYWORD_RE =
 
 const PAGES_COLON_RE = /\b(pages?|sections?|screens?)\s*[:]\s*\w/i
 
+// Structural prompt signals indicating the user is describing a multi-page
+// system rather than a one-off edit. "Core entities: A, B, C" and
+// "Primary workflows: X, Y, Z" are the canonical ways founders describe
+// product scope; without this trigger, domain-specific prompts that miss the
+// SaaS noun catalog (e.g. "Build a freight dispatcher" — "dispatcher" not in
+// MULTI_PAGE_KEYWORD_RE) get routed to the single-page modification rail.
+// Confirmed bug 2026-05-06 via benchmark pilot: 2/4 stratified prompts failed
+// to trigger multi-page generation, producing 1 dashboard instead of full
+// workflow apps.
+// Trailing \b would require word↔non-word boundary AFTER the match. For the
+// `Workflows?:` alternative the match ends with a colon (non-word) and is
+// usually followed by space (also non-word) — no boundary. Drop trailing \b
+// and trust the alternation: each match starts at a word boundary.
+const WORKFLOW_INTENT_RE = /\b(?:Primary\s+workflows?|Core\s+entities|Main\s+features|Workflows?:)/i
+
 export const MULTI_PAGE_KEYWORD_THRESHOLD = 3
 
 export function isMultiPageRequest(message: string): boolean {
   if (hasBroadAppIntent(message)) return true
   if (PAGES_COLON_RE.test(message)) return true
+  if (WORKFLOW_INTENT_RE.test(message)) return true
   const matches = message.match(MULTI_PAGE_KEYWORD_RE)
   return (matches?.length ?? 0) >= MULTI_PAGE_KEYWORD_THRESHOLD
 }
