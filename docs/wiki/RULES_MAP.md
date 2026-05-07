@@ -39,46 +39,46 @@ Every validator fires a typed issue. Grep for the type in `quality-validator.ts`
 
 | Issue type | Default message |
 |------------|-----------------|
-| `TABLE_COLUMN_MISMATCH` | Table has ${headCount} <TableHead> but first body <TableRow> has ${cellCount} <TableCell> — empty columns will render. Match counts. |
-| `FILTER_DUPLICATE` | Filter dimension  |
-| `FILTER_HEIGHT_MISMATCH` | Filter controls use different heights (${[...heights].join( |
-| `SEARCH_ICON_MISPLACED` | Search icon appears as a sibling of <Input>, not inside. Wrap in <div className= |
-| `DIALOG_FULL_WIDTH` | <${kind}Content> without a max-w-* class renders full-width on wide screens. Add max-w-lg (default) or sm:max-w-md for Sheet. |
+| `TABLE_COLUMN_MISMATCH` | Table has … <TableHead> but first body <TableRow> has … <TableCell> — empty columns will render. Match counts. |
+| `FILTER_DUPLICATE` | Filter dimension "…" rendered twice (Select + Button). Pick one. |
+| `FILTER_HEIGHT_MISMATCH` | Filter controls use different heights (…). All should match (h-10 default). |
+| `SEARCH_ICON_MISPLACED` | Search icon appears as a sibling of <Input>, not inside. Wrap in <div className="relative"> with icon absolute-positioned and pl-9 on the In |
+| `DIALOG_FULL_WIDTH` | <…Content> without a max-w-* class renders full-width on wide screens. Add max-w-lg (default) or sm:max-w-md for Sheet. |
 | `DIALOG_CUSTOM_OVERLAY` | Custom fixed inset-0 overlay detected. Use shadcn <Dialog>/<AlertDialog>/<Sheet> — they handle overlay, focus trap, and Escape automatically |
-| `ALERT_DIALOG_NON_DESTRUCTIVE` | AlertDialog  |
+| `ALERT_DIALOG_NON_DESTRUCTIVE` | AlertDialog "…" doesn't look destructive. AlertDialog is for irreversible actions (delete, cancel subscription, log out). Use a regular Dial |
 | `INLINE_MOCK_DATA` | Inline array with 5+ items — extract to src/data/<name>.ts and import |
-| `SM_BREAKPOINT` | sm: breakpoint — consider if md:/lg: is sufficient${countSuffix} |
+| `SM_BREAKPOINT` | sm: breakpoint — consider if md:/lg: is sufficient… |
 | `PLACEHOLDER` | Placeholder content detected — use real contextual content |
 | `NO_RESPONSIVE` | Grid layout without responsive breakpoints (md: or lg:) |
 | `NO_H1` | Page has no <h1> — every page should have exactly one h1 heading |
-| `MULTIPLE_H1` | Page has ${h1Matches.length} <h1> elements — use exactly one per page |
-| `SKIPPED_HEADING` | Heading level skipped: h${headingLevels[i - 1]} → h${headingLevels[i]} — don |
+| `MULTIPLE_H1` | Page has … <h1> elements — use exactly one per page |
+| `SKIPPED_HEADING` | Heading level skipped: h… → h… — don't skip levels |
 | `MISSING_LABEL` | Inputs found but no Label with htmlFor — every input must have a visible label |
 | `PLACEHOLDER_ONLY_LABEL` | Inputs use placeholder only — add visible Label with htmlFor (placeholder is not a substitute) |
 | `MISSING_FOCUS_VISIBLE` | Interactive elements without focus-visible styles — add focus-visible:ring-2 focus-visible:ring-ring |
-| `CLICKABLE_DIV` | <${m[1]} onClick> without role and tabIndex — keyboard-inaccessible. Use <button>/<a> or add role= |
+| `CLICKABLE_DIV` | <… onClick> without role and tabIndex — keyboard-inaccessible. Use <button>/<a> or add role="button" + tabIndex={0} + onKeyDown. |
 | `RAW_IMG_TAG` | <img> tag found — prefer <Image> from next/image for lazy-loading, format negotiation, and CLS-safe dimensions. |
 | `IMAGE_MISSING_DIMENSIONS` | <Image> without width/height (and no fill prop) — causes CLS. Add width={...} height={...} or use fill inside a sized parent. |
-| `MISSING_METADATA` | Marketing page without metadata export — add  |
+| `MISSING_METADATA` | Marketing page without metadata export — add `export const metadata = { title, description }` for SEO. |
 | `NO_EMPTY_STATE` | List/table/grid without empty state handling — add friendly message + primary action |
 | `NO_LOADING_STATE` | Page with data fetching but no loading/skeleton pattern — add skeleton or spinner |
 | `EMPTY_ERROR_MESSAGE` | Generic error message detected — use what happened + why + what to do next |
 | `DESTRUCTIVE_NO_CONFIRM` | Destructive action without confirmation dialog — add confirm before execution |
-| `FORM_NO_FEEDBACK` | Form with submit but no success/error feedback pattern — add  |
+| `FORM_NO_FEEDBACK` | Form with submit but no success/error feedback pattern — add "Saving..." then "Saved" or error |
 | `BUTTON_NO_DISABLED_ON_MUTATING` | Mutating button without disabled={...} — wire to pending state (useTransition / isPending) to prevent double-submit |
 | `NAV_NO_ACTIVE_STATE` | Navigation without active/current page indicator — add active state for current route |
-| `BROKEN_INTERNAL_LINK` | Link to  |
+| `BROKEN_INTERNAL_LINK` | Link to "…" — route does not exist in project |
 | `NESTED_INTERACTIVE` | Button inside Link without asChild — causes DOM nesting error. Use <Button asChild><Link>...</Link></Button> instead |
 | `LINK_MISSING_HREF` | <Link> or <a> without href prop — causes Next.js runtime error. Add href attribute. |
-| `COMPONENT_TOO_LONG` | Page is ${lineCount} lines — consider extracting sections (data table, form, chart) into subcomponents. |
-| `MISSING_ARIA_LABEL` | Icon-only button without aria-label — add aria-label= |
+| `COMPONENT_TOO_LONG` | Page is … lines — consider extracting sections (data table, form, chart) into subcomponents. |
+| `MISSING_ARIA_LABEL` | Icon-only button without aria-label — add aria-label="description" for accessibility |
 | `SMALL_TOUCH_TARGET` | Icon button may be < 44px touch target — add min-h-[44px] or increase padding |
 | `EMOJI_IN_UI` | Emoji character in UI — use Lucide icon instead (vector, scalable, theme-aware) |
 | `BUTTON_NO_VARIANT_IN_MAP` | <Button> inside .map() callback without explicit variant — default variant is bg-primary, every mapped item will render with the brand color |
 | `BUTTON_AS_ROW_NO_HEIGHT_OVERRIDE` | <Button> in .map() with avatar/multi-line content but no height override (h-auto / min-h-*) — shadcn Button has h-9 (36px) default; tall con |
 | `BUTTON_AS_CELL_NO_VERTICAL_LAYOUT` | <Button> in .map() with min-h-[*] (calendar/grid cell) and stacked children but no flex-col — shadcn Button defaults to inline-flex row layo |
-| `STUCK_ON_SELECTION` | Unconditional selection background inside .map() callback — every list item will look selected. Use conditional cn(isActive &&  |
-| `CALENDAR_OVER_SELECTED` | Calendar/grid has ${maxCellsInWindow} cells with unconditional bg-primary/accent in a 60-line window — only ONE day should carry today/selec |
+| `STUCK_ON_SELECTION` | Unconditional selection background inside .map() callback — every list item will look selected. Use conditional cn(isActive && "bg-accent")  |
+| `CALENDAR_OVER_SELECTED` | Calendar/grid has … cells with unconditional bg-primary/accent in a 60-line window — only ONE day should carry today/selected styling. Wrap  |
 | `CELL_OVERFLOW_NO_CONTAIN` | Calendar/grid maps events into cells without overflow containment — long titles will bleed across cell borders. Add overflow-hidden on the c |
 
 ## Golden patterns (auto-generated)
