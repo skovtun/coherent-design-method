@@ -1416,11 +1416,20 @@ export const INTERACTION_PATTERNS = `
 - For operations >3s: show progress or steps ("Step 2 of 3: Generating layout...")
 - After completion: confirm success with brief feedback ("Changes saved" or toast/banner)
 
-LOADING STATES (async operations):
-- Buttons triggering async operations: set disabled={loading} + show spinner icon while pending
-- Pattern: const [loading, setLoading] = useState(false)
-  onClick: setLoading(true) → try { await action() } finally { setLoading(false) }
-- NEVER leave a submit/action button clickable during an async operation
+LOADING STATES (async operations) — HARD RULE, validated:
+- Every button that mutates state MUST have disabled={...} bound to a pending flag. Validator BUTTON_NO_DISABLED_ON_MUTATING fires error severity if missing.
+- Two canonical patterns (use one):
+  1. useTransition (preferred for server actions / mutations):
+     const [isPending, startTransition] = useTransition()
+     <Button disabled={isPending} onClick={() => startTransition(async () => { await save() })}>
+       {isPending ? <><Loader2 className="mr-2 size-4 animate-spin" />Saving...</> : 'Save'}
+     </Button>
+  2. Local pending flag (for non-action async):
+     const [loading, setLoading] = useState(false)
+     <Button disabled={loading} onClick={async () => { setLoading(true); try { await fn() } finally { setLoading(false) } }}>
+- Form submit pattern: <form onSubmit={handle}> + <Button disabled={isPending} type="submit">Save</Button>. Never ship a submit button without disabled.
+- Skip rule only for: variant="link" (visual link), asChild (wraps Link), or explicit data-no-disable-needed.
+- NEVER leave a mutating button clickable during an async operation — double-submit creates duplicate orders, charges, records.
 
 ESCAPE ROUTES (Nielsen #3 — user control and freedom):
 - Every Dialog/Sheet/Drawer MUST have: visible close button (X) + onOpenChange handler

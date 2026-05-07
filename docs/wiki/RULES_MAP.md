@@ -65,6 +65,7 @@ Every validator fires a typed issue. Grep for the type in `quality-validator.ts`
 | `EMPTY_ERROR_MESSAGE` | Generic error message detected — use what happened + why + what to do next |
 | `DESTRUCTIVE_NO_CONFIRM` | Destructive action without confirmation dialog — add confirm before execution |
 | `FORM_NO_FEEDBACK` | Form with submit but no success/error feedback pattern — add  |
+| `BUTTON_NO_DISABLED_ON_MUTATING` | Mutating button without disabled={...} — wire to pending state (useTransition / isPending) to prevent double-submit |
 | `NAV_NO_ACTIVE_STATE` | Navigation without active/current page indicator — add active state for current route |
 | `BROKEN_INTERNAL_LINK` | Link to  |
 | `NESTED_INTERACTIVE` | Button inside Link without asChild — causes DOM nesting error. Use <Button asChild><Link>...</Link></Button> instead |

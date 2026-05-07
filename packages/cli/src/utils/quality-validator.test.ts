@@ -2655,3 +2655,97 @@ describe('autoFixCode v0.7.17 — CHART_PLACEHOLDER → skeleton bars', () => {
     expect(fixes).not.toContain('CHART_PLACEHOLDER → animated skeleton bars')
   })
 })
+
+describe('F11 BUTTON_NO_DISABLED_ON_MUTATING', () => {
+  it('flags inline async onClick without disabled', () => {
+    const code = `export default function P() {
+  return <Button onClick={async () => { await save() }}>Save</Button>
+}`
+    const issues = validatePageQuality(code, undefined, 'app')
+    const issue = issues.find(i => i.type === 'BUTTON_NO_DISABLED_ON_MUTATING')
+    expect(issue).toBeDefined()
+    expect(issue?.severity).toBe('error')
+  })
+
+  it('does NOT flag when disabled={isPending} is present', () => {
+    const code = `export default function P() {
+  return <Button disabled={isPending} onClick={async () => { await save() }}>Save</Button>
+}`
+    const issues = validatePageQuality(code, undefined, 'app')
+    expect(issues.some(i => i.type === 'BUTTON_NO_DISABLED_ON_MUTATING')).toBe(false)
+  })
+
+  it('flags submit button in form with onSubmit', () => {
+    const code = `export default function P() {
+  return <form onSubmit={handleSubmit}><Input /><Button type="submit">Save</Button></form>
+}`
+    const issues = validatePageQuality(code, undefined, 'app')
+    expect(issues.some(i => i.type === 'BUTTON_NO_DISABLED_ON_MUTATING')).toBe(true)
+  })
+
+  it('does NOT flag submit button when disabled is present', () => {
+    const code = `export default function P() {
+  return <form onSubmit={handleSubmit}><Input /><Button disabled={loading} type="submit">Save</Button></form>
+}`
+    const issues = validatePageQuality(code, undefined, 'app')
+    expect(issues.some(i => i.type === 'BUTTON_NO_DISABLED_ON_MUTATING')).toBe(false)
+  })
+
+  it('does NOT flag variant="link" buttons', () => {
+    const code = `export default function P() {
+  return <Button variant="link" onClick={async () => { await navTo() }}>Open</Button>
+}`
+    const issues = validatePageQuality(code, undefined, 'app')
+    expect(issues.some(i => i.type === 'BUTTON_NO_DISABLED_ON_MUTATING')).toBe(false)
+  })
+
+  it('does NOT flag asChild buttons (Link wrapper) even on a form-onSubmit page', () => {
+    const code = `export default function P() {
+  return <form onSubmit={s}><Button asChild><Link href="/">Home</Link></Button><Button disabled={loading} type="submit">Save</Button></form>
+}`
+    const issues = validatePageQuality(code, undefined, 'app')
+    expect(issues.some(i => i.type === 'BUTTON_NO_DISABLED_ON_MUTATING')).toBe(false)
+  })
+
+  it('respects data-no-disable-needed opt-out', () => {
+    const code = `export default function P() {
+  return <Button data-no-disable-needed onClick={async () => { await fireAndForget() }}>Go</Button>
+}`
+    const issues = validatePageQuality(code, undefined, 'app')
+    expect(issues.some(i => i.type === 'BUTTON_NO_DISABLED_ON_MUTATING')).toBe(false)
+  })
+
+  it('does NOT flag non-async onClick (UI-state setter)', () => {
+    const code = `export default function P() {
+  return <Button onClick={() => setOpen(true)}>Open</Button>
+}`
+    const issues = validatePageQuality(code, undefined, 'app')
+    expect(issues.some(i => i.type === 'BUTTON_NO_DISABLED_ON_MUTATING')).toBe(false)
+  })
+
+  it('flags lowercase <button> with async onClick', () => {
+    const code = `export default function P() {
+  return <button onClick={async () => { await save() }}>Save</button>
+}`
+    const issues = validatePageQuality(code, undefined, 'app')
+    expect(issues.some(i => i.type === 'BUTTON_NO_DISABLED_ON_MUTATING')).toBe(true)
+  })
+
+  it('does NOT flag submit button when no form onSubmit on page', () => {
+    // a stray type="submit" outside a form-onSubmit context shouldn't fire
+    const code = `export default function P() {
+  return <Button type="submit">Save</Button>
+}`
+    const issues = validatePageQuality(code, undefined, 'app')
+    expect(issues.some(i => i.type === 'BUTTON_NO_DISABLED_ON_MUTATING')).toBe(false)
+  })
+
+  it('bails on unbalanced braces in attrs (corruption guard)', () => {
+    // Truncated/corrupt JSX should not emit a phantom issue
+    const code = `<Button onClick={async () => { if (x > 0) save() }}>Save</Button>`
+    const issues = validatePageQuality(code, undefined, 'app')
+    // Either fires correctly (balanced braces) or bails — must not crash
+    // Here braces ARE balanced so it should fire
+    expect(issues.some(i => i.type === 'BUTTON_NO_DISABLED_ON_MUTATING')).toBe(true)
+  })
+})

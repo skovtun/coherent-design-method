@@ -954,10 +954,11 @@ Refero.styles is positioned as the strategic threat — they sell **real product
 ---
 id: F11
 type: idea
-status: open
-target: v0.20
+status: resolved
+target: v0.19.0
 effort: 4-6h
 date: 2026-05-06
+fixed_in: [0.19.0]
 confidence: empirical-n3
 ---
 
@@ -965,14 +966,15 @@ confidence: empirical-n3
 
 Benchmark scan 2026-05-06: **0 instances of `disabled={...}` across 171 .tsx files** (test-projector 64 files + logistics-dispatch 72 + 35 from baseline run). Generated apps don't disable buttons during pending mutations — every form/action ships without the basic "click guard" that prevents double-submit.
 
-**Proposal:** Validator rule `BUTTON_NO_DISABLED_ON_MUTATING` triggered when:
-1. Button has async onClick OR is inside a form with onSubmit
-2. AND no `disabled={...}` prop on that button
-3. Severity: `error` (per PR #106 promotion pattern, gen-time AI fix loop kicks in)
+**Shipped (v0.19.0):** Validator rule `BUTTON_NO_DISABLED_ON_MUTATING` at `severity: 'error'`. Detects:
+1. Inline async onClick: `<Button onClick={async () => ...}>`
+2. Submit button in a form with onSubmit on the same page
 
-**Gating:** Skip pure-navigation buttons (variant="link", routes via `<Link>`). Skip if explicit `noDisableNeeded` prop or comment. False-positive risk: forms with optimistic mutations may not need disabled. Acceptable trade-off — AI fix loop adds the prop, doesn't change rendering until pending state exists.
+Skip rules: `variant="link"`, `asChild`, already-disabled, explicit `data-no-disable-needed` opt-out. Tag scanner walks brace/string depth (handles `=>`-in-attrs corruption hazard).
 
-**Why F not R:** measurable gap (n=3 honest data), small effort, ships visible quality improvement. Not strategic, just hygiene.
+Plus rewrite of LOADING STATES section in `INTERACTION_PATTERNS` — soft prose → HARD RULE with canonical useTransition + local-pending-flag patterns. AI generates with disabled proactively now, validator enforces on retry.
+
+11 unit tests added; full suite 2113 → 2124. See PJ-015.
 
 **Source:** Session 2026-05-06 benchmark gap-analysis. Codex consult correctly identified state design as real lever (vs visual surface which is already solved).
 

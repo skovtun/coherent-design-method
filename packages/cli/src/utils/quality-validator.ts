@@ -1001,6 +1001,81 @@ export function validatePageQuality(
     })
   }
 
+  // BUTTON_NO_DISABLED_ON_MUTATING (F11, v0.19.0): mutating button without
+  // disabled={...} prop tied to pending state. Empirical: 2026-05-06 stratified
+  // n=3 benchmark scan found 0 instances of `disabled={...}` across 171 .tsx
+  // files in 3 generated apps. Every form/action ships without click-guard,
+  // so users double-submit. AI fix loop on `error` severity wires
+  // disabled={isPending} via useTransition or local state.
+  //
+  // Mutating signals (either fires the rule):
+  //   A) Inline async onClick: <Button onClick={async () => ...}>
+  //   B) Submit button in a form with onSubmit: <Button type="submit"> + the
+  //      page contains onSubmit={...}
+  //
+  // Skip cases (gating for false positives):
+  //   - variant="link" — visually a link, no mutation
+  //   - asChild — usually wraps Link/<a> for navigation
+  //   - already has disabled= prop (any value, including expression)
+  //   - explicit opt-out: data-no-disable-needed or noDisableNeeded
+  //
+  // Tag scanner walks brace/string depth so JSX expressions like
+  // `onClick={() => x > 0}` don't truncate the captured attrs (the v0.13.10
+  // corruption hazard). Bails silently if the tag never closes — false
+  // negative is acceptable, false positive is not.
+  const codeHasFormOnSubmit = /onSubmit\s*=/.test(code)
+  const tagOpenRe = /<(Button|button)\b/g
+  let tagMatch: RegExpExecArray | null
+  while ((tagMatch = tagOpenRe.exec(code)) !== null) {
+    const tagStart = tagMatch.index
+    const attrsStart = tagStart + tagMatch[0].length
+    let i = attrsStart
+    let depth = 0
+    let inDouble = false
+    let inSingle = false
+    let inBacktick = false
+    let attrsEnd = -1
+    while (i < code.length) {
+      const c = code[i]
+      const prev = i > 0 ? code[i - 1] : ''
+      if (inDouble) {
+        if (c === '"' && prev !== '\\') inDouble = false
+      } else if (inSingle) {
+        if (c === "'" && prev !== '\\') inSingle = false
+      } else if (inBacktick) {
+        if (c === '`' && prev !== '\\') inBacktick = false
+      } else {
+        if (c === '"') inDouble = true
+        else if (c === "'") inSingle = true
+        else if (c === '`') inBacktick = true
+        else if (c === '{' || c === '(') depth++
+        else if (c === '}' || c === ')') depth--
+        else if (c === '>' && depth === 0) {
+          attrsEnd = i
+          break
+        }
+      }
+      i++
+    }
+    if (attrsEnd === -1) continue
+    const attrs = code.substring(attrsStart, attrsEnd)
+    if (/variant\s*=\s*["']link["']/.test(attrs)) continue
+    if (/\basChild\b/.test(attrs)) continue
+    if (/data-no-disable-needed|noDisableNeeded/.test(attrs)) continue
+    if (/\bdisabled\s*=/.test(attrs)) continue
+    const isAsyncClick = /onClick\s*=\s*\{\s*async\b/.test(attrs)
+    const isSubmitType = codeHasFormOnSubmit && /type\s*=\s*["']submit["']/.test(attrs)
+    if (!isAsyncClick && !isSubmitType) continue
+    const lineNumber = code.substring(0, tagStart).split('\n').length
+    issues.push({
+      line: lineNumber,
+      type: 'BUTTON_NO_DISABLED_ON_MUTATING',
+      message:
+        'Mutating button without disabled={...} — wire to pending state (useTransition / isPending) to prevent double-submit',
+      severity: 'error',
+    })
+  }
+
   // NAV_NO_ACTIVE_STATE: navigation without active/current indicator
   const hasNav = /<nav\b|NavLink|navigation|sidebar.*link|Sidebar.*link/i.test(code)
   const hasActiveState = /pathname|active|current|aria-current|data-active/.test(code)
