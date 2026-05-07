@@ -1003,22 +1003,33 @@ Same n=3 scan: **0 instances of `useOptimistic` / `useTransition` / `startTransi
 ---
 id: M18
 type: idea
-status: open
-target: v0.20
+status: resolved
+target: v0.19.1
 effort: 1-2h
 date: 2026-05-06
+fixed_in: [0.19.1]
 confidence: validated
 ---
 
-### M18 — Comment placement convention for auto-generated wiki
+### M18 — AST-based validator-rule extraction for auto-generated wiki
 
-Discovered 2026-05-06 while writing PR #106: comments placed BETWEEN `type:` and `message:` inside `issues.push({...})` break the regex in `scripts/generate-rules-map.mjs:54` — affected types silently disappear from RULES_MAP.md (auto-generated wiki).
+Discovered 2026-05-06 while writing PR #106: comments placed BETWEEN `type:` and `message:` inside `issues.push({...})` broke the regex in `scripts/generate-rules-map.mjs:54` — affected types silently disappeared from RULES_MAP.md (auto-generated wiki).
 
-**Convention:** Place rationale comments ABOVE the `issues.push({...})` block, not inside. Or above the `if (...)` gate. Both work. Inside breaks the regex.
+**Shipped (v0.19.1):** Migrated `extractValidatorTypes` from regex to TypeScript AST walk. Finds every `ObjectLiteralExpression` with both `type` and `message` properties regardless of comment placement, key order, surrounding wrapper (issues.push, push(...arr), helper return), or template-literal substitutions. Side benefit: messages with `${...}` interpolations now render with `…` placeholders instead of being truncated at the first quote.
 
-**Long-term fix:** Either tolerate comments in the regex (`generate-rules-map.mjs:54`), or migrate to AST parsing (TypeScript compiler API) since regex over JS is fragile. AST upgrade also unlocks better detection of validator rules in nested helpers.
+10 unit tests cover the regression cases plus general AST shape:
+1. Basic `issues.push` — extracted.
+2. Comments BETWEEN type and message — extracted (the original M18 case).
+3. Template literal without substitutions — extracted as plain text.
+4. Template literal with substitutions — head + spans rendered, interpolations as `…`.
+5. Object missing type or message — skipped.
+6. Lowercase / dash-cased type values — rejected.
+7. Duplicate types — first occurrence wins.
+8. Rules nested inside helpers and conditionals — found.
+9. Long messages — truncated to 140 chars for table-cell readability.
+10. Constraint-block extractor — sanity check (regex retained, separate concern).
 
-**Why open:** AST migration is the right answer but bigger effort. Convention codified here serves as a tripwire until then.
+Same 41 validator types reported on real code; regex and AST agree on shape but AST renders messages more readably.
 
 **Source:** Session 2026-05-06 PR #106 first-commit had comments inline; auto-rebuild silently dropped 3 types from RULES_MAP. Caught by `git diff` review before push, fixed by amend.
 
