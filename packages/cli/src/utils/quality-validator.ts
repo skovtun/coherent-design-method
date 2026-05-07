@@ -780,11 +780,16 @@ export function validatePageQuality(
   if (pageType !== 'auth') {
     const h1Matches = code.match(/<h1[\s>]/g)
     if (!h1Matches || h1Matches.length === 0) {
+      // NO_H1 promoted warning → error 2026-05-06. Benchmark surfaced 7 of
+      // 20 pages in fresh logistics-dispatch app missing h1 (validator
+      // already gates on pageType !== 'auth'). Without h1 a page has no
+      // semantic top-level title — accessibility regression and visual-
+      // hierarchy slop. Promotion makes the AI fix loop add it.
       issues.push({
         line: 0,
         type: 'NO_H1',
         message: 'Page has no <h1> — every page should have exactly one h1 heading',
-        severity: 'warning',
+        severity: 'error',
       })
     } else if (h1Matches.length > 1) {
       issues.push({
@@ -926,12 +931,18 @@ export function validatePageQuality(
     /\.length\s*[=!]==?\s*0|\.length\s*>\s*0|\.length\s*<\s*1|No\s+\w+\s+found|empty|no results|EmptyState|empty state/i.test(
       code,
     )
+  // NO_EMPTY_STATE promoted warning → error 2026-05-06. Benchmark scan on
+  // a fresh 20-page logistics-dispatch app surfaced 12 pages with this
+  // issue. Validator detected it but generation ignored warnings — every
+  // list/grid shipped without empty state. Errors trigger the AI
+  // quality-fix retry loop (modification-handler.ts:742) so the page is
+  // regenerated until empty-state markup lands.
   if (hasTableOrList && !hasEmptyCheck) {
     issues.push({
       line: 0,
       type: 'NO_EMPTY_STATE',
       message: 'List/table/grid without empty state handling — add friendly message + primary action',
-      severity: 'warning',
+      severity: 'error',
     })
   }
 
@@ -1306,14 +1317,20 @@ export function validatePageQuality(
     }
     if (stuckBgRe.test(block)) {
       const line = code.slice(0, mapMatch.index).split('\n').length
+      // STUCK_ON_SELECTION promoted warning → error 2026-05-06. Benchmark
+      // surfaced 3 instances in a fresh logistics-dispatch app: the #1
+      // generated-app visual bug class per CLAUDE.md item 6 (Calendar
+      // all-days-blue, Notifications stuck-on selection reproduced
+      // 2026-04-28). Visual-regression severity — a list where every row
+      // looks selected is broken UI, not a polish gap.
       issues.push({
         line,
         type: 'STUCK_ON_SELECTION',
         message:
           'Unconditional selection background inside .map() callback — every list item will look selected. Use conditional cn(isActive && "bg-accent") on the active item only.',
-        severity: 'warning',
+        severity: 'error',
       })
-      break // one warning per file is enough — caller fixes the pattern
+      break // one error per file is enough — caller fixes the pattern
     }
     stuckBgRe.lastIndex = 0
   }

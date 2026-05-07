@@ -77,6 +77,37 @@ describe('validatePageQuality', () => {
     expect(issues.find(i => i.type === 'NO_H1')).toBeDefined()
   })
 
+  // Severity promotions 2026-05-06: benchmark scan on a fresh logistics-
+  // dispatch app showed the validator detected these issues but generation
+  // ignored warnings — every list shipped without empty state, 7/20 pages
+  // shipped without h1. Errors trigger the AI quality-fix retry loop.
+  it('NO_H1 is severity=error so the gen-time retry loop fires', () => {
+    const code = `export default function DashboardPage() {
+  return <div><p>Dashboard content</p></div>
+}`
+    const issues = validatePageQuality(code, undefined, 'app')
+    const noH1 = issues.find(i => i.type === 'NO_H1')
+    expect(noH1?.severity).toBe('error')
+  })
+
+  it('NO_EMPTY_STATE is severity=error when a list/grid has no empty handling', () => {
+    const code = `export default function ListPage() {
+  return <div><h1>Loads</h1>{loads.map(l => <div key={l.id}>{l.name}</div>)}</div>
+}`
+    const issues = validatePageQuality(code, undefined, 'app')
+    const noEmpty = issues.find(i => i.type === 'NO_EMPTY_STATE')
+    expect(noEmpty?.severity).toBe('error')
+  })
+
+  it('STUCK_ON_SELECTION is severity=error (visual regression)', () => {
+    const code = `export default function P() {
+  return <div><h1>Items</h1>{items.map(i => <li key={i.id} className="bg-primary p-2">{i.name}</li>)}</div>
+}`
+    const issues = validatePageQuality(code, undefined, 'app')
+    const stuck = issues.find(i => i.type === 'STUCK_ON_SELECTION')
+    expect(stuck?.severity).toBe('error')
+  })
+
   it('flags CLICKABLE_DIV with onClick but no role/tabIndex', () => {
     const code = `export default function P() { return <div onClick={() => {}}>Click</div> }`
     const issues = validatePageQuality(code)
