@@ -481,6 +481,42 @@ describe('isMultiPageRequest', () => {
   it('threshold is 3', () => {
     expect(MULTI_PAGE_KEYWORD_THRESHOLD).toBe(3)
   })
+
+  // Regression: 2026-05-06 benchmark pilot found that domain-specific app
+  // types ("dispatcher", "scheduler", "tracker") missed BROAD_APP_INTENT_RE
+  // because the noun catalog was generic-SaaS-only. Long detailed prompts
+  // describing "Core entities:" + "Primary workflows:" got routed to the
+  // single-page modification rail and produced 1 dashboard instead of full
+  // workflow apps.
+  it.each([
+    'Build a B2B logistics dispatcher for refrigerated freight carriers.',
+    'Build a clinic scheduler for multi-location dermatology practices.',
+    'Build construction punch-list software for field supervisors on commercial projects.',
+    'Create a fleet tracker for last-mile delivery operations.',
+    'Make a property manager tool for short-term rentals.',
+    'Build a SOC monitor for security operations teams.',
+    'Build a custom service for restaurant inventory.',
+  ])('triggers on domain-specific app type: %s', msg => {
+    expect(isMultiPageRequest(msg)).toBe(true)
+  })
+
+  it.each([
+    'Build a logistics dispatcher. Core entities: loads, lanes, carriers.',
+    'Make this thing. Primary workflows: tender, accept, deliver, settle.',
+    'Add a Workflows: A, B, C sidebar to the dashboard',
+    'Main features: routing, tracking, settlement.',
+  ])('triggers on structural workflow/entities prompt signal: %s', msg => {
+    expect(isMultiPageRequest(msg)).toBe(true)
+  })
+
+  it.each([
+    'add a delete button to the dashboard',
+    'fix typo on landing page',
+    'change card color to blue',
+    'remove the avatar from the header',
+  ])('does NOT trigger on trivial single-page modification: %s', msg => {
+    expect(isMultiPageRequest(msg)).toBe(false)
+  })
 })
 
 describe('withRequestTimeout', () => {
