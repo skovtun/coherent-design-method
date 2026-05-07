@@ -427,6 +427,40 @@ These three are also at the highest-confidence end of the validator's coverage. 
 **Methodology note:** Both PJ-013 and PJ-014 surfaced via stratified benchmark scan (logistics + clinic + legal + construction prompts), not single-app dogfood. n=1 sample on `test-projector` (CDM's strongest training territory) hid both bugs. R7 in IDEAS_BACKLOG codifies the benchmark methodology going forward.
 
 ---
+id: PJ-015
+type: bug
+confidence: verified
+status: resolved
+date: 2026-05-07
+fixed_in: [0.19.0]
+evidence: [repo:///tmp/coherent-bench-20260506-161120/logistics-dispatch/]
+---
+
+### PJ-015 — Mutating buttons ship without disabled={...} (double-submit hazard)
+
+**Observed:** Same 2026-05-06 stratified benchmark scan that produced PJ-014 also turned up a state-design gap. Across 171 .tsx files in 3 generated apps (logistics-dispatch 72 + test-projector 64 + 35-file pilot):
+- **0 instances** of `disabled={...}` on any button
+- **0 instances** of `useTransition` / `useOptimistic` / `startTransition`
+
+Every form submit, every async-onClick action, every mutating button shipped without click-guard. Real-world impact: users double-submit, creating duplicate orders / charges / records on every demo run.
+
+**Root cause:** No validator rule. `INTERACTION_PATTERNS` already had soft guidance ("set disabled={loading}") but no enforcement, so the AI optimized away the cost (extra state hook = more code to hand-write) and shipped the page without it. Pure prose constraints don't override AI's bias toward concise output.
+
+**Why F11, not F12:** F11 (`disabled={...}` on mutating buttons) is regex-detectable with low false-positive risk. F12 (`useOptimistic` coverage, also 0/171) needs domain classifier — a static marketing form shouldn't false-fire — and is gated on R7 measurement. F11 ships first as the high-confidence shippable.
+
+**Fix shipped (v0.19.0):** Add validator rule `BUTTON_NO_DISABLED_ON_MUTATING` at `severity: 'error'`. Detects two mutation signals:
+1. Inline async onClick: `<Button onClick={async () => ...}>` 
+2. Submit button in a form with onSubmit: `<Button type="submit">` + page contains `onSubmit={...}`
+
+Skip cases (false-positive guard): `variant="link"`, `asChild` (Link wrapper), already-has-`disabled=`, explicit `data-no-disable-needed` opt-out. Tag scanner walks brace/string depth so JSX expressions like `onClick={() => x > 0}` don't truncate the captured attrs (the v0.13.10 corruption hazard). Bails silently if the tag never closes.
+
+Constraints update: rewrote the LOADING STATES section in `INTERACTION_PATTERNS` to be a HARD RULE with two canonical patterns (useTransition + local pending flag) and explicit reference to the validator. Soft prose → enforced contract.
+
+**Tests:** 11 new unit tests cover both mutation signals + each skip case + lowercase `<button>` + balance-guard edge case. Validator suite 291 → 302. Full suite 2113 → 2124.
+
+**Cost trade-off:** AI fix loop adds 1 extra retry on affected pages. False positive on unusual fire-and-forget patterns; opt-out attribute available. Net: every shipping app gets click-guard for free.
+
+---
 
 ## How to add a new entry
 
