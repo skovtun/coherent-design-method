@@ -58,6 +58,7 @@ import { chatCommand } from './commands/chat.js'
 import { promptCommand } from './commands/prompt.js'
 import { extractCommand } from './commands/extract.js'
 import { scanCommand } from './commands/scan.js'
+import { clusterCommand } from './commands/cluster.js'
 import { memoryShowCommand, memoryDiffCommand } from './commands/memory.js'
 import { previewCommand } from './commands/preview.js'
 import { exportCommand } from './commands/export.js'
@@ -431,6 +432,16 @@ program
   .option('--adapter <name>', 'Stack adapter — only "blade" in B-1', 'blade')
   .option('--json', 'Print evidence JSON to stdout instead of writing a file')
   .action((dir: string | undefined, opts) => scanCommand(dir, opts))
+
+program
+  .command('cluster')
+  .description(
+    'Cluster scan evidence and emit DRAFT COHERENT-DESIGN.md (Tool 2 beta, B-2a = deterministic --no-llm only)',
+  )
+  .argument('<evidence.json>', 'Path to evidence JSON produced by `coherent scan`')
+  .option('--out <file>', 'Write COHERENT-DESIGN.md to file (default: COHERENT-DESIGN.md)')
+  .option('--no-llm', 'Skip LLM labeling (REQUIRED in B-2a — LLM labeler lands in B-2b)')
+  .action((evidence: string, opts) => clusterCommand(evidence, opts))
 
 // Wiki maintenance — only meaningful when running inside the Coherent source
 // repo (operates on docs/wiki/*). Hidden for generated projects.
