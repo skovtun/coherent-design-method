@@ -57,6 +57,7 @@ import { authStatusCommand, authSetKeyCommand, authUnsetKeyCommand } from './com
 import { chatCommand } from './commands/chat.js'
 import { promptCommand } from './commands/prompt.js'
 import { extractCommand } from './commands/extract.js'
+import { scanCommand } from './commands/scan.js'
 import { memoryShowCommand, memoryDiffCommand } from './commands/memory.js'
 import { previewCommand } from './commands/preview.js'
 import { exportCommand } from './commands/export.js'
@@ -421,6 +422,15 @@ program
   .option('--no-headless', 'Show the browser window (debugging)')
   .option('--semantic', 'Run semantic LLM pass (role inference + voice + density). Needs ANTHROPIC_API_KEY.')
   .action((url: string, opts) => extractCommand(url, opts))
+
+program
+  .command('scan')
+  .description('Audit existing project for design drift (Tool 2 beta, B-1 = Blade L1 grep only)')
+  .argument('[dir]', 'Project root to scan (default: CWD)')
+  .option('--out <file>', 'Write evidence JSON to file (default: B1-EVIDENCE.json)')
+  .option('--adapter <name>', 'Stack adapter — only "blade" in B-1', 'blade')
+  .option('--json', 'Print evidence JSON to stdout instead of writing a file')
+  .action((dir: string | undefined, opts) => scanCommand(dir, opts))
 
 // Wiki maintenance — only meaningful when running inside the Coherent source
 // repo (operates on docs/wiki/*). Hidden for generated projects.
