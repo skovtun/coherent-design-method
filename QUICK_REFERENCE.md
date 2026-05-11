@@ -47,6 +47,10 @@ coherent extract <url> --out -   # Write JSON payload to stdout (file path also 
 coherent extract <url> --settle-ms 1500  # Extra wait after networkidle for late-firing animations (Lottie/fade-ins)
 coherent extract <url> --semantic # Add LLM role inference + voice + density (needs ANTHROPIC_API_KEY)
 coherent extract <url> --no-headless  # Show browser window (debugging)
+coherent scan [dir]              # Tool 2 (B-1 beta) — Blade L1 grep extractor → B1-EVIDENCE.json
+coherent scan [dir] --out file --adapter blade --json  # B-1 flags (json prints to stdout)
+coherent cluster <evidence.json> --no-llm  # Tool 2 (B-2a beta) — deterministic clustering → COHERENT-DESIGN.md (DRAFT). LLM labeler lands in B-2b.
+coherent cluster <evidence.json> --no-llm --out path  # B-2a flags. --no-llm REQUIRED in B-2a.
 ```
 
 ## v0.19.0 — `coherent extract` (Tool 1, beta)
