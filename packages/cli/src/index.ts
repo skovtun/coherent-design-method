@@ -435,12 +435,15 @@ program
 
 program
   .command('cluster')
-  .description(
-    'Cluster scan evidence and emit DRAFT COHERENT-DESIGN.md (Tool 2 beta, B-2a = deterministic --no-llm only)',
-  )
+  .description('Cluster scan evidence and emit DRAFT COHERENT-DESIGN.md (Tool 2 beta)')
   .argument('<evidence.json>', 'Path to evidence JSON produced by `coherent scan`')
   .option('--out <file>', 'Write COHERENT-DESIGN.md to file (default: COHERENT-DESIGN.md)')
-  .option('--no-llm', 'Skip LLM labeling (REQUIRED in B-2a — LLM labeler lands in B-2b)')
+  .option('--no-llm', 'Skip LLM labeling, use deterministic labels only')
+  .option('--yes', 'Skip the cost-confirmation prompt before LLM calls (required in CI)')
+  .option('--strict-llm', 'Fail if LLM cannot label every cluster (no deterministic fallback)')
+  .option('--no-cache', 'Skip the project-local label cache (.coherent/cache/labels.json)')
+  .option('--design <file>', 'Path to DESIGN.md for weak context (default: ./DESIGN.md if present)')
+  .option('--eval <file>', 'Evaluate output against expected-labels.json (rerunnable QA gate)')
   .action((evidence: string, opts) => clusterCommand(evidence, opts))
 
 // Wiki maintenance — only meaningful when running inside the Coherent source
