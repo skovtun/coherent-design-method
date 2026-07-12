@@ -5,9 +5,9 @@
 > Coherent's job is to make that impossible — by encoding design decisions
 > as a tiered constraint system that runs before the AI writes a single line of code.
 
-**Current version:** 0.14.4
+**Current version:** 0.19.0
 **Packages:** `@getcoherent/core` + `@getcoherent/cli` (published together, same version)
-**Tests:** 1691 passing
+**Tests:** 2276 passing
 
 ---
 
@@ -61,7 +61,7 @@ Never modify selectContextualRules() without discussing the change first.
 ```bash
 pnpm install                    # Install dependencies
 npm run build                   # Build all packages (tsup)
-npx vitest run                  # Run all 686 tests
+npx vitest run                  # Run all 2276 tests
 npx tsc --noEmit -p packages/cli/tsconfig.json   # TypeScript check
 npx prettier --check 'packages/*/src/**/*.{ts,tsx}'  # Format check
 ```
@@ -303,7 +303,7 @@ To affect both: put it in constraints AND mirror in a skill.
 
 ```
 packages/cli/src/agents/
-  design-constraints.ts    — 1343 lines, all UI rules (MOST IMPORTANT)
+  design-constraints.ts    — 1574 lines, all UI rules (MOST IMPORTANT)
   modifier.ts              — prompt assembly, project context reader
   page-templates.ts        — page type detection, auth/marketing routing
 
