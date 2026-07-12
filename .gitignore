@@ -64,3 +64,4 @@ examples/*/.next/
 .playwright-mcp/
 .claude/scheduled_tasks.lock
 .gstack/
+.context/
