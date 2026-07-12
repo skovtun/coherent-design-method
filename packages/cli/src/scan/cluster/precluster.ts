@@ -2,7 +2,7 @@
  * Deterministic pre-clustering. v0 = exact token-set match only.
  *
  * Token-level Jaccard near-dup merge with same-prefix guardrail is a
- * follow-up — exact-match alone gave 938 clusters on logbaza (104 files,
+ * follow-up — exact-match alone gave 938 clusters on the pilot Blade app (104 files,
  * 2855 rows), which is well within Sonnet chunked-batch budget. Add
  * Jaccard only if cluster count becomes a real LLM cost or review burden.
  * See codex consult 2026-05-11 Q2.

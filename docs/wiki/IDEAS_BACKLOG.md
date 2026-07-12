@@ -129,6 +129,64 @@ Prefix clusters: `F` features · `M` meta-architecture · `N` nice-to-haves · `
 
 Each `###` block below is an indexable entry (wiki-index.ts scans `###` headings). Frontmatter above each heading supplies id/status/target/date for retrieval weighting and filtering.
 
+> **Triage 2026-07-11** (annotation, not rewrite — per append-only principle). Many `open` items still carry `target: v0.7.20/21` — that's ~3 months stale as of v0.19.0. Recommended dispositions below; frontmatter left intact until a human confirms each call:
+>
+> - **R4** — RESOLVED this session (verified live). Moved to `status: resolved` above with evidence.
+> - **Still valid, worth scheduling** (recommend keeping open, retargeting to vNext): **M3** auto-retry on validator fire (cheap, high-leverage), **F9** deterministic StatsChart (CHART_PLACEHOLDER autofix is still only cosmetic), **W1** retrieval telemetry (now the natural follow-up to R4 — proves whether injected memory *influences* output), **M6** prompt caching (seam friction dropped now that Tool 2 built a fresh Anthropic provider).
+> - **Valid but dep-blocked** (keep, but note the gate): **M2** AST validator (needs ts-morph vs Babel call, ~500KB dep), **M10/M11/M12** (Playwright/axe deps).
+> - **Likely superseded — verify then reject/close**: **W2** wiki stale-entry detector (much may already be covered by `coherent wiki audit` — confirm overlap before building), **F10** plan-retrofit `usedBy` (check whether v0.11 `buildSidebarNavItems` / reuse-planner work already closed the PJ-007 root cause).
+> - **Nice-to-have, no urgency**: **N2** `coherent diff`, **J1** `journal reflect`, **A1** ADR CI lint.
+> - **Strategic direction** (the real "copy styles" answer, see review): **R9** reference retrieval + **R8** structured anchor — both gated on **R7** benchmark harness for honest measurement. R7 is the unlock for grounding all of the above in data instead of vibes.
+
+---
+id: R10
+type: idea
+status: open
+target: before flipping `--llm` to default
+effort: 3-4h
+date: 2026-07-11
+confidence: verified
+---
+
+### R10 — B-2b eval gate: context-authored ground truth (the eval is the weak link, not the labeler)
+
+**Source:** First real B-2b eval run, 2026-07-11 — 109-file Blade app, 1077 clusters, ~$2.26, 21.5 min. Raw gate came back `BLOCKED` (2/23 pass, 21 major). Manual inspection of all 21 "failures": **true mislabels ≈ 0-2.** The gate failed for two structural reasons, not label quality:
+
+1. **Token-only ground truth vs context-aware labels.** `expected.json` `acceptable_labels` were authored from *token signatures alone*; the LLM labels from *code samples + DESIGN.md*. Context-derived labels are richer than any token-only guess and still miss — e.g. cluster `grid grid-cols-a1a` → LLM `"Label-Dotted-Line-Value Row"` (semantically correct, `a1a` = auto/1fr/auto = label|leader|value) vs my shallow `"Grid Layout"`.
+2. **Exact-string match punished phrasing variance.** `"Form Input Field"` vs accepted `"Form Field"`, `"App Layout Shell"` vs `"App Layout"`, `"Muted Caption Text"` vs `"Muted Caption"` — all counted major.
+
+**Shipped partial fix (2026-07-11):** `eval.ts` `matchesAny` is now fuzzy — exact OR phrase-superset OR token-Jaccard ≥ 0.6. Rescues phrasing variance without rescuing genuinely-different labels ("Wrong" vs "Correct" still fail). 3 new eval tests.
+
+**Still open (the real fix):** fuzzy match is necessary but NOT sufficient — the gate stays conceptually blocked because ground truth is still token-derived. A valid gate needs `acceptable_labels` authored from the SAME context the LLM sees (human review of real usage, or an LLM-judge scoring semantic adequacy against the code sample), per codex's original "human curates expected.json" intent. Until then, `--llm` stays opt-in (also correct on cost-footgun grounds — see CHANGELOG). Re-run costs ~$2.26; do it once after the ground-truth authoring is fixed.
+
+**Target:** before any future attempt to flip `--llm` to default.
+
+---
+id: F13
+type: idea
+status: open
+target: B-2c / next cluster prompt revision
+effort: 1-2h
+date: 2026-07-11
+confidence: observed
+---
+
+### F13 — LLM over-specializes high-frequency generic utility clusters
+
+**Source:** Same 2026-07-11 B-2b run. The one genuine label-quality signal (vs the eval-methodology noise in R10): the labeler names a **high-occurrence generic utility cluster after a single observed usage context**. Examples:
+
+- `text-grey_light_text` (47 occurrences) → `"Breadcrumb Separator"`
+- `container … text-sm` (23 occurrences) → `"Page Breadcrumb Nav"`
+- plus two more breadcrumb-themed labels on generic flex/text utilities.
+
+Breadcrumbs are genuinely pervasive in the pilot app (28 files, NOT a DESIGN.md hallucination — DESIGN.md has 0 "breadcrumb" mentions), so the LLM saw real breadcrumb usage. But a class used 47× across the app is almost certainly generic muted text used in many contexts; naming the whole cluster after one usage is too narrow.
+
+**Proposal:** in the cluster-labeling prompt, add guidance: for clusters with high occurrence count (or many distinct source files), prefer the **general role** over a specific usage-derived name — reserve specific/semantic names for low-occurrence, single-context clusters. Occurrence count and file-spread are already in the cluster signature, so this can be conditioned deterministically in the prompt.
+
+**Blocker:** validate against R10's fixed eval so we don't tune the prompt against a broken measurement.
+
+**Target:** B-2c or the next cluster prompt revision, after R10.
+
 ---
 id: M15F
 type: idea
@@ -715,11 +773,12 @@ Hex → OKLCH for perceptual uniformity. Currently in globals.css only; could ex
 ---
 id: R4
 type: idea
-status: open
+status: resolved
 target: v0.7.22
 effort: 30min
 date: 2026-04-19
-confidence: observed
+verified_date: 2026-07-11
+confidence: verified
 ---
 
 ### R4 — Inject `.coherent/wiki/decisions.md` into every chat call
@@ -727,6 +786,14 @@ confidence: observed
 Already exists; currently under-used for styling consistency. Could inject into every chat call's prompt — closes per-project design memory loop.
 
 **Why:** Design-memory system shipped v0.6.77 but integration with retrieval layer (v0.7.3-4) isn't verified end-to-end. Confirming it feeds the prompt unblocks the per-project loop.
+
+**Resolved (2026-07-11) — VERIFIED LIVE end-to-end.** Traced the full loop in the live `coherent chat` path:
+- **Write:** `split-generator.ts:1040-1041` → `extractDecisionsFromCode(finalPageCode)` → `appendDecisions(...)` → `utils/design-memory.ts:100-110` writes `.coherent/wiki/decisions.md` (best-effort try/catch, won't abort generation).
+- **Read + inject:** `split-generator.ts:857` reads via `formatMemoryForPrompt(readDesignMemory(projectRoot))`, placed as last element of the per-page prompt array at `:969`, assembled into the real `parseModification(...)` AI call at `:976`. Same behavior in the extracted `phase-engine/prompt-builders/page.ts:74,113`.
+- **Second live consumer:** `coherent prompt` (`commands/prompt.ts:60`, injected at `:353-359`).
+- **Timing (correct by design, not a bug):** read happens once before the parallel page loop, so a run injects *prior*-run decisions while appending *current*-run decisions for the next run. Cross-run memory loop is genuinely closed.
+
+No action needed — the loop works. If we want proof it *influences output* (not just that it reaches the prompt), that's **W1** (retrieval hit-rate telemetry), still open.
 
 ---
 id: R5

@@ -4,7 +4,7 @@
  * Per PLAN.md Phase B-1: walks line by line, emits raw EvidenceRow per
  * match. Multi-line constructs (class strings broken across `\n`,
  * nested @class) are NOT joined in B-1 — open Q4 in MAPPING.md will be
- * answered by test outcomes against logbaza fixtures.
+ * answered by test outcomes against the pilot Blade app's fixtures.
  *
  * Surrounding context = 3 lines before + matched line + 3 lines after,
  * line-numbered. Mirrors the codex-grade evidence-bundle shape so B-2
@@ -27,14 +27,14 @@ const INCLUDE_PARTIAL_RE = /@include\(\s*['"]([^'"]*(?:partials|components)[^'"]
 /**
  * Matches `<x-btn ...>`, `<x-form.input ...>`, `<x-filament::button ...>` —
  * any x-prefixed Blade component. Captures full opening tag for token
- * signature (attributes carry variant info per logbaza convention).
+ * signature (attributes carry variant info per the pilot app's convention).
  */
 const X_COMPONENT_RE = /<x-([\w.:-]+)\b([^>]*)>/
 
 // `@class(...)` is detected via `indexOf('@class(')` + balanced-paren walk,
 // not a regex — see extractAtClassMultiline below. Answers Q1 (MAPPING.md):
-// logbaza has multi-line `@class([\n ... ])` blocks (hos-checker, quick-quote)
-// that line-aware regex misses entirely.
+// the pilot app has multi-line `@class([\n ... ])` blocks (multi-attribute
+// components) that line-aware regex misses entirely.
 
 /**
  * Conditional class via PHP ternary inside `class="..."`. Matches

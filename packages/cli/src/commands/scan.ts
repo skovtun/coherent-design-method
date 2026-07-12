@@ -1,11 +1,11 @@
 /**
  * `coherent scan` — Tool 2 (brownfield audit). Phase B-1 of the pilot
- * per `~/Web/logbaza/source/docs/coherent-pilot/PLAN.md`.
+ * per the Tool 2 pilot PLAN.md.
  *
  * v0 (B-1): Blade-only L1 grep extraction. NO LLM, NO clustering, NO
  * COHERENT-DESIGN.md generation. Just walk → extract → emit JSON
  * evidence. LLM clustering lands in Phase B-2 only if the Evidence
- * Gate passes (≥80% catch / ≤30% FP / <30s on 152-file logbaza).
+ * Gate passes (≥80% catch / ≤30% FP / <30s on a 152-file pilot Blade app).
  *
  * Output sink: writes to <out> path (default `B1-EVIDENCE.json` in
  * CWD) and prints a one-line summary to stderr. Errors via

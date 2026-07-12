@@ -11,6 +11,61 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [Unreleased] — Tool 2 v0 (B-2b: LLM labeler)
+
+### Added — `coherent cluster --llm` (Tool 2 beta, B-2b)
+
+Sonnet 4.6 labels cluster signatures into human-readable, design-system-style names. Drops into the producer slot of the existing serializer — deterministic and LLM paths emit the same `LabeledCluster[]` shape.
+
+```bash
+coherent scan ~/code/some-laravel-app
+coherent cluster B1-EVIDENCE.json                          # deterministic (default)
+coherent cluster B1-EVIDENCE.json --llm                    # LLM labeling (opt-in, paid)
+coherent cluster B1-EVIDENCE.json --llm --yes              # skip cost prompt (required in CI)
+coherent cluster B1-EVIDENCE.json --llm --strict-llm       # fail if any cluster falls back
+coherent cluster B1-EVIDENCE.json --llm --eval expected.json  # rerunnable QA gate
+```
+
+> **LLM labeling is OPT-IN (`--llm`), not default.** Reverted from default-on after the
+> first real eval run (2026-07-11, 109-file Blade app, 1077 clusters, ~$2.26): the gate
+> came back `BLOCKED` (2/23 pass). On inspection the labels were mostly *correct* — the
+> failure was a **miscalibrated eval**, not bad labeling: `acceptable_labels` were authored
+> from token signatures alone while the LLM labels from code context, and exact-string match
+> punished benign phrasing variance. `eval.ts` match is now fuzzy (superset + token-Jaccard
+> ≥ 0.6), but the gate stays conceptually blocked until ground truth is authored from the
+> same context the LLM sees. Separately, an on-by-default *paid* operation is a cost footgun —
+> opt-in is the right CLI default regardless. Flip back to default-on only once a valid eval
+> passes major ≤ 20%. See IDEAS_BACKLOG (eval-methodology + label over-specialization findings).
+
+**Codex pre-implementation consult (10 Qs + 4 add-ons) drove the design:**
+
+- **Stateless chunked calls** with 2 inline exemplars. No conversation state — every chunk is independently retryable and cacheable.
+- **Token-budget chunking** (50 clusters soft cap, 45K input tokens / chunk, 60K hard cap). Fixed-count splits broke when an `inline_classes` cluster had 80+ tokens × 3 long snippet samples.
+- **3-attempt repair ladder** per chunk: full → full-repair (with itemized missing/extra/dup/invalid sub-context) → subset-repair on the still-unresolved IDs → deterministic fallback at confidence 0.35.
+- **Project-local cache** at `.coherent/cache/labels.json`. Key = `{cluster_id, signature_hash, prompt_version, model_id, design_hash}`. Any drift invalidates. No global cache — labels are project-contextual.
+- **Cost banner** before the first SDK call: cache hit/miss split, chunk count, estimated input/output tokens, dollar estimate using Sonnet pricing ($3/$15 per MTok). CI without `--yes` fails loudly; never spend money silently.
+- **Strict output schema** via Anthropic tool_use. `human_label` (required, 2-60 chars, no trailing period), `confidence` (required, [0,1]), `suggested_role` (optional, lowercase `dot.case`). No controlled vocabulary in v0 — not enough taxonomy evidence.
+- **`temperature: 0`, exact `MODEL_ID = 'claude-sonnet-4-6'` pin.** Cache stability beats prettier labels. Provenance lives in cache sidecar + summary line; the `LabeledCluster` interface stays locked.
+- **Thin provider seam.** `LabelProvider` interface + single Anthropic implementation.
+- **Privacy preflight (Q11).** Detect-and-warn for obvious secrets/PII (emails, JWT, AWS keys, `api_key=...`) before sending. No auto-redaction — silently mangling context degrades label quality without a loud signal.
+- **Stability test (Q13).** Two cache-disabled runs over the same evidence produce identical labels.
+- **Mixed-source on partial failure (Q12).** Deterministic fallback at 0.35 confidence for clusters the LLM cannot label, unless `--strict-llm` is set.
+- **Rerunnable eval (Q10).** `--eval <expected.json>` scores major (wrong label) vs minor (wrong role only). Gate: major >20% blocks flipping `--llm` to default; major+minor >35% requires prompt revision.
+
+**Cost anchor:** ~1000 clusters → 20 calls × ~37K input each ≈ $2.20 input + $0.75 output → **~$3 per full run** on a 100-file Blade codebase.
+
+**99 new tests, 2276 total passing.** Covers all three repair attempts, cache hit/miss, design-hash invalidation, strict-llm path, and SDK-throws recovery.
+
+**Deferred to follow-ups:**
+
+- ADR-0009 (Coherent scan subsystem — B-1 + B-2 + Blade adapter contract).
+- Promotion of cluster errors to `CoherentError` slots E009/E010.
+- `coherent scan --cluster` flag piping scan → cluster in one command.
+- Global cache, controlled role vocabulary, majority voting, Anthropic token-counting API, multi-provider config (codex Q-cuts).
+- B-2c — conservative DRIFT-REPORT.md emitter.
+
+---
+
 ## [0.19.0] — 2026-05-07
 
 ### Added — `coherent extract` (Tool 1, beta) + F11 click-guard validator
