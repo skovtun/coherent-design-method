@@ -3,7 +3,7 @@
  * Coverage target: 90%+ branch on grep-blade.ts (PLAN.md §371).
  *
  * Fixtures are tiny synthetic .blade.php files in __fixtures__/.
- * Real-world fixtures (logbaza 30-50 files) land in B-2 snapshot tests.
+ * Real-world fixtures (pilot Blade app, 30-50 files) land in B-2 snapshot tests.
  */
 
 import { describe, expect, it } from 'vitest'

@@ -1,8 +1,8 @@
 /**
  * File traversal for `coherent scan`. Adapted from `commands/check.ts`
  * `findTsxFiles` pattern. Recursive, sync, skips dotfiles + standard
- * vendored/build dirs. Performance budget: <30s on 152-file logbaza per
- * PLAN.md gate.
+ * vendored/build dirs. Performance budget: <30s on a 152-file pilot Blade
+ * app per the PLAN.md gate.
  */
 
 import { readdirSync, statSync } from 'fs'
