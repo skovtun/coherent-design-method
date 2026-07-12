@@ -188,6 +188,50 @@ Breadcrumbs are genuinely pervasive in the pilot app (28 files, NOT a DESIGN.md 
 **Target:** B-2c or the next cluster prompt revision, after R10.
 
 ---
+id: F14
+type: idea
+status: open
+target: vNext, AFTER R10 + B-2c (codex sequencing verdict)
+effort: ~1 week (v1 codex-cut scope; full original scope was 3-4 weeks)
+date: 2026-07-12
+confidence: codex-gated (GO-WITH-CHANGES, 2026-07-12)
+---
+
+### F14 — DESIGN.md as INPUT: Stitch-format import (`coherent import design`)
+
+**Source:** 2026-07-12 review of `voltagent/awesome-design-md` (101k stars, #150 on GitHub, MIT): 73 DESIGN.md files extracted from real brand sites (Linear, Stripe, Vercel...). DESIGN.md is Google Stitch's concept — a plain-markdown design system that AI agents read — and is becoming a de-facto standard.
+
+**Gap:** v0.18 (ADR-0008) ships DESIGN.md as OUTPUT only. Input is URL-only via `coherent extract`. Missing piece: parse an external Stitch-format DESIGN.md into coherent tokens (atmosphere seed).
+
+**Why on-thesis (vs the rejected 21st.dev integration, 2026-07-11):** 21st.dev = raw markup → re-imports slop, bypasses the validator. awesome-design-md = design DECISIONS (color/typography/spacing tokens + prose rationale) — exactly what `extract` already treats as first-class input. The corpus is pre-extracted, MIT, community-maintained.
+
+**v1 scope (codex-cut, GO-WITH-CHANGES 2026-07-12):**
+1. Standalone `coherent import design <file>` with mandatory `--dry-run` support. NO `coherent chat --design` in v1 — codex finding: `Atmosphere` carries only coarse descriptors + `primaryHint` (`split-generator.ts:525`); an exact imported palette routed through chat would be silently discarded while appearing to work.
+2. Dedicated partial `ImportedDesignSeed` schema — do NOT force Stitch data through `ExtractedDesignTokensSchema` (`url-extract/types.ts:232` requires ~20 categories Stitch lacks: shadows, motion, breakpoints, focus rings...).
+3. Colors + font-family ONLY in v1. Keep existing spacing/radius/status colors/dark theme unless explicitly present in the file. Excluded from v1: dark-mode synthesis, role-scale typography mapping (their per-role px → our fixed `xs`–`4xl` is lossy/ambiguous), prose interpretation.
+4. Import = atomic config patch + CSS regeneration into an initialized project (backup + diff; do not silently use cwd like the Figma importer).
+5. Mandatory mapping/repair report: imported / mapped / synthesized / dropped / repaired per token. Minimum-usable-fields threshold — fail nonzero below it ("fail soft per-section" alone can report success after importing nothing).
+6. Safe YAML: no custom tags/aliases/merge bombs, file-size + depth limits.
+
+**Codex reuse-claim corrections (encode before implementing):**
+- `token-normalizer.ts:172` dedupes already-structured tokens — it does NOT map external names, complete missing tokens, derive themes, or validate contrast. New adapter code, not reuse.
+- No "extract font fallback policy" exists — extract just records observed font-family strings (`computed-style-extractor.ts:175`). Fallback policy must be designed fresh.
+- Target vocabulary correction: `ColorTokenSchema` (`types/design-system.ts:24`) has no `card`/`surface` tokens — mapping target is `primary/secondary/4 status/background/foreground/muted/border`.
+- Validation gap: Zod checks hex syntax only; no WCAG contrast validation between token pairs exists; foreground derivation is a crude luminance threshold (`tailwind-version.ts:42`). Contrast repair policy (reject / repair / warn) is an open product decision — silent correction destroys fidelity, acceptance breaks the AA claim.
+
+**Deferred (were in the original sketch):**
+- `coherent chat --design` — needs a real exact-token injection path first (post-v1).
+- Output alignment with the Stitch shape — separate project, NOT bundled. Codex: two different serializers already exist (`cli/utils/design-md.ts:19` vs `core/url-extract/design-md-serializer.ts:40`); changing output during R10/B-2c would mutate cluster prompt context mid-evaluation; the listing/distribution upside is speculative.
+
+**What NOT to do:** don't vendor the 73 files into this repo — trade-dress gray zone on brand styles, staleness, and MIT-on-the-repo ≠ rights to a brand's design language. Users bring their own file; publication risk stays with VoltAgent/the user.
+
+**Sequencing:** after [[R10]] and B-2c (avoid changing DESIGN.md context mid-evaluation).
+
+**Source:** 2026-07-12 codex pre-implementation consult (session `019f585a`, ~1.13M tokens), verdict GO-WITH-CHANGES. Original 1-2 week estimate judged dishonest for full scope (3-4 weeks); v1 cut ≈ 1 week.
+
+**Target:** vNext, after R10 + B-2c.
+
+---
 id: M15F
 type: idea
 status: open
@@ -1017,6 +1061,8 @@ Refero.styles is positioned as the strategic threat — they sell **real product
 **Why important enough to track:** Per codex, this is the **highest-leverage anti-slop move** — but we can't ship it cheaply. Document as the long-term direction so we don't drift toward incremental fixes that miss the strategic threat.
 
 **Source:** Session 2026-05-06 codex consult flagged Refero as the most strategically relevant competitor (more so than v0 / Aura / Galileo).
+
+> **Update 2026-07-12:** the "reference corpus curation" economics changed. `voltagent/awesome-design-md` (101k stars, MIT) provides 73 brand-extracted DESIGN.md files, community-maintained — a design-DECISIONS corpus (tokens + prose), not screens. It does not replace R9's screen-level retrieval, but an F14-style DESIGN.md import gives a cheap R9-lite: retrieval-by-user-choice (the user picks the seed file) with zero curation cost and no legal exposure on our side. Also note Google Stitch pushing DESIGN.md as a standard changes the competitive frame R9 was written in (Refero's DESIGN.md output is now one of several). R9 stays deferred; re-evaluate scope after [[F14]].
 
 ---
 id: F11
