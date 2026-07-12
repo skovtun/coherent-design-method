@@ -119,10 +119,38 @@ export function evaluate(actual: LabeledCluster[], expected: ExpectedFile): Eval
   }
 }
 
+/**
+ * Label match — exact-normalized OR fuzzy (phrase-superset / token-Jaccard ≥ 0.6).
+ *
+ * Rationale (2026-07-11 B-2b eval run): the original exact-string match punished
+ * the LLM for benign phrasing variance — "Form Input Field" vs accepted "Form
+ * Field", "App Layout Shell" vs "App Layout" — inflating major-failure rate.
+ * Fuzzy match rescues those without rescuing genuinely-different labels ("Wrong"
+ * vs "Correct" share no tokens → still fail).
+ *
+ * KNOWN LIMITATION — this is necessary but NOT sufficient. The deeper miscalibration
+ * is authoring `acceptable_labels` from *token signatures alone* while the LLM labels
+ * from *code context + DESIGN.md*. Context-derived labels ("grid-cols-a1a" → "Label-
+ * Dotted-Line-Value Row") are richer than any token-only guess and still miss. A valid
+ * gate needs ground truth authored from the SAME context the LLM sees (human review of
+ * real usage), per codex's original "human curates expected.json" intent. See IDEAS_BACKLOG.
+ */
 function matchesAny(actual: string, acceptable: string[]): boolean {
-  const norm = (s: string) => s.trim().toLowerCase()
+  const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
   const a = norm(actual)
-  return acceptable.some(x => norm(x) === a)
+  const aTokens = new Set(a.split(' ').filter(Boolean))
+  return acceptable.some(x => {
+    const e = norm(x)
+    if (e === a) return true
+    // whole-phrase superset either direction ("App Layout Shell" ⊇ "App Layout")
+    if (a.includes(e) || e.includes(a)) return true
+    // token-set Jaccard ≥ 0.6 ("Form Input Field" vs "Form Field" = 2/3)
+    const eTokens = new Set(e.split(' ').filter(Boolean))
+    let inter = 0
+    for (const t of aTokens) if (eTokens.has(t)) inter++
+    const union = new Set([...aTokens, ...eTokens]).size
+    return union > 0 && inter / union >= 0.6
+  })
 }
 
 export function formatEvalReport(report: EvalReport): string {

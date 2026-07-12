@@ -98,6 +98,26 @@ describe('evaluate', () => {
     expect(report.pass).toBe(2)
   })
 
+  it('fuzzy-matches phrase supersets ("App Layout Shell" ⊇ "App Layout")', () => {
+    const exp: ExpectedFile = { clusters: [{ cluster_id: 'a', acceptable_labels: ['App Layout'] }] }
+    const report = evaluate([labeled('a', 'App Layout Shell')], exp)
+    expect(report.major_failures).toBe(0)
+    expect(report.pass).toBe(1)
+  })
+
+  it('fuzzy-matches high token overlap ("Form Input Field" vs "Form Field")', () => {
+    const exp: ExpectedFile = { clusters: [{ cluster_id: 'a', acceptable_labels: ['Form Field'] }] }
+    const report = evaluate([labeled('a', 'Form Input Field')], exp)
+    expect(report.major_failures).toBe(0)
+  })
+
+  it('still fails genuinely different labels (fuzzy does not over-rescue)', () => {
+    // "Breadcrumb Link" vs "Hover Link" share only "link" → Jaccard 1/3 < 0.6 → major.
+    const exp: ExpectedFile = { clusters: [{ cluster_id: 'a', acceptable_labels: ['Hover Link'] }] }
+    const report = evaluate([labeled('a', 'Breadcrumb Link')], exp)
+    expect(report.major_failures).toBe(1)
+  })
+
   it('blocks --llm default when major rate > 20%', () => {
     const exp: ExpectedFile = {
       clusters: Array.from({ length: 10 }, (_, i) => ({

@@ -67,7 +67,9 @@ describe('coherent cluster', () => {
     const prior = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY')
     Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: false })
     try {
-      await expect(clusterCommand(inputPath, { out: path.join(tmpDir, 'out.md') })).rejects.toThrow('PROCESS_EXIT')
+      await expect(clusterCommand(inputPath, { llm: true, out: path.join(tmpDir, 'out.md') })).rejects.toThrow(
+        'PROCESS_EXIT',
+      )
       expect(exitSpy).toHaveBeenCalledWith(1)
       const messages = errSpy.mock.calls.map((c: unknown[]) => String(c[0])).join('\n')
       expect(messages).toMatch(/interactive confirmation or `--yes`/)
@@ -84,7 +86,7 @@ describe('coherent cluster', () => {
     delete process.env.ANTHROPIC_API_KEY
     try {
       await expect(
-        clusterCommand(inputPath, { out: path.join(tmpDir, 'out.md'), yes: true, cache: false }),
+        clusterCommand(inputPath, { llm: true, out: path.join(tmpDir, 'out.md'), yes: true, cache: false }),
       ).rejects.toThrow('PROCESS_EXIT')
       const messages = errSpy.mock.calls.map((c: unknown[]) => String(c[0])).join('\n')
       expect(messages).toMatch(/ANTHROPIC_API_KEY/)
@@ -103,6 +105,22 @@ describe('coherent cluster', () => {
     expect(md).toContain('# Coherent Design (DRAFT)')
     expect(md).toContain('DRAFT — auto-generated from code')
     expect(md).toContain('lb-label-cluster-')
+  })
+
+  it('defaults to deterministic (LLM is opt-in) — no API key needed without --llm', async () => {
+    const inputPath = path.join(tmpDir, 'evidence.json')
+    const outPath = path.join(tmpDir, 'COHERENT-DESIGN.md')
+    writeFileSync(inputPath, JSON.stringify(sampleScanOutput))
+    const prior = process.env.ANTHROPIC_API_KEY
+    delete process.env.ANTHROPIC_API_KEY
+    try {
+      // No `llm` flag at all → must NOT hit the LLM path or require a key.
+      await clusterCommand(inputPath, { out: outPath })
+      expect(existsSync(outPath)).toBe(true)
+      expect(readFileSync(outPath, 'utf8')).toContain('# Coherent Design (DRAFT)')
+    } finally {
+      if (prior) process.env.ANTHROPIC_API_KEY = prior
+    }
   })
 
   it('errors when evidence file is missing', async () => {

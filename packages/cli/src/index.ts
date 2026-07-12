@@ -438,7 +438,7 @@ program
   .description('Cluster scan evidence and emit DRAFT COHERENT-DESIGN.md (Tool 2 beta)')
   .argument('<evidence.json>', 'Path to evidence JSON produced by `coherent scan`')
   .option('--out <file>', 'Write COHERENT-DESIGN.md to file (default: COHERENT-DESIGN.md)')
-  .option('--no-llm', 'Skip LLM labeling, use deterministic labels only')
+  .option('--llm', 'Enable LLM labeling (opt-in, paid; deterministic labels by default)')
   .option('--yes', 'Skip the cost-confirmation prompt before LLM calls (required in CI)')
   .option('--strict-llm', 'Fail if LLM cannot label every cluster (no deterministic fallback)')
   .option('--no-cache', 'Skip the project-local label cache (.coherent/cache/labels.json)')

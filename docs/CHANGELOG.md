@@ -19,12 +19,23 @@ Sonnet 4.6 labels cluster signatures into human-readable, design-system-style na
 
 ```bash
 coherent scan ~/code/some-laravel-app
-coherent cluster B1-EVIDENCE.json                          # LLM is default
-coherent cluster B1-EVIDENCE.json --no-llm                 # deterministic only
-coherent cluster B1-EVIDENCE.json --yes                    # skip cost prompt (required in CI)
-coherent cluster B1-EVIDENCE.json --strict-llm             # fail if any cluster falls back
-coherent cluster B1-EVIDENCE.json --eval expected.json     # rerunnable QA gate
+coherent cluster B1-EVIDENCE.json                          # deterministic (default)
+coherent cluster B1-EVIDENCE.json --llm                    # LLM labeling (opt-in, paid)
+coherent cluster B1-EVIDENCE.json --llm --yes              # skip cost prompt (required in CI)
+coherent cluster B1-EVIDENCE.json --llm --strict-llm       # fail if any cluster falls back
+coherent cluster B1-EVIDENCE.json --llm --eval expected.json  # rerunnable QA gate
 ```
+
+> **LLM labeling is OPT-IN (`--llm`), not default.** Reverted from default-on after the
+> first real eval run (2026-07-11, 109-file Blade app, 1077 clusters, ~$2.26): the gate
+> came back `BLOCKED` (2/23 pass). On inspection the labels were mostly *correct* — the
+> failure was a **miscalibrated eval**, not bad labeling: `acceptable_labels` were authored
+> from token signatures alone while the LLM labels from code context, and exact-string match
+> punished benign phrasing variance. `eval.ts` match is now fuzzy (superset + token-Jaccard
+> ≥ 0.6), but the gate stays conceptually blocked until ground truth is authored from the
+> same context the LLM sees. Separately, an on-by-default *paid* operation is a cost footgun —
+> opt-in is the right CLI default regardless. Flip back to default-on only once a valid eval
+> passes major ≤ 20%. See IDEAS_BACKLOG (eval-methodology + label over-specialization findings).
 
 **Codex pre-implementation consult (10 Qs + 4 add-ons) drove the design:**
 

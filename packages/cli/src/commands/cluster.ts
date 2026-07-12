@@ -31,7 +31,14 @@ import { formatRedactionWarning, scanClustersForSecrets } from '../scan/cluster/
 
 export interface ClusterOptions {
   out?: string
-  /** Commander.js maps `--no-llm` to `llm: false`. Default (undefined) = LLM on. */
+  /**
+   * LLM labeling is OPT-IN: only the explicit `--llm` flag enables it.
+   * Default (undefined / false) = deterministic labels, no API spend.
+   * Reverted from default-on (024a6c0) after the B-2b eval gate came back
+   * BLOCKED and — more decisively — because an on-by-default paid operation
+   * is a cost footgun. Flip back to default-on only once the eval harness is
+   * fixed (context-authored ground truth) and re-run passes major ≤20%.
+   */
   llm?: boolean
   yes?: boolean
   strictLlm?: boolean
@@ -86,7 +93,7 @@ export async function clusterCommand(evidencePath: string, opts: ClusterOptions 
   const started = Date.now()
   const clusters = precluster(parsed.rows)
 
-  const llmEnabled = opts.llm !== false
+  const llmEnabled = opts.llm === true
   const useCache = opts.cache !== false
   const projectRoot = parsed.metadata.project_root
   const designResolved = resolveDesignPath(opts.design, projectRoot)
@@ -143,7 +150,7 @@ export async function clusterCommand(evidencePath: string, opts: ClusterOptions 
     if (!process.env.ANTHROPIC_API_KEY) {
       console.error(
         chalk.red(
-          '✗ cluster: ANTHROPIC_API_KEY not set. Pass --no-llm for deterministic-only output, or export the env var.',
+          '✗ cluster: --llm requires ANTHROPIC_API_KEY. Omit --llm for deterministic output, or export the env var.',
         ),
       )
       process.exit(1)
