@@ -138,3 +138,27 @@ Deferred work captured during planning. Each item has enough context to be picke
 **Source:** /plan-eng-review of v0.9.0 skill-mode parity plan, 2026-04-23. Codex premise 6 challenge + revised premise locking.
 
 ---
+
+---
+
+## T3 — Multi-editor install buttons on gallery pages (E2, deferred 2026-07-12)
+
+**What:** "Install for Cursor / Claude Code / Cline" buttons on getcoherent.design gallery pages, emitting per-editor snippets. Builds on T2's adapter research.
+
+**Why:** Widens the gallery funnel to non-Coherent editor users (SparkBites pattern).
+
+**Deferred because:** dilutes the M1 universal generation CTA; belongs with the M5 MCP distribution stage when the primary CTA is already measured. Decision record: `~/.gstack/projects/skovtun-coherent-design-method/ceo-plans/2026-07-12-design-md-platform-play.md`.
+
+**Effort:** M (human ~3-5 days / CC ~1 day). **Priority:** P3 until M5 gate opens. **Depends on:** M1 gate pass, T2.
+
+---
+
+## T4 — "Built with Coherent" opt-out badge/backlink in generated projects (E6, deferred 2026-07-12)
+
+**What:** Optional (opt-out) "Built with Coherent" footer link + DESIGN.md comment in generated projects — compounding backlink/showcase channel ("Made with Framer" pattern).
+
+**Why:** Every deployed user project becomes distribution; grows with the product.
+
+**Deferred because:** touches CLI generation output and user trust; must be decided TOGETHER with the OQ6 telemetry consent policy as one trust package — two consent surfaces shipped separately would double the OSS-community risk.
+
+**Effort:** S (human ~1 day / CC ~hours). **Priority:** P2 inside the OQ6/M0b review. **Depends on:** OQ6 telemetry policy decision.
