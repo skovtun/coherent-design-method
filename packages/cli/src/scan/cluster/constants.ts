@@ -7,10 +7,13 @@
  */
 
 export const MODEL_ID = 'claude-sonnet-4-6' as const
+// v3 (F13.1): precomputed `high_spread` boolean replaces "compare these two
+// numbers to thresholds yourself" — labeler-v2 did not obey the numeric rule
+// consistently (it named a 48x/9-file utility "Block Label Wrapper").
 // v2 (F13): spread metadata (occurrences/distinct_files) + scope rule +
-// 2-4-word label preference + third exemplar. The bump invalidates the whole
-// cache by design — every cluster must be relabeled under the new contract.
-export const PROMPT_VERSION = 'labeler-v2' as const
+// 2-4-word label cap + third exemplar. Each bump invalidates the whole cache
+// by design — every cluster must be relabeled under the new contract.
+export const PROMPT_VERSION = 'labeler-v3' as const
 export const TEMPERATURE = 0 as const
 
 /** Max input tokens per chunk before the chunker splits (codex Q3). */

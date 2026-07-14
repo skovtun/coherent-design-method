@@ -291,6 +291,18 @@ async function runProvider(
       usage.input_tokens += result.usage.input_tokens
       usage.output_tokens += result.usage.output_tokens
     }
+    if (result.truncated) {
+      // Partial tool_use parses fine but under-delivers IDs. Record it —
+      // otherwise it masquerades as "the model ignored those clusters".
+      const info: ProviderErrorInfo = {
+        chunkIndex: errCtx.chunkIndex,
+        totalChunks: errCtx.totalChunks,
+        attempt: errCtx.attempt,
+        message: `output truncated at max_tokens — got ${outputs.length}/${ids.length} labels`,
+      }
+      errCtx.errors.push(info)
+      errCtx.onProviderError?.(info)
+    }
   } catch (err) {
     // Failure still degrades to a missing-everything reconcile report (the
     // repair ladder / fallback own recovery), but the error is RECORDED —

@@ -212,19 +212,27 @@ export function evaluate(actual: LabeledCluster[], expected: ExpectedFile): Eval
  */
 function matchesAny(actual: string, acceptable: string[]): boolean {
   const a = norm(actual)
-  const aTokens = new Set(a.split(' ').filter(Boolean))
+  const aTokens = tokenize(a)
   return acceptable.some(x => {
     const e = norm(x)
     if (e === a) return true
     // whole-phrase superset either direction ("App Layout Shell" ⊇ "App Layout")
     if (a.includes(e) || e.includes(a)) return true
+    const eTokens = tokenize(e)
+    // stemmed token-set superset ("Footer Legal Link List" ⊇ "Footer Legal Links")
+    if (isSuperset(aTokens, eTokens) || isSuperset(eTokens, aTokens)) return true
     // token-set Jaccard ≥ 0.6 ("Form Input Field" vs "Form Field" = 2/3)
-    const eTokens = new Set(e.split(' ').filter(Boolean))
     let inter = 0
     for (const t of aTokens) if (eTokens.has(t)) inter++
     const union = new Set([...aTokens, ...eTokens]).size
     return union > 0 && inter / union >= 0.6
   })
+}
+
+function isSuperset(big: Set<string>, small: Set<string>): boolean {
+  if (small.size === 0) return false
+  for (const t of small) if (!big.has(t)) return false
+  return true
 }
 
 /**
@@ -236,16 +244,43 @@ function matchesAny(actual: string, acceptable: string[]): boolean {
  */
 function matchesAnyGeneric(actual: string, acceptable: string[]): boolean {
   const a = norm(actual)
-  const aTokens = new Set(a.split(' ').filter(Boolean))
+  const aTokens = tokenize(a)
   return acceptable.some(x => {
     const e = norm(x)
     if (e === a) return true
     // actual must be a token-subset of the acceptable label: no extra qualifiers.
-    for (const t of aTokens) {
-      if (!e.split(' ').includes(t)) return false
-    }
-    return aTokens.size > 0
+    return aTokens.size > 0 && isSuperset(tokenize(e), aTokens)
   })
+}
+
+/**
+ * Token-level stemming for the eval matcher. English plural only — enough for
+ * design-system nouns. The 2026-07-14 run failed "Footer Legal Link List"
+ * against accepted "Footer Legal Links" purely on `link` vs `links`: identical
+ * meaning, Jaccard 0.4, counted major.
+ *
+ * Deliberately crude: no Porter stemmer, no lemmatizer. Over-stemming risk on
+ * design vocabulary is near zero ("status" → "statu" never collides with a
+ * real label token in a way that changes a verdict), and a real stemmer is a
+ * dependency this harness does not need.
+ */
+function stem(token: string): string {
+  if (token.length <= 3) return token
+  if (token.endsWith('ies')) return token.slice(0, -3) + 'y'
+  if (token.endsWith('ses') || token.endsWith('xes') || token.endsWith('ches') || token.endsWith('shes')) {
+    return token.slice(0, -2)
+  }
+  if (token.endsWith('s') && !token.endsWith('ss') && !token.endsWith('us')) return token.slice(0, -1)
+  return token
+}
+
+function tokenize(normalized: string): Set<string> {
+  return new Set(
+    normalized
+      .split(' ')
+      .filter(Boolean)
+      .map(t => stem(t)),
+  )
 }
 
 /**

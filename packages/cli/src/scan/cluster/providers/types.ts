@@ -44,6 +44,13 @@ export interface LabelChunkResult {
     input_tokens: number
     output_tokens: number
   }
+  /**
+   * The response hit the output-token ceiling. A truncated tool_use block can
+   * still PARSE — it just carries fewer labels than requested, which the old
+   * code silently read as "the model skipped those IDs". The 2026-07-14
+   * labeler-v2 run lost 93 labels this way with zero provider errors logged.
+   */
+  truncated?: boolean
 }
 
 export interface LabelProvider {

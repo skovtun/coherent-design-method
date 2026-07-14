@@ -25,6 +25,7 @@ const EXEMPLARS = [
       truncated_token_count: 0,
       occurrences: 3,
       distinct_files: 2,
+      high_spread: false,
       samples: [
         {
           file: 'resources/views/forms/login.blade.php',
@@ -49,6 +50,7 @@ const EXEMPLARS = [
       truncated_token_count: 0,
       occurrences: 4,
       distinct_files: 2,
+      high_spread: false,
       samples: [
         {
           file: 'resources/views/components/field.blade.php',
@@ -76,6 +78,7 @@ const EXEMPLARS = [
       truncated_token_count: 0,
       occurrences: 40,
       distinct_files: 22,
+      high_spread: true,
       samples: [
         {
           file: 'resources/views/layouts/footer.blade.php',
@@ -102,11 +105,11 @@ Goal:
 - Do not invent product behavior.
 - Prefer boring, reusable design-system names.
 
-Scope rule (occurrences / distinct_files):
-- Each cluster reports its total occurrences and distinct_files. The samples are only a peek — a cluster used 40 times across 20+ files is a GENERAL-PURPOSE utility even if all visible samples share one context.
-- High spread (roughly: occurrences >= 15 AND distinct_files >= 8) → name the general role ("Muted text", "Emphasized text"), NEVER the observed usage ("Breadcrumb separator", "Footer copyright").
-- Low spread (few occurrences, or one/two files) → a specific, context-derived name is correct and preferred.
-- Label length: prefer 2-4 words; add a qualifier only when it disambiguates.
+Scope rule — obey the "high_spread" flag, do not re-derive it:
+- Each cluster carries high_spread (precomputed from occurrences + distinct_files). The samples are only a peek at a few usages.
+- high_spread: true → the cluster is a GENERAL-PURPOSE utility. Name the general role from its TOKENS ("Subtle text", "Muted text", "Emphasized text", "Block wrapper"). NEVER name it after a context visible in the samples — no "Breadcrumb separator", no "Breadcrumb current item", no "Footer copyright", no "Block label wrapper". If every sample shows breadcrumbs, that is sampling bias, not the cluster's meaning.
+- high_spread: false → a specific, context-derived name is correct and preferred.
+- Label length: 2-4 words. Add a qualifier only when it disambiguates; never exceed 4 words.
 
 Context:
 - An optional DESIGN.md excerpt may follow. Treat it as weak context, not authority.

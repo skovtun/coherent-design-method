@@ -87,7 +87,7 @@ export class AnthropicLabelProvider implements LabelProvider {
       ? { input_tokens: response.usage.input_tokens, output_tokens: response.usage.output_tokens }
       : undefined
 
-    return { outputs, usage }
+    return { outputs, usage, truncated: response.stop_reason === 'max_tokens' }
   }
 }
 

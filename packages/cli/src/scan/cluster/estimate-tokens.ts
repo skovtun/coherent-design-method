@@ -40,8 +40,23 @@ export interface CompactCluster {
    */
   occurrences: number
   distinct_files: number
+  /**
+   * Precomputed verdict of the F13 scope rule. labeler-v2 asked the model to
+   * compare the two counts against thresholds itself and it did not comply
+   * consistently ("Block Label Wrapper" on a 48×/9-file utility). Deciding it
+   * here makes the rule deterministic; the prompt only has to obey a boolean.
+   */
+  high_spread: boolean
   samples: { file: string; line: number; snippet: string }[]
   truncated_sample_count: number
+}
+
+/** F13 thresholds. A cluster this widespread is a utility, not a component. */
+export const HIGH_SPREAD_MIN_OCCURRENCES = 15
+export const HIGH_SPREAD_MIN_FILES = 8
+
+export function isHighSpread(occurrences: number, distinctFiles: number): boolean {
+  return occurrences >= HIGH_SPREAD_MIN_OCCURRENCES && distinctFiles >= HIGH_SPREAD_MIN_FILES
 }
 
 /**
@@ -75,13 +90,17 @@ export function compactClusterForPrompt(cluster: Cluster): CompactCluster {
   }
   const truncated_sample_count = picked.length - compactSamples.length
 
+  const occurrences = cluster.members.length
+  const distinct_files = new Set(cluster.members.map(m => m.file)).size
+
   return {
     cluster_id: cluster.cluster_id,
     kind: cluster.signature.kind,
     tokens,
     truncated_token_count,
-    occurrences: cluster.members.length,
-    distinct_files: new Set(cluster.members.map(m => m.file)).size,
+    occurrences,
+    distinct_files,
+    high_spread: isHighSpread(occurrences, distinct_files),
     samples: compactSamples,
     truncated_sample_count,
   }
