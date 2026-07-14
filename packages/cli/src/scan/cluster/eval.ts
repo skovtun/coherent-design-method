@@ -74,6 +74,8 @@ export interface EvalCase {
   acceptable_labels: string[]
   expected_role?: string
   hard_case?: boolean
+  /** Set only when the judge lane ran on this case (see eval-judge.ts). */
+  judgeVerdict?: 'adequate' | 'too_narrow' | 'wrong'
 }
 
 export interface EvalReport {
@@ -311,6 +313,9 @@ export function formatEvalReport(report: EvalReport): string {
     `Gate: --llm-default ${report.gate.flip_llm_default_ok ? 'OK' : 'BLOCKED'}, prompt-revision ${report.gate.needs_prompt_revision ? 'REQUIRED' : 'not required'}`,
     '',
   ]
+  const rescuedCount = report.cases.filter(c => c.judgeVerdict === 'adequate' && !c.major).length
+  if (rescuedCount > 0) lines.push(`Judge rescued ${rescuedCount} case(s) from string-match failure.`, '')
+
   const fails = report.cases.filter(c => c.major || c.minor)
   if (fails.length > 0) {
     lines.push('Failures:')
