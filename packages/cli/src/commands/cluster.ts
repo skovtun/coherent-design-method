@@ -15,7 +15,8 @@
 
 import chalk from 'chalk'
 import { existsSync, readFileSync, statSync, writeFileSync } from 'fs'
-import { resolve } from 'path'
+import { dirname, join, resolve } from 'path'
+import { serializeDriftReport } from '../scan/cluster/drift-report.js'
 import { deterministicLabelAll } from '../scan/cluster/deterministic-label.js'
 import { precluster } from '../scan/cluster/precluster.js'
 import { serializeCohereDesign } from '../scan/cluster/serialize.js'
@@ -184,6 +185,18 @@ export async function clusterCommand(evidencePath: string, opts: ClusterOptions 
   writeFileSync(outPath, md, 'utf8')
 
   console.error(chalk.green(`✓ cluster: ${summaryLine} → ${outPath}`))
+
+  // B-2c: conservative drift report — only when a DESIGN.md was found.
+  // No semantic matching (codex Q6); the report defers comparison to a human.
+  if (designResolved) {
+    const driftPath = join(dirname(outPath), 'DRIFT-REPORT.md')
+    const drift = serializeDriftReport(labeled, {
+      designPath: designResolved,
+      metadata: parsed.metadata,
+    })
+    writeFileSync(driftPath, drift, 'utf8')
+    console.error(chalk.green(`✓ cluster: DESIGN.md detected → ${driftPath} (manual review required)`))
+  }
 
   if (opts.eval) {
     const evalPath = resolve(opts.eval)
