@@ -11,7 +11,19 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
-## [Unreleased] — Tool 2 v0 (B-2b: LLM labeler + B-2c: drift report)
+## [Unreleased] — Tool 2 v0 (B-2b: LLM labeler + B-2c: drift report + R10: eval v2)
+
+### Changed — eval harness v2: context-authored ground truth support (R10)
+
+The `--eval` gate that decides whether `--llm` can ever become default was miscalibrated (see B-2b notes below). R10 rebuilds the measurement, per a codex consult (6 verdicts, 3 P1 catches):
+
+- **Split gate.** `expected.json` now carries two suites: a representative set (seeded stratified sample; gate = major ≤ 20%) and a zero-tolerance hard-case suite (`hard_case: true`; ANY major blocks the flip). Previously all known-hard cases could fail inside a passing 20% budget.
+- **`must_be_generic` (F13 measurement).** High-spread generic utility clusters can demand asymmetric matching: "Breadcrumb Muted Text" vs acceptable "Muted Text" now FAILS (extra qualifiers = over-specialization) where the symmetric fuzzy match accepted it.
+- **`max_confidence`** per case — inflated confidence now actually counts as minor (the docstring claimed this; the code never checked it).
+- **`meta {corpus, eval_version, seed}`** — the eval is a versioned pilot gate, not a permanent benchmark; the report echoes provenance.
+- **Authoring workflow.** New dev-only tool (`node packages/cli/dist/eval-authoring-cards.js` — deliberately NOT a CLI command) emits authoring cards showing the SAME context the labeler sees (tokens, `pickSamples` code snippets, occurrence + file-spread, DESIGN.md pointer), from a seeded stratified sample plus forced hard-case IDs. It refuses to write inside the public repo: cards and expected.json embed pilot-project code, and cluster_ids themselves are dictionary-recoverable content hashes — both stay private, referenced via absolute `--eval` path.
+
+Schema is backward-compatible: existing expected.json files evaluate exactly as before (all-representative, no hard cases). 25 new tests.
 
 ### Added — DRIFT-REPORT.md emitter (Tool 2 beta, B-2c)
 

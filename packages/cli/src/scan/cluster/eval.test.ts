@@ -150,6 +150,129 @@ describe('evaluate', () => {
   })
 })
 
+describe('evaluate v2 — hard-case suite (R10, codex verdict 1)', () => {
+  it('any hard-case major blocks the flip even when representative rate passes', () => {
+    const exp: ExpectedFile = {
+      clusters: [
+        { cluster_id: 'hard-1', acceptable_labels: ['Muted Text'], hard_case: true },
+        ...Array.from({ length: 10 }, (_, i) => ({
+          cluster_id: `rep-${i}`,
+          acceptable_labels: ['Correct'],
+        })),
+      ],
+    }
+    const actual = [
+      labeled('hard-1', 'Something Else Entirely'),
+      ...exp.clusters.slice(1).map(c => labeled(c.cluster_id, 'Correct')),
+    ]
+    const report = evaluate(actual, exp)
+    expect(report.representative_major_failures).toBe(0)
+    expect(report.hard_major_failures).toBe(1)
+    expect(report.gate.flip_llm_default_ok).toBe(false)
+    expect(report.gate.needs_prompt_revision).toBe(true)
+  })
+
+  it('representative rate is computed excluding hard cases', () => {
+    const exp: ExpectedFile = {
+      clusters: [
+        { cluster_id: 'hard-1', acceptable_labels: ['A'], hard_case: true },
+        { cluster_id: 'rep-1', acceptable_labels: ['B'] },
+        { cluster_id: 'rep-2', acceptable_labels: ['C'] },
+      ],
+    }
+    const actual = [labeled('hard-1', 'A'), labeled('rep-1', 'B'), labeled('rep-2', 'Wrong Thing Zz')]
+    const report = evaluate(actual, exp)
+    expect(report.hard_total).toBe(1)
+    expect(report.representative_total).toBe(2)
+    expect(report.representative_major_failures).toBe(1)
+    // 1/2 = 50% > 20% → blocked by representative rate
+    expect(report.gate.flip_llm_default_ok).toBe(false)
+  })
+
+  it('passes the gate when hard cases pass and representative rate ≤ 20%', () => {
+    const exp: ExpectedFile = {
+      clusters: [
+        { cluster_id: 'hard-1', acceptable_labels: ['Muted Text'], hard_case: true, must_be_generic: true },
+        ...Array.from({ length: 5 }, (_, i) => ({
+          cluster_id: `rep-${i}`,
+          acceptable_labels: ['Correct'],
+        })),
+      ],
+    }
+    const actual = [
+      labeled('hard-1', 'Muted Text'),
+      ...exp.clusters.slice(1).map(c => labeled(c.cluster_id, 'Correct')),
+    ]
+    const report = evaluate(actual, exp)
+    expect(report.gate.flip_llm_default_ok).toBe(true)
+    expect(report.gate.needs_prompt_revision).toBe(false)
+  })
+})
+
+describe('evaluate v2 — must_be_generic (F13, codex verdict 4)', () => {
+  it('fails a too-specific label that the symmetric fuzzy match would accept', () => {
+    const exp: ExpectedFile = {
+      clusters: [{ cluster_id: 'a', acceptable_labels: ['Muted Text'], must_be_generic: true }],
+    }
+    // Jaccard 2/3 ≥ 0.6 AND phrase-superset — symmetric match would PASS this.
+    const report = evaluate([labeled('a', 'Breadcrumb Muted Text')], exp)
+    expect(report.major_failures).toBe(1)
+    expect(report.cases[0].reason).toContain('too specific')
+  })
+
+  it('accepts an equally-generic or more-generic label', () => {
+    const exp: ExpectedFile = {
+      clusters: [
+        { cluster_id: 'a', acceptable_labels: ['Muted Caption Text'], must_be_generic: true },
+        { cluster_id: 'b', acceptable_labels: ['Muted Text'], must_be_generic: true },
+      ],
+    }
+    const report = evaluate([labeled('a', 'Muted Text'), labeled('b', 'muted text')], exp)
+    expect(report.major_failures).toBe(0)
+  })
+
+  it('without must_be_generic the same specific label still passes (regression guard)', () => {
+    const exp: ExpectedFile = { clusters: [{ cluster_id: 'a', acceptable_labels: ['Muted Text'] }] }
+    const report = evaluate([labeled('a', 'Breadcrumb Muted Text')], exp)
+    expect(report.major_failures).toBe(0)
+  })
+})
+
+describe('evaluate v2 — max_confidence + meta', () => {
+  it('flags confidence above max_confidence as minor', () => {
+    const exp: ExpectedFile = {
+      clusters: [{ cluster_id: 'a', acceptable_labels: ['Field label'], max_confidence: 0.5 }],
+    }
+    // labeled() fixture sets confidence 0.9 > 0.5
+    const report = evaluate([labeled('a', 'Field label')], exp)
+    expect(report.minor_failures).toBe(1)
+    expect(report.cases[0].reason).toContain('confidence')
+  })
+
+  it('echoes meta into the report and the formatted output', () => {
+    const exp: ExpectedFile = {
+      meta: { corpus: 'pilot-blade-v1', eval_version: 'r10-v2', seed: 42 },
+      clusters: [{ cluster_id: 'a', acceptable_labels: ['X'] }],
+    }
+    const report = evaluate([labeled('a', 'X')], exp)
+    expect(report.meta?.corpus).toBe('pilot-blade-v1')
+    expect(formatEvalReport(report)).toContain('pilot-blade-v1')
+  })
+
+  it('formatted report shows hard-case and representative breakdown', () => {
+    const exp: ExpectedFile = {
+      clusters: [
+        { cluster_id: 'h', acceptable_labels: ['A'], hard_case: true },
+        { cluster_id: 'r', acceptable_labels: ['B'] },
+      ],
+    }
+    const out = formatEvalReport(evaluate([labeled('h', 'Zz Qq'), labeled('r', 'B')], exp))
+    expect(out).toContain('hard cases:')
+    expect(out).toContain('zero-tolerance')
+    expect(out).toContain('MAJOR/HARD')
+  })
+})
+
 describe('formatEvalReport', () => {
   it('produces a human-readable summary', () => {
     const expected: ExpectedFile = {
