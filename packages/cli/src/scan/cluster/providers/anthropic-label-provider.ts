@@ -46,17 +46,27 @@ export interface AnthropicProviderOptions {
   apiKey?: string
   /** Override SDK client (testing). Production should not pass this. */
   client?: Anthropic
-  /** Max output tokens. Generous default; labels are tiny. */
+  /** Fixed max output tokens. Default: computed per chunk — see maxTokensFor. */
   maxTokens?: number
+}
+
+/**
+ * Output budget scaled to chunk size. The old fixed 4096 could truncate a
+ * 50-label tool_use JSON mid-array (each label ≈ 60-120 output tokens with
+ * ids/roles/confidence), which reconciles as "everything unresolved" and
+ * burns the whole repair ladder on a self-inflicted wound.
+ */
+export function maxTokensFor(clusterCount: number): number {
+  return Math.min(16384, Math.max(4096, 500 + clusterCount * 140))
 }
 
 export class AnthropicLabelProvider implements LabelProvider {
   private readonly client: Anthropic
-  private readonly maxTokens: number
+  private readonly fixedMaxTokens?: number
 
   constructor(options: AnthropicProviderOptions = {}) {
     this.client = options.client ?? new Anthropic({ apiKey: options.apiKey })
-    this.maxTokens = options.maxTokens ?? 4096
+    this.fixedMaxTokens = options.maxTokens
   }
 
   async labelChunk(input: LabelChunkInput): Promise<LabelChunkResult> {
@@ -64,7 +74,7 @@ export class AnthropicLabelProvider implements LabelProvider {
 
     const response = await this.client.messages.create({
       model: input.modelId,
-      max_tokens: this.maxTokens,
+      max_tokens: this.fixedMaxTokens ?? maxTokensFor(input.clusters.length),
       temperature: input.temperature,
       system,
       messages: [{ role: 'user', content: user }],
@@ -88,7 +98,11 @@ function extractLabels(response: Anthropic.Messages.Message): RawLabelOutput[] {
       if (Array.isArray(input.labels)) return input.labels as RawLabelOutput[]
     }
   }
-  throw new Error('Anthropic response missing tool_use block for emit_labels')
+  // stop_reason in the message makes truncation (max_tokens) diagnosable
+  // upstream — it surfaces via ProviderErrorInfo instead of vanishing.
+  throw new Error(
+    `Anthropic response missing tool_use block for emit_labels (stop_reason: ${response.stop_reason ?? 'unknown'})`,
+  )
 }
 
 /** Exported for tests — keep the tool schema diff-able. */

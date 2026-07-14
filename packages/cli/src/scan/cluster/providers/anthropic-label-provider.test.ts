@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { AnthropicLabelProvider, EMIT_LABELS_SCHEMA } from './anthropic-label-provider.js'
+import { AnthropicLabelProvider, EMIT_LABELS_SCHEMA, maxTokensFor } from './anthropic-label-provider.js'
 import { MODEL_ID, PROMPT_VERSION, TEMPERATURE } from '../constants.js'
 import type { Cluster } from '../types.js'
 import type { LabelChunkInput } from './types.js'
@@ -76,6 +76,49 @@ describe('AnthropicLabelProvider', () => {
     const provider = new AnthropicLabelProvider({ client: fakeClient })
 
     await expect(provider.labelChunk(mkInput([mkCluster('id1')]))).rejects.toThrow(/tool_use/)
+  })
+
+  it('includes stop_reason in the missing-tool_use error (truncation diagnosable)', async () => {
+    const create = vi.fn().mockResolvedValue({
+      content: [{ type: 'text', text: 'truncat' }],
+      stop_reason: 'max_tokens',
+      usage: { input_tokens: 10, output_tokens: 4096 },
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fakeClient = { messages: { create } } as any
+    const provider = new AnthropicLabelProvider({ client: fakeClient })
+
+    await expect(provider.labelChunk(mkInput([mkCluster('id1')]))).rejects.toThrow(/stop_reason: max_tokens/)
+  })
+
+  it('scales max_tokens with chunk size (fixed 4096 truncated 50-label chunks)', async () => {
+    const create = vi.fn().mockResolvedValue({
+      content: [{ type: 'tool_use', name: 'emit_labels', id: 'x', input: { labels: [] } }],
+      usage: { input_tokens: 10, output_tokens: 5 },
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fakeClient = { messages: { create } } as any
+    const provider = new AnthropicLabelProvider({ client: fakeClient })
+
+    const fifty = Array.from({ length: 50 }, (_, i) => mkCluster(`id${i}`))
+    await provider.labelChunk(mkInput(fifty)).catch(() => {})
+    expect(create.mock.calls[0][0].max_tokens).toBe(maxTokensFor(50))
+    expect(maxTokensFor(50)).toBeGreaterThan(4096)
+    expect(maxTokensFor(1)).toBe(4096) // floor
+    expect(maxTokensFor(1000)).toBe(16384) // ceiling
+  })
+
+  it('explicit maxTokens option overrides the computed value', async () => {
+    const create = vi.fn().mockResolvedValue({
+      content: [{ type: 'tool_use', name: 'emit_labels', id: 'x', input: { labels: [] } }],
+      usage: { input_tokens: 10, output_tokens: 5 },
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fakeClient = { messages: { create } } as any
+    const provider = new AnthropicLabelProvider({ client: fakeClient, maxTokens: 999 })
+
+    await provider.labelChunk(mkInput([mkCluster('id1')]))
+    expect(create.mock.calls[0][0].max_tokens).toBe(999)
   })
 
   it('throws when tool_use input shape is wrong', async () => {

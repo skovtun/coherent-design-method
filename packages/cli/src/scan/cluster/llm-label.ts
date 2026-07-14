@@ -43,6 +43,8 @@ export interface OrchestratorOptions {
   strictLlm?: boolean
   /** Optional per-chunk progress callback. */
   onProgress?: (info: ChunkProgress) => void
+  /** Called the moment a provider call throws — lets the CLI warn in real time. */
+  onProviderError?: (info: ProviderErrorInfo) => void
 }
 
 export interface ChunkProgress {
@@ -54,12 +56,28 @@ export interface ChunkProgress {
   unresolved: number
 }
 
+/**
+ * A provider call that threw (SDK/network/API error), surfaced instead of
+ * silently becoming "N unresolved". The 2026-07-13 pilot run lost 533/1077
+ * clusters to consecutive whole-chunk failures with zero diagnostics — the
+ * old `catch {}` made a rate-limit outage indistinguishable from bad model
+ * output.
+ */
+export interface ProviderErrorInfo {
+  chunkIndex: number
+  totalChunks: number
+  attempt: 1 | 2 | 3
+  message: string
+}
+
 export interface OrchestratorResult {
   labeled: LabeledCluster[]
   cacheHits: number
   cacheMisses: number
   fallbackCount: number
   chunkCount: number
+  /** Every provider call that threw, in call order. Empty on a clean run. */
+  providerErrors: ProviderErrorInfo[]
   /** Total tokens reported by provider, summed across all calls. */
   usage: { input_tokens: number; output_tokens: number }
 }
@@ -101,11 +119,19 @@ export async function labelClustersWithLLM(
   const llmResults = new Map<string, LabeledCluster>()
   let fallbackCount = 0
   const usage = { input_tokens: 0, output_tokens: 0 }
+  const providerErrors: ProviderErrorInfo[] = []
   const cacheUpserts: { signature_hash: string; labeled: LabeledCluster }[] = []
 
   for (let i = 0; i < chunks.length; i++) {
     const plan = chunks[i]
     const expectedIds = plan.clusters.map(c => c.cluster_id)
+    const errCtx = (attempt: 1 | 2 | 3) => ({
+      chunkIndex: i + 1,
+      totalChunks: chunks.length,
+      attempt,
+      errors: providerErrors,
+      onProviderError: options.onProviderError,
+    })
     const baseInput: LabelChunkInput = {
       clusters: plan.clusters,
       designContext: options.designContext,
@@ -115,7 +141,7 @@ export async function labelClustersWithLLM(
       temperature: TEMPERATURE,
     }
 
-    let report = await runProvider(options.provider, baseInput, usage)
+    let report = await runProvider(options.provider, baseInput, usage, errCtx(1))
     options.onProgress?.({
       index: i + 1,
       total: chunks.length,
@@ -140,6 +166,7 @@ export async function labelClustersWithLLM(
           },
         },
         usage,
+        errCtx(2),
       )
       report = mergeReports(report, repaired)
       options.onProgress?.({
@@ -164,6 +191,7 @@ export async function labelClustersWithLLM(
           repair: { attempt: 3, missing: stillUnresolved, extra: [], duplicate: [], invalid: [] },
         },
         usage,
+        errCtx(3),
       )
       report = mergeReports(report, subsetReport, stillUnresolved)
       options.onProgress?.({
@@ -235,14 +263,24 @@ export async function labelClustersWithLLM(
     cacheMisses: uncached.length,
     fallbackCount,
     chunkCount: chunks.length,
+    providerErrors,
     usage,
   }
+}
+
+interface RunProviderErrorCtx {
+  chunkIndex: number
+  totalChunks: number
+  attempt: 1 | 2 | 3
+  errors: ProviderErrorInfo[]
+  onProviderError?: (info: ProviderErrorInfo) => void
 }
 
 async function runProvider(
   provider: LabelProvider,
   input: LabelChunkInput,
   usage: { input_tokens: number; output_tokens: number },
+  errCtx: RunProviderErrorCtx,
 ): Promise<ReturnType<typeof reconcileLabelOutput>> {
   const ids = input.clusters.map(c => c.cluster_id)
   let outputs: RawLabelOutput[] = []
@@ -253,9 +291,18 @@ async function runProvider(
       usage.input_tokens += result.usage.input_tokens
       usage.output_tokens += result.usage.output_tokens
     }
-  } catch {
-    // Network/SDK failure looks like a missing-everything reconcile report.
-    outputs = []
+  } catch (err) {
+    // Failure still degrades to a missing-everything reconcile report (the
+    // repair ladder / fallback own recovery), but the error is RECORDED —
+    // never swallowed. See ProviderErrorInfo.
+    const info: ProviderErrorInfo = {
+      chunkIndex: errCtx.chunkIndex,
+      totalChunks: errCtx.totalChunks,
+      attempt: errCtx.attempt,
+      message: err instanceof Error ? err.message : String(err),
+    }
+    errCtx.errors.push(info)
+    errCtx.onProviderError?.(info)
   }
   return reconcileLabelOutput(ids, outputs)
 }

@@ -192,6 +192,44 @@ describe('labelClustersWithLLM — repair ladder', () => {
     })
     // First call throws → recovered via attempt 2.
     expect(result.labeled.every(l => l.source === 'llm')).toBe(true)
+    // The throw is RECORDED, not swallowed (2026-07-13 pilot run lesson).
+    expect(result.providerErrors).toHaveLength(1)
+    expect(result.providerErrors[0]).toMatchObject({ chunkIndex: 1, attempt: 1, message: '500' })
+  })
+
+  it('records every provider error with chunk/attempt context and fires onProviderError', async () => {
+    const clusters = [mkCluster('a'), mkCluster('b')]
+    const provider = new MockProvider(async () => {
+      throw new Error('rate_limit_error: overloaded')
+    })
+    const seen: { chunkIndex: number; attempt: number; message: string }[] = []
+    const result = await labelClustersWithLLM(clusters, {
+      provider,
+      designContext: null,
+      cachePath: defaultCachePath(tmp),
+      onProviderError: info => seen.push(info),
+    })
+    // All 3 ladder attempts threw → 3 recorded errors, all clusters fell back.
+    expect(result.providerErrors).toHaveLength(3)
+    expect(result.providerErrors.map(e => e.attempt)).toEqual([1, 2, 3])
+    expect(result.providerErrors.every(e => e.message.includes('rate_limit_error'))).toBe(true)
+    expect(seen).toHaveLength(3)
+    expect(result.fallbackCount).toBe(2)
+    expect(result.labeled.every(l => l.source === 'deterministic')).toBe(true)
+  })
+
+  it('clean run reports zero provider errors', async () => {
+    const clusters = [mkCluster('a')]
+    const provider = new MockProvider(async input => ({
+      outputs: input.clusters.map(c => fakeOutput(c.cluster_id)),
+      usage: { input_tokens: 100, output_tokens: 10 },
+    }))
+    const result = await labelClustersWithLLM(clusters, {
+      provider,
+      designContext: null,
+      cachePath: defaultCachePath(tmp),
+    })
+    expect(result.providerErrors).toEqual([])
   })
 })
 

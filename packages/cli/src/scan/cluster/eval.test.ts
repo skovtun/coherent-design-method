@@ -111,6 +111,16 @@ describe('evaluate', () => {
     expect(report.major_failures).toBe(0)
   })
 
+  it('treats hyphens and en/em dashes as spaces (2026-07-13 hard-case regression)', () => {
+    // "Label–rule–value detail row" (en dashes) vs "Label-Value Row":
+    // dash-normalized tokens {label,rule,value,detail,row} vs {label,value,row}
+    // → Jaccard 3/5 = 0.6 → pass. Before the fix this semantically-correct
+    // label failed the zero-tolerance hard suite on punctuation alone.
+    const exp: ExpectedFile = { clusters: [{ cluster_id: 'a', acceptable_labels: ['Label-Value Row'] }] }
+    const report = evaluate([labeled('a', 'Label–rule–value detail row')], exp)
+    expect(report.major_failures).toBe(0)
+  })
+
   it('still fails genuinely different labels (fuzzy does not over-rescue)', () => {
     // "Breadcrumb Link" vs "Hover Link" share only "link" → Jaccard 1/3 < 0.6 → major.
     const exp: ExpectedFile = { clusters: [{ cluster_id: 'a', acceptable_labels: ['Hover Link'] }] }
