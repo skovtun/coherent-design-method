@@ -87,4 +87,31 @@ describe('buildLabelPrompt', () => {
     expect(PROMPT_FIXTURES.EXEMPLARS.length).toBeGreaterThanOrEqual(2)
     expect(PROMPT_FIXTURES.SYSTEM_RULES).toContain('dot.case')
   })
+
+  it('F13: system rules carry the spread-based scope rule + label brevity', () => {
+    expect(PROMPT_FIXTURES.SYSTEM_RULES).toContain('Scope rule')
+    expect(PROMPT_FIXTURES.SYSTEM_RULES).toContain('distinct_files')
+    expect(PROMPT_FIXTURES.SYSTEM_RULES).toContain('NEVER the observed usage')
+    expect(PROMPT_FIXTURES.SYSTEM_RULES).toContain('2-4 words')
+  })
+
+  it('F13: payload exposes occurrences and distinct_files per cluster', () => {
+    const { user } = buildLabelPrompt(input())
+    expect(user).toContain('"occurrences"')
+    expect(user).toContain('"distinct_files"')
+  })
+
+  it('F13: high-spread exemplar labels the general role, not the sampled usage', () => {
+    const f13 = PROMPT_FIXTURES.EXEMPLARS[2]
+    expect(f13.input.occurrences).toBeGreaterThanOrEqual(15)
+    expect(f13.input.distinct_files).toBeGreaterThanOrEqual(8)
+    // Sample shows a footer copyright line; the output must NOT mention it.
+    expect(f13.input.samples[0].snippet).toContain('©')
+    expect(f13.output.human_label.toLowerCase()).not.toContain('footer')
+    expect(f13.output.human_label.toLowerCase()).not.toContain('copyright')
+  })
+
+  it('F13: prompt version bumped to labeler-v2 (cache invalidation contract)', () => {
+    expect(PROMPT_VERSION).toBe('labeler-v2')
+  })
 })
