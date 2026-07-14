@@ -162,3 +162,20 @@ Deferred work captured during planning. Each item has enough context to be picke
 **Deferred because:** touches CLI generation output and user trust; must be decided TOGETHER with the OQ6 telemetry consent policy as one trust package — two consent surfaces shipped separately would double the OSS-community risk.
 
 **Effort:** S (human ~1 day / CC ~hours). **Priority:** P2 inside the OQ6/M0b review. **Depends on:** OQ6 telemetry policy decision.
+
+---
+
+## T5 — Public `coherent export tokens` command (promote E3 generator, deferred 2026-07-13)
+
+**What:** User-facing `coherent export tokens [--format css|tailwind|json]` wrapping the internal E3 artifact generator (css-variables.css, tailwind-v4.css, design-tokens.json from one normalized token model).
+
+**Why:** Turns gallery plumbing into product surface — any user exports THEIR design system to framework-ready files, self-serve. Same value the gallery sells; competitors (SparkBites et al.) don't ship this.
+
+**Pros:** near-free after the F4 generator lands (arg parsing + docs + tests); new CLI verb for M3+ marketing.
+**Cons:** public API surface to stabilize; Tailwind v3-vs-v4 format questions become support load.
+
+**Context:** Eng review 2026-07-13 (F4) placed the E3 generator in the CLI repo with a CI equivalence check, outputs committed to the landing repo. Promotion = expose it as a command. Start at the generator script; the normalizer is Tool 1's.
+
+**Trigger condition:** M1 gate signal received AND F4 generator proven in the gallery build.
+
+**Effort:** S (human ~1-2 days / CC ~2-4h). **Priority:** P3. **Depends on:** F4 generator shipped; F14 parser for external DESIGN.md files.
