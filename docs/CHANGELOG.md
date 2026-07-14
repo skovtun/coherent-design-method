@@ -13,6 +13,17 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ## [Unreleased] — Tool 2 v0 (B-2b: LLM labeler + B-2c: drift report + R10: eval v2)
 
+### Added — eval LLM-judge lane (R12, `--eval-judge`)
+
+Optional rescue-only re-scoring of eval failures for MEANING, not string overlap. After three rounds of matcher patching (dashes → stemming → …) the 2026-07-14 run still failed labels like "Detail Label Term" vs accepted "Definition Term Label" — same meaning, different wording. The judge grades those against the human `acceptable_labels`, looking at the same code samples the labeler saw.
+
+Deliberately weak, so it cannot flatter the gate (reverses the 2026-07-13 codex "no judge" verdict, on evidence — but keeps its bias concern):
+- **Rescue-only:** only sees cases the string matcher already FAILED. Cannot fail a passing case.
+- **Cannot rescue a meaning error:** verdicts are `adequate | too_narrow | wrong`; only `adequate` rescues. F13 over-specialization comes back `too_narrow` and keeps blocking.
+- **Anchored on human labels,** not asked to invent truth. Every verdict recorded on the case for audit.
+
+Dry-run on the real 2026-07-14 labels was the proof: of 6 string-match failures the judge rescued exactly 1 (a word-order variant) and CONFIRMED the other 4 as genuine `too_narrow` over-specializations — vindicating the gate against a matcher-loosening fix. ~1 API call per failed case (cents per run).
+
 ### Changed — labeler prompt v3: deterministic `high_spread` flag (F13.1)
 
 `labeler-v2` handed the model two numbers (`occurrences`, `distinct_files`) and a threshold rule to apply itself. It complied on the headline case (the 47×/25-file subtle-text token now labels as "Subtle Text", not "Breadcrumb Separator") but not consistently — a 48×/9-file `block` utility still came back as "Block Label Wrapper". v3 computes the verdict in code and hands the model a boolean it only has to obey.

@@ -28,6 +28,8 @@ import { MODEL_ID } from '../scan/cluster/constants.js'
 import { AnthropicLabelProvider } from '../scan/cluster/providers/anthropic-label-provider.js'
 import { labelClustersWithLLM } from '../scan/cluster/llm-label.js'
 import { evaluate, formatEvalReport, loadExpected } from '../scan/cluster/eval.js'
+import { applyJudge } from '../scan/cluster/eval-judge.js'
+import { AnthropicJudgeProvider } from '../scan/cluster/providers/anthropic-judge-provider.js'
 import { formatRedactionWarning, scanClustersForSecrets } from '../scan/cluster/redaction.js'
 
 export interface ClusterOptions {
@@ -47,6 +49,8 @@ export interface ClusterOptions {
   cache?: boolean
   design?: string
   eval?: string
+  /** R12: LLM-judge rescue lane over cases the string matcher failed. */
+  evalJudge?: boolean
 }
 
 function isScanOutput(value: unknown): value is ScanOutput {
@@ -217,7 +221,26 @@ export async function clusterCommand(evidencePath: string, opts: ClusterOptions 
     const evalPath = resolve(opts.eval)
     try {
       const expected = loadExpected(evalPath)
-      const report = evaluate(labeled, expected)
+      let report = evaluate(labeled, expected)
+
+      // R12 judge lane: rescue-only re-scoring of cases the string matcher
+      // failed. Cannot fail a passing case; cannot rescue a meaning error.
+      if (opts.evalJudge) {
+        if (!process.env.ANTHROPIC_API_KEY) {
+          console.error(chalk.red('✗ cluster --eval-judge requires ANTHROPIC_API_KEY.'))
+          process.exit(1)
+        }
+        const gradable = report.cases.filter(c => c.major && c.actual_label).length
+        process.stderr.write(chalk.gray(`\nJudge: grading ${gradable} failed case(s)…\n`))
+        report = await applyJudge(
+          report,
+          labeled,
+          new Map(expected.clusters.map(c => [c.cluster_id, c])),
+          new AnthropicJudgeProvider(),
+          (id, d) => process.stderr.write(chalk.gray(`  ${id}: ${d.verdict} — ${d.reason}\n`)),
+        )
+      }
+
       process.stderr.write('\n' + formatEvalReport(report) + '\n')
       if (!report.gate.flip_llm_default_ok) process.exit(2)
     } catch (err) {

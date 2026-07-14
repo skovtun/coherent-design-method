@@ -444,6 +444,7 @@ program
   .option('--no-cache', 'Skip the project-local label cache (.coherent/cache/labels.json)')
   .option('--design <file>', 'Path to DESIGN.md for weak context (default: ./DESIGN.md if present)')
   .option('--eval <file>', 'Evaluate output against expected-labels.json (rerunnable QA gate)')
+  .option('--eval-judge', 'LLM-judge lane: re-grade eval failures for meaning (rescue-only, needs API key)')
   .action((evidence: string, opts) => clusterCommand(evidence, opts))
 
 // Wiki maintenance — only meaningful when running inside the Coherent source
