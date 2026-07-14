@@ -168,6 +168,35 @@ describe('coherent cluster', () => {
     expect(messages).toMatch(/schema mismatch/)
   })
 
+  it('writes DRIFT-REPORT.md next to --out when DESIGN.md is found (B-2c)', async () => {
+    const inputPath = path.join(tmpDir, 'evidence.json')
+    const outPath = path.join(tmpDir, 'COHERENT-DESIGN.md')
+    const designPath = path.join(tmpDir, 'DESIGN.md')
+    writeFileSync(inputPath, JSON.stringify(sampleScanOutput))
+    writeFileSync(designPath, '# My Design System\n')
+    await clusterCommand(inputPath, { out: outPath, llm: false, design: designPath })
+    const driftPath = path.join(tmpDir, 'DRIFT-REPORT.md')
+    expect(existsSync(driftPath)).toBe(true)
+    const drift = readFileSync(driftPath, 'utf8')
+    expect(drift).toContain(`DESIGN.md detected at \`${designPath}\``)
+    expect(drift).toContain('Semantic comparison deferred — manual review required.')
+    expect(drift).toContain('lb-label-cluster-')
+  })
+
+  it('does NOT write DRIFT-REPORT.md when no DESIGN.md exists', async () => {
+    const inputPath = path.join(tmpDir, 'evidence.json')
+    const outPath = path.join(tmpDir, 'COHERENT-DESIGN.md')
+    // Pin project_root to the empty tmpDir so the ./DESIGN.md fallback
+    // cannot accidentally resolve on the host machine.
+    const scanOutput: ScanOutput = {
+      ...sampleScanOutput,
+      metadata: { ...sampleScanOutput.metadata, project_root: tmpDir },
+    }
+    writeFileSync(inputPath, JSON.stringify(scanOutput))
+    await clusterCommand(inputPath, { out: outPath, llm: false })
+    expect(existsSync(path.join(tmpDir, 'DRIFT-REPORT.md'))).toBe(false)
+  })
+
   it('produces deterministic output (same input → same bytes)', async () => {
     const inputPath = path.join(tmpDir, 'evidence.json')
     const outA = path.join(tmpDir, 'a.md')

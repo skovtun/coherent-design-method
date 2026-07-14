@@ -11,7 +11,17 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
-## [Unreleased] — Tool 2 v0 (B-2b: LLM labeler)
+## [Unreleased] — Tool 2 v0 (B-2b: LLM labeler + B-2c: drift report)
+
+### Added — DRIFT-REPORT.md emitter (Tool 2 beta, B-2c)
+
+When `coherent cluster` finds a project `DESIGN.md` (auto-detected at project root, or passed via `--design <file>`), it now additionally writes `DRIFT-REPORT.md` next to the main output:
+
+- States where DESIGN.md was detected.
+- Lists the top 20 detected code clusters by occurrence count (stable IDs, safe to reference in issues).
+- Explicitly defers semantic comparison: **"Semantic comparison deferred — manual review required."**
+
+**Conservative by design (codex consult 2026-05-11, Q6 — locked):** v0 does NO automated matching of clusters against free-form DESIGN.md prose. Mixed-language design docs vs class strings is too fragile; a wrong "covered / not covered" verdict is worse than no verdict. "No false-confidence claims" is a tested invariant. Closes the B-2 arc (B-2a #112 → B-2b #113 → B-2c); subsystem ADR: `docs/wiki/ADR/0009-coherent-scan-subsystem.md`.
 
 ### Added — `coherent cluster --llm` (Tool 2 beta, B-2b)
 
@@ -58,11 +68,11 @@ coherent cluster B1-EVIDENCE.json --llm --eval expected.json  # rerunnable QA ga
 
 **Deferred to follow-ups:**
 
-- ADR-0009 (Coherent scan subsystem — B-1 + B-2 + Blade adapter contract).
 - Promotion of cluster errors to `CoherentError` slots E009/E010.
 - `coherent scan --cluster` flag piping scan → cluster in one command.
 - Global cache, controlled role vocabulary, majority voting, Anthropic token-counting API, multi-provider config (codex Q-cuts).
-- B-2c — conservative DRIFT-REPORT.md emitter.
+- ~~ADR-0009~~ — shipped with B-2c (`docs/wiki/ADR/0009-coherent-scan-subsystem.md`).
+- ~~B-2c DRIFT-REPORT.md emitter~~ — shipped (see above).
 
 ---
 
