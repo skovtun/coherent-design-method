@@ -248,8 +248,18 @@ function matchesAnyGeneric(actual: string, acceptable: string[]): boolean {
   })
 }
 
+/**
+ * Normalization treats hyphens/en/em dashes as spaces: the 2026-07-13 run
+ * failed a semantically-correct hard case on "Label–rule–value detail row"
+ * (en dashes) vs acceptable "Label-Value Row" — punctuation, not meaning.
+ */
 function norm(s: string): string {
-  return s.trim().toLowerCase().replace(/\s+/g, ' ')
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/[-‐‑–—]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 export function formatEvalReport(report: EvalReport): string {

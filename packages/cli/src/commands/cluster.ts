@@ -172,12 +172,27 @@ export async function clusterCommand(evidencePath: string, opts: ClusterOptions 
           )
         }
       },
+      onProviderError: info => {
+        process.stderr.write(
+          chalk.yellow(`  ⚠ chunk ${info.chunkIndex}/${info.totalChunks} attempt ${info.attempt}: ${info.message}\n`),
+        )
+      },
     })
     labeled = result.labeled
     summaryLine =
       `${parsed.rows.length} rows → ${clusters.length} clusters → ${result.cacheHits} cached, ` +
       `${result.cacheMisses} via LLM (${result.chunkCount} chunks, ${result.fallbackCount} fallbacks, ` +
       `${result.usage.input_tokens}/${result.usage.output_tokens} in/out tokens) in ${Date.now() - started}ms`
+
+    if (result.providerErrors.length > 0) {
+      const failedChunks = new Set(result.providerErrors.map(e => e.chunkIndex)).size
+      process.stderr.write(
+        chalk.yellow(
+          `⚠ cluster: ${result.providerErrors.length} provider error(s) across ${failedChunks} chunk(s) — ` +
+            `affected clusters got deterministic fallback labels. First error: ${result.providerErrors[0].message}\n`,
+        ),
+      )
+    }
   }
 
   const md = serializeCohereDesign(labeled, { metadata: parsed.metadata })
