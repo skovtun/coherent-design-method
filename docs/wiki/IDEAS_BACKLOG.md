@@ -198,6 +198,8 @@ Breadcrumbs are genuinely pervasive in the pilot app (28 files, NOT a DESIGN.md 
 
 **2026-07-13 update:** the MEASUREMENT side landed with R10's eval v2 — `must_be_generic` cases with asymmetric matching encode exactly this failure class, and the hard-case suite is zero-tolerance, so an unfixed F13 now BLOCKS the `--llm` flip by construction. Still open: the prompt-side fix itself (expose occurrence count + distinct-file spread to the labeler — codex noted the model currently receives neither — plus generic-role guidance for high-spread clusters).
 
+**2026-07-14 update — prompt fix IMPLEMENTED (`labeler-v2`), awaiting validation run.** The 2026-07-14 eval run (r10-v2.1, first on the fixed harness) confirmed the diagnosis: representative suite passed 23/25 (8% major vs 20% gate), and the ONLY remaining failures were 3 F13-class over-specializations ("Breadcrumb Separator" on the 47×/25-file subtle-text token, "Breadcrumb Current Page Item", "Block Label Wrapper"). Shipped in `labeler-v2`: `occurrences` + `distinct_files` in the compact payload, explicit scope rule (≥15 occ AND ≥8 files → general role, NEVER observed usage), 2-4-word label-brevity preference (user request 2026-07-14), third exemplar teaching the rule on a NEUTRAL example (footer copyright → "Muted text" — deliberately not an eval case, no teaching to the test). PROMPT_VERSION bump invalidates the whole cache: validation re-run costs full ~$2.5. **Flip `--llm` default when that run passes both suites.**
+
 **Target:** next cluster prompt revision, after R10's expected.json is authored.
 
 ---

@@ -41,6 +41,18 @@ describe('estimateTokensFromText', () => {
 })
 
 describe('compactClusterForPrompt', () => {
+  it('F13: carries occurrences + distinct_files spread metadata', () => {
+    const members = [
+      mkRow({ file: 'a.blade.php', line: 1 }),
+      mkRow({ file: 'a.blade.php', line: 9 }),
+      mkRow({ file: 'b.blade.php', line: 2 }),
+      mkRow({ file: 'c.blade.php', line: 3 }),
+    ]
+    const compact = compactClusterForPrompt(mkCluster({ members }))
+    expect(compact.occurrences).toBe(4)
+    expect(compact.distinct_files).toBe(3)
+  })
+
   it('caps samples at MAX_SAMPLES_PER_CLUSTER', () => {
     const members = Array.from({ length: 10 }, (_, i) => mkRow({ file: `file-${i}.blade.php`, line: i + 1 }))
     const cluster = mkCluster({ members })
@@ -89,6 +101,8 @@ describe('isOverPerClusterBudget', () => {
       kind: 'inline_classes',
       tokens: Array.from({ length: 120 }, (_, i) => `t-${i}-stuffed`),
       truncated_token_count: 0,
+      occurrences: 3,
+      distinct_files: 3,
       samples: Array.from({ length: 3 }, (_, i) => ({
         file: `f-${i}.php`,
         line: i,

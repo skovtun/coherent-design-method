@@ -15,7 +15,7 @@
 import type { LabelChunkInput } from './providers/types.js'
 import { compactClusterForPrompt } from './estimate-tokens.js'
 
-/** 2 hand-curated exemplars. Keep small per Q1. */
+/** 3 hand-curated exemplars. Keep small per Q1; third teaches the F13 spread rule. */
 const EXEMPLARS = [
   {
     input: {
@@ -23,6 +23,8 @@ const EXEMPLARS = [
       kind: 'raw_button_tag',
       tokens: ['btn', 'btn-primary'],
       truncated_token_count: 0,
+      occurrences: 3,
+      distinct_files: 2,
       samples: [
         {
           file: 'resources/views/forms/login.blade.php',
@@ -45,6 +47,8 @@ const EXEMPLARS = [
       kind: 'inline_classes',
       tokens: ['lb-label', 'text-grey_light_text'],
       truncated_token_count: 0,
+      occurrences: 4,
+      distinct_files: 2,
       samples: [
         {
           file: 'resources/views/components/field.blade.php',
@@ -61,6 +65,33 @@ const EXEMPLARS = [
       confidence: 0.88,
     },
   },
+  // F13 exemplar: HIGH-SPREAD utility. Samples show one usage (footer
+  // copyright), but 40 occurrences across 22 files means the samples are a
+  // biased peek — label the general role, not the observed context.
+  {
+    input: {
+      cluster_id: 'ee55ff66',
+      kind: 'inline_classes',
+      tokens: ['text-muted'],
+      truncated_token_count: 0,
+      occurrences: 40,
+      distinct_files: 22,
+      samples: [
+        {
+          file: 'resources/views/layouts/footer.blade.php',
+          line: 12,
+          snippet: '<p class="text-muted">© 2026 Acme Inc. All rights reserved.</p>',
+        },
+      ],
+      truncated_sample_count: 0,
+    },
+    output: {
+      cluster_id: 'ee55ff66',
+      human_label: 'Muted text',
+      suggested_role: 'text.muted',
+      confidence: 0.85,
+    },
+  },
 ] as const
 
 const SYSTEM_RULES = `You label UI/design clusters extracted from Blade/Laravel templates.
@@ -70,6 +101,12 @@ Goal:
 - Infer semantic role only when supported by tokens/samples.
 - Do not invent product behavior.
 - Prefer boring, reusable design-system names.
+
+Scope rule (occurrences / distinct_files):
+- Each cluster reports its total occurrences and distinct_files. The samples are only a peek — a cluster used 40 times across 20+ files is a GENERAL-PURPOSE utility even if all visible samples share one context.
+- High spread (roughly: occurrences >= 15 AND distinct_files >= 8) → name the general role ("Muted text", "Emphasized text"), NEVER the observed usage ("Breadcrumb separator", "Footer copyright").
+- Low spread (few occurrences, or one/two files) → a specific, context-derived name is correct and preferred.
+- Label length: prefer 2-4 words; add a qualifier only when it disambiguates.
 
 Context:
 - An optional DESIGN.md excerpt may follow. Treat it as weak context, not authority.

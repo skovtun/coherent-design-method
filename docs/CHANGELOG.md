@@ -13,6 +13,23 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ## [Unreleased] — Tool 2 v0 (B-2b: LLM labeler + B-2c: drift report + R10: eval v2)
 
+### Changed — labeler prompt v2: spread-aware scope rule (F13)
+
+The 2026-07-14 eval run isolated the labeler's one systematic error: naming high-spread generic utilities after the single usage its 3 samples happened to show ("Breadcrumb Separator" for a subtle-text color used 47× across 25 files). `labeler-v2` fixes the input, not just the instruction:
+
+- Cluster payload now carries **`occurrences` + `distinct_files`** — previously the model had no way to tell a utility from a component.
+- System prompt: explicit scope rule (high spread → general role, never observed usage) + prefer 2-4-word labels.
+- Third exemplar demonstrates the rule on a neutral case (not an eval case).
+- `PROMPT_VERSION` → `labeler-v2`: full cache invalidation by design.
+
+### Fixed — LLM run observability (R11 postmortem)
+
+First R10-gated run lost 49% of clusters to silent whole-chunk failures. Three fixes:
+
+- Provider errors are recorded and surfaced (`providerErrors[]`, live CLI warnings, end-of-run summary) — never swallowed.
+- `max_tokens` scales with chunk size (fixed 4096 truncated 50-label tool_use JSON → self-inflicted whole-chunk failure); `stop_reason` included in diagnostics. Verified: the re-run had zero provider errors and fallbacks dropped 533 → 69.
+- Eval matching treats hyphens/en/em dashes as spaces (a semantically correct hard-case answer failed on punctuation).
+
 ### Changed — eval harness v2: context-authored ground truth support (R10)
 
 The `--eval` gate that decides whether `--llm` can ever become default was miscalibrated (see B-2b notes below). R10 rebuilds the measurement, per a codex consult (6 verdicts, 3 P1 catches):

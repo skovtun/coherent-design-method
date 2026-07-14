@@ -32,6 +32,14 @@ export interface CompactCluster {
   kind: string
   tokens: string[]
   truncated_token_count: number
+  /**
+   * F13: spread metadata. Without these the labeler cannot distinguish a
+   * general-purpose utility (47 uses across 25 files) from a single-purpose
+   * recipe — it named whole clusters after the one usage its 3 samples
+   * happened to show ("Breadcrumb Separator" on a subtle-text color).
+   */
+  occurrences: number
+  distinct_files: number
   samples: { file: string; line: number; snippet: string }[]
   truncated_sample_count: number
 }
@@ -72,6 +80,8 @@ export function compactClusterForPrompt(cluster: Cluster): CompactCluster {
     kind: cluster.signature.kind,
     tokens,
     truncated_token_count,
+    occurrences: cluster.members.length,
+    distinct_files: new Set(cluster.members.map(m => m.file)).size,
     samples: compactSamples,
     truncated_sample_count,
   }
