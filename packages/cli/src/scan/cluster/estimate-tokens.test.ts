@@ -41,6 +41,14 @@ describe('estimateTokensFromText', () => {
 })
 
 describe('compactClusterForPrompt', () => {
+  it('F13.1: high_spread is precomputed from the thresholds', () => {
+    const wide = Array.from({ length: 20 }, (_, i) => mkRow({ file: `f-${i}.blade.php`, line: 1 }))
+    expect(compactClusterForPrompt(mkCluster({ members: wide })).high_spread).toBe(true)
+    // 20 occurrences but only 3 files → not a utility, a repeated component
+    const narrow = Array.from({ length: 20 }, (_, i) => mkRow({ file: `f-${i % 3}.blade.php`, line: i }))
+    expect(compactClusterForPrompt(mkCluster({ members: narrow })).high_spread).toBe(false)
+  })
+
   it('F13: carries occurrences + distinct_files spread metadata', () => {
     const members = [
       mkRow({ file: 'a.blade.php', line: 1 }),
@@ -103,6 +111,7 @@ describe('isOverPerClusterBudget', () => {
       truncated_token_count: 0,
       occurrences: 3,
       distinct_files: 3,
+      high_spread: false,
       samples: Array.from({ length: 3 }, (_, i) => ({
         file: `f-${i}.php`,
         line: i,

@@ -121,6 +121,31 @@ describe('evaluate', () => {
     expect(report.major_failures).toBe(0)
   })
 
+  it('stems English plurals ("Footer Legal Link List" vs "Footer Legal Links")', () => {
+    // 2026-07-14 regression: link vs links → Jaccard 0.4 → counted major on a
+    // semantically identical label.
+    const exp: ExpectedFile = { clusters: [{ cluster_id: 'a', acceptable_labels: ['Footer Legal Links'] }] }
+    expect(evaluate([labeled('a', 'Footer Legal Link List')], exp).major_failures).toBe(0)
+    // and the reverse direction
+    const exp2: ExpectedFile = { clusters: [{ cluster_id: 'a', acceptable_labels: ['Card Actions'] }] }
+    expect(evaluate([labeled('a', 'Card Action')], exp2).major_failures).toBe(0)
+  })
+
+  it('stemming does not rescue genuinely different labels', () => {
+    const exp: ExpectedFile = { clusters: [{ cluster_id: 'a', acceptable_labels: ['Sticky Sidebar'] }] }
+    expect(evaluate([labeled('a', 'Modal Trigger')], exp).major_failures).toBe(1)
+  })
+
+  it('must_be_generic still rejects extra qualifiers after stemming', () => {
+    const exp: ExpectedFile = {
+      clusters: [{ cluster_id: 'a', acceptable_labels: ['Muted Texts'], must_be_generic: true }],
+    }
+    // "Muted Text" ⊆ "Muted Texts" (stemmed) → pass
+    expect(evaluate([labeled('a', 'Muted Text')], exp).major_failures).toBe(0)
+    // "Breadcrumb Muted Text" adds a qualifier → still major
+    expect(evaluate([labeled('a', 'Breadcrumb Muted Text')], exp).major_failures).toBe(1)
+  })
+
   it('still fails genuinely different labels (fuzzy does not over-rescue)', () => {
     // "Breadcrumb Link" vs "Hover Link" share only "link" → Jaccard 1/3 < 0.6 → major.
     const exp: ExpectedFile = { clusters: [{ cluster_id: 'a', acceptable_labels: ['Hover Link'] }] }

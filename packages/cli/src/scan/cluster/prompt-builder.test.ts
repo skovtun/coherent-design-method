@@ -90,28 +90,38 @@ describe('buildLabelPrompt', () => {
 
   it('F13: system rules carry the spread-based scope rule + label brevity', () => {
     expect(PROMPT_FIXTURES.SYSTEM_RULES).toContain('Scope rule')
-    expect(PROMPT_FIXTURES.SYSTEM_RULES).toContain('distinct_files')
-    expect(PROMPT_FIXTURES.SYSTEM_RULES).toContain('NEVER the observed usage')
+    expect(PROMPT_FIXTURES.SYSTEM_RULES).toContain('high_spread')
+    expect(PROMPT_FIXTURES.SYSTEM_RULES).toContain('sampling bias')
     expect(PROMPT_FIXTURES.SYSTEM_RULES).toContain('2-4 words')
   })
 
-  it('F13: payload exposes occurrences and distinct_files per cluster', () => {
+  it('F13.1: rule keys off the precomputed flag, not raw numbers', () => {
+    // labeler-v2 asked the model to compare counts to thresholds and it did
+    // not comply; v3 hands it a boolean.
+    expect(PROMPT_FIXTURES.SYSTEM_RULES).toContain('do not re-derive it')
+    expect(PROMPT_FIXTURES.SYSTEM_RULES).toContain('high_spread: true')
+    expect(PROMPT_FIXTURES.SYSTEM_RULES).toContain('high_spread: false')
+  })
+
+  it('F13: payload exposes occurrences, distinct_files and high_spread', () => {
     const { user } = buildLabelPrompt(input())
     expect(user).toContain('"occurrences"')
     expect(user).toContain('"distinct_files"')
+    expect(user).toContain('"high_spread"')
   })
 
   it('F13: high-spread exemplar labels the general role, not the sampled usage', () => {
     const f13 = PROMPT_FIXTURES.EXEMPLARS[2]
     expect(f13.input.occurrences).toBeGreaterThanOrEqual(15)
     expect(f13.input.distinct_files).toBeGreaterThanOrEqual(8)
+    expect(f13.input.high_spread).toBe(true)
     // Sample shows a footer copyright line; the output must NOT mention it.
     expect(f13.input.samples[0].snippet).toContain('©')
     expect(f13.output.human_label.toLowerCase()).not.toContain('footer')
     expect(f13.output.human_label.toLowerCase()).not.toContain('copyright')
   })
 
-  it('F13: prompt version bumped to labeler-v2 (cache invalidation contract)', () => {
-    expect(PROMPT_VERSION).toBe('labeler-v2')
+  it('F13: prompt version bumped to labeler-v3 (cache invalidation contract)', () => {
+    expect(PROMPT_VERSION).toBe('labeler-v3')
   })
 })

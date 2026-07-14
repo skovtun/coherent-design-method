@@ -218,6 +218,23 @@ describe('labelClustersWithLLM — repair ladder', () => {
     expect(result.labeled.every(l => l.source === 'deterministic')).toBe(true)
   })
 
+  it('records truncation even when the tool_use block parsed (2026-07-14 silent loss)', async () => {
+    const clusters = [mkCluster('a'), mkCluster('b')]
+    const provider = new MockProvider(async input => ({
+      // Under-delivers: 1 label for a 2-cluster chunk, flagged truncated.
+      outputs: [fakeOutput(input.clusters[0].cluster_id)],
+      usage: { input_tokens: 100, output_tokens: 10 },
+      truncated: true,
+    }))
+    const result = await labelClustersWithLLM(clusters, {
+      provider,
+      designContext: null,
+      cachePath: defaultCachePath(tmp),
+    })
+    expect(result.providerErrors.length).toBeGreaterThan(0)
+    expect(result.providerErrors[0].message).toMatch(/truncated at max_tokens/)
+  })
+
   it('clean run reports zero provider errors', async () => {
     const clusters = [mkCluster('a')]
     const provider = new MockProvider(async input => ({

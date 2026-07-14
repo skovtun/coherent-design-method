@@ -13,6 +13,19 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ## [Unreleased] — Tool 2 v0 (B-2b: LLM labeler + B-2c: drift report + R10: eval v2)
 
+### Changed — labeler prompt v3: deterministic `high_spread` flag (F13.1)
+
+`labeler-v2` handed the model two numbers (`occurrences`, `distinct_files`) and a threshold rule to apply itself. It complied on the headline case (the 47×/25-file subtle-text token now labels as "Subtle Text", not "Breadcrumb Separator") but not consistently — a 48×/9-file `block` utility still came back as "Block Label Wrapper". v3 computes the verdict in code and hands the model a boolean it only has to obey.
+
+- `CompactCluster.high_spread` — precomputed (`>=15` occurrences AND `>=8` files), exported thresholds.
+- Prompt keys off the flag, names the exact failure labels as forbidden, hard-caps labels at 4 words.
+- `PROMPT_VERSION` → `labeler-v3`.
+
+### Fixed — eval matcher: plural stemming; provider: truncation with a parseable body
+
+- Matcher stems English plurals: "Footer Legal Link List" vs accepted "Footer Legal Links" was scored a major failure on `link` vs `links` alone.
+- A truncated response whose `tool_use` block still PARSES now surfaces as a provider error. The 2026-07-14 run lost 93 labels to under-delivered chunks with zero errors logged — the R11 check only fired when the block was absent entirely.
+
 ### Changed — labeler prompt v2: spread-aware scope rule (F13)
 
 The 2026-07-14 eval run isolated the labeler's one systematic error: naming high-spread generic utilities after the single usage its 3 samples happened to show ("Breadcrumb Separator" for a subtle-text color used 47× across 25 files). `labeler-v2` fixes the input, not just the instruction:
