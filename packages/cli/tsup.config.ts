@@ -1,7 +1,11 @@
 import { defineConfig } from 'tsup'
 
 export default defineConfig({
-  entry: ['src/index.ts'],
+  entry: {
+    index: 'src/index.ts',
+    // Dev-only R10 eval tool — NOT in bin/exports. See eval-authoring-cli.ts header.
+    'eval-authoring-cards': 'src/scan/cluster/eval-authoring-cli.ts',
+  },
   format: ['esm'],
   dts: false,
   clean: true,

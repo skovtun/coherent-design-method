@@ -159,6 +159,17 @@ confidence: verified
 
 **Still open (the real fix):** fuzzy match is necessary but NOT sufficient — the gate stays conceptually blocked because ground truth is still token-derived. A valid gate needs `acceptable_labels` authored from the SAME context the LLM sees (human review of real usage, or an LLM-judge scoring semantic adequacy against the code sample), per codex's original "human curates expected.json" intent. Until then, `--llm` stays opt-in (also correct on cost-footgun grounds — see CHANGELOG). Re-run costs ~$2.26; do it once after the ground-truth authoring is fixed.
 
+**2026-07-13 update — harness SHIPPED, authoring in progress.** Codex consult (6 verdicts, 3 P1s) reshaped the design:
+
+1. Split gate: representative set (seeded stratified sample, ≤20% major) + separate **zero-tolerance hard-case suite** (`hard_case: true`) — a combined 25-case gate could pass with all known-hard cases failing.
+2. Authoring tooling = dev-only tsup entry `dist/eval-authoring-cards.js` (no bin/commander/docs); refuses to write cards inside the public repo.
+3. LLM-judge NOT built: Sonnet-judging-Sonnet has correlated bias; human context-authored truth suffices for the flip.
+4. F13 eval support: `must_be_generic` per-case flag with ASYMMETRIC matching (extra qualifiers fail even where symmetric superset/Jaccard would pass); each failure individually major.
+5. cluster_ids are NOT committable (unsalted sha256 of low-entropy signatures, dictionary-recoverable) — expected.json + cards live in the pilot project, referenced by absolute `--eval` path.
+6. This is a **versioned pilot gate** (`meta.corpus`/`eval_version` in expected.json), not a permanent benchmark; held-out multi-project suites are future work. Also fixed: eval now actually checks confidence (`max_confidence` → minor), matching the docstring's claim.
+
+Remaining: author `acceptable_labels` from the generated cards (28 cases: 3 hard + 25 representative, seed 42) → paid re-run (~$2.26) → flip decision.
+
 **Target:** before any future attempt to flip `--llm` to default.
 
 ---
@@ -185,7 +196,9 @@ Breadcrumbs are genuinely pervasive in the pilot app (28 files, NOT a DESIGN.md 
 
 **Blocker:** validate against R10's fixed eval so we don't tune the prompt against a broken measurement.
 
-**Target:** B-2c or the next cluster prompt revision, after R10.
+**2026-07-13 update:** the MEASUREMENT side landed with R10's eval v2 — `must_be_generic` cases with asymmetric matching encode exactly this failure class, and the hard-case suite is zero-tolerance, so an unfixed F13 now BLOCKS the `--llm` flip by construction. Still open: the prompt-side fix itself (expose occurrence count + distinct-file spread to the labeler — codex noted the model currently receives neither — plus generic-role guidance for high-spread clusters).
+
+**Target:** next cluster prompt revision, after R10's expected.json is authored.
 
 ---
 id: F14

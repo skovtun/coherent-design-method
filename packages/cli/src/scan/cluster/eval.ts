@@ -1,13 +1,34 @@
 /**
- * Rerunnable eval harness for B-2b. Codex Q10: 5 cases too small → 20-30
- * is the target sample size. Mislabel taxonomy:
- *   - major: human_label materially wrong
- *   - minor: suggested_role wrong OR confidence badly inflated
+ * Rerunnable eval harness for B-2b (v2 shape per R10 + codex consult
+ * 2026-07-13). Codex Q10: 5 cases too small → 20-30 is the target sample.
+ *
+ * Two suites in one expected.json:
+ *   - representative set (percentage gate) — seeded stratified sample.
+ *   - hard-case suite (`hard_case: true`) — zero-tolerance: ANY major
+ *     failure in it blocks the flip, regardless of the representative rate.
+ *     Rationale: with ~25 cases and a 20% threshold, all known-hard cases
+ *     could fail while the combined gate still passed (codex verdict 1).
+ *
+ * Mislabel taxonomy:
+ *   - major: human_label materially wrong, OR too specific on a
+ *     `must_be_generic` cluster (F13 class of error — codex verdict 4).
+ *   - minor: suggested_role wrong, OR confidence above `max_confidence`.
  *
  * Gate thresholds:
- *   - major > 20%        → do NOT flip `--llm` to default
- *   - major + minor > 35% → prompt revision required
+ *   - representative major > 20% → do NOT flip `--llm` to default
+ *   - any hard-case major        → do NOT flip
+ *   - overall major + minor > 35% → prompt revision required
  *   - any ID-contract failure after repair (caller's responsibility)
+ *
+ * This is a VERSIONED PILOT GATE, not a permanent benchmark (codex
+ * verdict 6): single-project ground truth is vulnerable to prompt
+ * overfitting and corpus drift. `meta` records corpus + version; held-out
+ * multi-project suites are future work.
+ *
+ * PRIVACY: expected.json embeds pilot-project-derived strings AND
+ * cluster_ids (unsalted sha256 prefixes of low-entropy class signatures —
+ * dictionary-recoverable, codex verdict 5). The file lives OUTSIDE this
+ * repo, referenced via `--eval <path>`.
  */
 
 import { readFileSync } from 'node:fs'
@@ -17,9 +38,29 @@ export interface ExpectedLabel {
   cluster_id: string
   acceptable_labels: string[]
   expected_role?: string
+  /** Zero-tolerance suite membership. Any major here blocks the flip. */
+  hard_case?: boolean
+  /**
+   * F13 scope semantics: the cluster is a high-spread generic utility and
+   * the label must NOT be more specific than the acceptable set. With this
+   * flag, matching is asymmetric — extra qualifying tokens beyond an
+   * acceptable label ("Breadcrumb Muted Text" vs "Muted Text") FAIL, while
+   * the symmetric fuzzy match would have passed them.
+   */
+  must_be_generic?: boolean
+  /** Confidence ceiling; actual confidence above it counts as minor. */
+  max_confidence?: number
+}
+
+export interface ExpectedFileMeta {
+  /** Private corpus label, e.g. "pilot-blade-v1". Never the project's real name. */
+  corpus?: string
+  eval_version?: string
+  seed?: number
 }
 
 export interface ExpectedFile {
+  meta?: ExpectedFileMeta
   clusters: ExpectedLabel[]
 }
 
@@ -32,6 +73,7 @@ export interface EvalCase {
   actual_role?: string
   acceptable_labels: string[]
   expected_role?: string
+  hard_case?: boolean
 }
 
 export interface EvalReport {
@@ -39,8 +81,15 @@ export interface EvalReport {
   pass: number
   major_failures: number
   minor_failures: number
+  /** Hard-case suite (zero-tolerance) breakdown. */
+  hard_total: number
+  hard_major_failures: number
+  /** Representative (non-hard) major rate drives the percentage gate. */
+  representative_total: number
+  representative_major_failures: number
   cases: EvalCase[]
-  /** Gate verdict per codex Q10. */
+  meta?: ExpectedFileMeta
+  /** Gate verdict per codex Q10 + R10 v2. */
   gate: {
     flip_llm_default_ok: boolean
     needs_prompt_revision: boolean
@@ -61,8 +110,16 @@ export function evaluate(actual: LabeledCluster[], expected: ExpectedFile): Eval
   const cases: EvalCase[] = []
   let major_failures = 0
   let minor_failures = 0
+  let hard_total = 0
+  let hard_major_failures = 0
+  let representative_total = 0
+  let representative_major_failures = 0
 
   for (const exp of expected.clusters) {
+    const isHard = exp.hard_case === true
+    if (isHard) hard_total++
+    else representative_total++
+
     const got = actualById.get(exp.cluster_id)
     if (!got) {
       cases.push({
@@ -73,16 +130,27 @@ export function evaluate(actual: LabeledCluster[], expected: ExpectedFile): Eval
         actual_label: '',
         acceptable_labels: exp.acceptable_labels,
         expected_role: exp.expected_role,
+        hard_case: isHard || undefined,
       })
       major_failures++
+      if (isHard) hard_major_failures++
+      else representative_major_failures++
       continue
     }
 
-    const labelOk = matchesAny(got.human_label, exp.acceptable_labels)
+    const labelOk = exp.must_be_generic
+      ? matchesAnyGeneric(got.human_label, exp.acceptable_labels)
+      : matchesAny(got.human_label, exp.acceptable_labels)
     const roleOk = !exp.expected_role || got.suggested_role === exp.expected_role
+    const confidenceOk =
+      exp.max_confidence === undefined || typeof got.confidence !== 'number' || got.confidence <= exp.max_confidence
     const isMajor = !labelOk
-    const isMinor = labelOk && !roleOk
-    if (isMajor) major_failures++
+    const isMinor = labelOk && (!roleOk || !confidenceOk)
+    if (isMajor) {
+      major_failures++
+      if (isHard) hard_major_failures++
+      else representative_major_failures++
+    }
     if (isMinor) minor_failures++
 
     cases.push({
@@ -90,20 +158,25 @@ export function evaluate(actual: LabeledCluster[], expected: ExpectedFile): Eval
       major: isMajor,
       minor: isMinor,
       reason: isMajor
-        ? `label "${got.human_label}" not in acceptable set`
+        ? exp.must_be_generic && matchesAny(got.human_label, exp.acceptable_labels)
+          ? `label "${got.human_label}" too specific for a must_be_generic cluster`
+          : `label "${got.human_label}" not in acceptable set`
         : isMinor
-          ? `role "${got.suggested_role ?? '(none)'}" != expected "${exp.expected_role}"`
+          ? !roleOk
+            ? `role "${got.suggested_role ?? '(none)'}" != expected "${exp.expected_role}"`
+            : `confidence ${got.confidence?.toFixed(2)} > max ${exp.max_confidence?.toFixed(2)}`
           : 'ok',
       actual_label: got.human_label,
       actual_role: got.suggested_role,
       acceptable_labels: exp.acceptable_labels,
       expected_role: exp.expected_role,
+      hard_case: isHard || undefined,
     })
   }
 
   const total = expected.clusters.length
   const pass = total - major_failures - minor_failures
-  const majorRate = total === 0 ? 0 : major_failures / total
+  const repMajorRate = representative_total === 0 ? 0 : representative_major_failures / representative_total
   const combinedRate = total === 0 ? 0 : (major_failures + minor_failures) / total
 
   return {
@@ -111,10 +184,15 @@ export function evaluate(actual: LabeledCluster[], expected: ExpectedFile): Eval
     pass,
     major_failures,
     minor_failures,
+    hard_total,
+    hard_major_failures,
+    representative_total,
+    representative_major_failures,
     cases,
+    meta: expected.meta,
     gate: {
-      flip_llm_default_ok: majorRate <= 0.2,
-      needs_prompt_revision: combinedRate > 0.35,
+      flip_llm_default_ok: repMajorRate <= 0.2 && hard_major_failures === 0,
+      needs_prompt_revision: combinedRate > 0.35 || hard_major_failures > 0,
     },
   }
 }
@@ -128,15 +206,11 @@ export function evaluate(actual: LabeledCluster[], expected: ExpectedFile): Eval
  * Fuzzy match rescues those without rescuing genuinely-different labels ("Wrong"
  * vs "Correct" share no tokens → still fail).
  *
- * KNOWN LIMITATION — this is necessary but NOT sufficient. The deeper miscalibration
- * is authoring `acceptable_labels` from *token signatures alone* while the LLM labels
- * from *code context + DESIGN.md*. Context-derived labels ("grid-cols-a1a" → "Label-
- * Dotted-Line-Value Row") are richer than any token-only guess and still miss. A valid
- * gate needs ground truth authored from the SAME context the LLM sees (human review of
- * real usage), per codex's original "human curates expected.json" intent. See IDEAS_BACKLOG.
+ * The deeper 2026-07-11 miscalibration — ground truth authored from token
+ * signatures instead of the labeler's context — is addressed by the R10
+ * authoring workflow (eval-authoring.ts), not by matching mechanics.
  */
 function matchesAny(actual: string, acceptable: string[]): boolean {
-  const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
   const a = norm(actual)
   const aTokens = new Set(a.split(' ').filter(Boolean))
   return acceptable.some(x => {
@@ -153,11 +227,41 @@ function matchesAny(actual: string, acceptable: string[]): boolean {
   })
 }
 
+/**
+ * Asymmetric match for `must_be_generic` clusters (codex verdict 4): the
+ * actual label may be equal to or MORE generic than an acceptable label,
+ * but never more specific. "Muted Text" passes against ["Muted Caption
+ * Text"]; "Breadcrumb Muted Text" fails against ["Muted Text"] even though
+ * the symmetric superset/Jaccard rules would accept it.
+ */
+function matchesAnyGeneric(actual: string, acceptable: string[]): boolean {
+  const a = norm(actual)
+  const aTokens = new Set(a.split(' ').filter(Boolean))
+  return acceptable.some(x => {
+    const e = norm(x)
+    if (e === a) return true
+    // actual must be a token-subset of the acceptable label: no extra qualifiers.
+    for (const t of aTokens) {
+      if (!e.split(' ').includes(t)) return false
+    }
+    return aTokens.size > 0
+  })
+}
+
+function norm(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
 export function formatEvalReport(report: EvalReport): string {
   const lines: string[] = [
-    `Eval: ${report.pass}/${report.total} pass`,
+    `Eval: ${report.pass}/${report.total} pass` +
+      (report.meta?.corpus
+        ? ` (corpus: ${report.meta.corpus}${report.meta.eval_version ? `, ${report.meta.eval_version}` : ''})`
+        : ''),
     `  major failures: ${report.major_failures}`,
     `  minor failures: ${report.minor_failures}`,
+    `  representative: ${report.representative_total - report.representative_major_failures}/${report.representative_total} (gate ≤ 20% major)`,
+    `  hard cases:     ${report.hard_total - report.hard_major_failures}/${report.hard_total} (zero-tolerance)`,
     '',
     `Gate: --llm-default ${report.gate.flip_llm_default_ok ? 'OK' : 'BLOCKED'}, prompt-revision ${report.gate.needs_prompt_revision ? 'REQUIRED' : 'not required'}`,
     '',
@@ -166,7 +270,7 @@ export function formatEvalReport(report: EvalReport): string {
   if (fails.length > 0) {
     lines.push('Failures:')
     for (const f of fails.slice(0, 20)) {
-      const tag = f.major ? 'MAJOR' : 'minor'
+      const tag = f.major ? (f.hard_case ? 'MAJOR/HARD' : 'MAJOR') : 'minor'
       lines.push(`  [${tag}] ${f.cluster_id}: ${f.reason}`)
     }
     if (fails.length > 20) lines.push(`  …and ${fails.length - 20} more`)
