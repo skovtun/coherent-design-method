@@ -13,6 +13,12 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ## [Unreleased] — Tool 2 v0 (B-2b: LLM labeler + B-2c: drift report + R10: eval v2)
 
+### Fixed — a malformed optional role no longer discards a perfect label (R12.2)
+
+The real root cause behind the stubborn `grid grid-cols-a1a` fallback (and ~100 other silent fallbacks in the labeler-v4 run). A single-cluster diagnostic showed the model returned an ideal label — `human_label: "Label Dotted Value Row"` — but reconcile threw the whole output away because the OPTIONAL `suggested_role` was `layout.label-value-row`: kebab-case inside a segment, which fails the dot.case regex. The cluster then fell to a deterministic fallback (a raw cluster id).
+
+`suggested_role` is optional; a malformed one now DROPS the role and keeps the label, instead of invalidating the required fields alongside it. Required-field validation (human_label, confidence) is unchanged. This recovers ~100 good labels per run and is the fix that takes the pilot gate's hard cases to 3/3. No prompt change — cache stays valid.
+
 ### Fixed — singleton retry defeats chunk poisoning (R12.1)
 
 The labeler-v4 validation run passed the representative suite at 12% major but stayed gate-BLOCKED on ONE hard case: `grid grid-cols-a1a` kept landing on a deterministic fallback (a raw cluster id, which the judge correctly calls "wrong"). Root cause is not labeling — it is chunk poisoning: a couple of junk-token clusters (parsed `@class` fragments like `$profit 0 >= ?`) in a chunk make the model drop OTHER ids from its response, and subset-repair re-drops them together (a 24-id subset came back 24-unresolved, unchanged across attempts). 
