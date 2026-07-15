@@ -13,6 +13,10 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ## [Unreleased] — Tool 2 v0 (B-2b: LLM labeler + B-2c: drift report + R10: eval v2)
 
+### Changed — cost banner shows an honest range, not a floor sold as the total
+
+The `--llm` cost banner quoted a single number (e.g. `$2.29`) that was really the CLEAN-PASS floor. Real runs cost 2.6-3x that (`$6.08`) because the repair ladder re-calls dropped-id chunks and every re-call re-sends the full DESIGN.md. The banner now shows a range — `$2.31–$6.93 (clean pass → with repair retries)` — plus a note that retries re-send DESIGN.md and `--eval-judge` adds a few cents. The floor is exact (computed from the actual chunk payloads and scales with project size); the ceiling is a measured `REPAIR_COST_CEILING_FACTOR` (run-variance, not size). Spend is still gated by TTY-confirm / `--yes`; this only stops the quote from under-selling.
+
 ### Changed — free deterministic label is now the clean class signature
 
 The default (no-`--llm`) label was `<token>-cluster-<hash>` — e.g. `lb-label-cluster-1f1e1d12` — which is noise (the stable id already prints on its own line). It is now the cluster's clean class signature with pure spacing/sizing utilities dropped:
