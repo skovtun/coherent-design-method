@@ -28,6 +28,14 @@ const ROLE_RE = /^[a-z][a-z0-9]*(\.[a-z0-9]+){0,3}$/
 const LABEL_MAX = 60
 const LABEL_MIN = 2
 
+/**
+ * Validates only the REQUIRED fields (human_label, confidence). A malformed
+ * OPTIONAL suggested_role must never invalidate the whole output — see
+ * sanitizeRole. The 2026-07-15 pilot run lost a perfect "Label Dotted Value
+ * Row" (and ~100 other good labels) because the model emitted a kebab-case
+ * role segment ("layout.label-value-row") that fails the dot.case regex, and
+ * the old code threw away the entire cluster for it → deterministic fallback.
+ */
 function validateOutput(output: RawLabelOutput): string | null {
   if (typeof output.human_label !== 'string') return 'human_label must be string'
   const label = output.human_label.trim()
@@ -42,14 +50,13 @@ function validateOutput(output: RawLabelOutput): string | null {
     return 'confidence must be in [0, 1]'
   }
 
-  if (output.suggested_role !== undefined) {
-    if (typeof output.suggested_role !== 'string') return 'suggested_role must be string or omitted'
-    if (output.suggested_role !== '' && !ROLE_RE.test(output.suggested_role)) {
-      return `suggested_role does not match dot.case regex: ${output.suggested_role}`
-    }
-  }
-
   return null
+}
+
+/** Keep a suggested_role only if it is a clean dot.case string; otherwise drop it. */
+function sanitizeRole(role: RawLabelOutput['suggested_role']): string | undefined {
+  if (typeof role !== 'string' || role === '') return undefined
+  return ROLE_RE.test(role) ? role : undefined
 }
 
 export function reconcileLabelOutput(expectedIds: string[], outputs: RawLabelOutput[]): ReconcileReport {
@@ -75,7 +82,11 @@ export function reconcileLabelOutput(expectedIds: string[], outputs: RawLabelOut
     if (reason) {
       invalid.push({ cluster_id: id, reason })
     } else {
-      validByFirstHit.set(id, { ...out, human_label: out.human_label.trim() })
+      validByFirstHit.set(id, {
+        ...out,
+        human_label: out.human_label.trim(),
+        suggested_role: sanitizeRole(out.suggested_role),
+      })
     }
   }
 

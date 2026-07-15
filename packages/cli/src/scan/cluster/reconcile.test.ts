@@ -85,9 +85,28 @@ describe('reconcileLabelOutput — failure modes', () => {
     expect(r.invalid[0].reason).toContain('confidence')
   })
 
-  it('rejects invalid suggested_role', () => {
+  it('drops a malformed suggested_role but keeps the label (does NOT invalidate)', () => {
+    // 2026-07-15: "layout.label-value-row" (kebab segment) used to nuke a
+    // perfect human_label to a deterministic fallback. Now the role is dropped
+    // and the label survives.
+    const r = reconcileLabelOutput(['a'], [{ ...good('a'), suggested_role: 'layout.label-value-row' }])
+    expect(r.ok).toBe(true)
+    expect(r.invalid).toEqual([])
+    expect(r.valid).toHaveLength(1)
+    expect(r.valid[0].human_label).toBe(good('a').human_label)
+    expect(r.valid[0].suggested_role).toBeUndefined()
+  })
+
+  it('drops a Title-Case suggested_role too, still keeps the label', () => {
     const r = reconcileLabelOutput(['a'], [{ ...good('a'), suggested_role: 'Button-Primary' }])
-    expect(r.invalid[0].reason).toContain('dot.case')
+    expect(r.ok).toBe(true)
+    expect(r.valid[0].suggested_role).toBeUndefined()
+  })
+
+  it('still invalidates on a bad REQUIRED field (human_label), unaffected by role handling', () => {
+    const r = reconcileLabelOutput(['a'], [{ cluster_id: 'a', human_label: '.', confidence: 0.8 }])
+    expect(r.ok).toBe(false)
+    expect(r.invalid).toHaveLength(1)
   })
 
   it('accepts omitted suggested_role', () => {
@@ -103,9 +122,10 @@ describe('reconcileLabelOutput — failure modes', () => {
     }
   })
 
-  it('rejects role with 5+ segments', () => {
+  it('drops a role with 5+ segments but keeps the label', () => {
     const r = reconcileLabelOutput(['a'], [{ ...good('a'), suggested_role: 'a.b.c.d.e' }])
-    expect(r.invalid).toHaveLength(1)
+    expect(r.ok).toBe(true)
+    expect(r.valid[0].suggested_role).toBeUndefined()
   })
 })
 
