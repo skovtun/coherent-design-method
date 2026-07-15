@@ -156,6 +156,38 @@ describe('labelClustersWithLLM — repair ladder', () => {
     expect(result.labeled.every(l => l.confidence === FALLBACK_CONFIDENCE)).toBe(true)
   })
 
+  it('attempt 4: rescues a straggler via singleton retry when the chunk poisons subset-repair', async () => {
+    // Model drops 'b' from every MULTI-cluster call (chunk poisoning) but
+    // labels it fine when asked ALONE. Without singleton retry 'b' → fallback.
+    const clusters = [mkCluster('a'), mkCluster('b')]
+    const provider = new MockProvider(async input => {
+      const solo = input.clusters.length === 1
+      const outputs = input.clusters.filter(c => solo || c.cluster_id !== 'b').map(c => fakeOutput(c.cluster_id))
+      return { outputs, usage: { input_tokens: 100, output_tokens: 10 } }
+    })
+    const result = await labelClustersWithLLM(clusters, {
+      provider,
+      designContext: null,
+      cachePath: defaultCachePath(tmp),
+    })
+    expect(result.fallbackCount).toBe(0)
+    expect(result.labeled.every(l => l.source === 'llm')).toBe(true)
+    expect(result.labeled.find(l => l.cluster.cluster_id === 'b')?.human_label).toBe('Primary CTA')
+  })
+
+  it('still falls back to deterministic when even a singleton call fails', async () => {
+    // Provider returns nothing regardless of chunk size → attempt 4 can't help.
+    const clusters = [mkCluster('a')]
+    const provider = new MockProvider(async () => ({ outputs: [], usage: { input_tokens: 100, output_tokens: 10 } }))
+    const result = await labelClustersWithLLM(clusters, {
+      provider,
+      designContext: null,
+      cachePath: defaultCachePath(tmp),
+    })
+    expect(result.fallbackCount).toBe(1)
+    expect(result.labeled[0].source).toBe('deterministic')
+  })
+
   it('throws with --strict-llm when LLM cannot label all clusters', async () => {
     const clusters = [mkCluster('a')]
     const provider = new MockProvider(async () => ({
@@ -209,11 +241,12 @@ describe('labelClustersWithLLM — repair ladder', () => {
       cachePath: defaultCachePath(tmp),
       onProviderError: info => seen.push(info),
     })
-    // All 3 ladder attempts threw → 3 recorded errors, all clusters fell back.
-    expect(result.providerErrors).toHaveLength(3)
-    expect(result.providerErrors.map(e => e.attempt)).toEqual([1, 2, 3])
+    // 3 ladder attempts + 2 singleton retries (one per straggler) all threw →
+    // 5 recorded errors, every one surfaced, all clusters fell back.
+    expect(result.providerErrors).toHaveLength(5)
+    expect(result.providerErrors.map(e => e.attempt)).toEqual([1, 2, 3, 3, 3])
     expect(result.providerErrors.every(e => e.message.includes('rate_limit_error'))).toBe(true)
-    expect(seen).toHaveLength(3)
+    expect(seen).toHaveLength(5)
     expect(result.fallbackCount).toBe(2)
     expect(result.labeled.every(l => l.source === 'deterministic')).toBe(true)
   })

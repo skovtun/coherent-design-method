@@ -13,6 +13,12 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ## [Unreleased] — Tool 2 v0 (B-2b: LLM labeler + B-2c: drift report + R10: eval v2)
 
+### Fixed — singleton retry defeats chunk poisoning (R12.1)
+
+The labeler-v4 validation run passed the representative suite at 12% major but stayed gate-BLOCKED on ONE hard case: `grid grid-cols-a1a` kept landing on a deterministic fallback (a raw cluster id, which the judge correctly calls "wrong"). Root cause is not labeling — it is chunk poisoning: a couple of junk-token clusters (parsed `@class` fragments like `$profit 0 >= ?`) in a chunk make the model drop OTHER ids from its response, and subset-repair re-drops them together (a 24-id subset came back 24-unresolved, unchanged across attempts). 
+
+Adds a 4th ladder stage: any cluster still unresolved after subset-repair is re-called ALONE. A chunk-of-one has nothing to poison it. No prompt change, so the 1077 cached v4 labels stay valid — the next run only re-calls the stragglers.
+
 ### Changed — labeler prompt v4: token-nature `generic_utility` flag (F13.2)
 
 The R12 judge confirmed the remaining gate failures were REAL labeler over-specialization, and pointed at the fix: the #120 `high_spread` flag keyed off occurrence/file COUNTS, which cannot separate a widespread generic utility from a widespread structural recipe. Both pilot hard cases are widespread:
