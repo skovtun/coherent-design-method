@@ -6,6 +6,9 @@
  *   Attempt 1 — full chunk via provider
  *   Attempt 2 — full chunk with repair sub-context (missing/extra/dup/invalid)
  *   Attempt 3 — subset repair: re-call ONLY the still-unresolved IDs
+ *   Attempt 4 — singleton retry: re-call each remaining straggler ALONE, to
+ *     escape "chunk poisoning" where a junk-token cluster makes the model drop
+ *     others (R12.1, 2026-07-15). No prompt change, so cache stays valid.
  *   Then deterministic fallback at FALLBACK_CONFIDENCE for whatever's left
  *
  * Caching: only `source: 'llm'` results are written. Deterministic fallbacks
@@ -202,6 +205,22 @@ export async function labelClustersWithLLM(
         reconciled: report.valid.length,
         unresolved: expectedIds.length - report.valid.length,
       })
+    }
+
+    // Attempt 4: singleton retry. Some chunks are "poisoned" — one or two
+    // clusters with junk tokens (parsed @class fragments) make the model drop
+    // OTHER ids from the whole chunk, and subset-repair re-drops them together
+    // (2026-07-15 run: a 24-id subset came back 24-unresolved, unchanged across
+    // attempts, sending grid-cols-a1a to a deterministic fallback three runs in
+    // a row). Isolating each straggler in a chunk-of-one removes the poisoning:
+    // a single cluster has nothing to drop it against. No prompt change → cache
+    // stays valid.
+    const afterSubset = unresolvedIds(report, expectedIds)
+    for (const id of afterSubset) {
+      const solo = plan.clusters.find(c => c.cluster_id === id)
+      if (!solo) continue
+      const soloReport = await runProvider(options.provider, { ...baseInput, clusters: [solo] }, usage, errCtx(3))
+      report = mergeReports(report, soloReport, [id])
     }
 
     // Promote valid outputs to LabeledCluster + record for cache.
