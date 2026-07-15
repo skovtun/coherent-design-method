@@ -13,6 +13,15 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ## [Unreleased] — Tool 2 v0 (B-2b: LLM labeler + B-2c: drift report + R10: eval v2)
 
+### Changed — labeler prompt v4: token-nature `generic_utility` flag (F13.2)
+
+The R12 judge confirmed the remaining gate failures were REAL labeler over-specialization, and pointed at the fix: the #120 `high_spread` flag keyed off occurrence/file COUNTS, which cannot separate a widespread generic utility from a widespread structural recipe. Both pilot hard cases are widespread:
+
+- `text-grey_light_text` (47 uses / 25 files) → wants general **"Subtle Text"**
+- `container mx-auto px-5 …` (23 uses / 23 files) → wants specific **"Breadcrumb Nav"**
+
+`high_spread` would have forced the breadcrumb recipe to a generic name — a hard-case regression. v4 replaces it with `generic_utility`, computed from the token NATURE (a small set of bare styling utilities vs a structural recipe or semantic component class), plus a prompt rule that names the visual/structural ROLE, never the observed page/element. New `token-class.ts` classifier, validated offline at **0/28 mismatches** on the pilot eval set. It also catches the one failure spread missed entirely (`mb-6 text-grey`, generic but in a single file). `PROMPT_VERSION` → `labeler-v4` (full cache invalidation).
+
 ### Added — eval LLM-judge lane (R12, `--eval-judge`)
 
 Optional rescue-only re-scoring of eval failures for MEANING, not string overlap. After three rounds of matcher patching (dashes → stemming → …) the 2026-07-14 run still failed labels like "Detail Label Term" vs accepted "Definition Term Label" — same meaning, different wording. The judge grades those against the human `acceptable_labels`, looking at the same code samples the labeler saw.
