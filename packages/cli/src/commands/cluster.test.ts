@@ -104,7 +104,8 @@ describe('coherent cluster', () => {
     const md = readFileSync(outPath, 'utf8')
     expect(md).toContain('# Coherent Design (DRAFT)')
     expect(md).toContain('DRAFT — auto-generated from code')
-    expect(md).toContain('lb-label-cluster-')
+    expect(md).toContain('### lb-label')
+    expect(md).not.toMatch(/-cluster-[0-9a-f]{8}/)
   })
 
   it('defaults to deterministic (LLM is opt-in) — no API key needed without --llm', async () => {
@@ -180,7 +181,7 @@ describe('coherent cluster', () => {
     const drift = readFileSync(driftPath, 'utf8')
     expect(drift).toContain(`DESIGN.md detected at \`${designPath}\``)
     expect(drift).toContain('Semantic comparison deferred — manual review required.')
-    expect(drift).toContain('lb-label-cluster-')
+    expect(drift).toContain('lb-label')
   })
 
   it('does NOT write DRIFT-REPORT.md when no DESIGN.md exists', async () => {

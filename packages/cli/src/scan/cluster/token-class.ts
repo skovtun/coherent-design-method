@@ -153,3 +153,46 @@ export function isGenericUtility(tokens: string[]): boolean {
   if (tokens.length === 0 || tokens.length > MAX_GENERIC_UTILITY_TOKENS) return false
   return tokens.every(t => classifyToken(t) === 'visual')
 }
+
+// Pure spacing / sizing utilities — margin, padding, gap, child-spacing, width,
+// height, min/max. They carry almost no label signal ("container mx-auto px-5
+// lg:px-30 pt-4 pb-1 text-sm" is really "container text-sm" plus dimensions),
+// so the deterministic label drops them.
+const DIMENSIONAL_PREFIXES = [
+  'm-',
+  'mt-',
+  'mb-',
+  'ml-',
+  'mr-',
+  'mx-',
+  'my-',
+  'p-',
+  'pt-',
+  'pb-',
+  'pl-',
+  'pr-',
+  'px-',
+  'py-',
+  'gap-',
+  'space-',
+  'w-',
+  'h-',
+  'min-',
+  'max-',
+  'size-',
+]
+
+export function isDimensional(token: string): boolean {
+  const t = stripVariants(token)
+  return DIMENSIONAL_PREFIXES.some(p => t.startsWith(p))
+}
+
+/**
+ * Drops pure spacing/sizing tokens so a class-signature label reads as its
+ * meaningful part. Falls back to the full token list when a cluster is ONLY
+ * dimensional (e.g. `pr-4 py-2`) so the label is never empty.
+ */
+export function salientTokens(tokens: string[]): string[] {
+  const kept = tokens.filter(t => !isDimensional(t))
+  return kept.length > 0 ? kept : tokens
+}

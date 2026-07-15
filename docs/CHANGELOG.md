@@ -13,6 +13,16 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ## [Unreleased] — Tool 2 v0 (B-2b: LLM labeler + B-2c: drift report + R10: eval v2)
 
+### Changed — free deterministic label is now the clean class signature
+
+The default (no-`--llm`) label was `<token>-cluster-<hash>` — e.g. `lb-label-cluster-1f1e1d12` — which is noise (the stable id already prints on its own line). It is now the cluster's clean class signature with pure spacing/sizing utilities dropped:
+
+- `lb-label-cluster-1f1e1d12` → `lb-label`
+- `container mx-auto px-5 lg:px-30 pt-4 lg:pt-6 pb-1 text-sm` → `container text-sm`
+- `grid grid-cols-a1a` unchanged; `mb-6 text-grey` → `text-grey`
+
+Margin / padding / gap / width / height tokens carry almost no label signal, so `salientTokens` filters them (falling back to the full list for a pure-dimensional cluster like `pr-4 py-2`). This makes the FREE default genuinely reviewable, so `--llm` stays an opt-in polish (semantic names like "Subtle Text") rather than something you need on by default. No cost, no eval, no hallucination on the default path.
+
 ### Fixed — a malformed optional role no longer discards a perfect label (R12.2)
 
 The real root cause behind the stubborn `grid grid-cols-a1a` fallback (and ~100 other silent fallbacks in the labeler-v4 run). A single-cluster diagnostic showed the model returned an ideal label — `human_label: "Label Dotted Value Row"` — but reconcile threw the whole output away because the OPTIONAL `suggested_role` was `layout.label-value-row`: kebab-case inside a segment, which fails the dot.case regex. The cluster then fell to a deterministic fallback (a raw cluster id).
