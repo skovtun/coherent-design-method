@@ -15,7 +15,7 @@
 import type { LabelChunkInput } from './providers/types.js'
 import { compactClusterForPrompt } from './estimate-tokens.js'
 
-/** 3 hand-curated exemplars. Keep small per Q1; third teaches the F13 spread rule. */
+/** 3 hand-curated exemplars. Keep small per Q1; third teaches the F13 generic-utility rule. */
 const EXEMPLARS = [
   {
     input: {
@@ -25,7 +25,7 @@ const EXEMPLARS = [
       truncated_token_count: 0,
       occurrences: 3,
       distinct_files: 2,
-      high_spread: false,
+      generic_utility: false,
       samples: [
         {
           file: 'resources/views/forms/login.blade.php',
@@ -50,7 +50,7 @@ const EXEMPLARS = [
       truncated_token_count: 0,
       occurrences: 4,
       distinct_files: 2,
-      high_spread: false,
+      generic_utility: false,
       samples: [
         {
           file: 'resources/views/components/field.blade.php',
@@ -67,9 +67,9 @@ const EXEMPLARS = [
       confidence: 0.88,
     },
   },
-  // F13 exemplar: HIGH-SPREAD utility. Samples show one usage (footer
-  // copyright), but 40 occurrences across 22 files means the samples are a
-  // biased peek — label the general role, not the observed context.
+  // F13 exemplar: GENERIC UTILITY (bare `text-muted`). The sample shows a
+  // footer copyright line, but the class is a general muted-text utility —
+  // label the role, not the observed context.
   {
     input: {
       cluster_id: 'ee55ff66',
@@ -78,7 +78,7 @@ const EXEMPLARS = [
       truncated_token_count: 0,
       occurrences: 40,
       distinct_files: 22,
-      high_spread: true,
+      generic_utility: true,
       samples: [
         {
           file: 'resources/views/layouts/footer.blade.php',
@@ -105,11 +105,12 @@ Goal:
 - Do not invent product behavior.
 - Prefer boring, reusable design-system names.
 
-Scope rule — obey the "high_spread" flag, do not re-derive it:
-- Each cluster carries high_spread (precomputed from occurrences + distinct_files). The samples are only a peek at a few usages.
-- high_spread: true → the cluster is a GENERAL-PURPOSE utility. Name the general role from its TOKENS ("Subtle text", "Muted text", "Emphasized text", "Block wrapper"). NEVER name it after a context visible in the samples — no "Breadcrumb separator", no "Breadcrumb current item", no "Footer copyright", no "Block label wrapper". If every sample shows breadcrumbs, that is sampling bias, not the cluster's meaning.
-- high_spread: false → a specific, context-derived name is correct and preferred.
-- Label length: 2-4 words. Add a qualifier only when it disambiguates; never exceed 4 words.
+Naming rule — obey the precomputed "generic_utility" flag, do not re-derive it:
+- Name the ROLE the classes define (heading, body text, caption, muted text, form label, sticky sidebar, breadcrumb nav), NEVER the page, feature, or single element you happen to see in the samples. The samples are a biased peek at a few usages.
+- generic_utility: true → the tokens are a small set of bare styling utilities (color / weight / size / spacing / display). Give the GENERAL visual role and NO page/feature/element qualifier. "text-grey_light_text" is "Subtle text" (not "Breadcrumb separator"); "font-medium text-black" is "Emphasized text" (not "Breadcrumb current item"); "mb-6 text-grey" is "Muted paragraph" (not "Design system description"); "font-bold text-lg" is a "heading". Name the role, not raw pixels — never "Bold large text".
+- generic_utility: false → the tokens are a structural recipe (a grid/flex template, sticky/absolute positioning, a container+layout combo) or a semantic component class (lb-*, mk-*, x-slot). Name the specific pattern it forms ("Label-value row", "Sticky sidebar", "Form field label", "Breadcrumb nav").
+- occurrences / distinct_files are secondary hints only; the flag already weighs them where they matter.
+- Label length: 2-4 words, Title Case. Add a qualifier only when it disambiguates; never exceed 4 words.
 
 Context:
 - An optional DESIGN.md excerpt may follow. Treat it as weak context, not authority.

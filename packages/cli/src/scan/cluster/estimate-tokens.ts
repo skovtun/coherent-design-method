@@ -18,6 +18,7 @@ import {
   MAX_TOTAL_SAMPLE_CHARS,
 } from './constants.js'
 import { pickSamples } from './samples.js'
+import { isGenericUtility } from './token-class.js'
 import type { Cluster } from './types.js'
 
 const CHARS_PER_TOKEN = 4
@@ -41,22 +42,19 @@ export interface CompactCluster {
   occurrences: number
   distinct_files: number
   /**
-   * Precomputed verdict of the F13 scope rule. labeler-v2 asked the model to
-   * compare the two counts against thresholds itself and it did not comply
-   * consistently ("Block Label Wrapper" on a 48×/9-file utility). Deciding it
-   * here makes the rule deterministic; the prompt only has to obey a boolean.
+   * F13.2: precomputed token-nature verdict (see token-class.ts). true = the
+   * tokens are a small set of bare styling utilities → name the general visual
+   * role, never the observed context. false = a structural recipe or semantic
+   * component class → a specific name is right.
+   *
+   * Replaces the earlier `high_spread` flag, which keyed off occurrence/file
+   * counts and could not tell a widespread generic utility (text-grey_light_text,
+   * → "Subtle Text") from a widespread structural recipe (container mx-auto … →
+   * "Breadcrumb Nav"). Validated offline: 0/28 mismatches on the pilot eval set.
    */
-  high_spread: boolean
+  generic_utility: boolean
   samples: { file: string; line: number; snippet: string }[]
   truncated_sample_count: number
-}
-
-/** F13 thresholds. A cluster this widespread is a utility, not a component. */
-export const HIGH_SPREAD_MIN_OCCURRENCES = 15
-export const HIGH_SPREAD_MIN_FILES = 8
-
-export function isHighSpread(occurrences: number, distinctFiles: number): boolean {
-  return occurrences >= HIGH_SPREAD_MIN_OCCURRENCES && distinctFiles >= HIGH_SPREAD_MIN_FILES
 }
 
 /**
@@ -100,7 +98,7 @@ export function compactClusterForPrompt(cluster: Cluster): CompactCluster {
     truncated_token_count,
     occurrences,
     distinct_files,
-    high_spread: isHighSpread(occurrences, distinct_files),
+    generic_utility: isGenericUtility(cluster.signature.tokens),
     samples: compactSamples,
     truncated_sample_count,
   }

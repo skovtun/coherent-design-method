@@ -41,12 +41,19 @@ describe('estimateTokensFromText', () => {
 })
 
 describe('compactClusterForPrompt', () => {
-  it('F13.1: high_spread is precomputed from the thresholds', () => {
-    const wide = Array.from({ length: 20 }, (_, i) => mkRow({ file: `f-${i}.blade.php`, line: 1 }))
-    expect(compactClusterForPrompt(mkCluster({ members: wide })).high_spread).toBe(true)
-    // 20 occurrences but only 3 files → not a utility, a repeated component
-    const narrow = Array.from({ length: 20 }, (_, i) => mkRow({ file: `f-${i % 3}.blade.php`, line: i }))
-    expect(compactClusterForPrompt(mkCluster({ members: narrow })).high_spread).toBe(false)
+  it('F13.2: generic_utility is precomputed from token nature, not spread', () => {
+    // bare visual utilities → generic, regardless of how few files
+    const visual = mkCluster({ signature: { kind: 'inline_classes', tokens: ['mb-6', 'text-grey'] } })
+    expect(compactClusterForPrompt(visual).generic_utility).toBe(true)
+    // structural recipe → not generic even when widespread
+    const structural = mkCluster({
+      members: Array.from({ length: 30 }, (_, i) => mkRow({ file: `f-${i}.blade.php`, line: 1 })),
+      signature: { kind: 'inline_classes', tokens: ['container', 'mx-auto', 'px-5', 'text-sm'] },
+    })
+    expect(compactClusterForPrompt(structural).generic_utility).toBe(false)
+    // semantic component class → not generic
+    const semantic = mkCluster({ signature: { kind: 'inline_classes', tokens: ['lb-label'] } })
+    expect(compactClusterForPrompt(semantic).generic_utility).toBe(false)
   })
 
   it('F13: carries occurrences + distinct_files spread metadata', () => {
@@ -111,7 +118,7 @@ describe('isOverPerClusterBudget', () => {
       truncated_token_count: 0,
       occurrences: 3,
       distinct_files: 3,
-      high_spread: false,
+      generic_utility: false,
       samples: Array.from({ length: 3 }, (_, i) => ({
         file: `f-${i}.php`,
         line: i,
