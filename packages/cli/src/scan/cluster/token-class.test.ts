@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { isGenericUtility, MAX_GENERIC_UTILITY_TOKENS, stripVariants } from './token-class.js'
+import {
+  isDimensional,
+  isGenericUtility,
+  MAX_GENERIC_UTILITY_TOKENS,
+  salientTokens,
+  stripVariants,
+} from './token-class.js'
 
 describe('stripVariants', () => {
   it('removes Tailwind variant prefixes', () => {
@@ -47,5 +53,53 @@ describe('isGenericUtility', () => {
     expect(isGenericUtility([])).toBe(false)
     const many = Array.from({ length: MAX_GENERIC_UTILITY_TOKENS + 1 }, (_, i) => `text-${i}`)
     expect(isGenericUtility(many)).toBe(false)
+  })
+})
+
+describe('isDimensional', () => {
+  it('true for spacing / sizing utilities (variant-stripped)', () => {
+    for (const t of [
+      'mx-auto',
+      'px-5',
+      'lg:px-30',
+      'pt-4',
+      'pb-1',
+      'mb-6',
+      'gap-x-6',
+      'space-y-4',
+      'w-full',
+      'h-5',
+      'max-w-3xl',
+      'min-h-0',
+    ]) {
+      expect(isDimensional(t)).toBe(true)
+    }
+  })
+  it('false for meaningful tokens', () => {
+    for (const t of ['container', 'text-sm', 'grid', 'grid-cols-a1a', 'font-bold', 'lb-label', 'block', 'sticky']) {
+      expect(isDimensional(t)).toBe(false)
+    }
+  })
+})
+
+describe('salientTokens', () => {
+  it('drops spacing/sizing, keeps meaningful tokens', () => {
+    expect(salientTokens(['container', 'mx-auto', 'px-5', 'lg:px-30', 'pt-4', 'lg:pt-6', 'pb-1', 'text-sm'])).toEqual([
+      'container',
+      'text-sm',
+    ])
+    expect(salientTokens(['mb-6', 'text-grey'])).toEqual(['text-grey'])
+    expect(salientTokens(['font-bold', 'mb-5', 'text-black', 'text-lg'])).toEqual([
+      'font-bold',
+      'text-black',
+      'text-lg',
+    ])
+  })
+  it('keeps clusters that are already meaningful untouched', () => {
+    expect(salientTokens(['text-grey_light_text'])).toEqual(['text-grey_light_text'])
+    expect(salientTokens(['grid', 'grid-cols-a1a'])).toEqual(['grid', 'grid-cols-a1a'])
+  })
+  it('falls back to the full list when a cluster is ONLY dimensional', () => {
+    expect(salientTokens(['pr-4', 'py-2'])).toEqual(['pr-4', 'py-2'])
   })
 })

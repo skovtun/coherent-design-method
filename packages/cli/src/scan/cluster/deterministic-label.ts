@@ -1,34 +1,37 @@
 /**
  * Deterministic labeler. Produces LabeledCluster[] from Cluster[] without
- * any LLM call. Used for --no-llm mode and as a stable fallback when the
- * LLM call fails. Same input → same labels across runs.
+ * any LLM call. This is the DEFAULT (free) label and the fallback when an
+ * LLM call cannot resolve a cluster. Same input → same labels across runs.
  *
- * Labels are derived from the cluster's leading sorted token (its
- * "anchor"). Generic tokens are skipped so labels don't collapse to
- * "block" or "p-4". Per codex consult 2026-05-11 Q7: serializer is LLM-
- * agnostic so this slot-fills the same interface.
+ * The label is the cluster's CLASS SIGNATURE — its meaningful tokens joined,
+ * with pure spacing/sizing utilities dropped (see salientTokens). Honest and
+ * free: "text-grey_light_text", "container text-sm", "grid grid-cols-a1a".
+ * The `--llm` path polishes these into semantic names ("Subtle Text",
+ * "Breadcrumb Nav"); the free default no longer emits "<token>-cluster-<hash>"
+ * noise (the stable id already prints on its own line in COHERENT-DESIGN.md).
+ * Per codex consult 2026-05-11 Q7: serializer is LLM-agnostic so this
+ * slot-fills the same interface.
  */
 
+import { salientTokens } from './token-class.js'
 import type { Cluster, LabeledCluster } from './types.js'
 
-const GENERIC_TOKENS = new Set([
-  'block',
-  'inline',
-  'flex',
-  'grid',
-  'hidden',
-  'relative',
-  'absolute',
-  'fixed',
-  'static',
-  'sticky',
-])
+/** Cap so a class-soup cluster doesn't produce a runaway heading. */
+const LABEL_MAX_CHARS = 56
 
-function pickAnchor(tokens: string[]): string {
-  for (const t of tokens) {
-    if (!GENERIC_TOKENS.has(t)) return t
+function classSignatureLabel(tokens: string[]): string {
+  const salient = salientTokens(tokens)
+  if (salient.length === 0) return 'unknown'
+  const joined = salient.join(' ')
+  if (joined.length <= LABEL_MAX_CHARS) return joined
+  // Truncate on a token boundary, mark elision.
+  let out = ''
+  for (const t of salient) {
+    const next = out ? `${out} ${t}` : t
+    if (next.length > LABEL_MAX_CHARS - 2) break
+    out = next
   }
-  return tokens[0] ?? 'unknown'
+  return `${out || salient[0].slice(0, LABEL_MAX_CHARS - 2)} …`
 }
 
 function suggestedRole(kind: string): string {
@@ -51,10 +54,9 @@ function suggestedRole(kind: string): string {
 }
 
 export function deterministicLabel(cluster: Cluster): LabeledCluster {
-  const anchor = pickAnchor(cluster.signature.tokens)
   return {
     cluster,
-    human_label: `${anchor}-cluster-${cluster.cluster_id}`,
+    human_label: classSignatureLabel(cluster.signature.tokens),
     suggested_role: suggestedRole(cluster.signature.kind),
     source: 'deterministic',
   }

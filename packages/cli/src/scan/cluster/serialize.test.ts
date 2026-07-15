@@ -52,8 +52,10 @@ describe('serializeCohereDesign', () => {
     const clusters = precluster(rows)
     const labeled = deterministicLabelAll(clusters)
     const out = serializeCohereDesign(labeled, { metadata })
-    expect(out).toContain('lb-label-cluster-')
-    expect(out).toContain('lb-field-cluster-')
+    // Deterministic label is now the clean class signature, no -cluster-hash suffix.
+    expect(out).toContain('### lb-label')
+    expect(out).toContain('### lb-field')
+    expect(out).not.toMatch(/-cluster-[0-9a-f]{8}/)
     expect(out).toContain('**occurrences:** 2')
     expect(out).toContain('**source:** deterministic')
   })
@@ -127,8 +129,8 @@ describe('serializeCohereDesign', () => {
     ]
     const labeled = deterministicLabelAll(precluster(rows))
     const out = serializeCohereDesign(labeled, { metadata })
-    const commonIdx = out.indexOf('common-class-cluster-')
-    const rareIdx = out.indexOf('rare-class-cluster-')
+    const commonIdx = out.indexOf('### common-class')
+    const rareIdx = out.indexOf('### rare-class')
     expect(commonIdx).toBeGreaterThan(0)
     expect(rareIdx).toBeGreaterThan(commonIdx)
   })
