@@ -48,6 +48,14 @@ describe('formatBanner', () => {
     const out = formatBanner(mkBanner({ estimatedInputTokens: 45_000 }))
     expect(out).toContain('45.0K')
   })
+
+  it('shows a cost RANGE (floor → ceiling) so it never under-quotes repairs', () => {
+    // 500K in ($1.50) + 100K out ($1.50) = $3.00 floor; ceiling = 3x = $9.00.
+    const out = formatBanner(mkBanner({ estimatedInputTokens: 500_000, estimatedOutputTokens: 100_000 }))
+    expect(out).toContain('$3.00–$9.00')
+    expect(out).toContain('clean pass → with repair retries')
+    expect(out).toContain('--eval-judge adds')
+  })
 })
 
 describe('confirmLlmRun', () => {

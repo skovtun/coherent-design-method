@@ -40,8 +40,20 @@ export function estimateCost(input: { inputTokens: number; outputTokens: number 
   )
 }
 
+/**
+ * The clean-pass estimate is a FLOOR, not the bill. The repair ladder re-calls
+ * any chunk that drops ids (attempts 2/3/4), and every re-call re-sends the
+ * full system prompt + exemplars + DESIGN.md. Measured on repair-heavy pilot
+ * runs the real cost landed ~2.6-3x the floor (e.g. banner $2.29 → actual
+ * $6.08). This factor turns the single number into an honest ceiling so the
+ * banner never quietly under-quotes. Not project-size dependent — the base
+ * already scales with clusters/chunks; this is the run-variance multiplier.
+ */
+export const REPAIR_COST_CEILING_FACTOR = 3
+
 export function formatBanner(input: CostBannerInput): string {
-  const cost = estimateCost({ inputTokens: input.estimatedInputTokens, outputTokens: input.estimatedOutputTokens })
+  const floor = estimateCost({ inputTokens: input.estimatedInputTokens, outputTokens: input.estimatedOutputTokens })
+  const ceiling = floor * REPAIR_COST_CEILING_FACTOR
   const designLine = input.designPath
     ? `DESIGN.md:        detected at ${input.designPath}, included (${formatBytes(input.designBytes)})`
     : `DESIGN.md:        none detected`
@@ -53,9 +65,10 @@ export function formatBanner(input: CostBannerInput): string {
     `Cache:            ${chalk.green(`${input.cachedClusters} hit`)}, ${chalk.yellow(`${input.uncachedClusters} miss`)} (of ${input.totalClusters} total)`,
     `Chunks:           ${input.chunks}`,
     `Model:            ${input.model}`,
-    `Est. input:       ~${kFmt(input.estimatedInputTokens)} tokens`,
-    `Est. output:      ~${kFmt(input.estimatedOutputTokens)} tokens`,
-    `Est. cost:        ${chalk.bold(`$${cost.toFixed(2)}`)} (sonnet $${SONNET_INPUT_COST_PER_MTOK}/$${SONNET_OUTPUT_COST_PER_MTOK} per MTok in/out)`,
+    `Est. input:       ~${kFmt(input.estimatedInputTokens)} tokens (clean pass)`,
+    `Est. output:      ~${kFmt(input.estimatedOutputTokens)} tokens (clean pass)`,
+    `Est. cost:        ${chalk.bold(`$${floor.toFixed(2)}`)}–${chalk.bold(`$${ceiling.toFixed(2)}`)} (clean pass → with repair retries; sonnet $${SONNET_INPUT_COST_PER_MTOK}/$${SONNET_OUTPUT_COST_PER_MTOK} per MTok)`,
+    chalk.gray('                  repair retries re-send DESIGN.md; --eval-judge adds a few cents on top'),
     '',
   ]
   return lines.join('\n')
