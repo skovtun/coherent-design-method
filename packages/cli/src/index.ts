@@ -62,6 +62,7 @@ import { clusterCommand } from './commands/cluster.js'
 import { memoryShowCommand, memoryDiffCommand } from './commands/memory.js'
 import { previewCommand } from './commands/preview.js'
 import { exportCommand } from './commands/export.js'
+import { exportTokensCommand } from './commands/export-tokens.js'
 import { statusCommand } from './commands/status.js'
 import { regenerateDocsCommand } from './commands/regenerate-docs.js'
 import { reportIssueCommand } from './commands/report-issue.js'
@@ -275,13 +276,22 @@ program
   .option('--journal', 'Write session summary to .coherent/fix-sessions/ for later review')
   .action(opts => fixCommand(opts))
 
-program
+const exportCmd = program
   .command('export')
   .description('Export clean deployable Next.js project (strip Design System overlay)')
   .option('--output <dir>', 'Output directory', './export')
   .option('--no-build', 'Skip running next build in output')
   .option('--keep-ds', 'Keep Design System viewer and config in export')
   .action(opts => exportCommand(opts))
+
+// `coherent export tokens` (E3) — export design tokens to framework-ready files
+// (design-tokens.json + css-variables.css + tailwind-v4.css) from one model.
+exportCmd
+  .command('tokens')
+  .description('Export design tokens to framework-ready files (json + css-variables + tailwind-v4)')
+  .option('--format <fmt>', 'css | tailwind | json (default: all three)')
+  .option('--out <dir>', 'Output directory (default: .coherent/tokens)')
+  .action(opts => exportTokensCommand(opts))
 
 program
   .command('sync')

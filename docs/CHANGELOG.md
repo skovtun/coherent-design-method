@@ -11,6 +11,21 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.22.0] — 2026-07-16 — `coherent export tokens` (E3: one token model → framework-ready files)
+
+### Added — export your design system to framework-ready token files
+
+New subcommand **`coherent export tokens [--format css|tailwind|json] [--out <dir>]`**. Promotes the internal E3 gallery artifact generator to a public command (TODOS T5): any user exports THEIR design system to files that drop into any stack, self-serve.
+
+- **One normalized token model → three outputs**, all derived from the project's `design-system.config.ts` `tokens`:
+  - `design-tokens.json` — the canonical machine-readable model (colors light/dark, typography, spacing, radius).
+  - `css-variables.css` — framework-agnostic `:root` / `.dark` custom properties.
+  - `tailwind-v4.css` — `@import "tailwindcss"` + `@theme inline` + variables.
+- **CI equivalence gate.** The three formats cannot silently drift: a test locks the nine pure-passthrough color tokens (`background`, `foreground`, `primary`, `secondary`, `muted`, `border`, `success`, `warning`, `error`) to identical values across the model, `css-variables.css`, and `tailwind-v4.css`. If a future edit makes one generator diverge, CI fails. Derived vars (`--primary-foreground`, `--muted-foreground`, `--accent`, `--info`) carry generator-specific logic and are intentionally outside the contract.
+- Defaults to all three formats into `.coherent/tokens/`; `--format` selects one, `--out` picks the directory. The command also self-checks equivalence at runtime and warns if the outputs disagree.
+
+This is the same plumbing the getcoherent.design gallery ships per page (E3), now exposed as product surface.
+
 ## [0.21.0] — 2026-07-16 — `coherent import design` (F14: DESIGN.md as INPUT)
 
 ### Added — import an external DESIGN.md into a project's tokens
