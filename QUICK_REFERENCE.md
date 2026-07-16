@@ -52,7 +52,22 @@ coherent scan [dir] --out file --adapter blade --json  # B-1 flags (json prints 
 coherent cluster <evidence.json>          # Tool 2 (B-2 beta) — deterministic clustering → COHERENT-DESIGN.md (DRAFT); + DRIFT-REPORT.md when DESIGN.md found
 coherent cluster <evidence.json> --llm --yes  # LLM labeling (opt-in, paid; --yes skips cost prompt, required in CI)
 coherent cluster <evidence.json> --out path --design file --strict-llm --no-cache --eval expected.json  # full flag set
+coherent import design <file>            # F14 (v0.21.0) — import an external DESIGN.md (Coherent extract or Google Stitch) → project tokens
+coherent import design <file> --dry-run  # Preview the mapping/repair report; write nothing
+coherent import design <file> --yes      # Apply without the confirmation prompt (required in CI)
+coherent import design <file> --json     # Emit the mapping report as JSON
 ```
+
+## v0.21.0 — `coherent import design` (F14, DESIGN.md as INPUT)
+
+Parse an external DESIGN.md into a project's tokens. Two grammars: the Coherent extract (Atmosphere) format first, then Google Stitch / `awesome-design-md`. v1 imports **colors + font-family only** — spacing/radius/status colors/dark theme are kept unless the file explicitly carries them.
+
+```bash
+coherent import design ./stripe/DESIGN.md --dry-run   # preview
+coherent import design ./stripe/DESIGN.md --yes       # apply (backup + diff)
+```
+
+Maps external names/roles to the Coherent vocabulary (`ink`→foreground, `canvas`→background, `hairline`→border, semantic hues → success/warning/error/info) and prints a full mapping/repair report: imported / mapped / repaired / kept / dropped per token, plus a before→after diff. Contrast is **accept-with-warning** — the imported palette is never mutated; failing WCAG pairs get a warning and a persistent `.coherent/import-recommendations.md` note. Frontmatter is read by a restricted safe-YAML parser (no anchors/aliases/tags/merge; depth + size caps). Writes are atomic with an automatic backup (`coherent undo` to revert).
 
 ## v0.19.0 — `coherent extract` (Tool 1, beta)
 

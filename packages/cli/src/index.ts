@@ -85,6 +85,7 @@ import { validateCommand } from './commands/validate.js'
 import { auditCommand } from './commands/audit.js'
 import { createComponentsCommand } from './commands/components.js'
 import { createImportCommand } from './commands/import-cmd.js'
+import { importDesignCommand } from './commands/import-design.js'
 import { dsRegenerateCommand } from './commands/ds.js'
 import { updateCommand } from './commands/update.js'
 import { undoCommand } from './commands/undo.js'
@@ -373,7 +374,7 @@ program
 
 // Figma import — experimental; stays invokable for the curious, but not
 // surfaced in help until the feature stabilizes.
-const importCmd = new Command('import').description('Import design from Figma or other sources')
+const importCmd = new Command('import').description('Import a design system from an external DESIGN.md or Figma')
 const importSpec = createImportCommand()
 importSpec.subcommands.forEach(sub => {
   const subCmd = importCmd.command(sub.name).description(sub.description)
@@ -385,9 +386,21 @@ importSpec.subcommands.forEach(sub => {
     subCmd.action((urlOrKey: string, opts: { token?: string; pages?: boolean; dryRun?: boolean }) =>
       sub.action(urlOrKey, opts),
     )
+    // Figma import stays experimental — invokable, but out of `--help`.
+    hidden(subCmd)
   }
 })
-hidden(importCmd)
+// `import design` — F14: parse a Coherent extract or Google Stitch DESIGN.md
+// into the project's tokens. Surfaced (the group + this sub show in help);
+// only the figma sub above stays hidden.
+importCmd
+  .command('design')
+  .description('Import an external DESIGN.md (Coherent extract or Google Stitch format) → tokens')
+  .argument('<file>', 'Path to a DESIGN.md file')
+  .option('--dry-run', 'Preview the mapping/repair report without writing any files')
+  .option('--yes', 'Apply without the confirmation prompt')
+  .option('--json', 'Emit the mapping report as JSON')
+  .action((file: string, opts: { dryRun?: boolean; yes?: boolean; json?: boolean }) => importDesignCommand(file, opts))
 program.addCommand(importCmd)
 
 // Narrower subset of `ds regenerate`. Kept as hidden alias for muscle memory

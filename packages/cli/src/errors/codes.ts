@@ -72,6 +72,20 @@ export const COHERENT_ERROR_CODES = {
    * with the actionable fix line "coherent update".
    */
   E008_PROJECT_OLDER_THAN_CLI: 'COHERENT_E008',
+  /**
+   * `coherent import design <file>` could not read or parse the file into a
+   * recognized DESIGN.md grammar — a missing/oversized file, or frontmatter
+   * that violates the safe-YAML rules (anchors/aliases/tags/merge keys, or
+   * depth/size limits). Added v0.21.0 (F14).
+   */
+  E009_IMPORT_UNPARSEABLE: 'COHERENT_E009',
+  /**
+   * `coherent import design <file>` parsed the file but produced zero usable
+   * tokens (no color mapped to a Coherent slot, no font family found). Below
+   * the minimum-usable-fields threshold, so the import fails loudly rather than
+   * reporting success after importing nothing. Added v0.21.0 (F14).
+   */
+  E010_IMPORT_NO_USABLE_TOKENS: 'COHERENT_E010',
 } as const
 
 export type CoherentErrorCode = (typeof COHERENT_ERROR_CODES)[keyof typeof COHERENT_ERROR_CODES]
