@@ -205,7 +205,8 @@ Breadcrumbs are genuinely pervasive in the pilot app (28 files, NOT a DESIGN.md 
 ---
 id: F14
 type: idea
-status: open
+status: shipped
+shipped: v0.21.0 (2026-07-16)
 target: vNext, AFTER R10 + B-2c (codex sequencing verdict)
 effort: ~1 week (v1 codex-cut scope; full original scope was 3-4 weeks)
 date: 2026-07-12
@@ -213,6 +214,8 @@ confidence: codex-gated (GO-WITH-CHANGES, 2026-07-12)
 ---
 
 ### F14 — DESIGN.md as INPUT: Stitch-format import (`coherent import design`)
+
+**SHIPPED v0.21.0 (2026-07-16).** `coherent import design <file>` in `packages/cli/src/import-design/` (parse → adapter → apply) + `commands/import-design.ts`, wired under the `import` group. All v1-scope items below implemented: two-grammar parser (coherent-extract first, Stitch second), dedicated `ImportedDesignSeed`, colors+font-only, atomic patch + CSS regen with backup, mandatory mapping/repair report with minimum-usable floor (E010), restricted safe-YAML (E009), accept-with-warning contrast (first real WCAG fn in the codebase → `.coherent/import-recommendations.md`). Verified end-to-end on all three grammars against a live `coherent init` project. 54 unit tests. Deferred items (`chat --design`, output superset alignment) remain open below.
 
 **Source:** 2026-07-12 review of `voltagent/awesome-design-md` (101k stars, #150 on GitHub, MIT): 73 DESIGN.md files extracted from real brand sites (Linear, Stripe, Vercel...). DESIGN.md is Google Stitch's concept — a plain-markdown design system that AI agents read — and is becoming a de-facto standard.
 

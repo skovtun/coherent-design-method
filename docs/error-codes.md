@@ -206,6 +206,37 @@ If you don't want to upgrade the project (e.g., you need to keep matching produc
 
 ---
 
+## COHERENT_E009 — Import design file could not be parsed
+
+**When you see it:** running `coherent import design <file>` when the file is missing, larger than the 2 MB limit, is not a recognized DESIGN.md grammar, or its YAML frontmatter uses unsafe features (anchors `&`, aliases `*`, tags `!`, merge keys `<<`) or exceeds the depth/size limits.
+
+**Why:** `import design` accepts two grammars — the Coherent extract (Atmosphere) format and the Google Stitch format. Frontmatter is parsed by a deliberately restricted safe-YAML reader that rejects anchor/alias/tag/merge constructs so a hostile file cannot trigger alias-expansion bombs. A file the reader cannot map to colors + fonts, or that trips a safety rule, fails here rather than importing a partial or unsafe result.
+
+**Fix:**
+
+1. Confirm the path points at a real DESIGN.md (Coherent extract output, or a Stitch-format file).
+2. Preview first with `coherent import design <file> --dry-run` to see how the file is parsed.
+3. If it is a Stitch file, keep the frontmatter to plain scalars and maps — no YAML anchors, aliases, tags, or merge keys.
+
+**Related:** [COHERENT_E010](#coherent_e010--import-produced-no-usable-tokens) (parsed fine, but nothing mapped).
+
+---
+
+## COHERENT_E010 — Import produced no usable tokens
+
+**When you see it:** running `coherent import design <file>` on a file that parsed cleanly but yielded zero usable tokens — no color mapped to a Coherent slot and no font family found.
+
+**Why:** An import that reports success after importing nothing is worse than a clear failure. `import design` enforces a minimum-usable-fields floor: at least one color or font must map into the Coherent vocabulary. A file that is all prose, or whose color names/roles the adapter does not recognize, stops here.
+
+**Fix:**
+
+1. Run `coherent import design <file> --dry-run` to see the mapping/repair report — it lists every token as imported / mapped / dropped, so you can tell what was unrecognized.
+2. For a Stitch file, use recognizable color keys (e.g. `primary`, `background`/`canvas`, `text`/`ink`, `border`/`hairline`) or a `typography` block with a `fontFamily`.
+
+**Related:** [COHERENT_E009](#coherent_e009--import-design-file-could-not-be-parsed) (file could not be parsed at all).
+
+---
+
 ## Appending a new code
 
 Every code is append-only. Never re-assign an existing number, even when the error is removed — leave a tombstone comment (`<!-- E007 retired in v0.10.0, no replacement -->`) so old references in issues / PR reviews / Slack threads still resolve to the right slot.

@@ -11,6 +11,21 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.21.0] — 2026-07-16 — `coherent import design` (F14: DESIGN.md as INPUT)
+
+### Added — import an external DESIGN.md into a project's tokens
+
+New command `coherent import design <file>`. v0.18 (ADR-0008) shipped DESIGN.md as OUTPUT only; input was URL-only via `coherent extract`. F14 closes the loop: parse an external DESIGN.md into Coherent tokens.
+
+- **Two grammars, priority-ordered.** The Coherent extract (Atmosphere) serializer output comes first (gallery M1 files depend on it), then Google Stitch / `voltagent/awesome-design-md`. Grammar is auto-detected (extract marker/H1 suffix, config `| Token | Light | Dark |` table, or Stitch YAML frontmatter). A `source:` frontmatter token is read for gallery attribution.
+- **Colors + font-family only (v1).** Spacing, radius, status colors, and the dark theme are kept unless the file explicitly carries them. No dark-mode synthesis, no lossy role-scale typography mapping — deferred by the codex pre-implementation gate.
+- **Dedicated `ImportedDesignSeed` schema**, not a reuse of `ExtractedDesignTokensSchema` (which requires ~18 always-present categories a DESIGN.md lacks). New adapter code maps external names/roles to the Coherent vocabulary (`ink`→foreground, `canvas`→background, `hairline`→border; semantic colors classified by usage keyword then hue) — `token-normalizer.ts` only dedupes, it never mapped names.
+- **Mandatory mapping/repair report.** Every token is accounted for as imported / mapped / repaired / kept / dropped, with a before→after diff. A minimum-usable-fields floor fails the import (E010) rather than reporting success after importing nothing.
+- **Contrast is accept-with-warning.** A real WCAG contrast function (the first in the codebase) flags failing foreground/background pairs; the imported palette is never mutated (fidelity wins), and the recommendation is persisted to `.coherent/import-recommendations.md`.
+- **Safe by construction.** Frontmatter is parsed by a restricted YAML reader that rejects anchors/aliases/tags/merge keys (alias-expansion bombs are structurally impossible) with byte/line/depth caps. The command resolves + verifies the project explicitly and refuses to fall back to cwd (unlike the Figma importer). Writes are atomic (`batchWriteFiles`, restore-on-failure) with an automatic backup; `coherent undo` reverts. `--dry-run` previews, `--yes` skips the confirm, `--json` emits the report.
+
+New error codes: `COHERENT_E009` (unparseable/unsafe file), `COHERENT_E010` (no usable tokens).
+
 ## [0.20.0] — 2026-07-15 — Tool 2 v0 (coherent scan/cluster: labeler, drift report, eval gate)
 
 ### Changed — cost banner shows an honest range, not a floor sold as the total
