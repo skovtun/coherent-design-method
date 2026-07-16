@@ -11,7 +11,7 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
-## [Unreleased] — Tool 2 v0 (B-2b: LLM labeler + B-2c: drift report + R10: eval v2)
+## [0.20.0] — 2026-07-15 — Tool 2 v0 (coherent scan/cluster: labeler, drift report, eval gate)
 
 ### Changed — cost banner shows an honest range, not a floor sold as the total
 
