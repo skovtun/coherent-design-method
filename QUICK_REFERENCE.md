@@ -56,7 +56,27 @@ coherent import design <file>            # F14 (v0.21.0) — import an external 
 coherent import design <file> --dry-run  # Preview the mapping/repair report; write nothing
 coherent import design <file> --yes      # Apply without the confirmation prompt (required in CI)
 coherent import design <file> --json     # Emit the mapping report as JSON
+coherent export tokens                   # E3 (v0.22.0) — export tokens → design-tokens.json + css-variables.css + tailwind-v4.css
+coherent export tokens --format css      # Single format: css | tailwind | json
+coherent export tokens --out ./tokens    # Output directory (default: .coherent/tokens)
 ```
+
+## v0.22.0 — `coherent export tokens` (E3)
+
+Export your design system to framework-ready files, from **one** normalized token model (`design-system.config.ts` → `tokens`). Same plumbing the gallery ships per page.
+
+```bash
+coherent export tokens                    # all three → .coherent/tokens/
+coherent export tokens --format tailwind --out ./public/tokens
+```
+
+| File | What |
+|---|---|
+| `design-tokens.json` | canonical model (colors light/dark, typography, spacing, radius) |
+| `css-variables.css` | framework-agnostic `:root` / `.dark` custom properties |
+| `tailwind-v4.css` | `@import "tailwindcss"` + `@theme inline` + variables |
+
+A **CI equivalence gate** locks the nine pure-passthrough color tokens (background, foreground, primary, secondary, muted, border, success, warning, error) to identical values across all three formats — the outputs cannot silently drift.
 
 ## v0.21.0 — `coherent import design` (F14, DESIGN.md as INPUT)
 

@@ -165,7 +165,16 @@ Deferred work captured during planning. Each item has enough context to be picke
 
 ---
 
-## T5 — Public `coherent export tokens` command (promote E3 generator, deferred 2026-07-13)
+## T5 — Public `coherent export tokens` command (promote E3 generator) — SHIPPED v0.22.0 (2026-07-16)
+
+**SHIPPED.** `coherent export tokens [--format css|tailwind|json] [--out <dir>]` in
+`packages/cli/src/export-tokens/` (generate.ts + equivalence.ts) + `commands/export-tokens.ts`,
+registered as a subcommand of `export`. Emits design-tokens.json + css-variables.css +
+tailwind-v4.css from one normalized model (`config.tokens`), default `.coherent/tokens/`.
+The CI equivalence gate (`equivalence.test.ts`) locks the 9 pure-passthrough color tokens
+across all three formats, so a future generator divergence fails CI. Trigger condition was
+relaxed: F14 landed (v0.21.0) and the generator is the gallery's E3 plumbing — promoting it
+now means the gallery build (T5/E1) consumes the same public path it ships to users.
 
 **What:** User-facing `coherent export tokens [--format css|tailwind|json]` wrapping the internal E3 artifact generator (css-variables.css, tailwind-v4.css, design-tokens.json from one normalized token model).
 
