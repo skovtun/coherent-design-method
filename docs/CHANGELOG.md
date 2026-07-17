@@ -11,6 +11,16 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.22.3] — 2026-07-17 — fix(extract): `--semantic` silently produced no semantic output
+
+### Fixed — `coherent extract --semantic` degraded to deterministic-only, silently
+
+The semantic LLM pass read `response.content[0]` as the text block. Under adaptive thinking (Claude Sonnet 5 / Fable 5 emit a `thinking` block first when `thinking` is omitted — the default) the text sits at index 1+, so the call threw "returned no text block", was caught by the fail-soft wrapper, and the run printed `⚠ Semantic pass failed — continuing without`. Roles, voice, and density silently fell back to the deterministic layer.
+
+This is the same class of bug as the v0.22.2 `content[0]` fix in `coherent chat` — a third copy, on the extract path. Combined with the retired-model 404 (v0.22.2), `extract --semantic` had been non-functional for over a month (first a hard 404, then this silent degrade). Parsing now scans for the text block by type, matching the generation path.
+
+Verified: `extract --semantic` now completes the LLM pass (`✔ Semantic pass: …`) and writes inferred voice/density/roles.
+
 ## [0.22.2] — 2026-07-17 — fix(model): `coherent chat` was 404ing on every API-rail run (retired model)
 
 ### Fixed — the flagship generation command was dead on the API rail for ~a month
