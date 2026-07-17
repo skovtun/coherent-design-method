@@ -112,7 +112,10 @@ export async function extractCommand(url: string, opts: ExtractOptions = {}): Pr
     spinner.text = 'Extracting deterministic tokens…'
 
     const tokens = extractDesignTokens(snapshot.computedStyles, { mediaQueries: snapshot.mediaQueries })
-    spinner.succeed(`Captured in ${snapshot.loadTimeMs}ms (mode: ${snapshot.mode})`)
+    spinner.succeed(
+      `Captured in ${snapshot.loadTimeMs}ms (mode: ${snapshot.mode})` +
+        (snapshot.networkSettled ? '' : ' — network never settled, captured on load'),
+    )
 
     let semantic: SemanticLlmOutput | null = null
     if (opts.semantic) {

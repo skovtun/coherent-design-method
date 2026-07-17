@@ -24,7 +24,13 @@ export interface DnsLookupResult {
 export type DnsLookupFn = (hostname: string, opts: { all: true }) => Promise<DnsLookupResult[]>
 
 export interface PageLike {
-  goto(url: string, opts: { timeout: number; waitUntil: 'networkidle' }): Promise<NavigationResponse | null>
+  goto(url: string, opts: { timeout: number; waitUntil: 'networkidle' | 'load' }): Promise<NavigationResponse | null>
+  /**
+   * Wait for a load state, rejecting on timeout. Used to reach `networkidle`
+   * on a best-effort basis after the document has loaded — see the navigation
+   * block in `captureSnapshot` for why this is not part of `goto`.
+   */
+  waitForLoadState(state: 'networkidle', opts: { timeout: number }): Promise<void>
   evaluate<T>(fn: string | ((...a: unknown[]) => T)): Promise<T>
   evaluate<T, A>(fn: string | ((arg: A) => T), arg: A): Promise<T>
   content(): Promise<string>
@@ -603,14 +609,34 @@ export async function captureSnapshot(
   })
 
   try {
+    // Navigate on `load`, then reach for `networkidle` with whatever is left of
+    // the timeout budget. Doing both in one `goto({ waitUntil: 'networkidle' })`
+    // means a site whose network NEVER goes quiet (persistent analytics beacons,
+    // websockets, polling) is unextractable: goto rejects and we lose a page that
+    // was fully rendered seconds earlier. Observed 2026-07-16 on stripe.com and
+    // figma.com — 2 of 12 gallery candidates, including the most canonical design
+    // system of the set. Same total time budget as before; the only change is the
+    // failure path now degrades to a usable capture instead of throwing.
     let response: NavigationResponse | null = null
     try {
-      response = await page.goto(url, { timeout: timeoutMs, waitUntil: 'networkidle' })
+      response = await page.goto(url, { timeout: timeoutMs, waitUntil: 'load' })
     } catch (e) {
       if (blockedNavigation) {
         throw new Error(`URL_INVALID: navigation aborted at redirect target ${blockedNavigation}`)
       }
       throw new Error(`NAVIGATION_TIMEOUT: ${(e as Error).message}`)
+    }
+
+    let networkSettled = true
+    const idleBudgetMs = Math.max(0, timeoutMs - (Date.now() - startedAt))
+    if (idleBudgetMs > 0) {
+      try {
+        await page.waitForLoadState('networkidle', { timeout: idleBudgetMs })
+      } catch {
+        networkSettled = false
+      }
+    } else {
+      networkSettled = false
     }
 
     const status = response?.status() ?? 0
@@ -670,6 +696,7 @@ export async function captureSnapshot(
       copyText,
       mediaQueries,
       loadTimeMs: Date.now() - startedAt,
+      networkSettled,
     }
   } finally {
     await page.close().catch(() => {})

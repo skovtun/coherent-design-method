@@ -272,6 +272,16 @@ export interface CapturedSnapshot {
   copyText: string
   mediaQueries: string[]
   loadTimeMs: number
+  /**
+   * False when the network never went quiet within the timeout and the capture
+   * was taken on the loaded document instead. Sites with persistent background
+   * chatter (analytics beacons, websockets, polling — e.g. stripe.com,
+   * figma.com) never reach `networkidle`; pre-v0.22.1 that was a hard
+   * NAVIGATION_TIMEOUT and they could not be extracted at all. The capture is
+   * still valid (the document is fully loaded), but late-firing content may be
+   * missed — surfaced so the caller can say so rather than silently degrade.
+   */
+  networkSettled: boolean
 }
 
 export interface ComputedStyleSample {
