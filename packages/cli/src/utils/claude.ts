@@ -6,8 +6,10 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
+import chalk from 'chalk'
 import type { DiscoveryResult, DesignSystemConfig } from '@getcoherent/core'
 import { validateConfig } from '@getcoherent/core'
+import { resolveModel, isModelNotFoundError, findAvailableModel, DEFAULT_MODEL } from './model.js'
 import type {
   AIProviderInterface,
   AIRequestOptions,
@@ -18,6 +20,9 @@ import type {
 export class ClaudeClient implements AIProviderInterface {
   private client: Anthropic
   private defaultModel: string
+  private apiKey: string
+  /** Guard so a retired model triggers at most one fallback probe per process. */
+  private fallbackAttempted = false
 
   constructor(apiKey?: string, model?: string) {
     const key = apiKey || process.env.ANTHROPIC_API_KEY
@@ -29,8 +34,72 @@ export class ClaudeClient implements AIProviderInterface {
       )
     }
     this.client = new Anthropic({ apiKey: key, maxRetries: 1 })
-    // Support model via environment variable or parameter, default to latest
-    this.defaultModel = model || process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514'
+    this.apiKey = key
+    // Model resolution + the pin live in utils/model.ts — see that file for why
+    // this is pinned rather than auto-selected, and why a retirement must never
+    // be able to kill the command silently again.
+    this.defaultModel = resolveModel(model)
+  }
+
+  /**
+   * Pull the assistant's text out of a response, wherever it sits.
+   *
+   * `response.content[0]` is NOT reliably the text block. Models with thinking
+   * enabled put a `thinking` block first — and on Claude Sonnet 5 adaptive
+   * thinking is ON when the `thinking` field is omitted, so simply moving off
+   * the retired Sonnet 4 turned every generation into "Unexpected response
+   * type". Fable 5 goes further: thinking is always on and cannot be disabled.
+   *
+   * Scanning for the text block works on every model regardless of thinking
+   * mode, which is why we do that rather than pinning `thinking: disabled`
+   * (that would 400 on Fable 5 if a user set CLAUDE_MODEL to it).
+   */
+  private textOf(response: Anthropic.Message): string | null {
+    for (const block of response.content) {
+      if (block.type === 'text') return block.text
+    }
+    return null
+  }
+
+  /** Same as {@link textOf}, but throws a diagnostic naming what did come back. */
+  private requireText(response: Anthropic.Message, context: string): string {
+    const text = this.textOf(response)
+    if (text !== null) return text
+    const seen = response.content.map(b => b.type).join(', ') || 'nothing'
+    throw new Error(
+      `Unexpected response type from Claude API while ${context}: got [${seen}], expected a text block. ` +
+        `Model: ${this.defaultModel}.`,
+    )
+  }
+
+  /**
+   * Run an API call, and if it fails *because the model no longer exists*, find
+   * a live model on this account, say so loudly, and retry once.
+   *
+   * Anthropic retires models on a published schedule. Before this, a retirement
+   * turned every `coherent chat` into a hard 404 — which is exactly what
+   * happened when `claude-sonnet-4-20250514` was retired on 2026-06-15 and went
+   * unnoticed for a month. A stale pin should degrade to a working model with a
+   * warning, not take the product down.
+   */
+  private async withModelFallback<T>(call: () => Promise<T>): Promise<T> {
+    try {
+      return await call()
+    } catch (error) {
+      if (!isModelNotFoundError(error) || this.fallbackAttempted) throw error
+      this.fallbackAttempted = true
+      const replacement = await findAvailableModel(this.apiKey, this.defaultModel)
+      if (!replacement) throw error
+      console.warn(
+        chalk.yellow(
+          `⚠ Model ${this.defaultModel} is unavailable (it may have been retired). ` +
+            `Falling back to ${replacement}.\n` +
+            `  Pin a model with: export CLAUDE_MODEL=<model-id>  ·  Update Coherent: npm i -g @getcoherent/cli`,
+        ),
+      )
+      this.defaultModel = replacement
+      return await call()
+    }
   }
 
   /**
@@ -47,25 +116,22 @@ export class ClaudeClient implements AIProviderInterface {
     try {
       const prompt = this.buildConfigPrompt(discovery)
 
-      const response = await this.client.messages.create({
-        model: this.defaultModel,
-        max_tokens: 4096,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        system: this.getSystemPrompt(),
-      })
+      const response = await this.withModelFallback(() =>
+        this.client.messages.create({
+          model: this.defaultModel,
+          max_tokens: 4096,
+          messages: [
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+          system: this.getSystemPrompt(),
+        }),
+      )
 
       // Extract JSON from response
-      const content = response.content[0]
-      if (content.type !== 'text') {
-        throw new Error('Unexpected response type from Claude API')
-      }
-
-      const jsonText = this.extractJSON(content.text)
+      const jsonText = this.extractJSON(this.requireText(response, 'parsing the request'))
       const config = JSON.parse(jsonText)
 
       // Validate config with Zod
@@ -76,10 +142,14 @@ export class ClaudeClient implements AIProviderInterface {
         if (error.status === 404 && (error.error as any)?.type === 'not_found_error') {
           throw new Error(
             `❌ Model not found: ${this.defaultModel}\n\n` +
-              'The specified Claude model is not available.\n' +
-              'Try setting a different model:\n' +
-              '  export CLAUDE_MODEL=claude-sonnet-4-20250514\n' +
-              'Or use the default model by removing CLAUDE_MODEL from your environment.',
+              'This model is not available to your API key — it may have been retired.\n' +
+              'Coherent tried to fall back to another model on your account and could not.\n' +
+              'Pick a model your key can use:\n' +
+              `  export CLAUDE_MODEL=${DEFAULT_MODEL}\n` +
+              'List what your key can use:\n' +
+              '  curl https://api.anthropic.com/v1/models -H "x-api-key: $ANTHROPIC_API_KEY" -H "anthropic-version: 2023-06-01"\n' +
+              'Or update Coherent, which ships a current default:\n' +
+              '  npm i -g @getcoherent/cli',
           )
         }
         throw new Error(
@@ -181,10 +251,7 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
       throw err
     }
 
-    const content = response.content[0]
-    if (content.type !== 'text') throw new Error('Unexpected response type from Claude API')
-
-    return JSON.parse(this.extractJSON(content.text))
+    return JSON.parse(this.extractJSON(this.requireText(response, 'generating JSON')))
   }
 
   /**
@@ -235,12 +302,7 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
         throw err
       }
 
-      const content = response.content[0]
-      if (content.type !== 'text') {
-        throw new Error('Unexpected response type from Claude API')
-      }
-
-      const jsonText = this.extractJSON(content.text)
+      const jsonText = this.extractJSON(this.requireText(response, 'parsing the request'))
       const parsed = JSON.parse(jsonText)
 
       if (Array.isArray(parsed)) {
@@ -266,10 +328,14 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
         if (error.status === 404 && (error.error as any)?.type === 'not_found_error') {
           throw new Error(
             `❌ Model not found: ${this.defaultModel}\n\n` +
-              'The specified Claude model is not available.\n' +
-              'Try setting a different model:\n' +
-              '  export CLAUDE_MODEL=claude-sonnet-4-20250514\n' +
-              'Or use the default model by removing CLAUDE_MODEL from your environment.',
+              'This model is not available to your API key — it may have been retired.\n' +
+              'Coherent tried to fall back to another model on your account and could not.\n' +
+              'Pick a model your key can use:\n' +
+              `  export CLAUDE_MODEL=${DEFAULT_MODEL}\n` +
+              'List what your key can use:\n' +
+              '  curl https://api.anthropic.com/v1/models -H "x-api-key: $ANTHROPIC_API_KEY" -H "anthropic-version: 2023-06-01"\n' +
+              'Or update Coherent, which ships a current default:\n' +
+              '  npm i -g @getcoherent/cli',
           )
         }
         throw new Error(
@@ -309,9 +375,7 @@ Rules: Preserve "use client" if present. Use Tailwind and shadcn/ui patterns. Re
       ],
       system: 'Return only the raw TSX code, no markdown, no comments before or after.',
     })
-    const content = response.content[0]
-    if (content.type !== 'text') throw new Error('Unexpected response type')
-    return content.text
+    return this.requireText(response, 'generating code')
       .trim()
       .replace(/^```(?:tsx?|jsx?)\s*/i, '')
       .replace(/\s*```$/i, '')
@@ -363,9 +427,7 @@ Before returning, verify:
       ],
       system: 'Return only the raw TSX code, no markdown, no comments before or after.',
     })
-    const content = response.content[0]
-    if (content.type !== 'text') throw new Error('Unexpected response type')
-    return content.text
+    return this.requireText(response, 'generating code')
       .trim()
       .replace(/^```(?:tsx?|jsx?)\s*/i, '')
       .replace(/\s*```$/i, '')
@@ -409,9 +471,7 @@ Tasks:
       ],
       system: 'Return only the raw TSX page code, no markdown, no comments before or after.',
     })
-    const content = response.content[0]
-    if (content.type !== 'text') throw new Error('Unexpected response type')
-    return content.text
+    return this.requireText(response, 'generating code')
       .trim()
       .replace(/^```(?:tsx?|jsx?)\s*/i, '')
       .replace(/\s*```$/i, '')
@@ -446,9 +506,7 @@ Requirements:
       ],
       system: 'Return only the raw TSX code for the extracted component, no markdown, no explanation.',
     })
-    const content = response.content[0]
-    if (content.type !== 'text') throw new Error('Unexpected response type')
-    return content.text
+    return this.requireText(response, 'generating code')
       .trim()
       .replace(/^```(?:tsx?|jsx?)\s*/i, '')
       .replace(/\s*```$/i, '')
@@ -495,10 +553,10 @@ If no repeating patterns found: { "components": [] }`,
           'Return ONLY valid JSON. No markdown fencing, no explanation outside the JSON object.',
       })
 
-      const content = response.content[0]
-      if (content.type !== 'text') return { components: [] }
+      const text = this.textOf(response)
+      if (text === null) return { components: [] }
 
-      const jsonText = this.extractJSON(content.text)
+      const jsonText = this.extractJSON(text)
       const parsed = JSON.parse(jsonText)
       const components: SharedExtractionItem[] = Array.isArray(parsed.components) ? parsed.components : []
       return { components }

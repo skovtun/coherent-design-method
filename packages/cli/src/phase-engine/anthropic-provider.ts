@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { AiProvider, GenerateOptions } from './ai-provider.js'
+import { resolveModel } from '../utils/model.js'
 
-const DEFAULT_MODEL = 'claude-sonnet-4-20250514'
 const DEFAULT_MAX_TOKENS = 4096
 
 /**
@@ -22,7 +22,7 @@ export class AnthropicProvider implements AiProvider {
       throw new Error('ANTHROPIC_API_KEY not found. Set it in your environment or pass apiKey to the constructor.')
     }
     this.client = new Anthropic({ apiKey: key, maxRetries: 1 })
-    this.defaultModel = model ?? process.env.CLAUDE_MODEL ?? DEFAULT_MODEL
+    this.defaultModel = resolveModel(model)
   }
 
   async generate(prompt: string, options?: GenerateOptions): Promise<string> {

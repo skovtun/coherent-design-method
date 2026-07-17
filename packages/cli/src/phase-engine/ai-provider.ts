@@ -12,7 +12,7 @@
  */
 
 export interface GenerateOptions {
-  /** Model identifier, e.g. `claude-sonnet-4-20250514`. Defaults to provider's default. */
+  /** Model identifier, e.g. `claude-sonnet-5`. Defaults to the provider's default (see `utils/model.ts`). */
   model?: string
   /** Max tokens the provider may emit. Defaults to 4096. */
   maxTokens?: number

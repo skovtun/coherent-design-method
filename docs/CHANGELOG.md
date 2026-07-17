@@ -11,6 +11,25 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.22.2] — 2026-07-17 — fix(model): `coherent chat` was 404ing on every API-rail run (retired model)
+
+### Fixed — the flagship generation command was dead on the API rail for ~a month
+
+`coherent chat` (and `extract --semantic`) hardcoded `claude-sonnet-4-20250514` as the default model. Anthropic retired that model on 2026-06-15 on its published schedule, so every generation on the API rail returned a 404 `not_found_error` unless the user had set `CLAUDE_MODEL` by hand. It went unnoticed because the model ID was hardcoded in four separate places — Tool 2's copy was updated to a live model during the R10 saga while `coherent chat`'s was forgotten. The dead-end error message even told users to `export CLAUDE_MODEL=claude-sonnet-4-20250514` — the retired model.
+
+Found by dogfooding the M1 gallery pipeline (`chat` is how the 12 gallery pages get generated).
+
+- **New default: `claude-sonnet-5`** — the direct successor to the retired Sonnet 4, same price tier. Override with `CLAUDE_MODEL` as before.
+- **Single source of truth** (`utils/model.ts`): all generation call sites resolve the model through one `DEFAULT_MODEL`/`resolveModel()`. Tool 2's labeler keeps its own eval-calibrated pin (`scan/cluster/constants.ts`) — deliberately separate.
+- **Self-healing**: if the configured model 404s (retired, or a bad `CLAUDE_MODEL`), the CLI now queries `/v1/models`, falls back to a live model on the account (preference-ordered, never a silent upgrade to a pricier tier), warns loudly, and retries once — instead of failing the run. The error message now lists how to see what your key can use.
+- **Guard test**: a unit test fails CI if `DEFAULT_MODEL` is a retired ID, or if any model literal is hardcoded outside `utils/model.ts` and the two documented exceptions — so this exact divergence cannot silently return.
+
+### Fixed — `Unexpected response type from Claude API` after the model swap
+
+Response parsing assumed `response.content[0]` is the text block. Claude Sonnet 5 (and Fable 5) emit a `thinking` block first when adaptive thinking is on — which is the default when the `thinking` field is omitted — so the text was at index 1 and every generation threw. Parsing now scans for the text block regardless of position, which works across all models (rather than pinning `thinking: disabled`, which would 400 on Fable 5 if a user selected it via `CLAUDE_MODEL`).
+
+Verified end-to-end: `coherent chat` runs a real generation against the live API again (config saved, files regenerated, modifications applied).
+
 ## [0.22.1] — 2026-07-16 — fix(extract): sites whose network never settles are extractable again
 
 ### Fixed — `coherent extract` could not extract stripe.com or figma.com at all
