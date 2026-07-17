@@ -11,6 +11,19 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.22.4] — 2026-07-17 — feat(extract): `--semantic` now correctly identifies the brand color
+
+### The brand color is now the brand color
+
+`extract --semantic` was computing color roles but they were being discarded, and the role definition was frequency-based. Two changes make the semantic pass actually identify a site's signature color:
+
+- **Semantic roles are now authoritative** (`design-md-serializer.ts`): when `--semantic` ran, the LLM's per-color role overrides the deterministic role in the `## Color` table. Role inference from raw CSS is exactly what the LLM beats the deterministic extractor at (that is the semantic pass's whole purpose), but the serializer was preferring the deterministic role and only filling blanks — so the paid pass changed nothing. When `--semantic` did not run, the deterministic role is used unchanged (the free path is untouched).
+- **Brand-role prompt is salience-based, not frequency-based** (`semantic-inference.ts`): `brand` is now defined as the single most saturated/distinctive signature hue chosen by salience, not "the dominant color in CTAs" — a vivid color used only in the logo or link accents outranks a high-frequency neutral. Plus an explicit rule that a saturated chromatic color is **never** a background even when CSS uses it as a link-hover fill.
+
+Verified end-to-end on stripe.com: `#533afd` (Stripe's indigo) now resolves to `brand` → imports as `primary`, `#ffffff` as `background` (was: indigo mislabeled as the page background, black as primary). The full chain `extract --semantic` → `import design` now produces a faithful palette.
+
+This unblocks the M1 gallery pipeline (E1): brand colors were the blocker, not generation.
+
 ## [0.22.3] — 2026-07-17 — fix(extract): `--semantic` silently produced no semantic output
 
 ### Fixed — `coherent extract --semantic` degraded to deterministic-only, silently
