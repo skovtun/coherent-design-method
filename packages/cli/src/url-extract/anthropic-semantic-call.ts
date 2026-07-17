@@ -8,10 +8,11 @@
 
 import Anthropic from '@anthropic-ai/sdk'
 import type { SemanticLlmFn } from '@getcoherent/core'
+import { DEFAULT_MODEL } from '../utils/model.js'
 
 export interface AnthropicSemanticOptions {
   apiKey?: string
-  /** Model id; defaults to ANTHROPIC_MODEL env or claude-sonnet-4-20250514. */
+  /** Model id; defaults to the ANTHROPIC_MODEL env var, else {@link DEFAULT_MODEL}. */
   model?: string
   /** Max output tokens for the JSON envelope. Default 2048 — semantic output is small. */
   maxTokens?: number
@@ -25,7 +26,7 @@ export function createAnthropicSemanticCall(opts: AnthropicSemanticOptions = {})
     )
   }
   const client = new Anthropic({ apiKey: key, maxRetries: 1 })
-  const model = opts.model || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514'
+  const model = opts.model || process.env.ANTHROPIC_MODEL || DEFAULT_MODEL
   const maxTokens = opts.maxTokens ?? 2048
 
   return async ({ system, user }) => {
