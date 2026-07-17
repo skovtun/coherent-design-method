@@ -125,3 +125,23 @@ describe('ClaudeClient.extractSharedComponents', () => {
     expect(result.components).toEqual([])
   })
 })
+
+describe('ClaudeClient.send — max_tokens truncation guard', () => {
+  it('code-edit methods throw RESPONSE_TRUNCATED instead of writing truncated TSX', async () => {
+    // Regression for the 2026-07 audit P1: editSharedComponentCode/editPageCode/
+    // replaceInlineWithShared/extractBlockAsComponent used to return whatever
+    // text came back even when the model hit max_tokens mid-file.
+    const client = new ClaudeClient('test-key')
+    ;(client as any).client = {
+      messages: {
+        create: async () => ({
+          content: [{ type: 'text', text: 'export function Broken() { return <div' }],
+          stop_reason: 'max_tokens',
+        }),
+      },
+    }
+    await expect(client.editSharedComponentCode('<div/>', 'tweak', 'Foo')).rejects.toMatchObject({
+      code: 'RESPONSE_TRUNCATED',
+    })
+  })
+})
