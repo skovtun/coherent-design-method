@@ -36,10 +36,17 @@ export function createAnthropicSemanticCall(opts: AnthropicSemanticOptions = {})
       system,
       messages: [{ role: 'user', content: user }],
     })
-    const block = response.content[0]
-    if (!block || block.type !== 'text') {
-      throw new Error('Anthropic semantic call returned no text block')
+    // Scan for the text block — do NOT assume content[0]. Under adaptive
+    // thinking (the default on Sonnet 5 / Fable 5 when `thinking` is omitted) a
+    // `thinking` block comes first, so the text sits at index 1+. Assuming
+    // index 0 silently degraded the whole semantic pass — the exact bug that
+    // left `extract --semantic` producing deterministic-only roles. Same fix as
+    // ClaudeClient.textOf; see packages/cli/src/utils/claude.ts.
+    const textBlock = response.content.find(b => b.type === 'text')
+    if (!textBlock || textBlock.type !== 'text') {
+      const seen = response.content.map(b => b.type).join(', ') || 'nothing'
+      throw new Error(`Anthropic semantic call returned no text block (got [${seen}])`)
     }
-    return { text: block.text }
+    return { text: textBlock.text }
   }
 }
