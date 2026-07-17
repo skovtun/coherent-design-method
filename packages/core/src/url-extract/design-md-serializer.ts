@@ -82,7 +82,13 @@ export function buildExtractedDesignMarkdown(input: ExtractedAtmosphereForMd): s
     line('## Color')
     push()
     // Semantic role pins (LLM, post-validated against deterministic palette)
-    // augment the role column when the deterministic extractor left it blank.
+    // OVERRIDE the deterministic role when the `--semantic` pass ran. Role
+    // inference from raw CSS usage is exactly what the LLM beats the extractor
+    // at (see semantic-inference.ts docstring): the deterministic layer labels
+    // a brand color `background` when it observes it as a link-hover fill, so
+    // deferring to it defeats the purpose of paying for the semantic pass. When
+    // semantic did NOT run, `roleByHex` is empty and the deterministic role is
+    // used unchanged — the free path is untouched.
     const roleByHex = new Map<string, string>()
     for (const cr of semantic?.colorRoles ?? []) {
       roleByHex.set(cr.hex.toLowerCase(), cr.role)
@@ -90,7 +96,7 @@ export function buildExtractedDesignMarkdown(input: ExtractedAtmosphereForMd): s
     line('| Token | Hex | Role | Usage |')
     line('|-------|-----|------|-------|')
     for (const c of tokens.colors) {
-      const role = c.role || roleByHex.get(c.hex.toLowerCase()) || '—'
+      const role = roleByHex.get(c.hex.toLowerCase()) || c.role || '—'
       line(`| \`${c.hex}\` | ${swatch(c.hex)} | ${role} | ${c.usage || '—'} |`)
     }
     push()

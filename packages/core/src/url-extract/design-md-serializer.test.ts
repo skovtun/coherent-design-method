@@ -172,28 +172,41 @@ describe('buildExtractedDesignMarkdown', () => {
     expect(withVoice).toContain('density: `comfortable`')
   })
 
-  it('augments color rows with LLM-inferred role when deterministic role is blank', () => {
+  it('lets the LLM role override the deterministic role when the semantic pass ran', () => {
     const md = buildExtractedDesignMarkdown(
       baseInput({
         tokens: {
           ...baseTokens(),
           colors: [
-            { hex: '#635BFF', usage: 'button-primary' }, // no role
-            { hex: '#0a2540', role: 'text', usage: 'h1' }, // deterministic role wins
+            { hex: '#635BFF', usage: 'button-primary' }, // no deterministic role
+            { hex: '#0a2540', role: 'text', usage: 'h1' }, // deterministic role present
           ],
         },
         semantic: {
           colorRoles: [
             { hex: '#635BFF', role: 'brand' },
-            { hex: '#0a2540', role: 'accent' }, // would be ignored — deterministic role wins
+            { hex: '#0a2540', role: 'accent' }, // overrides the deterministic "text"
           ],
         },
       }),
     )
-    // LLM role fills the blank slot
-    expect(md).toContain('| `#635BFF` |')
+    // LLM role fills the blank slot...
     expect(md).toMatch(/`#635BFF`.*\| brand \|/)
-    // deterministic role is preserved over LLM
+    // ...and overrides the deterministic role: role inference is what the LLM
+    // beats the CSS extractor at, so a paid --semantic pass is authoritative.
+    expect(md).toMatch(/`#0a2540`.*\| accent \|/)
+  })
+
+  it('keeps the deterministic role when no semantic pass ran (free path unchanged)', () => {
+    const md = buildExtractedDesignMarkdown(
+      baseInput({
+        tokens: {
+          ...baseTokens(),
+          colors: [{ hex: '#0a2540', role: 'text', usage: 'h1' }],
+        },
+        // no `semantic` → roleByHex empty
+      }),
+    )
     expect(md).toMatch(/`#0a2540`.*\| text \|/)
   })
 
