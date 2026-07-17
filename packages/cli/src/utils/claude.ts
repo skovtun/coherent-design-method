@@ -103,6 +103,39 @@ export class ClaudeClient implements AIProviderInterface {
   }
 
   /**
+   * The single entry point for every Anthropic call. Applies two protections
+   * uniformly so no method can silently regain the gaps the 2026-07 audit
+   * found:
+   *   - model-retirement self-heal (`withModelFallback`), and
+   *   - a `max_tokens` truncation guard.
+   *
+   * The truncation guard is load-bearing: four code-edit methods
+   * (editPageCode, editSharedComponentCode, replaceInlineWithShared,
+   * extractBlockAsComponent) previously returned whatever text came back even
+   * when the model hit `max_tokens` mid-file — writing truncated, unparseable
+   * TSX straight into the user's page. Routing every call through here closes
+   * that for all of them at once (and for any future method).
+   *
+   * `model` is injected fresh from `this.defaultModel` on each attempt so a
+   * mid-session fallback actually takes effect on retries.
+   */
+  private async send(
+    params: Anthropic.MessageCreateParamsNonStreaming,
+    context = 'generating',
+    requestOptions?: Anthropic.RequestOptions,
+  ): Promise<Anthropic.Message> {
+    const response = await this.withModelFallback(() =>
+      this.client.messages.create({ ...params, model: this.defaultModel }, requestOptions),
+    )
+    if (response.stop_reason === 'max_tokens') {
+      const err = new Error(`AI response truncated (max_tokens reached) while ${context}`)
+      ;(err as { code?: string }).code = 'RESPONSE_TRUNCATED'
+      throw err
+    }
+    return response
+  }
+
+  /**
    * Factory method for creating ClaudeClient
    */
   static create(apiKey?: string, model?: string): ClaudeClient {
@@ -116,18 +149,14 @@ export class ClaudeClient implements AIProviderInterface {
     try {
       const prompt = this.buildConfigPrompt(discovery)
 
-      const response = await this.withModelFallback(() =>
-        this.client.messages.create({
+      const response = await this.send(
+        {
           model: this.defaultModel,
           max_tokens: 4096,
-          messages: [
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
+          messages: [{ role: 'user', content: prompt }],
           system: this.getSystemPrompt(),
-        }),
+        },
+        'generating config',
       )
 
       // Extract JSON from response
@@ -238,19 +267,15 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
   }
 
   async generateJSON(systemPrompt: string, userPrompt: string): Promise<unknown> {
-    const response = await this.client.messages.create({
-      model: this.defaultModel,
-      max_tokens: 16384,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }],
-    })
-
-    if (response.stop_reason === 'max_tokens') {
-      const err = new Error('AI response truncated (max_tokens reached)')
-      ;(err as any).code = 'RESPONSE_TRUNCATED'
-      throw err
-    }
-
+    const response = await this.send(
+      {
+        model: this.defaultModel,
+        max_tokens: 16384,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
+      },
+      'generating JSON',
+    )
     return JSON.parse(this.extractJSON(this.requireText(response, 'generating JSON')))
   }
 
@@ -280,27 +305,16 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
    */
   async parseModification(prompt: string, options?: AIRequestOptions): Promise<ParseModificationOutput> {
     try {
-      const response = await this.client.messages.create(
+      const response = await this.send(
         {
           model: this.defaultModel,
           max_tokens: 16384,
-          messages: [
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
+          messages: [{ role: 'user', content: prompt }],
           system: `Design system modification parser. Parse requests into ModificationRequest JSON. Check component registry before creating new. Return valid JSON only: { "requests": [...], "uxRecommendations": "brief markdown or omit" }. Escape quotes with \\", no newlines in string values.`,
         },
+        'parsing the request',
         options?.signal ? { signal: options.signal } : undefined,
       )
-
-      // Detect truncated response (AI hit token limit before finishing)
-      if (response.stop_reason === 'max_tokens') {
-        const err = new Error('AI response truncated (max_tokens reached)')
-        ;(err as any).code = 'RESPONSE_TRUNCATED'
-        throw err
-      }
 
       const jsonText = this.extractJSON(this.requireText(response, 'parsing the request'))
       const parsed = JSON.parse(jsonText)
@@ -353,7 +367,7 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
    * Edit shared component code by instruction (Epic 2).
    */
   async editSharedComponentCode(currentCode: string, instruction: string, componentName: string): Promise<string> {
-    const response = await this.client.messages.create({
+    const response = await this.send({
       model: this.defaultModel,
       max_tokens: 8192,
       messages: [
@@ -393,7 +407,7 @@ Rules: Preserve "use client" if present. Use Tailwind and shadcn/ui patterns. Re
     const constraintBlock = designConstraints
       ? `\nDesign constraints (follow unless user explicitly overrides):\n${designConstraints}\n`
       : ''
-    const response = await this.client.messages.create({
+    const response = await this.send({
       model: this.defaultModel,
       max_tokens: 16384,
       messages: [
@@ -443,7 +457,7 @@ Before returning, verify:
     blockHint?: string,
   ): Promise<string> {
     const hint = blockHint ? ` Identify the block that corresponds to: "${blockHint}".` : ''
-    const response = await this.client.messages.create({
+    const response = await this.send({
       model: this.defaultModel,
       max_tokens: 8192,
       messages: [
@@ -481,7 +495,7 @@ Tasks:
    * Story 2.11 B2: Extract a block from page code as a standalone React component.
    */
   async extractBlockAsComponent(pageCode: string, blockHint: string, componentName: string): Promise<string> {
-    const response = await this.client.messages.create({
+    const response = await this.send({
       model: this.defaultModel,
       max_tokens: 4096,
       messages: [
@@ -553,14 +567,18 @@ If no repeating patterns found: { "components": [] }`,
           'Return ONLY valid JSON. No markdown fencing, no explanation outside the JSON object.',
       })
 
-      const text = this.textOf(response)
-      if (text === null) return { components: [] }
-
-      const jsonText = this.extractJSON(text)
+      const jsonText = this.extractJSON(this.requireText(response, 'extracting shared components'))
       const parsed = JSON.parse(jsonText)
       const components: SharedExtractionItem[] = Array.isArray(parsed.components) ? parsed.components : []
       return { components }
-    } catch {
+    } catch (err) {
+      // Do NOT swallow API / truncation / no-text errors as "no components" —
+      // that silently ships every page with duplicated inline blocks and no
+      // signal (audit P1; the same silent-degrade class that hid for a month).
+      // The pipeline can continue without extraction, but the failure must be
+      // VISIBLE rather than reported as an empty result.
+      const msg = err instanceof Error ? err.message : String(err)
+      console.warn(chalk.yellow(`⚠ Shared-component extraction failed (${msg}) — pages may duplicate inline blocks.`))
       return { components: [] }
     }
   }

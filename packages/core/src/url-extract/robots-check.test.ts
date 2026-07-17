@@ -127,6 +127,17 @@ describe('defaultRobotsCheck (fail-open)', () => {
     expect(fetchImpl).toHaveBeenCalledWith('https://example.com/robots.txt', expect.any(Object))
   })
 
+  it('does NOT follow redirects — passes redirect:"manual" (SSRF guard)', async () => {
+    // The SSRF guard only vets robotsUrl; without redirect:'manual' a hostile
+    // server could 302 the robots.txt request into cloud-metadata/internal hosts.
+    const fetchImpl = vi.fn().mockResolvedValue({ ok: false, status: 302 } as Response)
+    await defaultRobotsCheck('https://example.com/page', { fetchImpl })
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://example.com/robots.txt',
+      expect.objectContaining({ redirect: 'manual' }),
+    )
+  })
+
   it('network error → allowed (fetch-failed)', async () => {
     const fetchImpl = vi.fn().mockRejectedValue(new Error('ENETUNREACH'))
     const r = await defaultRobotsCheck('https://example.com/page', { fetchImpl })

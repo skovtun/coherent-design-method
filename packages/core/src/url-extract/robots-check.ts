@@ -21,7 +21,10 @@ export interface RobotsCheckOptions {
   /** SSRF guard applied to the robots.txt URL itself. Default: noop. */
   ssrfGuard?: (url: string) => Promise<void> | void
   /** Override fetch (for tests). Default: globalThis.fetch. */
-  fetchImpl?: (url: string, init?: { signal?: AbortSignal }) => Promise<Response>
+  fetchImpl?: (
+    url: string,
+    init?: { signal?: AbortSignal; redirect?: 'manual' | 'follow' | 'error' },
+  ) => Promise<Response>
   /** Fetch timeout. Default: 5000ms. */
   timeoutMs?: number
 }
@@ -63,7 +66,14 @@ export async function defaultRobotsCheck(targetUrl: string, opts: RobotsCheckOpt
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), timeoutMs)
   try {
-    const res = await fetchImpl(robotsUrl, { signal: ctrl.signal })
+    // `redirect: 'manual'` is a security control, not a nicety. The SSRF guard
+    // above only vetted `robotsUrl`; without this, a hostile server can answer
+    // the robots.txt request with a 302 to http://169.254.169.254/… (cloud
+    // metadata) or an internal host, and the default `redirect: 'follow'` would
+    // chase it — an unguarded SSRF on every extract. Manual mode returns the
+    // redirect response instead of following it; a non-2xx is treated as
+    // no-robots-txt (fail-open per RFC 9309), which is the safe outcome.
+    const res = await fetchImpl(robotsUrl, { signal: ctrl.signal, redirect: 'manual' })
     if (!res.ok) {
       return { allowed: true, reason: 'no-robots-txt' }
     }
