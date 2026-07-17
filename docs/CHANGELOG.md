@@ -11,6 +11,20 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.22.1] — 2026-07-16 — fix(extract): sites whose network never settles are extractable again
+
+### Fixed — `coherent extract` could not extract stripe.com or figma.com at all
+
+Navigation used `page.goto(url, { waitUntil: 'networkidle' })` with no fallback. A site with persistent background chatter (analytics beacons, websockets, polling) never reaches `networkidle`, so `goto` rejected with `NAVIGATION_TIMEOUT` and the extraction failed — even though the document had been fully rendered seconds earlier. `--settle-ms` did not help: it waits *after* networkidle, which never arrived.
+
+Found by dogfooding the M1 gallery candidate list: **2 of 12 sites failed, including stripe.com** — the most canonical design system of the set. Both failed for this one reason.
+
+Navigation now waits for `load`, then reaches for `networkidle` with whatever remains of the timeout budget. If the network never goes quiet, the capture proceeds on the loaded document instead of throwing. Same total time budget; only the failure path changed — from an error to a usable capture.
+
+The outcome is surfaced, not silent: `CapturedSnapshot.networkSettled` is `false` in that case and the CLI prints `— network never settled, captured on load`. Verified: stripe.com and figma.com now extract (Stripe yields its real `sohne-var` font and `#533afd` indigo); sites that do settle (linear.app, 3.7s) are unchanged, no regression.
+
+**Known limitation this surfaced (not a bug):** figma.com extracts poorly regardless — its landing page carries almost no CSS color tokens (the brand colors live in images/canvas), so the deterministic extractor yields near-black/white. Tool 1 extracts CSS tokens, not pixels.
+
 ## [0.22.0] — 2026-07-16 — `coherent export tokens` (E3: one token model → framework-ready files)
 
 ### Added — export your design system to framework-ready token files

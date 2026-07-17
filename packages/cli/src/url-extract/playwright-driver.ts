@@ -63,6 +63,7 @@ export async function createPlaywrightDriver(opts: PlaywrightDriverOptions = {})
 function wrapPage(page: import('playwright').Page): PageLike {
   return {
     goto: (url, opts) => page.goto(url, opts) as unknown as Promise<NavigationResponse | null>,
+    waitForLoadState: (state, opts) => page.waitForLoadState(state, opts),
     evaluate: ((fn: unknown, arg?: unknown) =>
       arg === undefined
         ? page.evaluate(fn as never)

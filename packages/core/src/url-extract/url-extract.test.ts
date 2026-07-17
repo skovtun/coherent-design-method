@@ -203,6 +203,9 @@ describe('url-extract bootstrap', () => {
     } {
       const capturedHandler = { current: null as Handler | null }
       const page: PageLike = {
+        async waitForLoadState() {
+          /* mock: network settles immediately */
+        },
         async goto(url) {
           // Simulate Playwright invoking the route handler for the navigation request.
           if (capturedHandler.current) {
@@ -252,6 +255,9 @@ describe('url-extract bootstrap', () => {
       }
       const capturedHandler = { current: null as Handler | null }
       const page: PageLike = {
+        async waitForLoadState() {
+          /* mock: network settles immediately */
+        },
         async goto(url) {
           if (!capturedHandler.current) throw new Error('handler not installed')
           const ok1 = await capturedHandler.current(url, true)
@@ -298,6 +304,25 @@ describe('url-extract bootstrap', () => {
       const snapshot = await captureSnapshot('http://allowed.example/', driver, { ssrfGuard })
       expect(snapshot.url).toBe('http://allowed.example/')
       expect(snapshot.finalUrl).toBe('http://allowed.example/')
+      expect(snapshot.networkSettled).toBe(true)
+    })
+
+    // v0.22.1 regression: a site whose network NEVER goes quiet (persistent
+    // analytics/websocket chatter) must still be extractable. Pre-fix the
+    // navigation used waitUntil:'networkidle' with no fallback, so goto rejected
+    // and the whole extraction failed — observed on stripe.com and figma.com
+    // (2 of 12 gallery candidates, incl. the most canonical design system).
+    it('captures a page whose network never settles, flagging networkSettled=false', async () => {
+      const { driver } = makeStubDriver({ status: 200, url: 'http://chatty.example/' })
+      const page = await driver.newPage()
+      // Simulate Playwright: waitForLoadState('networkidle') never resolves.
+      page.waitForLoadState = async () => {
+        throw new Error('Timeout 30000ms exceeded waiting for networkidle')
+      }
+      const ssrfGuard = async () => {}
+      const snapshot = await captureSnapshot('http://chatty.example/', driver, { ssrfGuard })
+      expect(snapshot.finalUrl).toBe('http://chatty.example/')
+      expect(snapshot.networkSettled).toBe(false)
     })
 
     // P1 fix coverage (codex iteration 2): subresource SSRF. A public page that
@@ -309,6 +334,9 @@ describe('url-extract bootstrap', () => {
       const subresourceResults: boolean[] = []
       const capturedHandler = { current: null as Handler | null }
       const page: PageLike = {
+        async waitForLoadState() {
+          /* mock: network settles immediately */
+        },
         async goto(url) {
           if (!capturedHandler.current) throw new Error('handler not installed')
           // Initial navigation passes.
@@ -554,6 +582,9 @@ describe('url-extract bootstrap', () => {
     function makeStubDriver(): { driver: BrowserDriverFactory } {
       const capturedHandler = { current: null as Handler | null }
       const page: PageLike = {
+        async waitForLoadState() {
+          /* mock: network settles immediately */
+        },
         async goto(url) {
           if (capturedHandler.current) {
             const allow = await capturedHandler.current(url, true)
@@ -647,6 +678,9 @@ describe('url-extract bootstrap', () => {
       const waits: number[] = []
       const capturedHandler = { current: null as Handler | null }
       const page: PageLike = {
+        async waitForLoadState() {
+          /* mock: network settles immediately */
+        },
         async goto(url) {
           if (capturedHandler.current) await capturedHandler.current(url, true)
           return { status: () => 200, url: () => url }
