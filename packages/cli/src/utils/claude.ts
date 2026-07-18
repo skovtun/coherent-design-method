@@ -16,6 +16,7 @@ import type {
   ParseModificationOutput,
   SharedExtractionItem,
 } from './ai-provider.js'
+import { normalizeRequestShape, extractFirstJson } from './ai-provider.js'
 
 export class ClaudeClient implements AIProviderInterface {
   private client: Anthropic
@@ -245,25 +246,12 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
   }
 
   /**
-   * Extract JSON from Claude's response (handles markdown code blocks)
+   * Extract JSON from Claude's response. Strips markdown fences and tolerates
+   * trailing content after the JSON value (a Sonnet 5 habit). See
+   * {@link extractFirstJson}.
    */
   private extractJSON(text: string): string {
-    // Remove markdown code blocks if present
-    let jsonText = text.trim()
-
-    // Remove ```json or ``` markers
-    if (jsonText.startsWith('```')) {
-      const lines = jsonText.split('\n')
-      // Remove first line (```json or ```)
-      lines.shift()
-      // Remove last line (```)
-      if (lines[lines.length - 1].trim() === '```') {
-        lines.pop()
-      }
-      jsonText = lines.join('\n')
-    }
-
-    return jsonText.trim()
+    return extractFirstJson(text)
   }
 
   async generateJSON(systemPrompt: string, userPrompt: string): Promise<unknown> {
@@ -325,14 +313,14 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
       const parsed = JSON.parse(jsonText)
 
       if (Array.isArray(parsed)) {
-        return { requests: parsed }
+        return { requests: parsed.map(normalizeRequestShape) }
       }
       const requests = parsed?.requests
       if (!Array.isArray(requests)) {
         throw new Error('Expected "requests" array in response')
       }
       return {
-        requests,
+        requests: requests.map(normalizeRequestShape),
         uxRecommendations:
           typeof parsed.uxRecommendations === 'string' && parsed.uxRecommendations.trim()
             ? parsed.uxRecommendations.trim()

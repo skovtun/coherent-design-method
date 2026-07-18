@@ -15,6 +15,7 @@ import type {
   ParseModificationOutput,
   SharedExtractionItem,
 } from './ai-provider.js'
+import { normalizeRequestShape, extractFirstJson } from './ai-provider.js'
 
 export class OpenAIClient implements AIProviderInterface {
   private client: any
@@ -128,10 +129,11 @@ export class OpenAIClient implements AIProviderInterface {
       const jsonText = this.extractJSON(content)
       const parsed = JSON.parse(jsonText)
 
-      const requests = Array.isArray(parsed) ? parsed : parsed.requests || parsed.modifications || []
-      if (!Array.isArray(requests)) {
+      const rawRequests = Array.isArray(parsed) ? parsed : parsed.requests || parsed.modifications || []
+      if (!Array.isArray(rawRequests)) {
         throw new Error('Expected array of ModificationRequest objects')
       }
+      const requests = rawRequests.map(normalizeRequestShape)
       const uxRecommendations = Array.isArray(parsed)
         ? undefined
         : typeof parsed.uxRecommendations === 'string' && parsed.uxRecommendations.trim()
@@ -249,19 +251,7 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
    * Extract JSON from response (handles markdown code blocks)
    */
   private extractJSON(text: string): string {
-    let jsonText = text.trim()
-
-    // Remove markdown code blocks if present
-    if (jsonText.startsWith('```')) {
-      const lines = jsonText.split('\n')
-      lines.shift() // Remove first line (```json or ```)
-      if (lines[lines.length - 1].trim() === '```') {
-        lines.pop() // Remove last line (```)
-      }
-      jsonText = lines.join('\n')
-    }
-
-    return jsonText.trim()
+    return extractFirstJson(text)
   }
 
   /**

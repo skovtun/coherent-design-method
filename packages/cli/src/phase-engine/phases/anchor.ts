@@ -21,6 +21,19 @@ import { buildModificationPrompt } from '../prompt-builders/modification.js'
 import { parsePlanResponse } from './plan.js'
 
 /**
+ * Output-shape lock for the anchor page.
+ *
+ * Sonnet 5 (unlike the retired Sonnet 4) reads the full modification schema and
+ * "helpfully" decomposes "build a landing page" into `update-token` +
+ * `add-component` + `modify-layout-block` requests with an empty `add-page` —
+ * so no `pageCode` is ever produced and the anchor comes back blank. This
+ * clause forces exactly one coded page and forbids the decomposition. Kept as a
+ * single shared string so all three branches stay in lockstep.
+ */
+const ANCHOR_OUTPUT_LOCK = `
+CRITICAL — OUTPUT SHAPE: Return EXACTLY ONE request, of type "add-page", whose changes.pageCode holds the ENTIRE page as one self-contained TSX string. Do NOT return update-token, modify-token, add-component, or modify-layout-block requests — build everything inline in pageCode. An add-page request without a non-empty changes.pageCode is a failure.`
+
+/**
  * Build the anchor-page prompt. Pure. Routes branch on auth / sidebar /
  * default treatment; each branch has its own design direction baked in.
  */
@@ -39,7 +52,8 @@ export function buildAnchorPagePrompt(
   if (isAuth) {
     return `Create ONE page called "${homePage.name}" at route "${homePage.route}".
 ${atmosphere}
-Context: ${message}. This is the application's entry point — a clean, centered authentication form. Generate complete pageCode. Do NOT include site-wide <header>, <nav>, or <footer> — this page has its own minimal layout. Make it visually polished with proper form validation UI — this page sets the design direction for the entire site. Do not generate other pages.`
+Context: ${message}. This is the application's entry point — a clean, centered authentication form. Generate complete pageCode. Do NOT include site-wide <header>, <nav>, or <footer> — this page has its own minimal layout. Make it visually polished with proper form validation UI — this page sets the design direction for the entire site. Do not generate other pages.
+${ANCHOR_OUTPUT_LOCK}`
   }
 
   const groupLayout = plan?.groups.find(g => g.pages.includes(homePage.route))?.layout
@@ -54,7 +68,8 @@ DESIGN DIRECTION — this page sets the visual tone for the entire app:
 - Layout: use asymmetric 2/3 + 1/3 split, not uniform sections
 - Data: show real-feeling content with diverse names and specific numbers
 - Make each section visually distinct — vary density and treatment
-Do not generate other pages.`
+Do not generate other pages.
+${ANCHOR_OUTPUT_LOCK}`
   }
 
   return `Create ONE page called "${homePage.name}" at route "${homePage.route}".
@@ -68,7 +83,8 @@ DESIGN DIRECTION — this page sets the visual tone for the entire site:
 - Pricing: highlighted tier must stand out clearly (ring-2 ring-primary, scale slightly larger)
 - Testimonials: asymmetric layout, not 3 identical cards
 - Use real-feeling content: diverse names, specific metrics, concrete descriptions
-Do not generate other pages.`
+Do not generate other pages.
+${ANCHOR_OUTPUT_LOCK}`
 }
 
 /** Input artifact for the anchor phase. Written by `coherent session start`. */

@@ -36,6 +36,89 @@ export interface SharedExtractionItem {
 }
 
 /**
+ * Extract the first complete, balanced JSON value (object or array) from a
+ * model response, tolerating leading prose and — critically — trailing content.
+ *
+ * Sonnet 5 sometimes emits valid JSON followed by extra text: a ```tsx code
+ * block, a prose note, or a second object. `JSON.parse` on the whole string
+ * then throws "Unexpected non-whitespace character after JSON", and a strict
+ * consumer discards a page it actually produced. It also sometimes wraps the
+ * JSON in a ```json fence. This scanner strips a leading fence, finds the first
+ * `{`/`[`, and returns the substring up to its matching close, respecting
+ * strings and escapes so braces inside string literals don't miscount.
+ *
+ * Returns the trimmed input unchanged when no JSON value is found (e.g. a raw
+ * TSX response) so the caller's existing parse-error path still fires. Pure.
+ */
+export function extractFirstJson(text: string): string {
+  let s = text.trim()
+  if (s.startsWith('```')) {
+    const nl = s.indexOf('\n')
+    if (nl !== -1) s = s.slice(nl + 1)
+    const fence = s.lastIndexOf('```')
+    if (fence !== -1) s = s.slice(0, fence)
+    s = s.trim()
+  }
+
+  const start = s.search(/[{[]/)
+  if (start === -1) return s
+
+  const open = s[start]
+  const close = open === '{' ? '}' : ']'
+  let depth = 0
+  let inString = false
+  let escaped = false
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i]
+    if (inString) {
+      if (escaped) escaped = false
+      else if (ch === '\\') escaped = true
+      else if (ch === '"') inString = false
+      continue
+    }
+    if (ch === '"') inString = true
+    else if (ch === open) depth++
+    else if (ch === close) {
+      depth--
+      if (depth === 0) return s.slice(start, i + 1)
+    }
+  }
+  // Unbalanced (e.g. truncated) — return from the first bracket so the caller
+  // gets the most-complete fragment and its parse error is meaningful.
+  return s.slice(start)
+}
+
+/**
+ * Envelope keys that belong on a ModificationRequest itself, not inside its
+ * `changes` payload.
+ */
+const REQUEST_ENVELOPE_KEYS = new Set(['type', 'target', 'reason', 'changes'])
+
+/**
+ * Normalize a parsed request to the `{ type, target, changes: {...} }` shape.
+ *
+ * Retired Sonnet 4 nested page fields under `changes`; Sonnet 5 frequently
+ * FLATTENS them onto the request itself (`{ type, target, id, name, route,
+ * pageCode, ... }`). Every consumer reads `request.changes.pageCode`, so a
+ * flattened request looks empty ("no code") even when it carries a full page.
+ * When `changes` is absent but non-envelope fields are present, rehome them
+ * into `changes`. Already-nested requests pass through untouched. Pure.
+ */
+export function normalizeRequestShape(req: unknown): unknown {
+  if (!req || typeof req !== 'object') return req
+  const r = req as Record<string, unknown>
+  if (r.changes !== undefined) return req
+  const changes: Record<string, unknown> = {}
+  const envelope: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(r)) {
+    if (REQUEST_ENVELOPE_KEYS.has(k)) envelope[k] = v
+    else changes[k] = v
+  }
+  if (Object.keys(changes).length === 0) return req
+  return { ...envelope, changes }
+}
+
+/**
  * Options passed to every AI provider method call.
  *
  * Currently only carries an AbortSignal so callers can cancel in-flight
