@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { fileToRoute } from './check.js'
 
 // Test the quality score calculation logic (extracted from check.ts)
 function calculateScore(result: {
@@ -84,5 +85,20 @@ describe('quality score calculation', () => {
     })
     expect(score).toBe(94)
     expect(score >= 90).toBe(true)
+  })
+})
+
+describe('fileToRoute (dead-route detection)', () => {
+  it('maps page files to their Next.js route, stripping route groups', () => {
+    expect(fileToRoute('app/page.tsx')).toBe('/')
+    expect(fileToRoute('app/(app)/analytics/page.tsx')).toBe('/analytics')
+    expect(fileToRoute('app/(auth)/login/page.tsx')).toBe('/login')
+    expect(fileToRoute('app/(marketing)/pricing/page.tsx')).toBe('/pricing')
+    expect(fileToRoute('app/settings/team/page.tsx')).toBe('/settings/team')
+  })
+  it('returns null for non-page files', () => {
+    expect(fileToRoute('app/layout.tsx')).toBeNull()
+    expect(fileToRoute('components/ui/button.tsx')).toBeNull()
+    expect(fileToRoute('app/(app)/AppNav.tsx')).toBeNull()
   })
 })

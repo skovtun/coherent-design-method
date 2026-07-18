@@ -11,6 +11,14 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.22.7] — 2026-07-17 — fix(check): detect dead routes (config route with no page file)
+
+### `coherent check` now catches config routes that have no backing page.tsx
+
+Audit finding: `check` built its valid-route set from config, so a route whose page generation was dropped (a double-failed page still gets a config + nav entry) passed link validation — and links to it looked valid — even though there was no `page.tsx`, shipping a runtime 404. The command's own diagnostic literally couldn't see it.
+
+`check` now maps each scanned page file to its route, flags config routes with no file as **dead routes** (a distinct `🚫 Dead Routes` section), removes them from the valid-link set so links pointing at them also flag, penalizes them in the score, and fails the exit code. Verified live: an orphaned config route drops the score 90→75 and prints the 404 warning + the regenerate hint.
+
 ## [0.22.6] — 2026-07-17 — perf(chat): stop double-injecting the design-quality block
 
 ### The per-type design-quality block was sent twice on every generated page
