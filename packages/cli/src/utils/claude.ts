@@ -329,6 +329,12 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
       }
       const requests = parsed?.requests
       if (!Array.isArray(requests)) {
+        // Bare single request object (Sonnet 5 sometimes omits the {requests:[]}
+        // wrapper and returns one request directly). Wrap it rather than discard
+        // a valid page.
+        if (parsed && typeof parsed === 'object' && typeof parsed.type === 'string') {
+          return { requests: [normalizeRequestShape(parsed)] }
+        }
         throw new Error('Expected "requests" array in response')
       }
       return {

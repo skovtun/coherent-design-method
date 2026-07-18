@@ -112,11 +112,22 @@ export function extractFirstJson(text: string): string {
  * would be circular).
  */
 export function parseFencedTsxResponse(raw: string): Record<string, unknown> | null {
-  const m = raw.trim().match(/^(\{[\s\S]*?\})\s*\n\s*```tsx\s*\n([\s\S]*?)\n```\s*$/)
-  if (!m) return null
+  const text = raw.trim()
+  // Locate a code fence. Sonnet 5 usually tags it ```tsx but sometimes uses
+  // jsx / typescript / javascript / ts / js, and occasionally an untagged ```.
+  // We do NOT anchor to start/end: the model may prepend a sentence or append a
+  // note. The header is the first balanced JSON object BEFORE the fence.
+  const fenceMatch = text.match(/```(?:tsx|jsx|typescript|javascript|ts|js)?\s*\n([\s\S]*?)\n```/)
+  if (!fenceMatch || fenceMatch.index === undefined) return null
+  const tsxBody = fenceMatch[1]
+  const beforeFence = text.slice(0, fenceMatch.index)
+  const headerJson = extractFirstJson(beforeFence)
+  if (!headerJson.startsWith('{') && !headerJson.startsWith('[')) return null
+  // Reject when the fenced body isn't actually TSX/JSX (e.g. a ```json header
+  // block the model fenced by mistake) — a real page has a default export.
+  if (!/export\s+default|export\s+function|=>/.test(tsxBody) && !/<[A-Za-z]/.test(tsxBody)) return null
   try {
-    const header = JSON.parse(m[1]) as Record<string, unknown>
-    const tsxBody = m[2]
+    const header = JSON.parse(headerJson) as Record<string, unknown>
     let req: Record<string, unknown> | null = null
     if (header.type === 'add-page') {
       req = header
