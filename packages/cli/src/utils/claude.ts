@@ -270,7 +270,7 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
     const response = await this.send(
       {
         model: this.defaultModel,
-        max_tokens: 16384,
+        max_tokens: 32000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }],
       },
@@ -308,7 +308,12 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
       const response = await this.send(
         {
           model: this.defaultModel,
-          max_tokens: 16384,
+          // Sized for Sonnet 5 adaptive thinking (ON when `thinking` is omitted):
+          // the thinking block AND the emitted page JSON both draw from this
+          // budget. 16384 fit Sonnet 4 (no thinking) but truncated the anchor
+          // page under Sonnet 5, producing empty pages. See RESPONSE_TRUNCATED
+          // guard in send() and PATTERNS_JOURNAL.
+          max_tokens: 32000,
           messages: [{ role: 'user', content: prompt }],
           system: `Design system modification parser. Parse requests into ModificationRequest JSON. Check component registry before creating new. Return valid JSON only: { "requests": [...], "uxRecommendations": "brief markdown or omit" }. Escape quotes with \\", no newlines in string values.`,
         },
@@ -369,7 +374,7 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
   async editSharedComponentCode(currentCode: string, instruction: string, componentName: string): Promise<string> {
     const response = await this.send({
       model: this.defaultModel,
-      max_tokens: 8192,
+      max_tokens: 16384,
       messages: [
         {
           role: 'user',
@@ -409,7 +414,7 @@ Rules: Preserve "use client" if present. Use Tailwind and shadcn/ui patterns. Re
       : ''
     const response = await this.send({
       model: this.defaultModel,
-      max_tokens: 16384,
+      max_tokens: 32000,
       messages: [
         {
           role: 'user',
@@ -459,7 +464,7 @@ Before returning, verify:
     const hint = blockHint ? ` Identify the block that corresponds to: "${blockHint}".` : ''
     const response = await this.send({
       model: this.defaultModel,
-      max_tokens: 8192,
+      max_tokens: 16384,
       messages: [
         {
           role: 'user',
@@ -534,7 +539,7 @@ Requirements:
     try {
       const response = await this.client.messages.create({
         model: this.defaultModel,
-        max_tokens: 16384,
+        max_tokens: 32000,
         messages: [
           {
             role: 'user',

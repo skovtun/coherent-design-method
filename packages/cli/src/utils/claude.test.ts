@@ -101,7 +101,10 @@ describe('ClaudeClient.extractSharedComponents', () => {
     expect(captured.messages[0].content).toContain('Button')
     expect(captured.messages[0].content).toContain('Hero')
     expect(captured.system).toContain('JSON')
-    expect(captured.max_tokens).toBe(16384)
+    // Raised from 16384 → 32000 for Sonnet 5: adaptive thinking (ON when
+    // omitted) shares this budget with the emitted output, and 16384 truncated
+    // full-file generations.
+    expect(captured.max_tokens).toBe(32000)
   })
 
   it('returns empty array when no components found', async () => {
