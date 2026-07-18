@@ -44,6 +44,13 @@ export interface ParseModificationOptions {
   pageSections?: string[]
   projectRoot?: string
   /**
+   * Explicit page type. When set, `buildModificationPrompt` injects the
+   * matching design-quality block directly instead of re-inferring it from the
+   * message — which lets the caller stop injecting that block a SECOND time
+   * (the split-generator did, ~1.5K duplicated tokens per page).
+   */
+  pageType?: 'marketing' | 'app' | 'auth'
+  /**
    * Optional AbortSignal — wires through to the provider SDK so a timeout or
    * user interrupt actually kills the in-flight HTTP request instead of just
    * ignoring its response.
@@ -111,6 +118,7 @@ export async function parseModification(
     reusePlanDirective: options?.reusePlanDirective,
     pageSections: options?.pageSections,
     projectRoot: options?.projectRoot,
+    pageType: options?.pageType,
   })
 
   const raw = await ai.parseModification(prompt, options?.signal ? { signal: options.signal } : undefined)

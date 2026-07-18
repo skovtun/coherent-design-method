@@ -36,7 +36,7 @@ import { getComponentProvider } from '../../providers/index.js'
 import { autoFixCode } from '../../utils/quality-validator.js'
 import { isAuthRoute } from '../../agents/page-templates.js'
 import chalk from 'chalk'
-import { getDesignQualityForType, inferPageTypeFromRoute } from '../../agents/design-constraints.js'
+import { inferPageTypeFromRoute } from '../../agents/design-constraints.js'
 import type { ArchitecturePlan, Atmosphere } from './plan-generator.js'
 import {
   generateArchitecturePlan,
@@ -898,7 +898,6 @@ export async function splitGeneratePages(
     async ({ name, id, route }) => {
       const isAuth = isAuthRoute(route) || isAuthRoute(name)
       const pageType = plan ? getPageType(route, plan) : inferPageTypeFromRoute(route)
-      const designConstraints = getDesignQualityForType(pageType)
       const authNote = isAuth
         ? 'For this auth page: the auth layout already provides centering (flex items-center justify-center min-h-svh). Do NOT add your own centering wrapper or min-h-svh. Just output a div with className="w-full max-w-md" containing the Card. Do NOT use section containers or full-width wrappers.'
         : undefined
@@ -956,7 +955,6 @@ export async function splitGeneratePages(
         `Generate complete pageCode for this single page only. Do not generate other pages.`,
         `FORBIDDEN in pageCode: <header>, <nav>, <footer>, site-wide navigation, copyright footers. The layout provides all of these.`,
         `PAGE TYPE: ${pageType}`,
-        designConstraints,
         layoutNote,
         reusePlanDirective || tieredNote || sharedComponentsNote,
         routeNote,
@@ -973,7 +971,9 @@ export async function splitGeneratePages(
 
       try {
         const result = await withAbortableTimeout(
-          signal => parseModification(prompt, modCtx, provider, { ...parseOpts, pageSections, signal }),
+          // Pass the explicit pageType so buildModificationPrompt injects the
+          // design-quality block once (we no longer inject it into `prompt`).
+          signal => parseModification(prompt, modCtx, provider, { ...parseOpts, pageSections, pageType, signal }),
           `Phase 6 page ${name}`,
         )
         phase5Done++
