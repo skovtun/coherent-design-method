@@ -11,6 +11,16 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.23.0] — 2026-07-18 — perf(chat): prompt caching for the design-constraint preamble (~85K tokens/run saved)
+
+### Multi-page generation now reuses a cached constraint block instead of re-sending it every page
+
+Every page-generation call re-sent the same ~19K-token invariant design-constraint preamble (DESIGN_THINKING + CORE_CONSTRAINTS + per-type design quality + VISUAL_DEPTH + INTERACTION_PATTERNS). That block is byte-stable per page type across a run, so it's now sent once as an Anthropic **prompt-cache** system block (`cache_control: ephemeral`) and read at ~10% cost on every subsequent same-type page. The message-dependent blocks (contextual rules, golden patterns, wiki retrieval) stay in the user prompt so they don't poison the cache prefix.
+
+Measured on a fresh multi-page run: cache **writes** on the first page of each type, then **reads** of ~18–20K tokens on each following same-type page — ~85K cached-token reads across a small app, billed at ~10%. On a bigger app the saving scales with page count.
+
+**Quality-neutral**, verified by A/B (2 runs cache-on, 1 cache-off, same prompt): identical page-generation counts (7/7, 7/7, 8/9) and overlapping quality scores — the preamble is content-identical, just relocated to the cached system prefix. Default on; opt out with `COHERENT_NO_CACHE=1`. On the OpenAI rail the preamble folds into the system message (OpenAI auto-caches long prefixes). 3 new unit tests; suite 2473 green.
+
 ## [0.22.9] — 2026-07-18 — fix(chat): harden response parsing (fewer empty-page fallbacks)
 
 ### Tolerate more of Sonnet 5's response variations

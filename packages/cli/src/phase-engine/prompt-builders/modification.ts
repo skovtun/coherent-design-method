@@ -52,6 +52,37 @@ export interface BuildModificationPromptOptions {
    * inference works correctly there.
    */
   pageType?: 'marketing' | 'app' | 'auth'
+  /**
+   * Prompt-caching: when true, the invariant design-constraint blocks
+   * (DESIGN_THINKING, CORE_CONSTRAINTS, per-type design quality, VISUAL_DEPTH,
+   * INTERACTION_PATTERNS) are OMITTED from the returned user prompt because the
+   * caller supplies them separately as a cached system block via
+   * {@link buildConstraintPreamble}. The message-dependent blocks (contextual
+   * rules, golden patterns, wiki) stay in the user prompt — they vary per call
+   * and would never cache-hit. Defaults false (blocks stay inline, unchanged
+   * behavior).
+   */
+  constraintsInSystem?: boolean
+}
+
+/**
+ * Build the cacheable design-constraint preamble — the invariant blocks that are
+ * byte-stable per page type across a generation run. Fed to the provider as a
+ * cached system block so pages 2..N of the same type read it at ~10% cost.
+ *
+ * Deliberately EXCLUDES the message-dependent blocks (contextual rules, golden
+ * patterns, wiki retrieval) — those vary per page and belong in the user
+ * message where they don't poison the cache prefix. Pure.
+ */
+export function buildConstraintPreamble(message: string, options?: BuildModificationPromptOptions): string {
+  const pageType = options?.pageType ?? inferPageTypeFromRoute(message)
+  return [
+    DESIGN_THINKING,
+    CORE_CONSTRAINTS,
+    `${DESIGN_QUALITY_COMMON}\n${getDesignQualityForType(pageType)}`,
+    VISUAL_DEPTH,
+    INTERACTION_PATTERNS,
+  ].join('\n')
 }
 
 /**
@@ -91,8 +122,13 @@ For editing an existing shared component use type "modify-layout-block" with tar
         : ''
   const availableShadcn = getComponentProvider().listNames(options?.projectRoot)
 
-  const designThinking = DESIGN_THINKING
-  const coreRules = CORE_CONSTRAINTS
+  // Prompt-caching: when the invariant constraints are supplied as a cached
+  // system block, omit them here so they aren't double-sent. The cached block
+  // is byte-identical to concatenating these five, so the model sees the same
+  // instructions — just from the (cache-warm) system prefix instead of inline.
+  const inSystem = options?.constraintsInSystem === true
+  const designThinking = inSystem ? '' : DESIGN_THINKING
+  const coreRules = inSystem ? '' : CORE_CONSTRAINTS
   // v0.15.3 — inject user design preferences (~/.coherent/preferences.json).
   // Empty when no prefs configured — contributes nothing to the prompt.
   const userPrefs = renderPreferencesBlock(readPreferences())
@@ -103,10 +139,10 @@ For editing an existing shared component use type "modify-layout-block" with tar
   // Prefer caller-supplied pageType (skill rail passes it from the plan); fall
   // back to route inference when absent (chat rail's short-message case).
   const pageType = options?.pageType ?? inferPageTypeFromRoute(message)
-  const designQuality = `${DESIGN_QUALITY_COMMON}\n${getDesignQualityForType(pageType)}`
-  const visualDepth = VISUAL_DEPTH
+  const designQuality = inSystem ? '' : `${DESIGN_QUALITY_COMMON}\n${getDesignQualityForType(pageType)}`
+  const visualDepth = inSystem ? '' : VISUAL_DEPTH
   const contextualRules = selectContextualRules(message, options?.pageSections)
-  const interactionPatterns = INTERACTION_PATTERNS
+  const interactionPatterns = inSystem ? '' : INTERACTION_PATTERNS
   const goldenPatterns = pickGoldenPatterns(message, options?.pageSections)
   const wikiContext = retrieveWikiContext(message, options?.pageSections)
   const light = config.tokens.colors.light

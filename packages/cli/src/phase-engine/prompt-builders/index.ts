@@ -15,7 +15,11 @@ export { buildPlanOnlyPrompt } from './plan-only.js'
 export { buildComponentRegistry } from './component-registry.js'
 export { buildProjectContextFromRoot } from './project-context.js'
 export { retrieveWikiContext } from './wiki-context.js'
-export { buildModificationPrompt, type BuildModificationPromptOptions } from './modification.js'
+export {
+  buildModificationPrompt,
+  buildConstraintPreamble,
+  type BuildModificationPromptOptions,
+} from './modification.js'
 export { buildLightweightPagePrompt } from './lightweight-page.js'
 export { buildComponentsBatchPrompt } from './components-batch.js'
 export { buildInlinePagePrompt, buildPagePrompt, type PageSpec, type PagesInputShared } from './page.js'

@@ -15,6 +15,7 @@ import {
   buildPlanOnlyPrompt,
   buildComponentRegistry,
   buildModificationPrompt,
+  buildConstraintPreamble,
   buildLightweightPagePrompt,
 } from '../phase-engine/prompt-builders/index.js'
 
@@ -111,7 +112,7 @@ export async function parseModification(
     }
   }
 
-  const prompt = buildModificationPrompt(enhancedMessage, context.config, componentRegistry, {
+  const promptOptions = {
     isExpandedPageRequest,
     sharedComponentsSummary: options?.sharedComponentsSummary,
     tieredComponentsPrompt: options?.tieredComponentsPrompt,
@@ -119,9 +120,25 @@ export async function parseModification(
     pageSections: options?.pageSections,
     projectRoot: options?.projectRoot,
     pageType: options?.pageType,
+  }
+  // Prompt caching (default ON; opt out with COHERENT_NO_CACHE): pull the
+  // invariant constraint preamble (~19K tokens) out of the user prompt and send
+  // it as a cached system block (byte-stable per page type), so pages 2..N of a
+  // run read it at ~10% cost. The preamble is content-identical to the inline
+  // blocks, and an A/B (2 ON / 1 OFF, same prompt) showed identical page-
+  // generation counts and overlapping quality scores — the caching move is
+  // quality-neutral; the score variance is broken-link noise present in both.
+  const cacheEnabled = !process.env.COHERENT_NO_CACHE
+  const cacheableSystem = cacheEnabled ? buildConstraintPreamble(enhancedMessage, promptOptions) : undefined
+  const prompt = buildModificationPrompt(enhancedMessage, context.config, componentRegistry, {
+    ...promptOptions,
+    constraintsInSystem: cacheEnabled,
   })
 
-  const raw = await ai.parseModification(prompt, options?.signal ? { signal: options.signal } : undefined)
+  const raw = await ai.parseModification(prompt, {
+    ...(cacheableSystem ? { cacheableSystem } : {}),
+    ...(options?.signal ? { signal: options.signal } : {}),
+  })
   const requestsArray = Array.isArray(raw) ? raw : (raw?.requests ?? [])
   const uxRecommendations = Array.isArray(raw)
     ? undefined

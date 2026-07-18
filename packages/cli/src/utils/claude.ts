@@ -293,6 +293,19 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
    */
   async parseModification(prompt: string, options?: AIRequestOptions): Promise<ParseModificationOutput> {
     try {
+      const parserInstruction = `Design system modification parser. Parse requests into ModificationRequest JSON. Check component registry before creating new. Return valid JSON only: { "requests": [...], "uxRecommendations": "brief markdown or omit" }. Escape quotes with \\", no newlines in string values.`
+      // Prompt caching: the invariant design-constraint preamble (byte-stable per
+      // page type across the run) goes into a cached system block so pages 2..N
+      // read it at ~10% cost. The SDK's pinned types predate cache_control on
+      // TextBlockParam, but the field passes through to the wire and the API
+      // honors it — cast past the stale type. Without cacheableSystem, behavior
+      // is identical to before (plain string system).
+      const system: Anthropic.MessageCreateParamsNonStreaming['system'] = options?.cacheableSystem
+        ? ([
+            { type: 'text', text: parserInstruction },
+            { type: 'text', text: options.cacheableSystem, cache_control: { type: 'ephemeral' } },
+          ] as unknown as Anthropic.MessageCreateParamsNonStreaming['system'])
+        : parserInstruction
       const response = await this.send(
         {
           model: this.defaultModel,
@@ -303,11 +316,18 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
           // guard in send() and PATTERNS_JOURNAL.
           max_tokens: 32000,
           messages: [{ role: 'user', content: prompt }],
-          system: `Design system modification parser. Parse requests into ModificationRequest JSON. Check component registry before creating new. Return valid JSON only: { "requests": [...], "uxRecommendations": "brief markdown or omit" }. Escape quotes with \\", no newlines in string values.`,
+          system,
         },
         'parsing the request',
         options?.signal ? { signal: options.signal } : undefined,
       )
+      if (process.env.COHERENT_DEBUG) {
+        const u = (response as any).usage
+        if (u)
+          console.error(
+            `[cache] parse: read=${u.cache_read_input_tokens ?? 0} write=${u.cache_creation_input_tokens ?? 0} input=${u.input_tokens ?? 0}`,
+          )
+      }
 
       const rawText = this.requireText(response, 'parsing the request')
 
