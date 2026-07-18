@@ -11,6 +11,26 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.22.6] — 2026-07-17 — perf(chat): stop double-injecting the design-quality block
+
+### The per-type design-quality block was sent twice on every generated page
+
+Audit finding (efficiency): the 6-phase generator computed `getDesignQualityForType(pageType)` and injected it into each page's prompt, and then `buildModificationPrompt` — which the same prompt flows through — injected it *again*. The measured APP block is ~1.5K tokens, so every generated page paid for it twice (and marketing/auth pages could get the wrong second copy, since the two sites inferred page type independently).
+
+Fix: thread the explicit `pageType` through `parseModification` → `buildModificationPrompt` (which already supported it), and drop the split-generator's manual injection. The block is now injected once, with the correct type — smaller prompt and more correct type selection.
+
+First of the audit's efficiency batch. The larger lever — prompt-caching the invariant constraint prefix — is a separate change (it requires reordering the generation prompt and content-block restructuring, done carefully with live cache-hit verification rather than rushed onto the just-stabilized generation path).
+
+## [0.22.5] — 2026-07-17 — fix: audit P1 cluster (truncation guard, SSRF redirect, no-swallow, unified send)
+
+Three P1 findings from the 2026-07-17 platform audit (`docs/reviews/2026-07-17-platform-audit.md`) — all live-API behaviors the unit tests never exercised.
+
+- **Unified `ClaudeClient.send()`** — every Anthropic call now routes through one path applying model-retirement self-heal + a `max_tokens` truncation guard. This caught that the v0.22.2 fix (`withModelFallback`) wrapped only `generateConfig`, not the chat/edit path — so the flagship command was unprotected; and four code-edit methods never checked `stop_reason`, so a rewrite hitting `max_tokens` wrote truncated, unparseable TSX straight into the user's page. Both closed for all methods.
+- **`extractSharedComponents` no longer swallows errors** — a 429/timeout/truncation was indistinguishable from "no reusable patterns" (shipping every page with duplicated inline blocks and a green log). Now warns loudly.
+- **SSRF** — the `robots.txt` fetch used the default `redirect: 'follow'`; a hostile server could `302` it into `169.254.169.254`/internal hosts. Now `redirect: 'manual'`.
+
+Regression tests for the truncation guard and the redirect control.
+
 ## [0.22.4] — 2026-07-17 — feat(extract): `--semantic` now correctly identifies the brand color
 
 ### The brand color is now the brand color
