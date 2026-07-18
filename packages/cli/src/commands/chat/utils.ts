@@ -504,11 +504,15 @@ export class RequestTimeoutError extends Error {
  * Why module-level: avoids re-parsing per call and per fork. If a user sets
  * this via `.env`, they've already loaded it before the CLI starts.
  */
+// 300s (was 180s): Sonnet 5 runs adaptive thinking by default, so a rich anchor
+// page's thinking + full TSX output routinely takes ~140–200s — the old 180s
+// wall aborted valid generations mid-flight (REQUEST_TIMEOUT → empty pages).
+// Retired Sonnet 4 had no thinking and finished well under 180s.
 const DEFAULT_TIMEOUT_MS = (() => {
   const raw = process.env.COHERENT_REQUEST_TIMEOUT_MS
-  if (!raw) return 180_000
+  if (!raw) return 300_000
   const parsed = Number.parseInt(raw, 10)
-  if (!Number.isFinite(parsed) || parsed < 0) return 180_000
+  if (!Number.isFinite(parsed) || parsed < 0) return 300_000
   return parsed
 })()
 

@@ -21,6 +21,45 @@ import { buildModificationPrompt } from '../prompt-builders/modification.js'
 import { parsePlanResponse } from './plan.js'
 
 /**
+ * Fenced-TSX output-shape lock for the anchor page (overrides the JSON schema
+ * in the wrapping modification prompt).
+ *
+ * Two problems this solves, both new with Sonnet 5 (vs retired Sonnet 4):
+ * 1. Decomposition — Sonnet 5 reads the full modification schema and "helpfully"
+ *    splits "build a landing page" into update-token / add-component requests
+ *    with an empty add-page, so no page is ever produced.
+ * 2. JSON-string fragility — cramming a 15KB TSX file into an escaped JSON
+ *    string truncates or malforms often.
+ * The fix is the fenced protocol: a tiny JSON header + the page in a real ```tsx
+ * fence, parsed by {@link parseFencedTsxResponse}. Same shape skill-mode's
+ * anchor phase uses. Parameterized by the page so the export name and header
+ * hints match. Pure.
+ */
+function anchorOutputLock(homePage: { name: string; route: string }): string {
+  const className = (homePage.name || 'Anchor').replace(/[^a-zA-Z0-9]/g, '') || 'AnchorPage'
+  return `
+## Output format (OVERRIDES the "return pageCode as a JSON string" instructions above)
+
+Return TWO sections separated by a blank line. Do NOT return update-token, add-component, or modify-layout-block requests — return exactly this:
+
+1. A JSON header object — page metadata only, NO pageCode field:
+
+\`\`\`
+{ "type": "add-page", "target": "new", "changes": { "id": "home", "name": "${homePage.name}", "route": "${homePage.route}", "title": "...", "description": "..." } }
+\`\`\`
+
+2. A blank line, then the ENTIRE page as raw TSX in a \`\`\`tsx fenced block (a default-export React component named ${className}), with NO JSON escaping:
+
+\`\`\`tsx
+export default function ${className}() {
+  return <div>...</div>
+}
+\`\`\`
+
+The TSX goes in the fenced block ONLY — never inside the JSON.`
+}
+
+/**
  * Build the anchor-page prompt. Pure. Routes branch on auth / sidebar /
  * default treatment; each branch has its own design direction baked in.
  */
@@ -39,7 +78,8 @@ export function buildAnchorPagePrompt(
   if (isAuth) {
     return `Create ONE page called "${homePage.name}" at route "${homePage.route}".
 ${atmosphere}
-Context: ${message}. This is the application's entry point — a clean, centered authentication form. Generate complete pageCode. Do NOT include site-wide <header>, <nav>, or <footer> — this page has its own minimal layout. Make it visually polished with proper form validation UI — this page sets the design direction for the entire site. Do not generate other pages.`
+Context: ${message}. This is the application's entry point — a clean, centered authentication form. Generate complete pageCode. Do NOT include site-wide <header>, <nav>, or <footer> — this page has its own minimal layout. Make it visually polished with proper form validation UI — this page sets the design direction for the entire site. Do not generate other pages.
+${anchorOutputLock(homePage)}`
   }
 
   const groupLayout = plan?.groups.find(g => g.pages.includes(homePage.route))?.layout
@@ -54,7 +94,8 @@ DESIGN DIRECTION — this page sets the visual tone for the entire app:
 - Layout: use asymmetric 2/3 + 1/3 split, not uniform sections
 - Data: show real-feeling content with diverse names and specific numbers
 - Make each section visually distinct — vary density and treatment
-Do not generate other pages.`
+Do not generate other pages.
+${anchorOutputLock(homePage)}`
   }
 
   return `Create ONE page called "${homePage.name}" at route "${homePage.route}".
@@ -68,7 +109,8 @@ DESIGN DIRECTION — this page sets the visual tone for the entire site:
 - Pricing: highlighted tier must stand out clearly (ring-2 ring-primary, scale slightly larger)
 - Testimonials: asymmetric layout, not 3 identical cards
 - Use real-feeling content: diverse names, specific metrics, concrete descriptions
-Do not generate other pages.`
+Do not generate other pages.
+${anchorOutputLock(homePage)}`
 }
 
 /** Input artifact for the anchor phase. Written by `coherent session start`. */
@@ -271,51 +313,11 @@ export function createAnchorPhase(options: AnchorPhaseOptions = {}): AiPhase {
             detected === 'blog'
           ? 'marketing'
           : 'app'
-      const wrapped = buildModificationPrompt(directive, input.config, '', { pageType })
-
-      // M14 (PHASE_ENGINE_PROTOCOL=2): append the fenced ```tsx output-format
-      // override. Same trick page.ts uses — kills the JSON-escape failure
-      // class on the long anchor pageCode. Legacy JSON-with-pageCode still
-      // ingests via the fallback in the parser below.
-      const className = (input.homePage.name || 'Anchor').replace(/[^a-zA-Z0-9]/g, '') || 'AnchorPage'
-      return `${wrapped}
-
-## Output format (overrides the pageCode-as-JSON-string instructions above)
-
-Return TWO sections separated by a blank line:
-
-1. **JSON header** — everything about the anchor page EXCEPT the pageCode body:
-
-\`\`\`
-{
-  "type": "add-page",
-  "target": "new",
-  "changes": {
-    "id": "${input.homePage.id ?? 'home'}",
-    "name": "${input.homePage.name}",
-    "route": "${input.homePage.route}",
-    "layout": "centered",
-    "title": "...",
-    "description": "...",
-    "createdAt": "ISO8601",
-    "updatedAt": "ISO8601",
-    "requiresAuth": false,
-    "noIndex": false
-  }
-}
-\`\`\`
-
-2. **TSX body in a \`\`\`tsx fenced block** — raw TSX, no JSON escaping:
-
-\`\`\`tsx
-import { Card } from "@/components/ui/card"
-// ... full page.tsx content, plain TSX, no \\n or \\" escaping
-export default function ${className}() {
-  return <div>...</div>
-}
-\`\`\`
-
-DO NOT put pageCode inside the JSON. The TSX goes in the fenced block ONLY.`
+      // The fenced ```tsx output-format instruction now lives inside
+      // `directive` (via buildAnchorPagePrompt → anchorOutputLock), so both the
+      // skill rail (here) and the in-process chat rail share one source and the
+      // model never sees the instruction twice.
+      return buildModificationPrompt(directive, input.config, '', { pageType })
     },
 
     async ingest(rawResponse: string, ctx: PhaseContext): Promise<void> {

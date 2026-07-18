@@ -11,6 +11,20 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.22.8] — 2026-07-18 — fix(chat): repair Sonnet 5 generation (fresh multi-page chat produced empty pages)
+
+### P0: `coherent chat` produced empty pages on fresh projects since the Sonnet 5 migration
+
+Since v0.22.2 swapped the retired `claude-sonnet-4-20250514` for `claude-sonnet-5`, every fresh multi-page `coherent chat` silently produced empty pages — the flagship command was broken for a month. Root cause was **five** distinct behavioral differences between Sonnet 5 and the retired Sonnet 4, each of which alone yielded a blank page, compounding to hide one another:
+
+1. **Adaptive thinking eats the token budget.** Sonnet 5 runs extended thinking ON when the `thinking` field is omitted; the thinking block and the emitted page share one `max_tokens`. `16384` fit Sonnet 4 (no thinking) but truncated the anchor page. Raised the full-file generators to `32000` / `16384`.
+2. **Slower generation.** A rich anchor page with thinking takes ~140–200s; the 180s request timeout aborted valid generations mid-flight. Raised to 300s.
+3. **Flattened request shape.** Sonnet 4 nested page fields under `changes`; Sonnet 5 flattens them onto the request (`{type, id, name, route, pageCode}`), so `request.changes.pageCode` read undefined even with a full page present. Added a shape normalizer.
+4. **Trailing content after JSON.** Sonnet 5 often appends a code block or prose after a valid JSON value; strict `JSON.parse` then discarded the whole response. Replaced fence-only extraction with a balanced-JSON scanner that tolerates trailing content.
+5. **JSON-string fragility.** Cramming a 15KB TSX file into an escaped JSON string is unreliable. The anchor and page prompts now use the **fenced-TSX protocol** (a JSON header + a real ```tsx code fence) that skill-mode already used — the durable fix.
+
+Verified live on fresh projects: both anchor page types generate reliably (was ~1/3 failure), pages land 14/15 with full code (was ~60–70%), `coherent check` scores 87/100 (Good) on a generated landing page. A hardened truncation guard and `changes?.sections` crash guard round out the fix. 21 new unit tests; suite 2467 green.
+
 ## [0.22.7] — 2026-07-17 — fix(check): detect dead routes (config route with no page file)
 
 ### `coherent check` now catches config routes that have no backing page.tsx

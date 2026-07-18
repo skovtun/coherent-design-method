@@ -462,6 +462,53 @@ Constraints update: rewrote the LOADING STATES section in `INTERACTION_PATTERNS`
 
 ---
 
+---
+id: PJ-016
+type: bug
+confidence: established
+status: resolved
+date: 2026-07-17
+fixed_in: [0.22.8]
+evidence: [phase3-debug://RESPONSE_TRUNCATED, sha:7e0e540]
+---
+
+## PJ-016 · Sonnet 5 adaptive-thinking silently truncates full-file generations (empty pages)
+
+**Observed:** After the v0.22.2 model migration (retired `claude-sonnet-4-20250514` → `claude-sonnet-5`), every *fresh* multi-page `coherent chat` produced empty pages. Symptom chain, all silent:
+- Phase 3 anchor page: `⚠ Phase 3/6 — Home page generated (no code — AI may have failed)`
+- Phase 4: `No style patterns extracted (anchor page had no code)` (no anchor → no style contract)
+- Phase 6: `Generated N pages (0 with full code)`
+- Downstream `Cannot read properties of undefined (reading 'sections')` crashes on the empty requests.
+
+Instrumenting the swallowed Phase-3 `catch` revealed the real error: `AI response truncated (max_tokens reached) while parsing the request` → `code=RESPONSE_TRUNCATED`.
+
+**Root cause:** Sonnet 5 runs **adaptive thinking ON by default when the `thinking` field is omitted** (our pinned SDK ^0.32.x omits it). The `thinking` block and the emitted page JSON both draw from the same `max_tokens` budget. `parseModification` and the full-file code editors were sized at `max_tokens: 16384` — plenty for Sonnet 4 (no thinking), but under Sonnet 5 the thinking tokens + a rich anchor page's TSX exceed 16384, so the model hits `max_tokens` mid-JSON. The `send()` truncation guard (v0.22.5) correctly throws `RESPONSE_TRUNCATED`, but Phase 3's `catch` swallowed it into the soft "no code" warning, so the failure was invisible in normal output.
+
+This was NOT caching-related (a parallel prompt-caching experiment was reverted) and NOT test-project corruption — it reproduced on a brand-new `coherent init` project every time.
+
+**Fix (v0.22.8):** Raise the budget on every full-file / large-JSON generator in `claude.ts` so thinking + output both fit:
+- `parseModification`, `generateJSON`, `editPageCode`, `extractSharedComponents`: `16384 → 32000`
+- `editSharedComponentCode`, `replaceInlineWithShared`: `8192 → 16384`
+
+A `max_tokens` raise costs nothing extra per call — you pay per token *generated*, not per ceiling; it only prevents truncation. Thinking stays ON (aligns with the Tier 0 DESIGN_THINKING thesis and improves output quality).
+
+**Not chosen:** pinning `thinking: {type:'disabled'}`. It would restore the exact Sonnet-4 economics but (a) needs a cast past the pinned SDK's stale types, and (b) discards the design-reasoning quality boost. Revisit only if giant pages truncate even at 32000.
+
+**The truncation was only symptom #1.** Once credits were restored and live generation ran, four more Sonnet-5-vs-Sonnet-4 differences surfaced, each independently producing an empty page and masking the others:
+
+- **#2 Slower generation** — anchor + thinking takes ~140–200s; the 180s request timeout aborted valid runs. Raised to 300s.
+- **#3 Flattened request shape** — Sonnet 5 puts page fields on the request (`{type, id, name, route, pageCode}`) instead of nesting under `changes`; every consumer reads `request.changes.pageCode` → looked empty. Added `normalizeRequestShape()`.
+- **#4 Trailing content after JSON** — Sonnet 5 appends a code block / prose after a valid JSON value; strict `JSON.parse` discarded the response. Added `extractFirstJson()` (balanced-brace scan).
+- **#5 JSON-string fragility (the real one)** — cramming a 15KB TSX file into an escaped JSON string is inherently unreliable; even with #1–#4 fixed, the anchor still failed ~1/3 of runs.
+
+**Durable fix (#5):** route the in-process anchor + page prompts through the **fenced-TSX protocol** skill-mode already used — a small JSON header + the page in a real ```tsx code fence, never an escaped JSON string. Added `parseFencedTsxResponse()` (shared, tried before plain-JSON parsing on both provider rails). This is the same reliability lever `parseAnchorOrPageResponse` gave skill-mode.
+
+**Verification (established):** live-verified on two fresh `coherent init` projects (marketing landing + app dashboard) — both anchors generated (was ~1/3 failure), pages 14/15 with full code (was ~60–70%), `coherent check` 87/100 (Good). Shipped in v0.22.8.
+
+**Tests:** `claude.test.ts` ceiling 16384 → 32000; 21 new unit tests for `normalizeRequestShape`, `extractFirstJson`, `parseFencedTsxResponse`. Suite 2467 green.
+
+---
+
 ## How to add a new entry
 
 1. Observe the failure (screenshot/transcript in the repo's discussion).

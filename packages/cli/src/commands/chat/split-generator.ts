@@ -965,6 +965,22 @@ export async function splitGeneratePages(
         existingPagesContext,
         styleContext,
         designMemoryBlock,
+        // Fenced-TSX output lock (same protocol as the anchor). A JSON header +
+        // a real ```tsx fence is far more reliable for Sonnet 5 than embedding
+        // the page as an escaped JSON string. Parsed by parseFencedTsxResponse.
+        `## Output format (OVERRIDES the "return pageCode as a JSON string" instructions above)
+
+Return a JSON header, a blank line, then the ENTIRE page as raw TSX in a \`\`\`tsx fenced block. The TSX goes in the fence ONLY — never inside the JSON:
+
+\`\`\`
+{ "type": "add-page", "target": "new", "changes": { "name": "${name}", "route": "${route}" } }
+\`\`\`
+
+\`\`\`tsx
+export default function ${(name || 'Page').replace(/[^a-zA-Z0-9]/g, '') || 'Page'}() {
+  return <div>...</div>
+}
+\`\`\``,
       ]
         .filter(Boolean)
         .join('\n\n')

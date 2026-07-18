@@ -159,8 +159,11 @@ async function checkComponentReuse(
         enhanced.push(request)
       }
     } else if (request.type === 'add-page') {
-      // Check if page components exist in registry
-      const sections = request.changes.sections || []
+      // Check if page components exist in registry. `changes` can be undefined
+      // when the model returns a bare add-page request (Sonnet 5 sometimes emits
+      // the page a different way) — guard so one malformed request can't crash
+      // the whole batch and discard the valid pages alongside it.
+      const sections = request.changes?.sections || []
       const missingComponents: string[] = []
 
       for (const section of sections) {

@@ -16,6 +16,7 @@ import type {
   ParseModificationOutput,
   SharedExtractionItem,
 } from './ai-provider.js'
+import { normalizeRequestShape, extractFirstJson, parseFencedTsxResponse } from './ai-provider.js'
 
 export class ClaudeClient implements AIProviderInterface {
   private client: Anthropic
@@ -245,32 +246,19 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
   }
 
   /**
-   * Extract JSON from Claude's response (handles markdown code blocks)
+   * Extract JSON from Claude's response. Strips markdown fences and tolerates
+   * trailing content after the JSON value (a Sonnet 5 habit). See
+   * {@link extractFirstJson}.
    */
   private extractJSON(text: string): string {
-    // Remove markdown code blocks if present
-    let jsonText = text.trim()
-
-    // Remove ```json or ``` markers
-    if (jsonText.startsWith('```')) {
-      const lines = jsonText.split('\n')
-      // Remove first line (```json or ```)
-      lines.shift()
-      // Remove last line (```)
-      if (lines[lines.length - 1].trim() === '```') {
-        lines.pop()
-      }
-      jsonText = lines.join('\n')
-    }
-
-    return jsonText.trim()
+    return extractFirstJson(text)
   }
 
   async generateJSON(systemPrompt: string, userPrompt: string): Promise<unknown> {
     const response = await this.send(
       {
         model: this.defaultModel,
-        max_tokens: 16384,
+        max_tokens: 32000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }],
       },
@@ -308,7 +296,12 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
       const response = await this.send(
         {
           model: this.defaultModel,
-          max_tokens: 16384,
+          // Sized for Sonnet 5 adaptive thinking (ON when `thinking` is omitted):
+          // the thinking block AND the emitted page JSON both draw from this
+          // budget. 16384 fit Sonnet 4 (no thinking) but truncated the anchor
+          // page under Sonnet 5, producing empty pages. See RESPONSE_TRUNCATED
+          // guard in send() and PATTERNS_JOURNAL.
+          max_tokens: 32000,
           messages: [{ role: 'user', content: prompt }],
           system: `Design system modification parser. Parse requests into ModificationRequest JSON. Check component registry before creating new. Return valid JSON only: { "requests": [...], "uxRecommendations": "brief markdown or omit" }. Escape quotes with \\", no newlines in string values.`,
         },
@@ -316,18 +309,30 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
         options?.signal ? { signal: options.signal } : undefined,
       )
 
-      const jsonText = this.extractJSON(this.requireText(response, 'parsing the request'))
+      const rawText = this.requireText(response, 'parsing the request')
+
+      // Fenced-TSX protocol (anchor + page phases): the model returns a JSON
+      // header + a ```tsx code fence rather than cramming the whole page into an
+      // escaped JSON string. Far more reliable for Sonnet 5. When the response
+      // is in that format, use it; otherwise fall through to plain-JSON parsing
+      // (user modifications, older prompts). See parseFencedTsxResponse.
+      const fenced = parseFencedTsxResponse(rawText)
+      if (fenced) {
+        return { requests: [fenced] }
+      }
+
+      const jsonText = this.extractJSON(rawText)
       const parsed = JSON.parse(jsonText)
 
       if (Array.isArray(parsed)) {
-        return { requests: parsed }
+        return { requests: parsed.map(normalizeRequestShape) }
       }
       const requests = parsed?.requests
       if (!Array.isArray(requests)) {
         throw new Error('Expected "requests" array in response')
       }
       return {
-        requests,
+        requests: requests.map(normalizeRequestShape),
         uxRecommendations:
           typeof parsed.uxRecommendations === 'string' && parsed.uxRecommendations.trim()
             ? parsed.uxRecommendations.trim()
@@ -369,7 +374,7 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
   async editSharedComponentCode(currentCode: string, instruction: string, componentName: string): Promise<string> {
     const response = await this.send({
       model: this.defaultModel,
-      max_tokens: 8192,
+      max_tokens: 16384,
       messages: [
         {
           role: 'user',
@@ -409,7 +414,7 @@ Rules: Preserve "use client" if present. Use Tailwind and shadcn/ui patterns. Re
       : ''
     const response = await this.send({
       model: this.defaultModel,
-      max_tokens: 16384,
+      max_tokens: 32000,
       messages: [
         {
           role: 'user',
@@ -459,7 +464,7 @@ Before returning, verify:
     const hint = blockHint ? ` Identify the block that corresponds to: "${blockHint}".` : ''
     const response = await this.send({
       model: this.defaultModel,
-      max_tokens: 8192,
+      max_tokens: 16384,
       messages: [
         {
           role: 'user',
@@ -534,7 +539,7 @@ Requirements:
     try {
       const response = await this.client.messages.create({
         model: this.defaultModel,
-        max_tokens: 16384,
+        max_tokens: 32000,
         messages: [
           {
             role: 'user',
