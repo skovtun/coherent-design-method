@@ -454,7 +454,9 @@ describe('buildLightweightPagePrompt', () => {
     expect(prompt).toContain('Dashboard')
     expect(prompt).toContain('/dashboard')
     expect(prompt).toContain('dark theme')
-    expect(prompt).toContain('default export')
+    // Fenced-TSX output lock: page emitted as a ```tsx fence, not a JSON string.
+    expect(prompt).toContain('```tsx')
+    expect(prompt).toContain('export default function')
   })
 
   it('includes shared components summary when provided', () => {

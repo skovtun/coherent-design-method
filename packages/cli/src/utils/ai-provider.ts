@@ -89,6 +89,55 @@ export function extractFirstJson(text: string): string {
 }
 
 /**
+ * Parse the fenced-TSX response format into a single add-page request, or null.
+ *
+ * Shape (what the anchor/page output-lock asks Sonnet 5 to return):
+ *
+ *     { "type": "add-page", "target": "new", "changes": { id, name, route, ... } }
+ *
+ *     ```tsx
+ *     import ...
+ *     export default function Page() { ... }
+ *     ```
+ *
+ * The page's TSX lives in a real code fence, NOT crammed into an escaped JSON
+ * string — which is the whole reliability win over the JSON-string protocol.
+ * The header carries only metadata; this splices the fenced body into
+ * `changes.pageCode`. Accepts both a flat add-page header and a
+ * `{ requests: [...] }` envelope. Returns null when the response isn't in this
+ * format, so callers fall back to plain-JSON parsing. Pure.
+ *
+ * Mirrors the fenced branch of phase-engine's `parseAnchorOrPageResponse`; kept
+ * here so the util layer can use it without importing the phase engine (which
+ * would be circular).
+ */
+export function parseFencedTsxResponse(raw: string): Record<string, unknown> | null {
+  const m = raw.trim().match(/^(\{[\s\S]*?\})\s*\n\s*```tsx\s*\n([\s\S]*?)\n```\s*$/)
+  if (!m) return null
+  try {
+    const header = JSON.parse(m[1]) as Record<string, unknown>
+    const tsxBody = m[2]
+    let req: Record<string, unknown> | null = null
+    if (header.type === 'add-page') {
+      req = header
+    } else if (Array.isArray(header.requests)) {
+      req = (header.requests as Record<string, unknown>[]).find(r => r?.type === 'add-page') ?? null
+    }
+    if (!req) return null
+    const headerChanges = (req.changes as Record<string, unknown> | undefined) ?? {}
+    const baseChanges = Object.keys(headerChanges).length > 0 ? headerChanges : header
+    return {
+      ...req,
+      type: 'add-page',
+      target: (req.target as string) ?? 'new',
+      changes: { ...baseChanges, pageCode: tsxBody },
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
  * Envelope keys that belong on a ModificationRequest itself, not inside its
  * `changes` payload.
  */

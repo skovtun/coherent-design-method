@@ -16,7 +16,7 @@ import type {
   ParseModificationOutput,
   SharedExtractionItem,
 } from './ai-provider.js'
-import { normalizeRequestShape, extractFirstJson } from './ai-provider.js'
+import { normalizeRequestShape, extractFirstJson, parseFencedTsxResponse } from './ai-provider.js'
 
 export class ClaudeClient implements AIProviderInterface {
   private client: Anthropic
@@ -309,7 +309,19 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
         options?.signal ? { signal: options.signal } : undefined,
       )
 
-      const jsonText = this.extractJSON(this.requireText(response, 'parsing the request'))
+      const rawText = this.requireText(response, 'parsing the request')
+
+      // Fenced-TSX protocol (anchor + page phases): the model returns a JSON
+      // header + a ```tsx code fence rather than cramming the whole page into an
+      // escaped JSON string. Far more reliable for Sonnet 5. When the response
+      // is in that format, use it; otherwise fall through to plain-JSON parsing
+      // (user modifications, older prompts). See parseFencedTsxResponse.
+      const fenced = parseFencedTsxResponse(rawText)
+      if (fenced) {
+        return { requests: [fenced] }
+      }
+
+      const jsonText = this.extractJSON(rawText)
       const parsed = JSON.parse(jsonText)
 
       if (Array.isArray(parsed)) {

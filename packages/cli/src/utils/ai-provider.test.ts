@@ -1,5 +1,46 @@
 import { describe, it, expect } from 'vitest'
-import { normalizeRequestShape, extractFirstJson } from './ai-provider.js'
+import { normalizeRequestShape, extractFirstJson, parseFencedTsxResponse } from './ai-provider.js'
+
+describe('parseFencedTsxResponse', () => {
+  const tsx = 'export default function Home() {\n  return <div>hi</div>\n}'
+
+  it('splices a fenced ```tsx body into changes.pageCode', () => {
+    const raw = `{ "type": "add-page", "target": "new", "changes": { "id": "home", "name": "Home", "route": "/" } }\n\n\`\`\`tsx\n${tsx}\n\`\`\``
+    const out = parseFencedTsxResponse(raw) as any
+    expect(out.type).toBe('add-page')
+    expect(out.target).toBe('new')
+    expect(out.changes.id).toBe('home')
+    expect(out.changes.pageCode).toBe(tsx)
+  })
+
+  it('handles a flat header (no changes wrapper)', () => {
+    const raw = `{ "type": "add-page", "name": "About", "route": "/about" }\n\n\`\`\`tsx\n${tsx}\n\`\`\``
+    const out = parseFencedTsxResponse(raw) as any
+    expect(out.changes.name).toBe('About')
+    expect(out.changes.route).toBe('/about')
+    expect(out.changes.pageCode).toBe(tsx)
+  })
+
+  it('handles a {requests:[...]} envelope header', () => {
+    const raw = `{ "requests": [ { "type": "add-page", "changes": { "route": "/x" } } ] }\n\n\`\`\`tsx\n${tsx}\n\`\`\``
+    const out = parseFencedTsxResponse(raw) as any
+    expect(out.type).toBe('add-page')
+    expect(out.changes.route).toBe('/x')
+    expect(out.changes.pageCode).toBe(tsx)
+  })
+
+  it('returns null for a plain JSON response (no fence)', () => {
+    expect(parseFencedTsxResponse('{"requests":[{"type":"add-page"}]}')).toBeNull()
+  })
+
+  it('returns null for raw TSX with no JSON header', () => {
+    expect(parseFencedTsxResponse('```tsx\n' + tsx + '\n```')).toBeNull()
+  })
+
+  it('returns null when the header JSON is malformed', () => {
+    expect(parseFencedTsxResponse('{ not json }\n\n```tsx\n' + tsx + '\n```')).toBeNull()
+  })
+})
 
 describe('extractFirstJson', () => {
   it('returns a clean JSON object unchanged', () => {

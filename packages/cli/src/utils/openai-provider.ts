@@ -15,7 +15,7 @@ import type {
   ParseModificationOutput,
   SharedExtractionItem,
 } from './ai-provider.js'
-import { normalizeRequestShape, extractFirstJson } from './ai-provider.js'
+import { normalizeRequestShape, extractFirstJson, parseFencedTsxResponse } from './ai-provider.js'
 
 export class OpenAIClient implements AIProviderInterface {
   private client: any
@@ -124,6 +124,11 @@ export class OpenAIClient implements AIProviderInterface {
       const content = response.choices[0]?.message?.content
       if (!content) {
         throw new Error('Empty response from OpenAI API')
+      }
+
+      const fenced = parseFencedTsxResponse(content)
+      if (fenced) {
+        return { requests: [fenced as unknown as ParseModificationOutput['requests'][number]] }
       }
 
       const jsonText = this.extractJSON(content)

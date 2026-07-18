@@ -14,18 +14,31 @@ export function buildLightweightPagePrompt(
     reusePlanDirective ||
     tieredComponentsPrompt ||
     (sharedComponentsSummary ? `Available shared components:\n${sharedComponentsSummary}` : '')
+  const className = (pageName || 'Page').replace(/[^a-zA-Z0-9]/g, '') || 'Page'
   return [
     `Generate complete pageCode for a page called "${pageName}" at route "${route}".`,
-    // Output-shape lock: the wrapping system prompt asks for a JSON envelope, but
-    // "Output valid TSX" tempts Sonnet 5 to return bare TSX outside it — which
-    // fails JSON parsing and the page falls back to an empty template. Be explicit
-    // that the TSX must live inside changes.pageCode of a single add-page request.
-    `Return ONE add-page request as JSON; put the ENTIRE page as a default-export React component in its changes.pageCode string. Do NOT return bare TSX outside the JSON envelope.`,
     `Use shadcn/ui components (import from @/components/ui/*). Use Tailwind CSS semantic tokens only.`,
     pageType ? `PAGE TYPE: ${pageType}` : '',
     designConstraints,
     styleContext ? `Follow this style context:\n${styleContext}` : '',
     sharedNote,
+    // Fenced-TSX output lock (same protocol as the anchor). Cramming a full page
+    // into an escaped JSON string is unreliable for Sonnet 5, and "output TSX"
+    // alone tempts it to return bare TSX that fails JSON parsing → empty page.
+    // A JSON header + a real ```tsx fence is parsed by parseFencedTsxResponse.
+    `## Output format (OVERRIDES the "return pageCode as a JSON string" instructions above)
+
+Return a JSON header, a blank line, then the ENTIRE page as raw TSX in a \`\`\`tsx fenced block. The TSX goes in the fence ONLY — never inside the JSON:
+
+\`\`\`
+{ "type": "add-page", "target": "new", "changes": { "name": "${pageName}", "route": "${route}" } }
+\`\`\`
+
+\`\`\`tsx
+export default function ${className}() {
+  return <div>...</div>
+}
+\`\`\``,
   ]
     .filter(Boolean)
     .join('\n\n')
