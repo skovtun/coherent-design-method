@@ -465,11 +465,11 @@ Constraints update: rewrote the LOADING STATES section in `INTERACTION_PATTERNS`
 ---
 id: PJ-016
 type: bug
-confidence: verified
-status: active
+confidence: established
+status: resolved
 date: 2026-07-17
 fixed_in: [0.22.8]
-evidence: [phase3-debug://RESPONSE_TRUNCATED]
+evidence: [phase3-debug://RESPONSE_TRUNCATED, sha:7e0e540]
 ---
 
 ## PJ-016 · Sonnet 5 adaptive-thinking silently truncates full-file generations (empty pages)
@@ -494,9 +494,18 @@ A `max_tokens` raise costs nothing extra per call — you pay per token *generat
 
 **Not chosen:** pinning `thinking: {type:'disabled'}`. It would restore the exact Sonnet-4 economics but (a) needs a cast past the pinned SDK's stale types, and (b) discards the design-reasoning quality boost. Revisit only if giant pages truncate even at 32000.
 
-**Tests:** `claude.test.ts` ceiling assertion updated 16384 → 32000. Suite stays green at 2448.
+**The truncation was only symptom #1.** Once credits were restored and live generation ran, four more Sonnet-5-vs-Sonnet-4 differences surfaced, each independently producing an empty page and masking the others:
 
-**Verification note:** Root cause reproduced and confirmed via instrumented `RESPONSE_TRUNCATED` capture. End-to-end fix verification (live generation producing full pages) was blocked by a depleted Anthropic API credit balance at fix time — the same account returns `400 "credit balance is too low"`. Re-verify with a live `coherent chat` once credits are restored before treating this as `established`.
+- **#2 Slower generation** — anchor + thinking takes ~140–200s; the 180s request timeout aborted valid runs. Raised to 300s.
+- **#3 Flattened request shape** — Sonnet 5 puts page fields on the request (`{type, id, name, route, pageCode}`) instead of nesting under `changes`; every consumer reads `request.changes.pageCode` → looked empty. Added `normalizeRequestShape()`.
+- **#4 Trailing content after JSON** — Sonnet 5 appends a code block / prose after a valid JSON value; strict `JSON.parse` discarded the response. Added `extractFirstJson()` (balanced-brace scan).
+- **#5 JSON-string fragility (the real one)** — cramming a 15KB TSX file into an escaped JSON string is inherently unreliable; even with #1–#4 fixed, the anchor still failed ~1/3 of runs.
+
+**Durable fix (#5):** route the in-process anchor + page prompts through the **fenced-TSX protocol** skill-mode already used — a small JSON header + the page in a real ```tsx code fence, never an escaped JSON string. Added `parseFencedTsxResponse()` (shared, tried before plain-JSON parsing on both provider rails). This is the same reliability lever `parseAnchorOrPageResponse` gave skill-mode.
+
+**Verification (established):** live-verified on two fresh `coherent init` projects (marketing landing + app dashboard) — both anchors generated (was ~1/3 failure), pages 14/15 with full code (was ~60–70%), `coherent check` 87/100 (Good). Shipped in v0.22.8.
+
+**Tests:** `claude.test.ts` ceiling 16384 → 32000; 21 new unit tests for `normalizeRequestShape`, `extractFirstJson`, `parseFencedTsxResponse`. Suite 2467 green.
 
 ---
 
