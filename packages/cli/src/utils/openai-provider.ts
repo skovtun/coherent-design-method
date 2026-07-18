@@ -95,13 +95,21 @@ export class OpenAIClient implements AIProviderInterface {
    */
   async parseModification(prompt: string, options?: AIRequestOptions): Promise<ParseModificationOutput> {
     try {
+      // The caller may omit the invariant constraint preamble from the user
+      // prompt and pass it as `cacheableSystem`. Anthropic caches it via an
+      // explicit breakpoint; OpenAI has no such control but auto-caches long
+      // system prefixes, so fold it into the system message. Without this the
+      // constraints would be missing entirely on the OpenAI rail.
+      const systemContent =
+        `Design system modification parser. Parse requests into ModificationRequest JSON. Check component registry before creating new. Return valid JSON: { "requests": [...], "uxRecommendations": "brief markdown or omit" }. Escape quotes with \\", no newlines in string values.` +
+        (options?.cacheableSystem ? `\n\n${options.cacheableSystem}` : '')
       const response = await this.client.chat.completions.create(
         {
           model: this.defaultModel,
           messages: [
             {
               role: 'system',
-              content: `Design system modification parser. Parse requests into ModificationRequest JSON. Check component registry before creating new. Return valid JSON: { "requests": [...], "uxRecommendations": "brief markdown or omit" }. Escape quotes with \\", no newlines in string values.`,
+              content: systemContent,
             },
             {
               role: 'user',

@@ -187,6 +187,14 @@ export function normalizeRequestShape(req: unknown): unknown {
  */
 export interface AIRequestOptions {
   signal?: AbortSignal
+  /**
+   * Prompt-caching: invariant instruction text (the design-constraint preamble)
+   * to send as a cached system block. Byte-stable across same-page-type calls in
+   * a run, so pages 2..N read it at ~10% cost. The provider marks it with
+   * `cache_control: ephemeral` (Anthropic) or folds it into the system message
+   * (OpenAI auto-caches long prefixes). Omit for no caching.
+   */
+  cacheableSystem?: string
 }
 
 export interface AIProviderInterface {
