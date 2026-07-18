@@ -40,6 +40,21 @@ describe('parseFencedTsxResponse', () => {
   it('returns null when the header JSON is malformed', () => {
     expect(parseFencedTsxResponse('{ not json }\n\n```tsx\n' + tsx + '\n```')).toBeNull()
   })
+
+  it('tolerates a ```jsx fence tag', () => {
+    const raw = `{ "type": "add-page", "changes": { "route": "/x" } }\n\n\`\`\`jsx\n${tsx}\n\`\`\``
+    expect((parseFencedTsxResponse(raw) as any)?.changes.pageCode).toBe(tsx)
+  })
+
+  it('tolerates leading prose and a trailing note around the fence', () => {
+    const raw = `Here is the page:\n\n{ "type": "add-page", "changes": { "route": "/x" } }\n\n\`\`\`tsx\n${tsx}\n\`\`\`\n\nLet me know if you need changes.`
+    expect((parseFencedTsxResponse(raw) as any)?.changes.pageCode).toBe(tsx)
+  })
+
+  it('rejects a fenced non-TSX body (e.g. a JSON block mis-fenced)', () => {
+    const raw = `{ "type": "add-page", "changes": {} }\n\n\`\`\`json\n{ "a": 1 }\n\`\`\``
+    expect(parseFencedTsxResponse(raw)).toBeNull()
+  })
 })
 
 describe('extractFirstJson', () => {

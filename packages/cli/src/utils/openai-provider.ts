@@ -134,7 +134,12 @@ export class OpenAIClient implements AIProviderInterface {
       const jsonText = this.extractJSON(content)
       const parsed = JSON.parse(jsonText)
 
-      const rawRequests = Array.isArray(parsed) ? parsed : parsed.requests || parsed.modifications || []
+      const rawRequests = Array.isArray(parsed)
+        ? parsed
+        : parsed.requests ||
+          parsed.modifications ||
+          // Bare single request object (no {requests:[]} wrapper).
+          (parsed && typeof parsed.type === 'string' ? [parsed] : [])
       if (!Array.isArray(rawRequests)) {
         throw new Error('Expected array of ModificationRequest objects')
       }

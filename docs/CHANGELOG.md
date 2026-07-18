@@ -11,6 +11,16 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.22.9] — 2026-07-18 — fix(chat): harden response parsing (fewer empty-page fallbacks)
+
+### Tolerate more of Sonnet 5's response variations
+
+Follow-up to v0.22.8. The fenced-TSX parser was strict — it required the response to be exactly `{header}` + a ` ```tsx ` fence, anchored start-to-end. Sonnet 5 varies: it sometimes tags the fence ` ```jsx ` / ` ```typescript `, prepends a sentence ("Here is the page:"), or appends a closing note. Those valid pages were dropped to an empty template. The parser now finds the fence anywhere, accepts jsx/ts/js tags, tolerates surrounding prose, and rejects a mis-fenced non-TSX body (so a fenced JSON header block doesn't get mistaken for page code).
+
+Also: when the model returns a **bare single request object** (`{ "type": "add-page", ... }`) instead of the `{ "requests": [...] }` wrapper, both provider rails now wrap it instead of throwing "Expected requests array" and discarding the page.
+
+Verified live: a 5-page marketing site generated 6/6 pages with full code. Larger apps (11+ pages generated in parallel) still see occasional `no pageCode` fallbacks — that's the model under heavy concurrent load, not a parse failure; the template fallback + `coherent chat "regenerate X"` cover it. 6 new unit tests; suite 2470 green.
+
 ## [0.22.8] — 2026-07-18 — fix(chat): repair Sonnet 5 generation (fresh multi-page chat produced empty pages)
 
 ### P0: `coherent chat` produced empty pages on fresh projects since the Sonnet 5 migration
