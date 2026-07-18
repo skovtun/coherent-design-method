@@ -70,6 +70,13 @@ interface CheckResult {
     total: number
     broken: Array<{ file: string; line: number; href: string }>
   }
+  /**
+   * Config routes with no backing page.tsx on disk. Previously invisible:
+   * `validRoutes` came from config, so a route whose page generation was
+   * dropped (double-failed page) still passed link validation and shipped a
+   * runtime 404. Audit finding.
+   */
+  deadRoutes: string[]
   crossPage: {
     issues: Array<{ type: string; severity: string; message: string }>
   }
@@ -77,6 +84,21 @@ interface CheckResult {
 }
 
 const EXCLUDED_DIRS = new Set(['node_modules', 'design-system'])
+
+/**
+ * Map a scanned page file (repo-relative, e.g. `app/(app)/analytics/page.tsx`)
+ * to its Next.js route (`/analytics`). Route-group segments `(name)` are
+ * stripped; `app/page.tsx` is the root `/`. Returns null for non-page files.
+ */
+export function fileToRoute(relativePath: string): string | null {
+  if (!/(^|\/)page\.tsx$/.test(relativePath)) return null
+  const segments = relativePath
+    .replace(/^app\//, '')
+    .replace(/\/?page\.tsx$/, '')
+    .split('/')
+    .filter(seg => seg && !/^\(.*\)$/.test(seg))
+  return '/' + segments.join('/')
+}
 
 function findTsxFiles(dir: string): string[] {
   const results: string[] = []
@@ -111,6 +133,7 @@ export async function checkCommand(opts: CheckOptions = {}) {
     pages: { total: 0, clean: 0, withErrors: 0, withWarnings: 0, files: [] },
     shared: { total: 0, consistent: 0, unused: 0, withInlineDuplicates: 0, entries: [] },
     links: { total: 0, broken: [] },
+    deadRoutes: [],
     crossPage: { issues: [] },
     autoFixable: 0,
   }
@@ -228,10 +251,23 @@ export async function checkCommand(opts: CheckOptions = {}) {
       }
     }
 
+    // Dead-route detection: a config route with no backing page.tsx ships a
+    // runtime 404. Because `validRoutes` comes from config, such a route would
+    // otherwise pass link validation (and links to it would look valid). Map
+    // each scanned page file to its route, then flag config routes with no file.
+    const routesWithFiles = new Set<string>()
+    for (const file of files) {
+      const r = fileToRoute(file.replace(projectRoot + '/', ''))
+      if (r) routesWithFiles.add(r)
+    }
+    result.deadRoutes = validRoutes.filter(r => r !== '/' && !routesWithFiles.has(r))
+
     // Internal links scan
     const routeSet = new Set(validRoutes)
     routeSet.add('/')
     routeSet.add('#')
+    // Links pointing at a dead route are broken too — drop them from the valid set.
+    for (const dead of result.deadRoutes) routeSet.delete(dead)
     for (const file of files) {
       const code = fileContents.get(file)!
       const relativePath = file.replace(projectRoot + '/', '')
@@ -263,6 +299,14 @@ export async function checkCommand(opts: CheckOptions = {}) {
       }
     } else if (!opts.json && result.links.total > 0) {
       console.log(chalk.green(`\n  🔗 Internal Links`) + chalk.dim(` — all ${result.links.total} links resolve ✓`))
+    }
+
+    if (!opts.json && result.deadRoutes.length > 0) {
+      console.log(chalk.yellow(`\n  🚫 Dead Routes`) + chalk.dim(` (${result.deadRoutes.length})\n`))
+      for (const r of result.deadRoutes) {
+        console.log(chalk.red(`  ✗ ${r}`) + chalk.dim(' — in config/navigation but no page.tsx exists (runtime 404)'))
+      }
+      console.log(chalk.dim(`\n  Fix: coherent chat "regenerate ${result.deadRoutes[0]}" — or remove the route.`))
     }
 
     // Cross-page consistency — only run on multi-page scans (not --page X).
@@ -544,6 +588,9 @@ export async function checkCommand(opts: CheckOptions = {}) {
   if (result.links.broken.length > 0) {
     summaryParts.push(chalk.red(`${result.links.broken.length} broken link(s)`))
   }
+  if (result.deadRoutes.length > 0) {
+    summaryParts.push(chalk.red(`${result.deadRoutes.length} dead route(s)`))
+  }
   if (result.crossPage.issues.length > 0) {
     summaryParts.push(chalk.yellow(`${result.crossPage.issues.length} cross-page drift`))
   }
@@ -555,9 +602,10 @@ export async function checkCommand(opts: CheckOptions = {}) {
   const errorPenalty = result.pages.withErrors * 10
   const warningPenalty = result.pages.withWarnings * 3
   const linkPenalty = result.links.broken.length * 15
+  const deadRoutePenalty = result.deadRoutes.length * 15
   const unusedPenalty = result.shared.unused * 2
   const crossPagePenalty = result.crossPage.issues.length * 3
-  const totalPenalty = errorPenalty + warningPenalty + linkPenalty + unusedPenalty + crossPagePenalty
+  const totalPenalty = errorPenalty + warningPenalty + linkPenalty + deadRoutePenalty + unusedPenalty + crossPagePenalty
   const score = Math.max(0, Math.min(100, 100 - totalPenalty))
 
   const scoreColor = score >= 90 ? chalk.green : score >= 70 ? chalk.yellow : chalk.red
@@ -589,6 +637,6 @@ export async function checkCommand(opts: CheckOptions = {}) {
 
   console.log('')
 
-  const hasErrors = result.pages.withErrors > 0 || result.links.broken.length > 0
+  const hasErrors = result.pages.withErrors > 0 || result.links.broken.length > 0 || result.deadRoutes.length > 0
   if (hasErrors) process.exit(1)
 }
