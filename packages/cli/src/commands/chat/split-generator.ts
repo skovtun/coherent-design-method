@@ -498,7 +498,14 @@ export async function splitGeneratePages(
     ])
     const endPhase2Timer = startPhaseTimer('Phase 2 architecture plan')
     try {
-      const ai = await createAIProvider(provider ?? 'auto')
+      // Model tiering (opt-in via COHERENT_PLAN_MODEL, e.g. claude-haiku-4-5):
+      // Phase 2 is pure structural grouping of already-decided pages by layout —
+      // low-creativity, so a cheaper/faster model is a safe cost lever here.
+      // Page CODE generation (Phase 3/6) and page PLANNING (Phase 1, which
+      // decides which pages exist) deliberately stay on the main model. Unset →
+      // no change. Enabling by default needs a supervised quality A/B first.
+      const planModel = process.env.COHERENT_PLAN_MODEL
+      const ai = await createAIProvider(provider ?? 'auto', planModel ? { model: planModel } : undefined)
       const cachedPlan = loadPlan(parseOpts.projectRoot)
       let planWarnings: string[] = []
 

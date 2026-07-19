@@ -11,6 +11,16 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.23.5] — 2026-07-19 — feat(chat): experimental model tiering for architecture planning
+
+### Opt-in cheaper model for the low-creativity planning step
+
+`COHERENT_PLAN_MODEL` (e.g. `claude-haiku-4-5`) routes **only** the Phase 2 architecture-grouping call to a cheaper/faster model. Phase 2 groups already-decided pages by layout — a structural, low-creativity step where a smaller model is a safe cost lever. Page **code** generation (Phase 3/6) and page **planning** (Phase 1, which decides *which* pages exist) deliberately stay on the main model.
+
+Unset by default → no behavior change. Verified functional on a live multi-page app (Phase 2 on Haiku → valid architecture, 12 shared components, **7/7 pages with full code, 85/100**). Not yet benchmarked for plan *quality* vs the main model, so it stays opt-in; enabling by default needs a supervised A/B.
+
+Also refreshed the `QUICK_REFERENCE.md` env-var table (the timeout default was stale at 180s — it's 300s since v0.22.8 — and `COHERENT_NO_CACHE` was undocumented).
+
 ## [0.23.4] — 2026-07-19 — feat(import): carry body size + spacing rhythm
 
 ### `import design` round-trip is now nearly complete
