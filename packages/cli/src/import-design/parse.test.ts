@@ -140,3 +140,47 @@ describe('parseDesignMd — stitch', () => {
     expect(raw.colors.find(c => c.hex === '#111111')).toBeUndefined()
   })
 })
+
+describe('parseDesignMd — radius + weight scale (coherent-extract)', () => {
+  const EXTRACT_WITH_SCALE = `# empower.com — Atmosphere
+
+<!-- coherent-extract: v1 -->
+
+## Color
+
+| Token | Hex | Role | Usage |
+|-------|-----|------|-------|
+| \`#006bd6\` | swatch | brand | button |
+
+## Typography
+
+**Font families**
+
+- Open Sans, sans-serif
+
+**Scale**
+
+| Role | Size | Weight | Line height | Family |
+|------|------|--------|-------------|--------|
+| h1 | \`64px\` | 800 | \`76.8px\` | Open Sans |
+| h2 | \`48px\` | 700 | \`57.6px\` | Open Sans |
+| h3 | \`24px\` | 500 | \`28.8px\` | Open Sans |
+| body | \`16px\` | 400 | \`24px\` | Open Sans |
+
+## Radius
+
+Scale: \`0px\` · \`9999px\` · \`8px\`
+`
+  const raw = parseDesignMd(EXTRACT_WITH_SCALE)
+
+  it('parses distinct font weights ascending', () => {
+    expect(raw.fontWeights).toEqual([400, 500, 700, 800])
+  })
+  it('parses distinct radii ascending', () => {
+    expect(raw.radiiPx).toEqual([0, 8, 9999])
+  })
+  it('still parses colors + font family', () => {
+    expect(raw.colors.some(c => c.hex === '#006bd6')).toBe(true)
+    expect(raw.fontSans).toContain('Open Sans')
+  })
+})

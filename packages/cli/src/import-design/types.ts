@@ -51,6 +51,10 @@ export type ImportedFonts = z.infer<typeof ImportedFontsSchema>
 export const ImportedDesignSeedSchema = z.object({
   colors: ImportedColorsSchema,
   fontFamily: ImportedFontsSchema,
+  /** Radius tokens (config names → CSS value), e.g. { full: '9999px', none: '0' }. */
+  radius: z.record(z.string(), z.string()).optional(),
+  /** Weight tokens (config names → numeric weight), e.g. { bold: 800, normal: 400 }. */
+  fontWeight: z.record(z.string(), z.number()).optional(),
   /** Optional gallery-attribution token (`source:` frontmatter or extract URL). */
   source: z.string().optional(),
   /** Design-system name if the file declares one (Stitch `name:` frontmatter). */
@@ -86,6 +90,10 @@ export interface RawImport {
   colors: RawColor[]
   fontSans?: string
   fontMono?: string
+  /** Distinct corner radii in px, as parsed from the `## Radius` scale. */
+  radiiPx?: number[]
+  /** Distinct font weights, as parsed from the `## Typography` scale table. */
+  fontWeights?: number[]
   source?: string
   name?: string
 }

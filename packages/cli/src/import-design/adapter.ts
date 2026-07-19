@@ -115,6 +115,8 @@ export interface AdaptResult {
   entries: TokenReportEntry[]
   filledColors: Set<ColorTarget>
   filledFonts: Set<'sans' | 'mono'>
+  filledRadius: Set<string>
+  filledWeights: Set<string>
 }
 
 interface Candidate {
@@ -195,13 +197,62 @@ export function adaptImport(raw: RawImport): AdaptResult {
     })
   }
 
+  // Radius — map each extracted px onto the config radius slot whose default is
+  // nearest, so a site's actual corner style (sharp / rounded / pill) carries
+  // over. Config defaults (px): none 0, sm 4, md 8, lg 12, xl 16, full 9999.
+  const radius: Record<string, string> = {}
+  const filledRadius = new Set<string>()
+  if (raw.radiiPx && raw.radiiPx.length > 0) {
+    const slots: Array<[string, number]> = [
+      ['none', 0],
+      ['sm', 4],
+      ['md', 8],
+      ['lg', 12],
+      ['xl', 16],
+      ['full', 9999],
+    ]
+    for (const px of raw.radiiPx) {
+      const [name] = slots.reduce((best, s) => (Math.abs(s[1] - px) < Math.abs(best[1] - px) ? s : best))
+      const value = px >= 9999 ? '9999px' : `${px}px`
+      // First writer wins per slot; a later px nearest the same slot is dropped.
+      if (filledRadius.has(name)) continue
+      radius[name] = value
+      filledRadius.add(name)
+      entries.push({ token: `radius.${name}`, disposition: 'mapped', from: `${px}px`, value })
+    }
+  }
+
+  // Font weight — import the two anchor weights that carry brand signal: the
+  // heaviest (heading weight, e.g. Empower's 800) → `bold`, and the lightest
+  // body-range weight → `normal`. The middle slots (medium/semibold) are left at
+  // defaults; mapping them from an arbitrary scale is ambiguous and low-value.
+  const fontWeight: Record<string, number> = {}
+  const filledWeights = new Set<string>()
+  if (raw.fontWeights && raw.fontWeights.length > 0) {
+    const sorted = [...raw.fontWeights].sort((a, b) => a - b)
+    const heaviest = sorted[sorted.length - 1]
+    const lightest = sorted[0]
+    if (heaviest >= 600) {
+      fontWeight.bold = heaviest
+      filledWeights.add('bold')
+      entries.push({ token: 'fontWeight.bold', disposition: 'mapped', from: `${heaviest}`, value: `${heaviest}` })
+    }
+    if (lightest >= 300 && lightest <= 400) {
+      fontWeight.normal = lightest
+      filledWeights.add('normal')
+      entries.push({ token: 'fontWeight.normal', disposition: 'mapped', from: `${lightest}`, value: `${lightest}` })
+    }
+  }
+
   const seed: ImportedDesignSeed = {
     colors: colors as ImportedDesignSeed['colors'],
     fontFamily,
+    ...(Object.keys(radius).length > 0 ? { radius } : {}),
+    ...(Object.keys(fontWeight).length > 0 ? { fontWeight } : {}),
     source: raw.source,
     name: raw.name,
   }
-  return { seed, entries, filledColors, filledFonts }
+  return { seed, entries, filledColors, filledFonts, filledRadius, filledWeights }
 }
 
 function classify(color: RawColor, grammar: RawImport['grammar']): Candidate | null {

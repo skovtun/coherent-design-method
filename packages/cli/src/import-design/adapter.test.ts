@@ -137,3 +137,29 @@ describe('adaptImport — repaired + font fallback', () => {
     expect(result.seed.fontFamily.mono).toBe('Berkeley Mono, monospace')
   })
 })
+
+describe('adaptImport — radius + font weight', () => {
+  it('maps radii to nearest config slots (first writer wins)', () => {
+    const r = adaptImport(raw({ radiiPx: [0, 8, 9999] }))
+    expect(r.seed.radius).toMatchObject({ none: '0px', md: '8px', full: '9999px' })
+    expect(r.filledRadius.has('none')).toBe(true)
+  })
+
+  it('imports the heaviest weight as bold and body weight as normal', () => {
+    const r = adaptImport(raw({ fontWeights: [400, 500, 700, 800] }))
+    expect(r.seed.fontWeight?.bold).toBe(800)
+    expect(r.seed.fontWeight?.normal).toBe(400)
+    expect(r.filledWeights.has('bold')).toBe(true)
+  })
+
+  it('skips weight import when no heavy weight is present', () => {
+    const r = adaptImport(raw({ fontWeights: [400, 500] }))
+    expect(r.seed.fontWeight?.bold).toBeUndefined()
+  })
+
+  it('leaves radius/weight unset when the file has none', () => {
+    const r = adaptImport(raw({ colors: [{ name: 'primary', hex: '#635bff' }] }))
+    expect(r.seed.radius).toBeUndefined()
+    expect(r.seed.fontWeight).toBeUndefined()
+  })
+})
