@@ -46,6 +46,7 @@ import {
 } from '../utils/self-heal.js'
 import { validatePageQuality, formatIssues, autoFixCode, verifyIncrementalEdit } from '../utils/quality-validator.js'
 import { safeWrite, isValidTsx } from './fix-validation.js'
+import { fileToRoute } from './check.js'
 import { toKebabCase } from '../utils/strings.js'
 import { detectRunningDevServer } from '../utils/dev-server-running.js'
 
@@ -782,9 +783,21 @@ export async function fixCommand(opts: FixOptions = {}) {
   if (!skipQuality) {
     let qualityFixCount = 0
     const qualityFixDetails: string[] = []
-    const knownRoutesForAutofix = dsm
-      ? ((dsm.getConfig().pages || []) as any[]).map(p => p.route).filter((r): r is string => !!r)
-      : undefined
+    // Source known routes from the page files that ACTUALLY exist on disk, not
+    // from config. A page whose generation failed still has a config entry (from
+    // the plan) but no page.tsx — links to it resolve to a runtime 404. Using
+    // config as the truth kept those links "valid" so the auto-fixer never
+    // repaired them, even though `coherent check` flagged them as broken (check
+    // already keys off real files). Keying fix off real files too makes the two
+    // agree and lets the link-repair rewrite dead-target hrefs to `#`. Falls
+    // back to config routes when no page files are found (safety).
+    const routesFromFiles = userTsxFiles.map(f => fileToRoute(relative(projectRoot, f))).filter((r): r is string => !!r)
+    const knownRoutesForAutofix =
+      routesFromFiles.length > 0
+        ? routesFromFiles
+        : dsm
+          ? ((dsm.getConfig().pages || []) as any[]).map(p => p.route).filter((r): r is string => !!r)
+          : undefined
     for (const file of allValidationFiles) {
       try {
         const content = readFileSync(file, 'utf-8')

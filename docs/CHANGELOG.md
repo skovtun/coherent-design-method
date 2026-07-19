@@ -11,6 +11,18 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.23.3] — 2026-07-19 — fix(check): stop counting repaired links as broken
+
+### `check` reported broken links that were already fixed
+
+When the auto-fixer repairs a dead link it rewrites the live `href` to `"#"` and preserves the original in `data-stale-href="/whatever"` so it stays reviewable. But `check`'s link scanner used a `href=` regex with no left boundary, so it matched the `-href="/whatever"` **inside `data-stale-href`** and counted each already-repaired link as a *live broken link*. A page whose dead links were all handled still reported "7 broken links" and lost score for work that was already done.
+
+The scanner now uses `(?<![\w-])href` (matching the auto-fixer's own regex), so repair markers are ignored. Verified: a generated project that reported 7 broken links now reports **0 (score 90)**; another went 3 → 0 (score 80).
+
+Also: `coherent fix` now sources its known-routes from the page files that actually exist on disk (via `fileToRoute`), not from config. A page whose generation failed leaves a config route with no file; keying off config kept links to it "valid" so `fix` never repaired them, even though `check` (which keys off real files) flagged them. The two commands now agree.
+
+3 new unit tests lock the repair + the marker-exclusion. Suite 2498 green.
+
 ## [0.23.2] — 2026-07-19 — fix(check): honest quality score (broken links no longer zero a good app)
 
 ### `coherent check` reported 0/100 on fully-generated apps
