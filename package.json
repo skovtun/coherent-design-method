@@ -12,7 +12,8 @@
     "lint": "eslint packages/*/src/",
     "format": "prettier --write 'packages/*/src/**/*.{ts,tsx}'",
     "format:check": "prettier --check 'packages/*/src/**/*.{ts,tsx}'",
-    "test:quality": "bash packages/cli/tests/quality-smoke.sh"
+    "test:quality": "bash packages/cli/tests/quality-smoke.sh",
+  "canary": "node scripts/quality-canary.mjs"
   },
   "keywords": [
     "design-system",
