@@ -110,6 +110,28 @@ export function buildPlan(
     }
   }
 
+  // Font size (base) — write imported slot, keep the rest.
+  if (adapt.seed.fontSize) {
+    const fs = newConfig.tokens.typography.fontSize as Record<string, string>
+    const existingFs = existing.tokens.typography.fontSize as Record<string, string>
+    for (const [slot, after] of Object.entries(adapt.seed.fontSize)) {
+      const before = existingFs[slot]
+      fs[slot] = after
+      if (before !== after) changes.push({ token: `fontSize.${slot}`, before: before ?? '(unset)', after })
+    }
+  }
+
+  // Spacing — write imported slots, keep the rest.
+  if (adapt.seed.spacing) {
+    const sp = newConfig.tokens.spacing as Record<string, string>
+    const existingSp = existing.tokens.spacing as Record<string, string>
+    for (const [slot, after] of Object.entries(adapt.seed.spacing)) {
+      const before = existingSp[slot]
+      sp[slot] = after
+      if (before !== after) changes.push({ token: `spacing.${slot}`, before: before ?? '(unset)', after })
+    }
+  }
+
   const contrastWarnings = evaluateContrast(light)
 
   const isV4 = isTailwindV4(projectRoot)
@@ -117,7 +139,12 @@ export function buildPlan(
   const globalsContent = isV4 ? generateV4GlobalsCss(newConfig) : null
 
   const usableFieldCount =
-    adapt.filledColors.size + adapt.filledFonts.size + adapt.filledRadius.size + adapt.filledWeights.size
+    adapt.filledColors.size +
+    adapt.filledFonts.size +
+    adapt.filledRadius.size +
+    adapt.filledWeights.size +
+    adapt.filledFontSize.size +
+    adapt.filledSpacing.size
 
   const report: ImportReport = {
     grammar,

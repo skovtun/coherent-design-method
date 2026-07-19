@@ -11,6 +11,18 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.23.4] — 2026-07-19 — feat(import): carry body size + spacing rhythm
+
+### `import design` round-trip is now nearly complete
+
+Building on v0.23.1 (radius + heading weight), the importer now also reads and applies:
+- **Body font size** → `fontSize.base` (the one unambiguous size token — body text *is* the base; heading steps map fuzzily and are left alone). px → rem against the 16px root.
+- **Spacing scale** → each px step maps to the nearest config slot (xs/sm/md/lg/xl/2xl/3xl), so a site's spatial rhythm carries over.
+
+With colors, font families, radius, weight, base size, and spacing all flowing through, `extract → DESIGN.md → import` now transfers the substance of a design system. Only the heading-size *scale* (role→name mapping is genuinely fuzzy) and motion (the config has no motion tokens to hold it) remain out of scope.
+
+Verified on live empower.com: the import maps `fontSize.base ← 16px` and the full spacing scale (`spacing.xs ← 4px` … `spacing.3xl ← 64px`) alongside the brand blue, navy, and heavy Open-Sans headings. 4 new unit tests. Suite 2502 green.
+
 ## [0.23.3] — 2026-07-19 — fix(check): stop counting repaired links as broken
 
 ### `check` reported broken links that were already fixed
