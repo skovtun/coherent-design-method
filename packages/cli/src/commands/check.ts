@@ -297,7 +297,11 @@ export async function checkCommand(opts: CheckOptions = {}) {
       const code = fileContents.get(file)!
       const relativePath = file.replace(projectRoot + '/', '')
       const lines = code.split('\n')
-      const linkHrefRe = /href\s*=\s*["'](\/[a-z0-9/-]*)["']/gi
+      // `(?<![\w-])` so `data-stale-href="/x"` — the auto-fixer's marker for an
+      // ALREADY-repaired dead link (its live href is "#") — is not miscounted as
+      // a live broken link. Without it, repaired links reported as broken and
+      // double-penalized the score. Matches autoFixCode's own href regex.
+      const linkHrefRe = /(?<![\w-])href\s*=\s*["'](\/[a-z0-9/-]*)["']/gi
       for (let i = 0; i < lines.length; i++) {
         let match
         while ((match = linkHrefRe.exec(lines[i])) !== null) {
