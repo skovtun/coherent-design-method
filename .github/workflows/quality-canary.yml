@@ -1,0 +1,68 @@
+name: Quality Canary
+
+# The automated dogfood that would have caught the month-long v0.22.2 generation
+# P0 on day one. Runs a REAL end-to-end generation against the live model and
+# fails if the output isn't usable (empty anchor, too few full pages, low score).
+#
+# Costs one API call (~8 min) per run, so it is NOT part of per-PR CI. It runs
+# nightly and on manual dispatch. It no-ops cleanly when ANTHROPIC_API_KEY is not
+# configured, so forks and secret-less repos are never blocked.
+#
+# To enable: add an `ANTHROPIC_API_KEY` repository secret. To disable the nightly
+# run without deleting this file, comment out the `schedule:` block below.
+# See docs/runbooks/quality-canary.md.
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # 06:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      min_score:
+        description: 'Minimum coherent-check score to pass'
+        default: '60'
+      prompt:
+        description: 'Generation prompt'
+        default: 'build a landing page for a coffee subscription service'
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for API key
+        id: guard
+        run: |
+          if [ -z "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "ANTHROPIC_API_KEY not set — skipping live canary (this is expected on forks)."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup pnpm
+        if: steps.guard.outputs.run == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        if: steps.guard.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        if: steps.guard.outputs.run == 'true'
+        run: pnpm build
+
+      - name: Run quality canary
+        if: steps.guard.outputs.run == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node scripts/quality-canary.mjs --min-score "${{ github.event.inputs.min_score || '60' }}" --prompt "${{ github.event.inputs.prompt || 'build a landing page for a coffee subscription service' }}"
