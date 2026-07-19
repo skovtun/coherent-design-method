@@ -11,6 +11,20 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.23.1] — 2026-07-18 — feat(import): carry radius + heading weight, not just colors + font
+
+### `coherent import design` was lossy — it only applied colors and font family
+
+An extracted `DESIGN.md` captures 12 sections (color, typography scale, spacing, radius, shadows, motion, …), but the importer consumed only the color table and the font families. A site's corner style and heading weight — both strong identity signals — were captured and then dropped on import.
+
+The importer now also reads and applies:
+- **Radius** — each px in the `## Radius` scale maps to the nearest config radius slot (none/sm/md/lg/xl/full), so sharp-vs-rounded-vs-pill carries over.
+- **Font weight** — the heaviest weight in the `## Typography` scale table → `fontWeight.bold`, the body-range weight → `fontWeight.normal`. The ambiguous middle slots are left at defaults.
+
+Verified on live empower.com: the round-trip now imports **6 changes** (was 4), including `fontWeight.bold 700 → 800` — Empower's heavy Open-Sans headings now come through, not just the brand blue. 10 new unit tests; suite 2480 green.
+
+Still on the roadmap for a fuller round-trip: the typography size *scale* (role→name mapping is fuzzy), spacing rhythm, and motion.
+
 ## [0.23.0] — 2026-07-18 — perf(chat): prompt caching for the design-constraint preamble (~85K tokens/run saved)
 
 ### Multi-page generation now reuses a cached constraint block instead of re-sending it every page

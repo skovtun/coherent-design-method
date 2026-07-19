@@ -87,13 +87,37 @@ export function buildPlan(
     }
   }
 
+  // Radius — write imported slots, keep the rest.
+  if (adapt.seed.radius) {
+    const rad = newConfig.tokens.radius as Record<string, string>
+    const existingRad = existing.tokens.radius as Record<string, string>
+    for (const [slot, after] of Object.entries(adapt.seed.radius)) {
+      const before = existingRad[slot]
+      rad[slot] = after
+      if (before !== after) changes.push({ token: `radius.${slot}`, before: before ?? '(unset)', after })
+    }
+  }
+
+  // Font weight — write imported anchor weights, keep the rest.
+  if (adapt.seed.fontWeight) {
+    const fw = newConfig.tokens.typography.fontWeight as Record<string, number>
+    const existingFw = existing.tokens.typography.fontWeight as Record<string, number>
+    for (const [slot, after] of Object.entries(adapt.seed.fontWeight)) {
+      const before = existingFw[slot]
+      fw[slot] = after
+      if (before !== after)
+        changes.push({ token: `fontWeight.${slot}`, before: `${before ?? '(unset)'}`, after: `${after}` })
+    }
+  }
+
   const contrastWarnings = evaluateContrast(light)
 
   const isV4 = isTailwindV4(projectRoot)
   const globalsPath = resolveGlobalsPath(projectRoot)
   const globalsContent = isV4 ? generateV4GlobalsCss(newConfig) : null
 
-  const usableFieldCount = adapt.filledColors.size + adapt.filledFonts.size
+  const usableFieldCount =
+    adapt.filledColors.size + adapt.filledFonts.size + adapt.filledRadius.size + adapt.filledWeights.size
 
   const report: ImportReport = {
     grammar,

@@ -91,8 +91,40 @@ function parseCoherentExtract(body: string): RawImport {
     }
   }
 
-  const { sans, mono } = parseFontBullets(extractSection(body, /^##\s+Typography\s*$/m), false)
-  return { grammar: 'coherent-extract', colors, fontSans: sans, fontMono: mono }
+  const typoSection = extractSection(body, /^##\s+Typography\s*$/m)
+  const { sans, mono } = parseFontBullets(typoSection, false)
+  const fontWeights = parseWeightColumn(typoSection)
+  const radiiPx = parseRadiusScale(extractSection(body, /^##\s+Radius\s*$/m))
+  return { grammar: 'coherent-extract', colors, fontSans: sans, fontMono: mono, fontWeights, radiiPx }
+}
+
+/**
+ * Pull distinct radii (px) from a `## Radius` scale line:
+ *   `Scale: `0px` · `9999px` · `8px``
+ * Ascending, deduped. Empty when absent.
+ */
+function parseRadiusScale(section: string): number[] {
+  const nums = new Set<number>()
+  for (const m of section.matchAll(/`\s*(\d+(?:\.\d+)?)px\s*`/g)) {
+    const n = Number.parseFloat(m[1])
+    if (Number.isFinite(n)) nums.add(n)
+  }
+  return [...nums].sort((a, b) => a - b)
+}
+
+/**
+ * Pull distinct font weights from the `## Typography` scale table's Weight
+ * column (`| Role | Size | Weight | Line height | Family |`). Ascending, deduped.
+ */
+function parseWeightColumn(section: string): number[] {
+  const weights = new Set<number>()
+  for (const cells of tableRows(section)) {
+    // Role | Size | Weight | ...  — weight is the 3rd cell, a bare integer.
+    if (cells.length < 3) continue
+    const w = Number.parseInt(stripBackticks(cells[2]), 10)
+    if (Number.isFinite(w) && w >= 100 && w <= 900) weights.add(w)
+  }
+  return [...weights].sort((a, b) => a - b)
 }
 
 // ─── coherent-config (chat DESIGN.md) ───────────────────────────────────────
