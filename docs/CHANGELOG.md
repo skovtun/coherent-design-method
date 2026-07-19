@@ -11,6 +11,16 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.23.2] — 2026-07-19 — fix(check): honest quality score (broken links no longer zero a good app)
+
+### `coherent check` reported 0/100 on fully-generated apps
+
+The score charged **15 points per broken link, uncapped** — so ~7 links to routes that didn't generate dropped a project with 7/7 clean, full-code pages to **0/100 "Critical"**. A misleading zero on a good app erodes trust in the tool. Worse, the console and `--json` paths computed the score with *different* weights (JSON had no dead-route term), so they disagreed.
+
+Both paths now share one `computeQualityScore()` with **per-category caps**: page-level errors (broken code) weigh most and cap at 40; links and dead routes (fixable by regenerating a page) weigh 6 each and saturate at 24. A genuinely broken project can still reach 0 (the caps sum to 125), but a good-pages-bad-links app now lands in the 70s–80s.
+
+Verified: a real generated project that scored 0/100 (6 broken links, full pages) now scores **80/100 (Good)** — same code, honest number. 6 new unit tests lock the calibration and the regression case. Suite 2495 green.
+
 ## [0.23.1] — 2026-07-18 — feat(import): carry radius + heading weight, not just colors + font
 
 ### `coherent import design` was lossy — it only applied colors and font family

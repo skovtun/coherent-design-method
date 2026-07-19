@@ -83,6 +83,31 @@ interface CheckResult {
   autoFixable: number
 }
 
+/**
+ * Quality score (0–100) from a check result. Single source of truth for the
+ * console and `--json` paths, which previously computed it with *different*
+ * weights (and no dead-route term in JSON).
+ *
+ * Each category's contribution is CAPPED so no single dimension can zero an
+ * otherwise-healthy app. The prior formula charged 15 points per broken link
+ * with no cap, so ~7 broken links dropped a 7/7-clean-page project to 0/100 —
+ * "Critical" for an app whose pages were all fine, just linking to a couple of
+ * routes that didn't generate. Caps keep the score honest: page-level errors
+ * (broken code) weigh most; links/dead-routes (fixable by regenerating a page)
+ * weigh less and saturate. A genuinely broken project can still reach 0 (the
+ * caps sum to 125), but a good-pages-bad-links app now lands in the 70s, not 0.
+ */
+export function computeQualityScore(result: CheckResult): number {
+  const errorPenalty = Math.min(result.pages.withErrors * 10, 40)
+  const warningPenalty = Math.min(result.pages.withWarnings * 3, 15)
+  const linkPenalty = Math.min(result.links.broken.length * 6, 24)
+  const deadRoutePenalty = Math.min(result.deadRoutes.length * 6, 24)
+  const unusedPenalty = Math.min(result.shared.unused * 2, 10)
+  const crossPagePenalty = Math.min(result.crossPage.issues.length * 3, 12)
+  const total = errorPenalty + warningPenalty + linkPenalty + deadRoutePenalty + unusedPenalty + crossPagePenalty
+  return Math.max(0, Math.min(100, 100 - total))
+}
+
 const EXCLUDED_DIRS = new Set(['node_modules', 'design-system'])
 
 /**
@@ -563,13 +588,7 @@ export async function checkCommand(opts: CheckOptions = {}) {
   // ─── Summary ────────────────────────────────────────────────────────
 
   if (opts.json) {
-    const ep = result.pages.withErrors * 10
-    const wp = result.pages.withWarnings * 3
-    const lp = result.links.broken.length * 15
-    const up = result.shared.unused * 2
-    const cp = result.crossPage.issues.length * 3
-    const s = Math.max(0, Math.min(100, 100 - ep - wp - lp - up - cp))
-    console.log(JSON.stringify({ ...result, score: s }, null, 2))
+    console.log(JSON.stringify({ ...result, score: computeQualityScore(result) }, null, 2))
     return
   }
 
@@ -597,16 +616,8 @@ export async function checkCommand(opts: CheckOptions = {}) {
 
   console.log(`\n  ${summaryParts.join(' | ')}`)
 
-  // Quality score: 0-100
-  const totalPages = result.pages.total || 1
-  const errorPenalty = result.pages.withErrors * 10
-  const warningPenalty = result.pages.withWarnings * 3
-  const linkPenalty = result.links.broken.length * 15
-  const deadRoutePenalty = result.deadRoutes.length * 15
-  const unusedPenalty = result.shared.unused * 2
-  const crossPagePenalty = result.crossPage.issues.length * 3
-  const totalPenalty = errorPenalty + warningPenalty + linkPenalty + deadRoutePenalty + unusedPenalty + crossPagePenalty
-  const score = Math.max(0, Math.min(100, 100 - totalPenalty))
+  // Quality score: 0-100 (capped per-category — see computeQualityScore).
+  const score = computeQualityScore(result)
 
   const scoreColor = score >= 90 ? chalk.green : score >= 70 ? chalk.yellow : chalk.red
   const scoreLabel = score >= 90 ? 'Excellent' : score >= 70 ? 'Good' : score >= 50 ? 'Needs work' : 'Critical'
