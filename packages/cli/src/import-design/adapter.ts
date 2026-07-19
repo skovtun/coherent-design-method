@@ -117,6 +117,13 @@ export interface AdaptResult {
   filledFonts: Set<'sans' | 'mono'>
   filledRadius: Set<string>
   filledWeights: Set<string>
+  filledFontSize: Set<string>
+  filledSpacing: Set<string>
+}
+
+/** px → a tidy rem string against the 16px root (16→'1rem', 18→'1.125rem'). */
+function pxToRem(px: number): string {
+  return `${Number.parseFloat((px / 16).toFixed(4))}rem`
 }
 
 interface Candidate {
@@ -244,15 +251,54 @@ export function adaptImport(raw: RawImport): AdaptResult {
     }
   }
 
+  // Body font size → fontSize.base. The base step is the one unambiguous size
+  // token (body text IS the base); the heading steps map fuzzily to xs..4xl and
+  // are left alone. px → rem against the 16px root.
+  const fontSize: Record<string, string> = {}
+  const filledFontSize = new Set<string>()
+  if (typeof raw.bodyFontSizePx === 'number' && raw.bodyFontSizePx > 0) {
+    const rem = pxToRem(raw.bodyFontSizePx)
+    fontSize.base = rem
+    filledFontSize.add('base')
+    entries.push({ token: 'fontSize.base', disposition: 'mapped', from: `${raw.bodyFontSizePx}px`, value: rem })
+  }
+
+  // Spacing — map each px step onto the nearest config slot (first writer wins),
+  // so a site's rhythm carries over. Config defaults (px): xs 4, sm 8, md 16,
+  // lg 24, xl 32, 2xl 48, 3xl 64.
+  const spacing: Record<string, string> = {}
+  const filledSpacing = new Set<string>()
+  if (raw.spacingPx && raw.spacingPx.length > 0) {
+    const slots: Array<[string, number]> = [
+      ['xs', 4],
+      ['sm', 8],
+      ['md', 16],
+      ['lg', 24],
+      ['xl', 32],
+      ['2xl', 48],
+      ['3xl', 64],
+    ]
+    for (const px of raw.spacingPx) {
+      const [name] = slots.reduce((best, s) => (Math.abs(s[1] - px) < Math.abs(best[1] - px) ? s : best))
+      if (filledSpacing.has(name)) continue
+      const value = pxToRem(px)
+      spacing[name] = value
+      filledSpacing.add(name)
+      entries.push({ token: `spacing.${name}`, disposition: 'mapped', from: `${px}px`, value })
+    }
+  }
+
   const seed: ImportedDesignSeed = {
     colors: colors as ImportedDesignSeed['colors'],
     fontFamily,
     ...(Object.keys(radius).length > 0 ? { radius } : {}),
     ...(Object.keys(fontWeight).length > 0 ? { fontWeight } : {}),
+    ...(Object.keys(fontSize).length > 0 ? { fontSize } : {}),
+    ...(Object.keys(spacing).length > 0 ? { spacing } : {}),
     source: raw.source,
     name: raw.name,
   }
-  return { seed, entries, filledColors, filledFonts, filledRadius, filledWeights }
+  return { seed, entries, filledColors, filledFonts, filledRadius, filledWeights, filledFontSize, filledSpacing }
 }
 
 function classify(color: RawColor, grammar: RawImport['grammar']): Candidate | null {

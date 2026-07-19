@@ -163,3 +163,20 @@ describe('adaptImport — radius + font weight', () => {
     expect(r.seed.fontWeight).toBeUndefined()
   })
 })
+
+describe('adaptImport — font size + spacing', () => {
+  it('maps body size to fontSize.base in rem', () => {
+    const r = adaptImport(raw({ bodyFontSizePx: 18 }))
+    expect(r.seed.fontSize?.base).toBe('1.125rem')
+    expect(r.filledFontSize.has('base')).toBe(true)
+  })
+  it('maps spacing px to nearest config slots in rem', () => {
+    const r = adaptImport(raw({ spacingPx: [4, 16, 64] }))
+    expect(r.seed.spacing).toMatchObject({ xs: '0.25rem', md: '1rem', '3xl': '4rem' })
+  })
+  it('leaves fontSize/spacing unset when absent', () => {
+    const r = adaptImport(raw({ colors: [{ name: 'primary', hex: '#635bff' }] }))
+    expect(r.seed.fontSize).toBeUndefined()
+    expect(r.seed.spacing).toBeUndefined()
+  })
+})

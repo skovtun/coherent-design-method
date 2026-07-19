@@ -170,6 +170,10 @@ describe('parseDesignMd — radius + weight scale (coherent-extract)', () => {
 ## Radius
 
 Scale: \`0px\` · \`9999px\` · \`8px\`
+
+## Spacing
+
+Scale: \`4px\` · \`8px\` · \`24px\` · \`64px\`
 `
   const raw = parseDesignMd(EXTRACT_WITH_SCALE)
 
@@ -178,6 +182,10 @@ Scale: \`0px\` · \`9999px\` · \`8px\`
   })
   it('parses distinct radii ascending', () => {
     expect(raw.radiiPx).toEqual([0, 8, 9999])
+  })
+  it('parses body font size + spacing scale', () => {
+    expect(raw.bodyFontSizePx).toBe(16)
+    expect(raw.spacingPx).toEqual([4, 8, 24, 64])
   })
   it('still parses colors + font family', () => {
     expect(raw.colors.some(c => c.hex === '#006bd6')).toBe(true)

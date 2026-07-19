@@ -55,6 +55,10 @@ export const ImportedDesignSeedSchema = z.object({
   radius: z.record(z.string(), z.string()).optional(),
   /** Weight tokens (config names → numeric weight), e.g. { bold: 800, normal: 400 }. */
   fontWeight: z.record(z.string(), z.number()).optional(),
+  /** fontSize tokens (config names → CSS value), e.g. { base: '1.125rem' }. */
+  fontSize: z.record(z.string(), z.string()).optional(),
+  /** spacing tokens (config names → CSS value), e.g. { md: '1rem' }. */
+  spacing: z.record(z.string(), z.string()).optional(),
   /** Optional gallery-attribution token (`source:` frontmatter or extract URL). */
   source: z.string().optional(),
   /** Design-system name if the file declares one (Stitch `name:` frontmatter). */
@@ -94,6 +98,10 @@ export interface RawImport {
   radiiPx?: number[]
   /** Distinct font weights, as parsed from the `## Typography` scale table. */
   fontWeights?: number[]
+  /** Body text size in px, from the `body` row of the `## Typography` scale. */
+  bodyFontSizePx?: number
+  /** Distinct spacing steps in px, from the `## Spacing` scale. */
+  spacingPx?: number[]
   source?: string
   name?: string
 }

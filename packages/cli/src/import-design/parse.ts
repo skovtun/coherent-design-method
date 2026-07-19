@@ -94,16 +94,34 @@ function parseCoherentExtract(body: string): RawImport {
   const typoSection = extractSection(body, /^##\s+Typography\s*$/m)
   const { sans, mono } = parseFontBullets(typoSection, false)
   const fontWeights = parseWeightColumn(typoSection)
-  const radiiPx = parseRadiusScale(extractSection(body, /^##\s+Radius\s*$/m))
-  return { grammar: 'coherent-extract', colors, fontSans: sans, fontMono: mono, fontWeights, radiiPx }
+  const bodyFontSizePx = parseBodyFontSize(typoSection)
+  const radiiPx = parsePxScale(extractSection(body, /^##\s+Radius\s*$/m))
+  const spacingPx = parsePxScale(extractSection(body, /^##\s+Spacing\s*$/m))
+  return {
+    grammar: 'coherent-extract',
+    colors,
+    fontSans: sans,
+    fontMono: mono,
+    fontWeights,
+    bodyFontSizePx,
+    radiiPx,
+    spacingPx,
+  }
 }
 
-/**
- * Pull distinct radii (px) from a `## Radius` scale line:
- *   `Scale: `0px` · `9999px` · `8px``
- * Ascending, deduped. Empty when absent.
- */
-function parseRadiusScale(section: string): number[] {
+/** Body text size (px) from the `body` row of the `## Typography` scale table. */
+function parseBodyFontSize(section: string): number | undefined {
+  for (const cells of tableRows(section)) {
+    if (cells.length < 2) continue
+    if (stripBackticks(cells[0]).toLowerCase() !== 'body') continue
+    const m = stripBackticks(cells[1]).match(/(\d+(?:\.\d+)?)px/)
+    if (m) return Number.parseFloat(m[1])
+  }
+  return undefined
+}
+
+/** Distinct px values from a `Scale: `4px` · `8px` · …` line. Ascending, deduped. */
+function parsePxScale(section: string): number[] {
   const nums = new Set<number>()
   for (const m of section.matchAll(/`\s*(\d+(?:\.\d+)?)px\s*`/g)) {
     const n = Number.parseFloat(m[1])
