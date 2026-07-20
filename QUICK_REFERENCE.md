@@ -6,6 +6,8 @@ A cheat sheet for Coherent CLI commands and workflows.
 
 ```bash
 coherent init                    # Create a new project
+coherent init --skill-mode       # Set up for the Claude Code /coherent-chat rail (skips API-key setup)
+coherent init --api-mode         # Force API-key setup (coherent chat rail); --both = optional, emit both CTAs
 coherent chat "<message>"        # Generate/modify pages with AI (needs API key)
 coherent chat "use @PricingTable + @CID-001 for ..."  # v0.18: pin shared components by name or CID via @-syntax
 coherent chat --page "X" "..."   # Edit only page X
@@ -25,8 +27,10 @@ coherent components list         # Show all shared + UI components
 coherent status                  # Show project stats (pages, components, tokens)
 coherent preview                 # Start dev server (http://localhost:3000)
 coherent check                   # Show quality issues (read-only)
+coherent check --page <name>     # Scope the check to one page (or --shared / --pages / --json)
 coherent fix                     # Auto-fix all issues (compact report)
 coherent fix --verbose           # Auto-fix with per-file breakdown
+coherent fix --dry-run           # Show what would be fixed without writing
 coherent fix --journal           # Capture session YAML to .coherent/fix-sessions/ for later review
 coherent journal list            # List captured fix sessions
 coherent journal aggregate       # Rank validators by recurrence across all sessions
@@ -34,6 +38,8 @@ coherent journal prune           # Delete sessions older than --keep-days (defau
 coherent journal prune --dry-run # Preview what would be deleted
 coherent sync                    # Sync Design System after manual edits
 coherent export                  # Export clean project for deployment
+coherent export --keep-ds        # Keep the Design System viewer + config in the export
+coherent export --no-build       # Skip `next build` in the output (--output <dir> sets destination)
 coherent undo                    # Revert last coherent chat
 coherent update                  # Apply platform updates to project
 coherent rules                   # Show active design constraint rules
