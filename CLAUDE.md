@@ -61,7 +61,7 @@ Never modify selectContextualRules() without discussing the change first.
 ```bash
 pnpm install                    # Install dependencies
 npm run build                   # Build all packages (tsup)
-npx vitest run                  # Run all 2276 tests
+npx vitest run                  # Run the full test suite
 npx tsc --noEmit -p packages/cli/tsconfig.json   # TypeScript check
 npx prettier --check 'packages/*/src/**/*.{ts,tsx}'  # Format check
 ```

@@ -11,7 +11,7 @@
  * errors/E0NN` — one page per code, anchored on the code string.
  *
  * Shape of a CoherentError (see `./CoherentError.ts`):
- *   - code: string    — "COHERENT_E001" through "COHERENT_E020" today.
+ *   - code: string    — "COHERENT_E001" through "COHERENT_E010" today.
  *   - message: string — one-line problem description (no trailing period).
  *   - cause?: string  — optional "why" (frame the user's mental model).
  *   - fix: string     — actionable command or step. Not advice.
