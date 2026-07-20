@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { join } from 'path'
 import { tmpdir } from 'os'
+import { mkdirSync, writeFileSync, readFileSync, rmSync } from 'fs'
 import { createMinimalConfig } from '../utils/minimal-config.js'
 import { adaptImport } from './adapter.js'
-import { buildPlan, serializeConfig } from './apply.js'
+import { buildPlan, applyPlan, serializeConfig } from './apply.js'
 import type { RawImport } from './types.js'
 
 const NO_PROJECT = join(tmpdir(), 'coherent-import-design-nonexistent-xyz')
@@ -76,6 +77,54 @@ describe('buildPlan — contrast (accept-with-warning)', () => {
       { name: 'canvas', hex: '#ffffff', raw: '#ffffff' },
     ])
     expect(plan.report.contrastWarnings.length).toBe(0)
+  })
+})
+
+describe('applyPlan — Tailwind v4 inline theme block', () => {
+  // Regression: on a v4 project the scaffold leaves an inline `<style>` :root
+  // block carrying the DEFAULT palette in <head>. It sits after the linked
+  // globals.css and overrides every imported token on render (a green import
+  // rendered as the blue default). applyPlan must strip it for v4, not only v3.
+  it('strips the scaffold inline <style> block so imported tokens win', async () => {
+    const root = join(tmpdir(), `coherent-import-v4-${process.pid}-${Date.now()}`)
+    const appDir = join(root, 'app')
+    mkdirSync(appDir, { recursive: true })
+    writeFileSync(
+      join(root, 'package.json'),
+      JSON.stringify({ name: 'neon-demo', dependencies: { tailwindcss: '^4.0.0' } }),
+    )
+    writeFileSync(
+      join(appDir, 'globals.css'),
+      '@import "tailwindcss";\n@theme inline {\n  --color-primary: var(--primary);\n}\n:root { --primary: #3B82F6; }\n',
+    )
+    // layout carries the stale DEFAULT (blue) inline theme block
+    const layout = `export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <head>
+        <style dangerouslySetInnerHTML={{ __html: ":root {\\n  --primary: #3B82F6;\\n}\\n.dark {\\n  --primary: #60A5FA;\\n}\\n" }} />
+      </head>
+      <body>{children}</body>
+    </html>
+  )
+}
+`
+    writeFileSync(join(appDir, 'layout.tsx'), layout)
+
+    const existing = createMinimalConfig('Neon')
+    const adapt = adaptImport({ grammar: 'stitch', colors: [{ name: 'primary', hex: '#34d59a', raw: '#34d59a' }] })
+    const plan = buildPlan(existing, adapt, root, 'stitch')
+    expect(plan.isV4).toBe(true)
+
+    await applyPlan(plan, root, join(root, 'design-system.config.ts'))
+
+    const after = readFileSync(join(appDir, 'layout.tsx'), 'utf-8')
+    expect(after).not.toContain('dangerouslySetInnerHTML')
+    expect(after).not.toContain('#3B82F6')
+    const globals = readFileSync(join(appDir, 'globals.css'), 'utf-8').toLowerCase()
+    expect(globals).toContain('34d59a')
+
+    rmSync(root, { recursive: true, force: true })
   })
 })
 

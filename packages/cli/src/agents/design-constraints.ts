@@ -1102,7 +1102,7 @@ PRICING CARDS:
 - Card structure: CardHeader(tier name + price) → CardContent(feature list) → CardFooter(CTA).
 - Price: <div className="text-3xl font-bold">$29<span className="text-sm font-normal text-muted-foreground">/month</span></div>
 - Features: <ul className="space-y-2 text-sm"><li className="flex items-center gap-2"><Check className="size-4 text-primary" />Feature</li></ul>
-- Popular badge: <Badge className="absolute -top-3 left-1/2 -translate-x-1/2">Popular</Badge> on the Card (relative positioning).
+- Popular badge: INLINE at the top of the highlighted CardHeader — NEVER absolute/-top-* (an absolute badge poking above the card is clipped by the card's rounded corners / overflow-hidden, a common broken-looking result). Pattern: <CardHeader className="space-y-2"><Badge className="w-fit">Most popular</Badge><CardTitle>Pro</CardTitle>...</CardHeader>. The badge sits in normal flow above the tier name, so it can never clip regardless of card overflow. Consistent with the BADGE PLACEMENT rule (always inline).
 - CTA: primary variant on highlighted tier, outline on others.
 
 PRICE DISPLAY (with discount):

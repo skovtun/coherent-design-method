@@ -509,6 +509,30 @@ A `max_tokens` raise costs nothing extra per call — you pay per token *generat
 
 ---
 
+## PJ-017 · Absolute "Popular" pricing badge is clipped by the card's rounded corners
+
+**Observed:** On a generated pricing page (Neon showcase, dogfooding the gallery), the highlighted tier's "Most popular" badge poked above the card as `-top-3` and got visibly **clipped by the card's rounded corners** — a lopsided half-badge, the classic broken-looking AI pricing table.
+
+**Root cause:** a **contradiction inside `design-constraints.ts`**. The `RULES_CARDS_LAYOUT` block already said *"NEVER position Badge with absolute/relative — always inline in flow"* (the BADGE PLACEMENT rule), but the `RULES_CONTENT` pricing block modeled the popular badge as `<Badge className="absolute -top-3 left-1/2 -translate-x-1/2">`. When both blocks load, the concrete pricing example wins over the abstract rule — the model copies the pattern it's shown. An absolute badge above a card is clipped the moment the card has `overflow-hidden` or rounded corners (both common), so the "golden" example was itself the bug.
+
+**Fix (v0.23.6):** rewrite the `RULES_CONTENT` pricing-badge line to place the badge **inline at the top of the highlighted `CardHeader`**, in normal flow above the tier name — `<CardHeader className="space-y-2"><Badge className="w-fit">Most popular</Badge>…`. In flow it can never clip regardless of card overflow, and it's now consistent with the BADGE PLACEMENT rule instead of contradicting it. Verified in a regenerated page: badge renders `position: static`, no clip.
+
+**Lesson:** a contextual block's *example code* is a golden pattern whether or not it lives in `golden-patterns.ts`. When two blocks can co-load, an example that violates another block's rule is worse than no example — the model imitates the concrete one. Audit cross-block examples against the abstract rules they might contradict.
+
+---
+
+## PJ-018 · `import design` silently overridden on Tailwind v4 (imported palette renders as the scaffold default)
+
+**Observed:** `coherent import design neon.md` reported success and wrote the green palette into `design-system.config.ts` **and** `globals.css` — yet the rendered page came out in the **default blue** (`#3B82F6`), not the imported green. `curl` of the served `globals.css` showed green `--primary`; the browser's computed `--primary` was blue. Two sources of truth disagreeing.
+
+**Root cause:** the scaffold writes an inline `<style dangerouslySetInnerHTML={{__html: ":root{…}"}} />` **theme block into `app/layout.tsx`** (a FOUC-prevention critical-CSS block) carrying the DEFAULT palette. It sits in `<head>` *after* the linked `globals.css`, so at equal `:root` specificity the later inline rule **wins** — every imported token is overridden on render. `applyPlan` (`import-design/apply.ts`) called `fixGlobalsCss` — which regenerates the v3 inline block *or strips it for v4* — **only for Tailwind v3** (`if (!plan.isV4)`). So on v4 projects the stale blue block was never touched. This is why earlier v3 imports (empower/stripe) rendered correctly while the v4 Neon import reverted to default: the bug was **version-gated and invisible** (config + globals both correct on disk; only the render was wrong).
+
+**Fix (v0.23.6):** call `fixGlobalsCss(projectRoot, plan.newConfig)` for **both** versions. For v4 it rewrites `globals.css` (idempotent with the atomic batch write) and, load-bearingly, **strips the inline `<style>` block** from `layout.tsx` so `@theme inline` in `globals.css` is the single source of truth. Regression test: a v4 fixture with a blue inline block → after `applyPlan`, the block is gone and the imported green survives.
+
+**Lesson:** "the file on disk is correct" is not "the page renders correctly." When a token lives in two places (linked stylesheet + inline critical CSS), a writer that updates only one silently loses to the other. Verify imports by the **computed** style in a browser, not by grepping the source — the whole neon-blue rabbit hole (browse-cache theories, served-CSS curls) collapsed the moment I read the *inline* `<style>` in the HTML.
+
+---
+
 ## How to add a new entry
 
 1. Observe the failure (screenshot/transcript in the repo's discussion).

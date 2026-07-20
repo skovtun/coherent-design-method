@@ -201,12 +201,16 @@ export async function applyPlan(plan: ImportPlan, projectRoot: string, configPat
 
   try {
     await batchWriteFiles(writes)
-    // Tailwind v3 needs the layout-injection path (not covered by the batch).
-    // Reuse the canonical regenerator; if it throws, we restore below so the
-    // config and CSS never drift apart.
-    if (!plan.isV4) {
-      fixGlobalsCss(projectRoot, plan.newConfig)
-    }
+    // Reuse the canonical regenerator for BOTH Tailwind versions; if it throws,
+    // we restore below so config, CSS, and layout never drift apart.
+    //   - v3: writes minimal globals.css + injects the token block into layout.
+    //   - v4: rewrites globals.css (idempotent with the batch write above) AND
+    //     strips the scaffold's inline `<style>` theme block from layout.tsx.
+    // The v4 strip is the load-bearing part: that inline `:root`/`.dark` block
+    // carries the DEFAULT palette from scaffold time, sits in <head> after the
+    // linked globals.css, and would otherwise override every imported token on
+    // render (a green import rendering as the blue default). See PATTERNS_JOURNAL.
+    fixGlobalsCss(projectRoot, plan.newConfig)
   } catch (err) {
     if (backupPath) restoreBackup(projectRoot, basename(backupPath))
     throw err
