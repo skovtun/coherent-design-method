@@ -127,6 +127,11 @@ function mergeWithinRole(items: ExtractedColorToken[], counts: Map<string, numbe
   return clusterByDeltaE(items, counts).map(g => pickCentroid(g, counts))
 }
 
+/** A trailing value more than this many times its predecessor is a one-off gap, not part of the rhythm. */
+const SPACING_OUTLIER_RATIO = 4
+/** Never trim a spacing scale below this many values — a short scale has no confident outlier. */
+const SPACING_MIN_KEEP = 4
+
 export function normalizeSpacing(spacing: ExtractedDesignTokens['spacing']): ExtractedDesignTokens['spacing'] {
   const seen = new Map<number, ExtractedDesignTokens['spacing'][number]>()
   for (const s of spacing) {
@@ -134,7 +139,37 @@ export function normalizeSpacing(spacing: ExtractedDesignTokens['spacing']): Ext
     if (px <= 0) continue
     if (!seen.has(px)) seen.set(px, { ...s, px })
   }
-  return [...seen.values()]
+  const sorted = [...seen.values()].sort((a, b) => a.px - b.px)
+  // Trim trailing outliers: a value >4× its predecessor is a section-gap /
+  // one-off (e.g. a 208px hero margin sitting next to a 4–40px content ramp),
+  // not part of the spacing rhythm — it reads as junk in the DESIGN.md scale.
+  // Keep at least SPACING_MIN_KEEP so a legitimately short scale is never gutted,
+  // and only trim the tail so a wide-but-continuous scale (8→272) is preserved.
+  while (sorted.length > SPACING_MIN_KEEP) {
+    const last = sorted[sorted.length - 1].px
+    const prev = sorted[sorted.length - 2].px
+    if (prev > 0 && last / prev > SPACING_OUTLIER_RATIO) sorted.pop()
+    else break
+  }
+  return sorted
+}
+
+export function normalizeBreakpoints(
+  breakpoints: ExtractedDesignTokens['breakpoints'],
+): ExtractedDesignTokens['breakpoints'] {
+  // The raw capture emits one entry per distinct media-query width — often 20+
+  // rows: many widths bucketed under the same name (8× `sm`) plus scraped
+  // one-offs whose "name" is literally the width (`2300px`). Collapse to one
+  // representative per named bucket (the smallest width = the bucket's entry
+  // point) and drop digit-named junk, so DESIGN.md shows a real breakpoint set.
+  const perName = new Map<string, number>()
+  for (const b of breakpoints.values) {
+    if (/\d/.test(b.name)) continue // drop width-named one-offs (e.g. "2300px")
+    const cur = perName.get(b.name)
+    if (cur === undefined || b.px < cur) perName.set(b.name, b.px)
+  }
+  const values = [...perName.entries()].map(([name, px]) => ({ name, px })).sort((a, b) => a.px - b.px)
+  return { ...breakpoints, values }
 }
 
 export function normalizeRadius(radius: ExtractedDesignTokens['radius']): ExtractedDesignTokens['radius'] {
@@ -178,6 +213,7 @@ export function normalizeTokens(
     colors: normalizeColors(tokens.colors, opts.colorOccurrences),
     spacing: normalizeSpacing(tokens.spacing),
     radius: normalizeRadius(tokens.radius),
+    breakpoints: normalizeBreakpoints(tokens.breakpoints),
     motion: { ...tokens.motion, tokens: normalizeMotion(tokens.motion.tokens) },
     backgrounds: normalizeBackgrounds(tokens.backgrounds, opts.colorOccurrences),
   }
