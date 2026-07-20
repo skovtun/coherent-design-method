@@ -37,6 +37,11 @@ coherent export                  # Export clean project for deployment
 coherent undo                    # Revert last coherent chat
 coherent update                  # Apply platform updates to project
 coherent rules                   # Show active design constraint rules
+coherent prefs set design.style "editorial, high-contrast"  # Persistent design preference injected into EVERY chat run
+coherent prefs set <key> <value> # Keys: design.style | design.density | design.avoid | design.notes
+coherent prefs show              # Print current design preferences
+coherent prefs clear [key]       # Clear all preferences, or just the named key
+coherent ds regenerate           # Regenerate the Design System viewer pages (app/design-system/)
 coherent migrate                 # Run version migrations
 coherent baseline                # Structural regression check (fingerprints + compares pages)
 coherent baseline --save         # Record new baseline without comparing
