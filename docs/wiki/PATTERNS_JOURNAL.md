@@ -533,6 +533,22 @@ A `max_tokens` raise costs nothing extra per call — you pay per token *generat
 
 ---
 
+## PJ-019 · URL extractor emits spacing outliers + breakpoint spam (thin/noisy DESIGN.md)
+
+**Observed:** Dogfooding the gallery, the Vercel specimen's teardown looked skimpy *and* noisy: spacing scale `4·6·8·12·24·40·208px` (the `208px` a lone hero-margin outlier breaking the ramp), and the downloadable `.md` carried a **23-row breakpoints table** — every distinct media-query width the site declared, including scraped one-offs named literally `2300px`. Reads as "the extractor gave up," which undermines trust in the whole gallery. Neon had the same shape (a `160px` spacing outlier, `1599px`/`1919px` breakpoint junk).
+
+**Root cause:** `token-normalizer.ts` deduped spacing but never **sorted or outlier-filtered** it, and there was **no breakpoint normalizer at all** — the serializer dumped `breakpoints.values` verbatim. A real design system has a rhythmic spacing ramp and ~4–5 breakpoints; the raw computed-CSS capture has neither until normalized.
+
+**Fix (v0.23.7):**
+- `normalizeSpacing`: sort ascending, then trim **trailing** values >4× their predecessor (a section-gap / one-off, not part of the rhythm), keeping ≥4 so a short scale is never gutted. Tail-only so a wide-but-continuous scale (clerk `8→272`, every step ≤4×) is preserved. Calibrated against all 5 gallery specimens: trims vercel `208` (5.2×) + neon `160` (5.7×), leaves clerk/stripe/supabase untouched.
+- New `normalizeBreakpoints`: drop width-named one-offs (`/\d/` in the name → `2300px`), collapse multiple widths per named bucket to the **smallest** (the bucket's entry point), sort by px. 23 rows → `sm/md/lg/xl`. Wired into `normalizeTokens`.
+
+**Lesson:** faithful extraction ≠ good extraction. Raw computed CSS is a firehose (every declared width, every one-off margin); a normalizer's job is to recover the *intended* system, not transcribe the noise. The thresholds must be calibrated against real specimens, not invented — a naive "cap at N" or "drop the largest" would have gutted clerk's legitimately wide scale.
+
+**Also (separate, same session):** the Vercel specimen is the weakest *showcase* for the "designs don't have to look the same" thesis precisely because Vercel is genuinely monochrome — kept as the deliberate "minimal archetype" data point, but only viable once the noise above was cleaned so it reads as *intentional* restraint, not thin output.
+
+---
+
 ## How to add a new entry
 
 1. Observe the failure (screenshot/transcript in the repo's discussion).

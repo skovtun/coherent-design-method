@@ -4,6 +4,7 @@ import {
   normalizeColors,
   normalizeBackgrounds,
   normalizeSpacing,
+  normalizeBreakpoints,
   normalizeRadius,
   normalizeMotion,
   hexToOklch,
@@ -258,6 +259,65 @@ describe('normalizeSpacing', () => {
   it('preserves name when present', () => {
     const out = normalizeSpacing([{ name: 'sm', px: 7.998 }])
     expect(out[0]).toEqual({ name: 'sm', px: 8 })
+  })
+
+  it('sorts ascending', () => {
+    const out = normalizeSpacing([{ px: 24 }, { px: 8 }, { px: 16 }])
+    expect(out.map(s => s.px)).toEqual([8, 16, 24])
+  })
+
+  it('trims a trailing outlier >4× its predecessor (vercel: 208px next to a 4–40 ramp)', () => {
+    const out = normalizeSpacing([{ px: 4 }, { px: 6 }, { px: 8 }, { px: 12 }, { px: 24 }, { px: 40 }, { px: 208 }])
+    expect(out.map(s => s.px)).toEqual([4, 6, 8, 12, 24, 40])
+  })
+
+  it('trims the neon 160px section-gap outlier (28 → 160 is 5.7×)', () => {
+    const out = normalizeSpacing([{ px: 10 }, { px: 12 }, { px: 16 }, { px: 20 }, { px: 28 }, { px: 160 }])
+    expect(out.map(s => s.px)).toEqual([10, 12, 16, 20, 28])
+  })
+
+  it('preserves a wide but continuous scale (clerk 8→272, every step ≤4×)', () => {
+    const input = [{ px: 8 }, { px: 12 }, { px: 16 }, { px: 48 }, { px: 128 }, { px: 160 }, { px: 272 }]
+    expect(normalizeSpacing(input).map(s => s.px)).toEqual([8, 12, 16, 48, 128, 160, 272])
+  })
+
+  it('never guts a short scale below 4 values even with a big jump', () => {
+    const out = normalizeSpacing([{ px: 8 }, { px: 16 }, { px: 24 }, { px: 500 }])
+    expect(out.map(s => s.px)).toEqual([8, 16, 24, 500])
+  })
+})
+
+describe('normalizeBreakpoints', () => {
+  it('collapses many widths per name to one entry (the bucket entry point) and sorts by px', () => {
+    const out = normalizeBreakpoints({
+      strategy: 'desktop-first',
+      values: [
+        { name: 'sm', px: 480 },
+        { name: 'sm', px: 370 },
+        { name: 'md', px: 768 },
+        { name: 'md', px: 500 },
+        { name: 'lg', px: 769 },
+        { name: 'xl', px: 1036 },
+      ],
+    })
+    expect(out.strategy).toBe('desktop-first')
+    expect(out.values).toEqual([
+      { name: 'sm', px: 370 },
+      { name: 'md', px: 500 },
+      { name: 'lg', px: 769 },
+      { name: 'xl', px: 1036 },
+    ])
+  })
+
+  it('drops width-named one-offs (e.g. "2300px")', () => {
+    const out = normalizeBreakpoints({
+      strategy: 'desktop-first',
+      values: [
+        { name: 'lg', px: 1024 },
+        { name: '2300px', px: 2300 },
+      ],
+    })
+    expect(out.values).toEqual([{ name: 'lg', px: 1024 }])
   })
 })
 

@@ -11,6 +11,15 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.23.7] — 2026-07-20 — fix(extract): drop spacing outliers + collapse breakpoint spam
+
+`coherent extract` deduped spacing but never sorted or outlier-filtered it, and had no breakpoint normalizer — so a real site's computed CSS produced a thin/noisy DESIGN.md: a lone `208px` hero-margin sitting in an otherwise `4–40px` spacing ramp, and a 23-row breakpoints table dumping every declared media-query width (including scraped one-offs named `2300px`).
+
+- **`normalizeSpacing`** now sorts ascending and trims **trailing** values that jump >4× their predecessor (keeping ≥4 values, tail-only). Calibrated against all gallery specimens: trims vercel's `208px` and neon's `160px` section-gap outliers while preserving clerk's legitimately wide `8→272px` scale.
+- **`normalizeBreakpoints`** (new) drops width-named one-offs, collapses multiple widths per bucket to the smallest (the entry point), and sorts — a 23-row table becomes `sm/md/lg/xl`.
+
+Result: extracted DESIGN.md files show the *intended* system, not the raw-CSS firehose. See `docs/wiki/PATTERNS_JOURNAL.md` PJ-019.
+
 ## [0.23.6] — 2026-07-20 — fix: `import design` overridden on Tailwind v4 + clipped pricing badge
 
 Two rendering bugs found while dogfooding the DESIGN.md gallery showcase — both made a *correct* import/generation *look* broken.
