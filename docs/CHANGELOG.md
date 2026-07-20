@@ -11,6 +11,20 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.23.6] — 2026-07-20 — fix: `import design` overridden on Tailwind v4 + clipped pricing badge
+
+Two rendering bugs found while dogfooding the DESIGN.md gallery showcase — both made a *correct* import/generation *look* broken.
+
+### `coherent import design` was silently overridden on Tailwind v4 projects
+
+An import wrote the new palette to both `design-system.config.ts` and `globals.css`, reported success — and the page still rendered in the **default blue**. Cause: the scaffold leaves an inline `<style>` critical-theme block (default palette) in `app/layout.tsx`; in `<head>` after the linked stylesheet, it overrides every imported token at equal `:root` specificity. `applyPlan` only ran the block-stripping regenerator (`fixGlobalsCss`) for Tailwind **v3** (`if (!plan.isV4)`), so v4 projects kept the stale block. Now called for both versions — v4 strips the inline block so `@theme inline` in `globals.css` is the single source of truth. This restores `import design` fidelity on every v4 project (empower/stripe worked before only because they were v3). Regression test added.
+
+### Clipped "Most popular" pricing badge
+
+The `RULES_CONTENT` pricing block modeled the popular badge as `absolute -top-3` — which is clipped by the card's rounded corners / `overflow-hidden`, and directly contradicted the `RULES_CARDS_LAYOUT` rule *"never position Badge with absolute — always inline in flow."* When both blocks co-load the concrete example wins, so the model shipped the clipped badge. Rewrote the pricing badge to sit **inline at the top of the highlighted `CardHeader`** (normal flow, never clips), now consistent with the badge-placement rule.
+
+See `docs/wiki/PATTERNS_JOURNAL.md` PJ-017 (badge) and PJ-018 (v4 import).
+
 ## [0.23.5] — 2026-07-19 — feat(chat): experimental model tiering for architecture planning
 
 ### Opt-in cheaper model for the low-creativity planning step
