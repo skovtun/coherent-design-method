@@ -63,6 +63,7 @@ import { memoryShowCommand, memoryDiffCommand } from './commands/memory.js'
 import { previewCommand } from './commands/preview.js'
 import { exportCommand } from './commands/export.js'
 import { exportTokensCommand } from './commands/export-tokens.js'
+import { manifestCommand } from './commands/manifest.js'
 import { statusCommand } from './commands/status.js'
 import { regenerateDocsCommand } from './commands/regenerate-docs.js'
 import { reportIssueCommand } from './commands/report-issue.js'
@@ -292,6 +293,14 @@ exportCmd
   .option('--format <fmt>', 'css | tailwind | json | dtcg (default: all four)')
   .option('--out <dir>', 'Output directory (default: .coherent/tokens)')
   .action(opts => exportTokensCommand(opts))
+
+// `coherent manifest` — machine-readable DESIGN CONTRACT for AI agents (tokens +
+// atmospheres + components + CLI self-description). The agent-contract surface.
+program
+  .command('manifest')
+  .description('Emit the machine-readable design contract for AI agents (JSON: tokens, atmospheres, components, CLI)')
+  .option('--out <file>', 'Write to a file instead of stdout')
+  .action((opts, cmd) => manifestCommand(opts, cmd))
 
 program
   .command('sync')

@@ -70,6 +70,8 @@ coherent import design <file> --json     # Emit the mapping report as JSON
 coherent export tokens                   # E3 (v0.22.0) — export tokens → design-tokens.json + css-variables.css + tailwind-v4.css
 coherent export tokens --format css      # Single format: css | tailwind | json | dtcg
 coherent export tokens --format dtcg     # W3C DTCG design-tokens.json (Figma / Style Dictionary / Tokens Studio interop)
+coherent manifest                        # Machine-readable design contract for AI agents (JSON: tokens+atmospheres+components+CLI) → stdout
+coherent manifest --out contract.json    # Write the manifest to a file
 coherent export tokens --out ./tokens    # Output directory (default: .coherent/tokens)
 ```
 
