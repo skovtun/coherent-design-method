@@ -79,7 +79,10 @@ const TASK_SUFFIX =
   '\n\nReturn ONE self-contained Next.js page component (.tsx) for the above. Raw TSX only, no markdown fence, no commentary.'
 
 // ── model call ──────────────────────────────────────────────────────────────
-async function callModel(system, user, temperature = 0.7) {
+// No `temperature` — Sonnet 5 (and the Opus-4.x family) reject it. Default
+// sampling is fine: for the distinctiveness arm it makes baseline runs converge,
+// which only sharpens the "baseline all looks the same" signal.
+async function callModel(system, user) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -90,7 +93,6 @@ async function callModel(system, user, temperature = 0.7) {
     body: JSON.stringify({
       model: MODEL,
       max_tokens: MAX_TOKENS,
-      temperature,
       system,
       messages: [{ role: 'user', content: user }],
     }),
@@ -204,7 +206,10 @@ async function main() {
   let atmospheres = []
   try {
     const list = execFileSync('node', [CLI, 'prompt', '--list-atmospheres'], { encoding: 'utf8', timeout: 30_000 })
-    atmospheres = [...list.matchAll(/^\s*[-*•]?\s*([a-z][a-z0-9-]{2,})\b/gim)].map(m => m[1]).filter((v, i, a) => a.indexOf(v) === i)
+    // Preset rows are indented lowercase names ("  swiss-grid   <desc>"); the
+    // "Available…" header and "Usage:" line are at column 0 / capitalized, so
+    // require leading whitespace + a lowercase start (NO `i` flag) to exclude them.
+    atmospheres = [...list.matchAll(/^\s+([a-z][a-z0-9-]{2,})\s{2,}/gm)].map(m => m[1]).filter((v, i, a) => a.indexOf(v) === i)
   } catch {
     /* fall back below */
   }
@@ -218,8 +223,8 @@ async function main() {
   const baselineOuts = []
   for (let i = 0; i < 3; i++) {
     const [bTsx, aTsx] = await Promise.all([
-      callModel(coherentBundle(DISTINCT_INTENT.intent, DISTINCT_INTENT.pageType, picks[i]), task2, 0.7),
-      callModel(BASELINE_SYSTEM, task2, 0.9), // higher temp GIVES baseline its best shot at variety
+      callModel(coherentBundle(DISTINCT_INTENT.intent, DISTINCT_INTENT.pageType, picks[i]), task2),
+      callModel(BASELINE_SYSTEM, task2),
     ])
     writeFileSync(join(OUT, `distinct.coherent.${picks[i]}.tsx`), bTsx)
     writeFileSync(join(OUT, `distinct.baseline.${i}.tsx`), aTsx)
