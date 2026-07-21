@@ -17,14 +17,15 @@ import { generateV4GlobalsCss } from '../utils/tailwind-version.js'
 
 export const DESIGN_TOKENS_VERSION = '1'
 
-export type TokenFormat = 'json' | 'css' | 'tailwind'
+export type TokenFormat = 'json' | 'css' | 'tailwind' | 'dtcg'
 
-export const TOKEN_FORMATS: TokenFormat[] = ['json', 'css', 'tailwind']
+export const TOKEN_FORMATS: TokenFormat[] = ['json', 'css', 'tailwind', 'dtcg']
 
 export const ARTIFACT_FILENAMES: Record<TokenFormat, string> = {
   json: 'design-tokens.json',
   css: 'css-variables.css',
   tailwind: 'tailwind-v4.css',
+  dtcg: 'design-system.tokens.json',
 }
 
 /** The canonical, machine-readable token model — the single source of truth. */
@@ -51,6 +52,72 @@ export function buildTailwindV4File(config: DesignSystemConfig): string {
   return generateV4GlobalsCss(config)
 }
 
+/**
+ * W3C Design Tokens Community Group (DTCG) format — the emerging cross-tool
+ * standard (`.tokens.json`; consumed by Figma, Style Dictionary, Tokens Studio,
+ * Framer, …). Groups are nested objects; each leaf token is `{ $type, $value }`.
+ *
+ * Emits the widely-interoperable string-value forms (hex color, "8px" dimension,
+ * fontFamily as a name/array). The strict 2025.10 object-value forms
+ * (`{ colorSpace, components }`, `{ value, unit }`) are a later hardening option.
+ * Derived from the same `config.tokens` as every other format.
+ */
+export function buildDtcgTokens(config: DesignSystemConfig): string {
+  const t = config.tokens
+  const colorGroup = (palette: Record<string, unknown> | undefined) => {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(palette ?? {})) {
+      if (typeof v === 'string') out[k] = { $type: 'color', $value: v }
+    }
+    return out
+  }
+  const dimGroup = (rec: Record<string, unknown> | undefined) => {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(rec ?? {})) {
+      if (v != null) out[k] = { $type: 'dimension', $value: String(v) }
+    }
+    return out
+  }
+
+  const doc: Record<string, unknown> = {
+    $description: `Design tokens for ${config.name ?? 'Design System'}, exported by Coherent in W3C DTCG format.`,
+    color: {
+      light: colorGroup(t.colors?.light as Record<string, unknown> | undefined),
+      dark: colorGroup(t.colors?.dark as Record<string, unknown> | undefined),
+    },
+  }
+
+  const spacing = dimGroup(t.spacing as Record<string, unknown> | undefined)
+  if (Object.keys(spacing).length) doc.spacing = spacing
+  const radius = dimGroup(t.radius as Record<string, unknown> | undefined)
+  if (Object.keys(radius).length) doc.radius = radius
+
+  const typo = (t.typography ?? {}) as Record<string, unknown>
+  const fam = typo.fontFamily as Record<string, string> | undefined
+  if (fam && Object.keys(fam).length) {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(fam)) {
+      // DTCG fontFamily is a single name or an array; split a CSS stack into an array.
+      const value = v.includes(',') ? v.split(',').map(s => s.trim().replace(/^['"]|['"]$/g, '')) : v
+      out[k] = { $type: 'fontFamily', $value: value }
+    }
+    doc.fontFamily = out
+  }
+  const fontSize = dimGroup(typo.fontSize as Record<string, unknown> | undefined)
+  if (Object.keys(fontSize).length) doc.fontSize = fontSize
+  const weights = typo.fontWeight as Record<string, unknown> | undefined
+  if (weights && Object.keys(weights).length) {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(weights)) {
+      const n = typeof v === 'number' ? v : Number(v)
+      if (Number.isFinite(n)) out[k] = { $type: 'fontWeight', $value: n }
+    }
+    if (Object.keys(out).length) doc.fontWeight = out
+  }
+
+  return JSON.stringify(doc, null, 2) + '\n'
+}
+
 /** Produce the { filename, content } for one format. */
 export function buildArtifact(format: TokenFormat, config: DesignSystemConfig): { filename: string; content: string } {
   const filename = ARTIFACT_FILENAMES[format]
@@ -61,5 +128,7 @@ export function buildArtifact(format: TokenFormat, config: DesignSystemConfig): 
       return { filename, content: buildCssVariablesFile(config) }
     case 'tailwind':
       return { filename, content: buildTailwindV4File(config) }
+    case 'dtcg':
+      return { filename, content: buildDtcgTokens(config) }
   }
 }

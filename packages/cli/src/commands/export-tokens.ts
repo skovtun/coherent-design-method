@@ -1,9 +1,10 @@
 /**
- * `coherent export tokens [--format css|tailwind|json]` — export a project's
- * design tokens to framework-ready files (E3/T5).
+ * `coherent export tokens [--format css|tailwind|json|dtcg]` — export a
+ * project's design tokens to framework-ready files (E3/T5).
  *
  * One normalized token model → design-tokens.json + css-variables.css +
- * tailwind-v4.css. Self-serve version of the gallery's per-page artifact set:
+ * tailwind-v4.css + design-system.tokens.json (W3C DTCG). Self-serve version
+ * of the gallery's per-page artifact set:
  * any user exports THEIR design system to files that drop into any stack.
  */
 

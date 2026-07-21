@@ -11,6 +11,12 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.23.8] — 2026-07-21 — feat(export): W3C DTCG token format (`--format dtcg`)
+
+`coherent export tokens --format dtcg` emits `design-system.tokens.json` in the **W3C Design Tokens Community Group** format — the emerging cross-tool standard (first stable spec 2025.10) consumed by Figma, Style Dictionary, Tokens Studio, Framer, and others. Groups are nested objects; each leaf token is `{ $type, $value }` (color → hex, spacing/radius/fontSize → dimension, fontWeight → number, fontFamily → name or array). Derived from the same normalized `config.tokens` as every other format, so it can't drift.
+
+First step of the agent-contract strategy (`docs/research/agent-contract-strategy.md`): speak the ecosystem's formats so a Coherent-extracted design system drops into any DTCG-aware tool. Emits the widely-interoperable string-value forms; strict 2025.10 object-value forms are a later hardening option.
+
 ## [0.23.7] — 2026-07-20 — fix(extract): drop spacing outliers + collapse breakpoint spam
 
 `coherent extract` deduped spacing but never sorted or outlier-filtered it, and had no breakpoint normalizer — so a real site's computed CSS produced a thin/noisy DESIGN.md: a lone `208px` hero-margin sitting in an otherwise `4–40px` spacing ramp, and a 23-row breakpoints table dumping every declared media-query width (including scraped one-offs named `2300px`).

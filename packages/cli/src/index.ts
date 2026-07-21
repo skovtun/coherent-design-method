@@ -289,7 +289,7 @@ const exportCmd = program
 exportCmd
   .command('tokens')
   .description('Export design tokens to framework-ready files (json + css-variables + tailwind-v4)')
-  .option('--format <fmt>', 'css | tailwind | json (default: all three)')
+  .option('--format <fmt>', 'css | tailwind | json | dtcg (default: all four)')
   .option('--out <dir>', 'Output directory (default: .coherent/tokens)')
   .action(opts => exportTokensCommand(opts))
 
