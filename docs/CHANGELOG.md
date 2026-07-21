@@ -11,6 +11,17 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.23.9] — 2026-07-21 — feat: `coherent manifest` — the agent-contract surface
+
+`coherent manifest` emits a single machine-readable **design contract** as JSON so an AI agent has a contract instead of guessing (the "agent-ready" pattern Meta's astryx popularized). Composes:
+
+- **tokens** — the project's design system in W3C DTCG format,
+- **designContract** — page types, the available design identities (10 atmospheres, with descriptions), and how to fetch the full tiered constraint bundle (`coherent prompt --format json …`),
+- **components** — the 50 available shadcn primitives + the project's shared CID-XXX registry,
+- **cli** — a self-description of every command + its flags, so an agent can *drive* `coherent` without scraping `--help`.
+
+Works outside a project too (emits the static contract: atmospheres + CLI + primitives); inside a project it adds tokens + the shared registry. Defaults to stdout (agent-friendly), `--out <file>` writes a file. Second step of the agent-contract strategy (P2, after `export tokens --format dtcg`).
+
 ## [0.23.8] — 2026-07-21 — feat(export): W3C DTCG token format (`--format dtcg`)
 
 `coherent export tokens --format dtcg` emits `design-system.tokens.json` in the **W3C Design Tokens Community Group** format — the emerging cross-tool standard (first stable spec 2025.10) consumed by Figma, Style Dictionary, Tokens Studio, Framer, and others. Groups are nested objects; each leaf token is `{ $type, $value }` (color → hex, spacing/radius/fontSize → dimension, fontWeight → number, fontFamily → name or array). Derived from the same normalized `config.tokens` as every other format, so it can't drift.
