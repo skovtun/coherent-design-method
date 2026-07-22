@@ -13,7 +13,8 @@
     "format": "prettier --write 'packages/*/src/**/*.{ts,tsx}'",
     "format:check": "prettier --check 'packages/*/src/**/*.{ts,tsx}'",
     "test:quality": "bash packages/cli/tests/quality-smoke.sh",
-  "canary": "node scripts/quality-canary.mjs"
+    "canary": "node scripts/quality-canary.mjs",
+    "test:mcp-e2e": "node packages/cli/tests/mcp-e2e.mjs"
   },
   "keywords": [
     "design-system",

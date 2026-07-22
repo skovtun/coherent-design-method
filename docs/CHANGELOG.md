@@ -21,7 +21,9 @@ Closes the one untested surface left by v0.24.0. `coherent_extract` is the only 
 - **A tripwire for the 2026-07-28 spec revision.** That revision removes the `initialize` handshake outright (the protocol goes stateless), so servers built for `2025-11-25` will not interoperate with clients speaking it. Nothing in this server depends on the handshake — it is a tool-only stdio server with no sessions, no Tasks, no MCP Apps — so the migration is expected to be a pure SDK bump. But it is an SDK bump that moves the wire protocol underneath us, and the dependency range is `^1.29.0`, so it can arrive on its own. The suite now pins `LATEST_PROTOCOL_VERSION`: an SDK release carrying the new revision turns CI red with a pointer to the out-of-band e2e that has to be re-run first, instead of silently breaking someone's editor. Full assessment in ADR-0010.
 - **SEP-986 is Final** — tool names are 1-64 characters from `[A-Za-z0-9_./-]`. The registration test now asserts the normative rule instead of a looser stand-in. All six names conform.
 
-No behavior change to the CLI. Verified out-of-band against the real stdio server + real Chromium (example.com, stripe.com, linear.app).
+- **`pnpm test:mcp-e2e`** — the live e2e is now a committed script (`packages/cli/tests/mcp-e2e.mjs`) rather than something reproduced by hand. It spawns the real stdio server as a subprocess (the only way to prove JSON-RPC framing survives a stray `console.log`) and captures example.com, linear.app and stripe.com with a real Chromium. Out of CI by design: slow, networked, browser-bound. `playwright` is now a CLI devDependency so the script runs off `pnpm install`.
+
+No behavior change to the CLI.
 
 ## [0.24.0] — 2026-07-21 — feat: `coherent mcp` — MCP server (agent-contract P3)
 
