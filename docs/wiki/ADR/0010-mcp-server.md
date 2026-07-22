@@ -47,7 +47,7 @@ Ship `coherent mcp` — a stdio MCP server that is a **thin wrapper over existin
 **Positive.** Coherent is now consumable by Cursor / Claude Code / Copilot / v0 as an MCP server — the distribution channel M5 was gated on. The differentiated tool (`coherent_validate`) is exposed to any agent's generate loop. The refactor left three reusable pure builders behind, tightening the CLI internals.
 
 **Costs / limits.**
-- `coherent_extract` needs the optional `playwright` peer dep and launches headless Chromium; it is not covered by the in-process test suite (browser-bound) — exercised by the extract command's own path + manual e2e.
+- `coherent_extract` needs the optional `playwright` peer dep and launches headless Chromium. Since v0.24.1 it IS covered in-process: the browser factory and the LLM call are the only mocked boundaries, so the SSRF gate, resolver pinning, token extraction, semantic validation and driver lifecycle all run for real in the suite. A real browser is still only exercised by out-of-band e2e (stdio server + live capture), not by CI.
 - The manifest tool omits the CLI self-description (`cli: null`) — agents drive the MCP tools directly, not the CLI, so it's not needed there.
 - Tool naming tracks SEP-986 (in the 2026-07-28 spec RC); the RC's Tasks/Extensions may change server construction later.
 

@@ -11,6 +11,15 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.24.1] — 2026-07-22 — test: `coherent_extract` coverage + capture-timing parity
+
+Closes the one untested surface left by v0.24.0. `coherent_extract` is the only browser-bound MCP tool, so it shipped covered by manual e2e only — a regression in the SSRF gate or the driver lifecycle would have reached a user before it reached CI.
+
+- **The capture pipeline is now tested in-process.** The headless browser and the LLM call are the only mocked boundaries; the SSRF gate, Chromium resolver pinning, deterministic token extraction, semantic-output validation and the driver lifecycle all run for real. 26 new tests cover: loopback / localhost / RFC1918 / cloud-metadata / non-http refusals **before** any browser launch, the browser being closed on every path (including capture failure and semantic failure), the missing-Playwright hint, and the degrade-to-`semantic: null` behavior when the LLM output fails schema validation.
+- **`coherent_extract` gains `timeoutMs` and `settleMs`** — parity with the CLI's `--timeout` / `--settle-ms`. Without `settleMs` an agent had no lever on animation-heavy sites whose hero text is still at `opacity: 0` when the network goes quiet; it just got an empty hero. Both are bounded in the schema (120s / 30s) — the CLI can trust a human not to pass an absurd timeout, an MCP client is a model.
+
+No behavior change to the CLI. Verified out-of-band against the real stdio server + real Chromium (example.com, stripe.com, linear.app).
+
 ## [0.24.0] — 2026-07-21 — feat: `coherent mcp` — MCP server (agent-contract P3)
 
 `coherent mcp` starts a stdio [Model Context Protocol](https://modelcontextprotocol.io) server so any MCP client (Cursor, Claude Code, Copilot, v0) gets a design-identity **contract** it can call, not a `--help` page to scrape. Third and final step of the agent-contract strategy (after `export tokens --format dtcg` and `coherent manifest`). A thin wrapper over Coherent's existing exports — no new engine, no `design-constraints.ts` touch. Six tools, [SEP-986](https://github.com/modelcontextprotocol/modelcontextprotocol/issues/986)-named:
