@@ -10,7 +10,7 @@
 
 import chalk from 'chalk'
 import { writeFile } from 'fs/promises'
-import ora from 'ora'
+import ora, { type Ora } from 'ora'
 import {
   buildExtractedDesignMarkdown,
   buildHostResolverRules,
@@ -68,58 +68,82 @@ export function parseSettleMs(raw: string | undefined): number | undefined {
   return Number(trimmed)
 }
 
-export async function extractCommand(url: string, opts: ExtractOptions = {}): Promise<void> {
-  // Mutually exclusive output flags. `--json` writes JSON to stdout; `--out`
-  // chooses a sink (file or `-`) and the file extension picks the format.
-  // Combining them is ambiguous (`--json --out -.md` would silently emit MD)
-  // — refuse early so scripts get a deterministic contract.
-  if (opts.json && opts.out) {
-    console.error(
-      chalk.red('✗ --json and --out are mutually exclusive. Pick one (--out -.json for stdout JSON via --out).'),
-    )
-    process.exit(1)
-  }
+/** Numeric, already-parsed options for the pure capture pipeline. */
+export interface CaptureExtractionOptions {
+  timeoutMs?: number
+  settleMs?: number
+  headless?: boolean
+  semantic?: boolean
+}
 
+type Snapshot = Awaited<ReturnType<typeof captureSnapshot>>
+
+/** The deterministic (+ optional semantic) extraction result. */
+export interface ExtractionPayload {
+  source: {
+    url: string
+    finalUrl: Snapshot['finalUrl']
+    capturedAt: Snapshot['capturedAt']
+    mode: Snapshot['mode']
+    title: Snapshot['title']
+    loadTimeMs: Snapshot['loadTimeMs']
+  }
+  hero: Snapshot['hero']
+  tokens: ReturnType<typeof extractDesignTokens>
+  semantic: SemanticLlmOutput | null
+}
+
+/**
+ * Progress hooks so a caller can drive its own UI (spinners in the CLI, nothing
+ * in an MCP tool) without the capture pipeline knowing about `ora`.
+ */
+export interface ExtractionHooks {
+  onLaunch?(): void
+  onNavigate?(url: string): void
+  onExtract?(): void
+  onCaptured?(snapshot: Awaited<ReturnType<typeof captureSnapshot>>): void
+  onSemanticStart?(): void
+  onSemanticDone?(semantic: SemanticLlmOutput): void
+  onSemanticError?(message: string): void
+}
+
+/**
+ * Pure extraction pipeline shared by `coherent extract` (CLI) and the
+ * `coherent_extract` MCP tool. Runs the SSRF gate, launches headless Chromium,
+ * captures the snapshot, extracts deterministic tokens, and optionally runs the
+ * semantic LLM pass (degrading to `semantic: null` on LLM failure, matching the
+ * CLI's continue-without behavior). Owns the browser lifecycle (always closes).
+ *
+ * Throws on SSRF rejection, navigation failure, or a browser error — the caller
+ * decides how to surface it. No console output of its own.
+ */
+export async function captureExtraction(
+  url: string,
+  opts: CaptureExtractionOptions = {},
+  hooks: ExtractionHooks = {},
+): Promise<ExtractionPayload> {
   // Pre-navigation SSRF gate. Async because hostnames must DNS-resolve and
   // every A/AAAA record is validated against the private-IP blocklist. The
   // resolved addresses also pin Chromium's resolver, closing the DNS-rebind
   // window between Node's lookup and the browser's.
-  let validated: SsrfGuardResult
-  try {
-    validated = await defaultSsrfGuard(url)
-  } catch (err) {
-    console.error(chalk.red('✗ ' + (err as Error).message))
-    process.exit(1)
-  }
-
-  const timeoutMs = opts.timeout ? parseInt(opts.timeout, 10) : undefined
-  let settleMs: number | undefined
-  try {
-    settleMs = parseSettleMs(opts.settleMs)
-  } catch (err) {
-    console.error(chalk.red(`✗ ${(err as Error).message}`))
-    process.exit(1)
-  }
+  const validated: SsrfGuardResult = await defaultSsrfGuard(url)
   const hostResolverRules = buildHostResolverRules(validated.host, validated.addresses)
 
-  const spinner = ora({ text: `Launching browser…`, color: 'cyan' }).start()
+  hooks.onLaunch?.()
   let driver: Awaited<ReturnType<typeof createPlaywrightDriver>> | null = null
   try {
     driver = await createPlaywrightDriver({ headless: opts.headless ?? true, hostResolverRules })
-    spinner.text = `Navigating to ${url}…`
+    hooks.onNavigate?.(url)
 
-    const snapshot = await captureSnapshot(url, driver, { timeoutMs, settleMs })
-    spinner.text = 'Extracting deterministic tokens…'
+    const snapshot = await captureSnapshot(url, driver, { timeoutMs: opts.timeoutMs, settleMs: opts.settleMs })
+    hooks.onExtract?.()
 
     const tokens = extractDesignTokens(snapshot.computedStyles, { mediaQueries: snapshot.mediaQueries })
-    spinner.succeed(
-      `Captured in ${snapshot.loadTimeMs}ms (mode: ${snapshot.mode})` +
-        (snapshot.networkSettled ? '' : ' — network never settled, captured on load'),
-    )
+    hooks.onCaptured?.(snapshot)
 
     let semantic: SemanticLlmOutput | null = null
     if (opts.semantic) {
-      const semSpinner = ora({ text: 'Running semantic inference (LLM)…', color: 'cyan' }).start()
+      hooks.onSemanticStart?.()
       try {
         const llmCall = createAnthropicSemanticCall()
         semantic = await runSemanticInference(
@@ -132,16 +156,16 @@ export async function extractCommand(url: string, opts: ExtractOptions = {}): Pr
           },
           llmCall,
         )
-        semSpinner.succeed(`Semantic pass: ${semantic.density} · ${semantic.voice.tone.slice(0, 3).join(', ')}`)
+        hooks.onSemanticDone?.(semantic)
       } catch (err) {
         const msg =
           err instanceof SemanticInferenceError ? `LLM output invalid: ${err.message}` : (err as Error).message
-        semSpinner.fail(`Semantic pass failed — continuing without (${msg})`)
+        hooks.onSemanticError?.(msg)
         semantic = null
       }
     }
 
-    const payload = {
+    return {
       source: {
         url,
         finalUrl: snapshot.finalUrl,
@@ -154,6 +178,54 @@ export async function extractCommand(url: string, opts: ExtractOptions = {}): Pr
       tokens,
       semantic,
     }
+  } finally {
+    if (driver) await driver.close().catch(() => {})
+  }
+}
+
+export async function extractCommand(url: string, opts: ExtractOptions = {}): Promise<void> {
+  // Mutually exclusive output flags. `--json` writes JSON to stdout; `--out`
+  // chooses a sink (file or `-`) and the file extension picks the format.
+  // Combining them is ambiguous (`--json --out -.md` would silently emit MD)
+  // — refuse early so scripts get a deterministic contract.
+  if (opts.json && opts.out) {
+    console.error(
+      chalk.red('✗ --json and --out are mutually exclusive. Pick one (--out -.json for stdout JSON via --out).'),
+    )
+    process.exit(1)
+  }
+
+  const timeoutMs = opts.timeout ? parseInt(opts.timeout, 10) : undefined
+  let settleMs: number | undefined
+  try {
+    settleMs = parseSettleMs(opts.settleMs)
+  } catch (err) {
+    console.error(chalk.red(`✗ ${(err as Error).message}`))
+    process.exit(1)
+  }
+
+  const spinner = ora({ text: `Launching browser…`, color: 'cyan' }).start()
+  // A dedicated semantic spinner, created lazily by the onSemanticStart hook so
+  // it lands after the primary spinner has already succeeded.
+  let semSpinner: Ora | null = null
+  try {
+    const payload = await captureExtraction(
+      url,
+      { timeoutMs, settleMs, headless: opts.headless, semantic: opts.semantic },
+      {
+        onNavigate: u => (spinner.text = `Navigating to ${u}…`),
+        onExtract: () => (spinner.text = 'Extracting deterministic tokens…'),
+        onCaptured: snapshot =>
+          spinner.succeed(
+            `Captured in ${snapshot.loadTimeMs}ms (mode: ${snapshot.mode})` +
+              (snapshot.networkSettled ? '' : ' — network never settled, captured on load'),
+          ),
+        onSemanticStart: () => (semSpinner = ora({ text: 'Running semantic inference (LLM)…', color: 'cyan' }).start()),
+        onSemanticDone: semantic =>
+          semSpinner?.succeed(`Semantic pass: ${semantic.density} · ${semantic.voice.tone.slice(0, 3).join(', ')}`),
+        onSemanticError: msg => semSpinner?.fail(`Semantic pass failed — continuing without (${msg})`),
+      },
+    )
 
     if (opts.out) {
       // .md / .markdown → DESIGN.md artifact; everything else → JSON dump.
@@ -192,10 +264,13 @@ export async function extractCommand(url: string, opts: ExtractOptions = {}): Pr
       printSummary(payload)
     }
   } catch (err) {
+    // captureExtraction resolves the semantic spinner internally (success or
+    // its own onSemanticError), and every throw that reaches here happens
+    // either before the semantic pass or during output formatting — so the
+    // primary spinner is the one to fail. The browser is already closed by
+    // captureExtraction's own finally.
     spinner.fail((err as Error).message)
     process.exitCode = 1
-  } finally {
-    if (driver) await driver.close().catch(() => {})
   }
 }
 
