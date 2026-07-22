@@ -7,7 +7,7 @@
 
 **Current version:** 0.24.1
 **Packages:** `@getcoherent/core` + `@getcoherent/cli` (published together, same version)
-**Tests:** 2553 passing
+**Tests:** 2554 passing
 
 ---
 

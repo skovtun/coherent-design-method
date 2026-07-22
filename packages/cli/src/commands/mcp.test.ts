@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '@modelcontextprotocol/sdk/types.js'
 import { registerCoherentTools } from './mcp.js'
 import { captureExtraction, type ExtractionPayload } from './extract.js'
 
@@ -48,9 +49,33 @@ describe('coherent mcp — tool registration', () => {
       'coherent_tokens',
       'coherent_validate',
     ])
-    // Every tool name conforms to MCP naming (SEP-986): [A-Za-z0-9_.-], 1-128.
-    for (const t of tools) expect(t.name).toMatch(/^[A-Za-z0-9_.-]{1,128}$/)
+    // SEP-986 (Final): 1-64 chars, case-sensitive, [A-Za-z0-9_./-] only.
+    for (const t of tools) expect(t.name).toMatch(/^[A-Za-z0-9_./-]{1,64}$/)
     await close()
+  })
+})
+
+describe('MCP protocol revision — upgrade tripwire', () => {
+  /**
+   * This server was built and verified against spec revision 2025-11-25.
+   *
+   * The 2026-07-28 revision is a deliberate clean break: the initialize /
+   * initialized handshake is REMOVED, protocol version + client info + client
+   * capabilities move into `_meta` on every request, and clients may call
+   * `server/discover`. Servers built for 2025-11-25 do not interoperate with
+   * 2026-07-28 clients.
+   *
+   * Nothing in `registerCoherentTools` depends on the handshake, so the
+   * migration is expected to be an SDK bump — but it is an SDK bump that
+   * changes the wire protocol under us. This test turns that into a red CI
+   * run instead of a broken connection in someone's editor.
+   *
+   * When it fails: re-run the out-of-band stdio e2e against a client speaking
+   * the new revision before shipping, then update the pin.
+   */
+  it('is pinned to the revision this server was verified against', () => {
+    expect(LATEST_PROTOCOL_VERSION).toBe('2025-11-25')
+    expect(SUPPORTED_PROTOCOL_VERSIONS).toContain('2025-11-25')
   })
 })
 
