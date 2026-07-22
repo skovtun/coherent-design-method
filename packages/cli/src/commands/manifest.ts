@@ -51,7 +51,14 @@ function describeCli(cmd?: Command): unknown {
   }
 }
 
-export async function manifestCommand(opts: ManifestOptions = {}, cmd?: Command): Promise<void> {
+/**
+ * Build the design-contract manifest object. Shared by `coherent manifest`
+ * (CLI) and the `coherent_manifest` MCP tool. `cmd` supplies the CLI's own
+ * command tree for the self-description section; omit it (MCP) and `cli` is
+ * null. Works in or out of a project — inside one it adds tokens + the shared
+ * registry. No console output.
+ */
+export async function buildManifestDoc(cmd?: Command): Promise<Record<string, unknown>> {
   const project = findConfig()
 
   const atmospheres = Object.entries(ATMOSPHERE_PRESETS).map(([name, a]) => ({ name, description: a.moodPhrase }))
@@ -93,6 +100,11 @@ export async function manifestCommand(opts: ManifestOptions = {}, cmd?: Command)
     doc.components = { shadcnAvailable: getComponentProvider().listNames() }
   }
 
+  return doc
+}
+
+export async function manifestCommand(opts: ManifestOptions = {}, cmd?: Command): Promise<void> {
+  const doc = await buildManifestDoc(cmd)
   const json = JSON.stringify(doc, null, 2) + '\n'
   if (opts.out) {
     const out = resolve(opts.out)

@@ -73,7 +73,29 @@ coherent export tokens --format dtcg     # W3C DTCG design-tokens.json (Figma / 
 coherent manifest                        # Machine-readable design contract for AI agents (JSON: tokens+atmospheres+components+CLI) → stdout
 coherent manifest --out contract.json    # Write the manifest to a file
 coherent export tokens --out ./tokens    # Output directory (default: .coherent/tokens)
+coherent mcp                             # Start the MCP server (stdio) — exposes the design contract + validator to AI agents
 ```
+
+## v0.24.0 — `coherent mcp` (MCP server, agent-contract P3)
+
+Start a stdio [MCP](https://modelcontextprotocol.io) server so an AI agent (Cursor, Claude Code, Copilot, v0) gets a design-identity **contract** it can call, not a `--help` page it has to scrape. Thin wrapper over existing exports. Six SEP-986-named tools:
+
+| Tool | What |
+|---|---|
+| `coherent_validate` ⭐ | Validate a TSX code blob against the constraint system (raw colors, semantic tokens, a11y). The generate→validate→fix loop. |
+| `coherent_extract` | Extract design tokens from a **live URL** (headless Chromium; needs the `playwright` peer dep). |
+| `coherent_constraints` | The tiered constraint bundle for an intent (same payload as `coherent prompt --format json`). |
+| `coherent_manifest` | The static design contract (same as `coherent manifest`). |
+| `coherent_apply_design` | Map an external DESIGN.md onto project tokens (dry-run by default; `apply=true` writes + backup). |
+| `coherent_tokens` | Project tokens in W3C DTCG format. |
+
+Register with an MCP client, e.g. Claude Code:
+
+```bash
+claude mcp add coherent -- coherent mcp
+```
+
+Project-scoped tools (`coherent_tokens`, `coherent_apply_design`) require running from a Coherent project directory and return a clean error otherwise.
 
 ## v0.22.0 — `coherent export tokens` (E3)
 

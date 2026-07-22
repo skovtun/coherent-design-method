@@ -132,6 +132,99 @@ export interface PromptCommandOptions {
   _startDir?: string
 }
 
+export interface PromptBlocks {
+  designThinking: string
+  coreConstraints: string
+  designQualityCommon: string
+  designQualityForType: string
+  visualDepth: string
+  interactionPatterns: string
+  contextualRules: string
+  goldenPatterns: string
+  atmosphereDirective: string
+  alignmentNote: string
+  designMemory: string
+  routeNote: string
+  sharedComponentsNote: string
+}
+
+export interface PromptPayload {
+  intent: string
+  pageType: 'marketing' | 'app' | 'auth'
+  atmosphere: ReturnType<typeof getAtmospherePreset> | null
+  /** Absolute root when run inside a Coherent project, else null. */
+  projectRoot: string | null
+  blocks: PromptBlocks
+  generationInstructions: string
+}
+
+/**
+ * Build the structured constraint bundle for an intent — the single source of
+ * truth shared by `coherent prompt` (all three formats) and the
+ * `coherent_constraints` MCP tool. Throws on an empty/whitespace intent or an
+ * unknown atmosphere preset, infers the page type when not forced, and reads
+ * best-effort project context. No console output — pure.
+ */
+export function buildPromptPayload(
+  intent: string,
+  options: { pageType?: 'marketing' | 'app' | 'auth'; atmosphere?: string; startDir?: string } = {},
+): PromptPayload {
+  // Empty-intent guard lives here (not just in the CLI wrapper) so the MCP
+  // `coherent_constraints` path, which calls this directly, rejects a blank
+  // intent instead of silently defaulting the page type to 'app'.
+  if (!intent || !intent.trim()) {
+    throw new Error('No intent provided')
+  }
+
+  let atmosphereValue: ReturnType<typeof getAtmospherePreset> | undefined
+  if (options.atmosphere) {
+    atmosphereValue = getAtmospherePreset(options.atmosphere)
+    if (!atmosphereValue) {
+      throw new Error(
+        `Unknown atmosphere preset: "${options.atmosphere}". Available: ${listAtmospherePresets().join(', ')}`,
+      )
+    }
+  }
+
+  const pageType = options.pageType ?? inferPageTypeFromIntent(intent)
+
+  // Project context — absent when outside a Coherent project (keeps prompt portable).
+  const projectContext = readProjectContext(options.startDir)
+  const routeNote =
+    projectContext && projectContext.existingRoutes.length > 0
+      ? `EXISTING ROUTES in this project: ${projectContext.existingRoutes.join(', ')}. All internal links MUST point to one of these routes. If a target doesn't exist, use href="#".`
+      : ''
+  const sharedComponentsNote =
+    projectContext && projectContext.sharedComponentsSummary
+      ? `SHARED COMPONENTS already in this project — import from @/components/shared/* instead of recreating inline:\n${projectContext.sharedComponentsSummary}`
+      : ''
+
+  const blocks: PromptBlocks = {
+    designThinking: DESIGN_THINKING,
+    coreConstraints: CORE_CONSTRAINTS,
+    designQualityCommon: DESIGN_QUALITY_COMMON,
+    designQualityForType: getDesignQualityForType(pageType),
+    visualDepth: VISUAL_DEPTH,
+    interactionPatterns: INTERACTION_PATTERNS,
+    contextualRules: selectContextualRules(intent),
+    goldenPatterns: pickGoldenPatterns(intent),
+    atmosphereDirective: atmosphereValue ? renderAtmosphereDirective(atmosphereValue) : '',
+    alignmentNote: ALIGNMENT_NOTE,
+    designMemory: projectContext?.designMemory ?? '',
+    routeNote,
+    sharedComponentsNote,
+  }
+
+  return {
+    intent,
+    pageType,
+    atmosphere: atmosphereValue ?? null,
+    projectRoot: projectContext?.root ?? null,
+    blocks,
+    generationInstructions: buildGenerationInstructions(intent, pageType),
+  }
+}
+
 export async function promptCommand(intent: string | undefined, options: PromptCommandOptions = {}) {
   if (options.listAtmospheres) {
     const names = listAtmospherePresets()
@@ -151,58 +244,32 @@ export async function promptCommand(intent: string | undefined, options: PromptC
     process.exit(1)
   }
 
-  let atmosphereValue: ReturnType<typeof getAtmospherePreset>
-  if (options.atmosphere) {
-    atmosphereValue = getAtmospherePreset(options.atmosphere)
-    if (!atmosphereValue) {
-      const names = listAtmospherePresets().join(', ')
-      console.error(chalk.red(`\n❌ Unknown atmosphere preset: "${options.atmosphere}"`))
-      console.log(chalk.dim(`   Available: ${names}`))
-      console.log(chalk.dim(`   See all: coherent prompt --list-atmospheres\n`))
-      if (options._throwOnError) throw new Error(`Unknown atmosphere: ${options.atmosphere}`)
-      process.exit(1)
-    }
-  }
-
-  const pageType = options.pageType ?? inferPageTypeFromIntent(intent)
   const format = options.format ?? 'markdown'
 
-  // Project context — absent when outside a Coherent project (keeps prompt portable).
-  const projectContext = readProjectContext(options._startDir)
-  const routeNote =
-    projectContext && projectContext.existingRoutes.length > 0
-      ? `EXISTING ROUTES in this project: ${projectContext.existingRoutes.join(', ')}. All internal links MUST point to one of these routes. If a target doesn't exist, use href="#".`
-      : ''
-  const sharedComponentsNote =
-    projectContext && projectContext.sharedComponentsSummary
-      ? `SHARED COMPONENTS already in this project — import from @/components/shared/* instead of recreating inline:\n${projectContext.sharedComponentsSummary}`
-      : ''
-
-  const blocks = {
-    designThinking: DESIGN_THINKING,
-    coreConstraints: CORE_CONSTRAINTS,
-    designQualityCommon: DESIGN_QUALITY_COMMON,
-    designQualityForType: getDesignQualityForType(pageType),
-    visualDepth: VISUAL_DEPTH,
-    interactionPatterns: INTERACTION_PATTERNS,
-    contextualRules: selectContextualRules(intent),
-    goldenPatterns: pickGoldenPatterns(intent),
-    atmosphereDirective: atmosphereValue ? renderAtmosphereDirective(atmosphereValue) : '',
-    alignmentNote: ALIGNMENT_NOTE,
-    designMemory: projectContext?.designMemory ?? '',
-    routeNote,
-    sharedComponentsNote,
+  // Single source of truth — the same builder the `coherent_constraints` MCP
+  // tool uses. It validates the atmosphere; we catch the throw to keep the
+  // friendlier CLI messaging (available list + --list-atmospheres hint).
+  let payload: PromptPayload
+  try {
+    payload = buildPromptPayload(intent, {
+      pageType: options.pageType,
+      atmosphere: options.atmosphere,
+      startDir: options._startDir,
+    })
+  } catch (err) {
+    console.error(chalk.red(`\n❌ ${(err as Error).message}`))
+    console.log(chalk.dim(`   See all presets: coherent prompt --list-atmospheres\n`))
+    if (options._throwOnError) throw err
+    process.exit(1)
   }
+  const { pageType, blocks } = payload
 
   if (format === 'json') {
-    const payload = {
-      intent,
-      pageType,
-      atmosphere: atmosphereValue ?? null,
-      blocks,
-      generationInstructions: buildGenerationInstructions(intent, pageType),
-    }
-    console.log(JSON.stringify(payload, null, 2))
+    // Preserve the documented CLI JSON contract: exactly these five keys.
+    // `projectRoot` is an MCP-payload addition and is intentionally NOT emitted
+    // here so strict-schema consumers of `prompt --format json` don't break.
+    const { intent: i, pageType: pt, atmosphere, blocks: b, generationInstructions } = payload
+    console.log(JSON.stringify({ intent: i, pageType: pt, atmosphere, blocks: b, generationInstructions }, null, 2))
     return
   }
 
@@ -210,8 +277,8 @@ export async function promptCommand(intent: string | undefined, options: PromptC
     const concatenated = [
       `# Coherent constraints for: ${intent}`,
       `# Page type: ${pageType}`,
-      atmosphereValue ? `# Atmosphere: ${options.atmosphere}` : '',
-      projectContext ? `# Project context detected: ${projectContext.root}` : '',
+      payload.atmosphere ? `# Atmosphere: ${options.atmosphere}` : '',
+      payload.projectRoot ? `# Project context detected: ${payload.projectRoot}` : '',
       '',
       blocks.designThinking,
       blocks.coreConstraints,
@@ -236,7 +303,7 @@ export async function promptCommand(intent: string | undefined, options: PromptC
   }
 
   // Default markdown — structured for LLM + human consumption
-  console.log(renderMarkdown(intent, pageType, atmosphereValue, options.atmosphere, blocks))
+  console.log(renderMarkdown(intent, pageType, payload.atmosphere ?? undefined, options.atmosphere, blocks))
 }
 
 function buildGenerationInstructions(intent: string, pageType: 'marketing' | 'app' | 'auth'): string {

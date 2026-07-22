@@ -11,6 +11,21 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.24.0] — 2026-07-21 — feat: `coherent mcp` — MCP server (agent-contract P3)
+
+`coherent mcp` starts a stdio [Model Context Protocol](https://modelcontextprotocol.io) server so any MCP client (Cursor, Claude Code, Copilot, v0) gets a design-identity **contract** it can call, not a `--help` page to scrape. Third and final step of the agent-contract strategy (after `export tokens --format dtcg` and `coherent manifest`). A thin wrapper over Coherent's existing exports — no new engine, no `design-constraints.ts` touch. Six tools, [SEP-986](https://github.com/modelcontextprotocol/modelcontextprotocol/issues/986)-named:
+
+- **`coherent_validate`** ⭐ — validate a TSX code blob against the constraint system (raw colors, semantic tokens, a11y, anti-patterns). The generate → validate → fix loop, applied to design identity. The one tool the other design MCPs don't have.
+- **`coherent_extract`** — extract design tokens from a **live URL** (headless Chromium; SSRF-guarded; needs the optional `playwright` peer dep).
+- **`coherent_constraints`** — the tiered constraint bundle for an intent (the `coherent prompt --format json` payload).
+- **`coherent_manifest`** — the static design contract (the `coherent manifest` document).
+- **`coherent_apply_design`** — map an external DESIGN.md onto the project's tokens (dry-run by default; `apply=true` writes, with a backup revertible by `coherent undo`).
+- **`coherent_tokens`** — the project's tokens in W3C DTCG format.
+
+Register with, e.g., Claude Code: `claude mcp add coherent -- coherent mcp`. Project-scoped tools (`coherent_tokens`, `coherent_apply_design`) require running from a Coherent project and return a clean error otherwise. The stdio JSON-RPC channel is kept clean (stray logs rerouted to stderr).
+
+Internally, the `prompt`, `manifest`, and `extract` command actions were refactored to expose pure builder functions (`buildPromptPayload`, `buildManifestDoc`, `captureExtraction`) now shared by the CLI and the MCP tools — observable CLI behavior is unchanged. Adds `@modelcontextprotocol/sdk` (first runtime MCP dependency; Node ≥18 already required). See ADR-0010.
+
 ## [0.23.9] — 2026-07-21 — feat: `coherent manifest` — the agent-contract surface
 
 `coherent manifest` emits a single machine-readable **design contract** as JSON so an AI agent has a contract instead of guessing (the "agent-ready" pattern Meta's astryx popularized). Composes:
