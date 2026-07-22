@@ -1,15 +1,27 @@
 /**
  * MCP server integration tests. Uses the SDK's in-memory transport pair so a
  * real Client drives the real server registration in-process — no subprocess,
- * no stdio, no browser. Covers tool discovery + each non-browser tool's happy
- * path and error path. `coherent_extract` is browser-bound (playwright) and
- * exercised by the extract command's own suite / manual e2e, not here.
+ * no stdio, no browser. Covers tool discovery + each tool's happy path and
+ * error path.
+ *
+ * `coherent_extract` is the one browser-bound tool. Its capture pipeline is
+ * spied, not replaced: the default implementation stays the REAL
+ * captureExtraction (so the SSRF gate is exercised end-to-end through the MCP
+ * layer — it rejects before any browser launch), and only the happy path is
+ * stubbed per-test. The pipeline itself is covered in extract.test.ts.
  */
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '@modelcontextprotocol/sdk/types.js'
 import { registerCoherentTools } from './mcp.js'
+import { captureExtraction, type ExtractionPayload } from './extract.js'
+
+vi.mock('./extract.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('./extract.js')>()
+  return { ...actual, captureExtraction: vi.fn(actual.captureExtraction) }
+})
 
 async function connectedClient() {
   const server = new McpServer({ name: 'coherent', version: 'test' })
@@ -37,9 +49,33 @@ describe('coherent mcp — tool registration', () => {
       'coherent_tokens',
       'coherent_validate',
     ])
-    // Every tool name conforms to MCP naming (SEP-986): [A-Za-z0-9_.-], 1-128.
-    for (const t of tools) expect(t.name).toMatch(/^[A-Za-z0-9_.-]{1,128}$/)
+    // SEP-986 (Final): 1-64 chars, case-sensitive, [A-Za-z0-9_./-] only.
+    for (const t of tools) expect(t.name).toMatch(/^[A-Za-z0-9_./-]{1,64}$/)
     await close()
+  })
+})
+
+describe('MCP protocol revision — upgrade tripwire', () => {
+  /**
+   * This server was built and verified against spec revision 2025-11-25.
+   *
+   * The 2026-07-28 revision is a deliberate clean break: the initialize /
+   * initialized handshake is REMOVED, protocol version + client info + client
+   * capabilities move into `_meta` on every request, and clients may call
+   * `server/discover`. Servers built for 2025-11-25 do not interoperate with
+   * 2026-07-28 clients.
+   *
+   * Nothing in `registerCoherentTools` depends on the handshake, so the
+   * migration is expected to be an SDK bump — but it is an SDK bump that
+   * changes the wire protocol under us. This test turns that into a red CI
+   * run instead of a broken connection in someone's editor.
+   *
+   * When it fails: re-run the out-of-band stdio e2e against a client speaking
+   * the new revision before shipping, then update the pin.
+   */
+  it('is pinned to the revision this server was verified against', () => {
+    expect(LATEST_PROTOCOL_VERSION).toBe('2025-11-25')
+    expect(SUPPORTED_PROTOCOL_VERSIONS).toContain('2025-11-25')
   })
 })
 
@@ -137,6 +173,171 @@ describe('coherent_apply_design', () => {
     })) as any
     expect(res.isError).toBe(true)
     expect(res.content[0].text).toContain('project')
+    await close()
+  })
+})
+
+describe('coherent_extract', () => {
+  const mockedCapture = vi.mocked(captureExtraction)
+
+  const PAYLOAD: ExtractionPayload = {
+    source: {
+      url: 'https://93.184.216.34/',
+      finalUrl: 'https://93.184.216.34/',
+      capturedAt: '2026-07-22T12:00:00.000Z',
+      mode: 'light',
+      title: 'Example',
+      loadTimeMs: 900,
+    },
+    hero: { text: 'Payments infrastructure', fontSize: 48, source: 'h1' },
+    tokens: { colors: [{ hex: '#635bff', role: 'brand', usage: 'button' }] } as never,
+    semantic: null,
+  }
+
+  beforeEach(() => {
+    mockedCapture.mockClear()
+  })
+
+  it('advertises the URL contract, the SSRF refusal, and the optional peer dep', async () => {
+    const { client, close } = await connectedClient()
+    const { tools } = await client.listTools()
+    const extract = tools.find(t => t.name === 'coherent_extract')!
+    expect(Object.keys(extract.inputSchema.properties ?? {}).sort()).toEqual([
+      'semantic',
+      'settleMs',
+      'timeoutMs',
+      'url',
+    ])
+    expect(extract.inputSchema.required).toEqual(['url'])
+    expect(extract.description).toMatch(/playwright/i)
+    expect(extract.description).toMatch(/SSRF|private/i)
+    await close()
+  })
+
+  it('forwards the capture-timing knobs (CLI --timeout / --settle-ms parity)', async () => {
+    mockedCapture.mockResolvedValueOnce(PAYLOAD)
+    const { client, close } = await connectedClient()
+    await client.callTool({
+      name: 'coherent_extract',
+      arguments: { url: 'https://example.com/', timeoutMs: 60000, settleMs: 1500 },
+    })
+    expect(mockedCapture).toHaveBeenCalledWith('https://example.com/', {
+      semantic: false,
+      timeoutMs: 60000,
+      settleMs: 1500,
+    })
+    await close()
+  })
+
+  it('caps the timing knobs so a model cannot pin a browser open for an hour', async () => {
+    const { client, close } = await connectedClient()
+    const tooLong = (await client.callTool({
+      name: 'coherent_extract',
+      arguments: { url: 'https://example.com/', timeoutMs: 3_600_000 },
+    })) as any
+    const tooSettled = (await client.callTool({
+      name: 'coherent_extract',
+      arguments: { url: 'https://example.com/', settleMs: 600_000 },
+    })) as any
+    const negative = (await client.callTool({
+      name: 'coherent_extract',
+      arguments: { url: 'https://example.com/', settleMs: -1 },
+    })) as any
+
+    expect(tooLong.isError).toBe(true)
+    expect(tooSettled.isError).toBe(true)
+    expect(negative.isError).toBe(true)
+    expect(mockedCapture).not.toHaveBeenCalled()
+    await close()
+  })
+
+  it('rejects a malformed URL at the schema boundary — the pipeline is never entered', async () => {
+    const { client, close } = await connectedClient()
+    const res = (await client.callTool({ name: 'coherent_extract', arguments: { url: 'not a url' } })) as any
+    expect(res.isError).toBe(true)
+    expect(mockedCapture).not.toHaveBeenCalled()
+    await close()
+  })
+
+  it('refuses loopback through the real SSRF gate — no browser is launched', async () => {
+    const { client, close } = await connectedClient()
+    const res = (await client.callTool({
+      name: 'coherent_extract',
+      arguments: { url: 'http://127.0.0.1:8080/' },
+    })) as any
+    expect(res.isError).toBe(true)
+    expect(res.content[0].text).toMatch(/^Extraction failed:/)
+    expect(res.content[0].text).toMatch(/loopback/i)
+    await close()
+  })
+
+  it('refuses the cloud metadata endpoint', async () => {
+    const { client, close } = await connectedClient()
+    const res = (await client.callTool({
+      name: 'coherent_extract',
+      arguments: { url: 'http://169.254.169.254/latest/meta-data/' },
+    })) as any
+    expect(res.isError).toBe(true)
+    expect(res.content[0].text).toMatch(/169\.254/)
+    await close()
+  })
+
+  it('refuses a non-http scheme that zod .url() alone would accept', async () => {
+    const { client, close } = await connectedClient()
+    const res = (await client.callTool({ name: 'coherent_extract', arguments: { url: 'file:///etc/passwd' } })) as any
+    expect(res.isError).toBe(true)
+    expect(res.content[0].text).toMatch(/scheme/i)
+    await close()
+  })
+
+  it('returns the extraction payload as JSON, with the semantic pass off by default', async () => {
+    mockedCapture.mockResolvedValueOnce(PAYLOAD)
+    const { client, close } = await connectedClient()
+    const res = await client.callTool({ name: 'coherent_extract', arguments: { url: 'https://example.com/' } })
+    const out = json(res as any)
+
+    expect(out.source.title).toBe('Example')
+    expect(out.tokens.colors[0].hex).toBe('#635bff')
+    expect(out.semantic).toBeNull()
+    expect(mockedCapture).toHaveBeenCalledWith('https://example.com/', { semantic: false })
+    await close()
+  })
+
+  it('forwards semantic:true to the pipeline', async () => {
+    mockedCapture.mockResolvedValueOnce(PAYLOAD)
+    const { client, close } = await connectedClient()
+    await client.callTool({ name: 'coherent_extract', arguments: { url: 'https://example.com/', semantic: true } })
+    expect(mockedCapture).toHaveBeenCalledWith('https://example.com/', { semantic: true })
+    await close()
+  })
+
+  it('surfaces a missing Playwright install as an actionable error, not a stack trace', async () => {
+    mockedCapture.mockRejectedValueOnce(
+      new Error('PLAYWRIGHT_NOT_INSTALLED: `coherent extract` needs Playwright.\n  npm install -g playwright'),
+    )
+    const { client, close } = await connectedClient()
+    const res = (await client.callTool({
+      name: 'coherent_extract',
+      arguments: { url: 'https://example.com/' },
+    })) as any
+    expect(res.isError).toBe(true)
+    expect(res.content[0].text).toContain('PLAYWRIGHT_NOT_INSTALLED')
+    expect(res.content[0].text).toContain('npm install -g playwright')
+    await close()
+  })
+
+  it('surfaces a navigation timeout as a tool error rather than crashing the server', async () => {
+    mockedCapture.mockRejectedValueOnce(new Error('NAVIGATION_TIMEOUT: https://example.com/ after 30000ms'))
+    const { client, close } = await connectedClient()
+    const res = (await client.callTool({
+      name: 'coherent_extract',
+      arguments: { url: 'https://example.com/' },
+    })) as any
+    expect(res.isError).toBe(true)
+    expect(res.content[0].text).toBe('Extraction failed: NAVIGATION_TIMEOUT: https://example.com/ after 30000ms')
+    // The server survives — a second call still round-trips.
+    const { tools } = await client.listTools()
+    expect(tools).toHaveLength(6)
     await close()
   })
 })

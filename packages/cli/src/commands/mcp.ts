@@ -56,6 +56,14 @@ const PAGE_TYPE = z.enum(['marketing', 'app', 'auth'])
 const NOT_IN_PROJECT = 'Not inside a Coherent project — run this tool from a project directory.'
 
 /**
+ * Upper bounds on the capture-timing knobs. The CLI can trust a human not to
+ * pass --timeout 9999999; an MCP client is a model, so the schema is the only
+ * guard against a tool call that pins a browser open for an hour.
+ */
+const MAX_TIMEOUT_MS = 120_000
+const MAX_SETTLE_MS = 30_000
+
+/**
  * Register all six Coherent tools on a server. Exported so tests can drive the
  * registration without a live stdio transport.
  */
@@ -174,11 +182,30 @@ export function registerCoherentTools(server: McpServer): void {
           .boolean()
           .optional()
           .describe('Run the semantic LLM pass (role inference + voice + density). Needs ANTHROPIC_API_KEY.'),
+        // Parity with the CLI's --timeout / --settle-ms. Without settleMs an
+        // agent has no lever on animation-heavy sites whose hero text is still
+        // at opacity:0 when the network goes quiet — it just gets an empty hero.
+        timeoutMs: z
+          .number()
+          .int()
+          .positive()
+          .max(MAX_TIMEOUT_MS)
+          .optional()
+          .describe(`Navigation timeout in ms (default 30000, max ${MAX_TIMEOUT_MS}).`),
+        settleMs: z
+          .number()
+          .int()
+          .nonnegative()
+          .max(MAX_SETTLE_MS)
+          .optional()
+          .describe(
+            `Extra wait in ms after load before sampling (default 0, max ${MAX_SETTLE_MS}). Use 1000-2000 for sites whose hero animates in after the network settles.`,
+          ),
       },
     },
-    async ({ url, semantic }): Promise<ToolResult> => {
+    async ({ url, semantic, timeoutMs, settleMs }): Promise<ToolResult> => {
       try {
-        const payload = await captureExtraction(url, { semantic: semantic ?? false })
+        const payload = await captureExtraction(url, { semantic: semantic ?? false, timeoutMs, settleMs })
         return ok(payload)
       } catch (err) {
         return fail(`Extraction failed: ${(err as Error).message}`)

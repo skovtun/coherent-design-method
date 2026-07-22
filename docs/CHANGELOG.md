@@ -11,6 +11,20 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.24.1] — 2026-07-22 — test: `coherent_extract` coverage + capture-timing parity
+
+Closes the one untested surface left by v0.24.0. `coherent_extract` is the only browser-bound MCP tool, so it shipped covered by manual e2e only — a regression in the SSRF gate or the driver lifecycle would have reached a user before it reached CI.
+
+- **The capture pipeline is now tested in-process.** The headless browser and the LLM call are the only mocked boundaries; the SSRF gate, Chromium resolver pinning, deterministic token extraction, semantic-output validation and the driver lifecycle all run for real. 26 new tests cover: loopback / localhost / RFC1918 / cloud-metadata / non-http refusals **before** any browser launch, the browser being closed on every path (including capture failure and semantic failure), the missing-Playwright hint, and the degrade-to-`semantic: null` behavior when the LLM output fails schema validation.
+- **`coherent_extract` gains `timeoutMs` and `settleMs`** — parity with the CLI's `--timeout` / `--settle-ms`. Without `settleMs` an agent had no lever on animation-heavy sites whose hero text is still at `opacity: 0` when the network goes quiet; it just got an empty hero. Both are bounded in the schema (120s / 30s) — the CLI can trust a human not to pass an absurd timeout, an MCP client is a model.
+
+- **A tripwire for the 2026-07-28 spec revision.** That revision removes the `initialize` handshake outright (the protocol goes stateless), so servers built for `2025-11-25` will not interoperate with clients speaking it. Nothing in this server depends on the handshake — it is a tool-only stdio server with no sessions, no Tasks, no MCP Apps — so the migration is expected to be a pure SDK bump. But it is an SDK bump that moves the wire protocol underneath us, and the dependency range is `^1.29.0`, so it can arrive on its own. The suite now pins `LATEST_PROTOCOL_VERSION`: an SDK release carrying the new revision turns CI red with a pointer to the out-of-band e2e that has to be re-run first, instead of silently breaking someone's editor. Full assessment in ADR-0010.
+- **SEP-986 is Final** — tool names are 1-64 characters from `[A-Za-z0-9_./-]`. The registration test now asserts the normative rule instead of a looser stand-in. All six names conform.
+
+- **`pnpm test:mcp-e2e`** — the live e2e is now a committed script (`packages/cli/tests/mcp-e2e.mjs`) rather than something reproduced by hand. It spawns the real stdio server as a subprocess (the only way to prove JSON-RPC framing survives a stray `console.log`) and captures example.com, linear.app and stripe.com with a real Chromium. Out of CI by design: slow, networked, browser-bound. `playwright` is now a CLI devDependency so the script runs off `pnpm install`.
+
+No behavior change to the CLI.
+
 ## [0.24.0] — 2026-07-21 — feat: `coherent mcp` — MCP server (agent-contract P3)
 
 `coherent mcp` starts a stdio [Model Context Protocol](https://modelcontextprotocol.io) server so any MCP client (Cursor, Claude Code, Copilot, v0) gets a design-identity **contract** it can call, not a `--help` page to scrape. Third and final step of the agent-contract strategy (after `export tokens --format dtcg` and `coherent manifest`). A thin wrapper over Coherent's existing exports — no new engine, no `design-constraints.ts` touch. Six tools, [SEP-986](https://github.com/modelcontextprotocol/modelcontextprotocol/issues/986)-named:

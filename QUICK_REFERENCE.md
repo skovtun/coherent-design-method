@@ -83,7 +83,7 @@ Start a stdio [MCP](https://modelcontextprotocol.io) server so an AI agent (Curs
 | Tool | What |
 |---|---|
 | `coherent_validate` ⭐ | Validate a TSX code blob against the constraint system (raw colors, semantic tokens, a11y). The generate→validate→fix loop. |
-| `coherent_extract` | Extract design tokens from a **live URL** (headless Chromium; needs the `playwright` peer dep). |
+| `coherent_extract` | Extract design tokens from a **live URL** (headless Chromium; needs the `playwright` peer dep). Optional `timeoutMs` / `settleMs` mirror the CLI's `--timeout` / `--settle-ms` — use `settleMs: 1500` when the hero animates in after load. |
 | `coherent_constraints` | The tiered constraint bundle for an intent (same payload as `coherent prompt --format json`). |
 | `coherent_manifest` | The static design contract (same as `coherent manifest`). |
 | `coherent_apply_design` | Map an external DESIGN.md onto project tokens (dry-run by default; `apply=true` writes + backup). |

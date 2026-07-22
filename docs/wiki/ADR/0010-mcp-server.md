@@ -47,9 +47,19 @@ Ship `coherent mcp` — a stdio MCP server that is a **thin wrapper over existin
 **Positive.** Coherent is now consumable by Cursor / Claude Code / Copilot / v0 as an MCP server — the distribution channel M5 was gated on. The differentiated tool (`coherent_validate`) is exposed to any agent's generate loop. The refactor left three reusable pure builders behind, tightening the CLI internals.
 
 **Costs / limits.**
-- `coherent_extract` needs the optional `playwright` peer dep and launches headless Chromium; it is not covered by the in-process test suite (browser-bound) — exercised by the extract command's own path + manual e2e.
+- `coherent_extract` needs the optional `playwright` peer dep and launches headless Chromium. Since v0.24.1 it IS covered in-process: the browser factory and the LLM call are the only mocked boundaries, so the SSRF gate, resolver pinning, token extraction, semantic validation and driver lifecycle all run for real in the suite. A real browser is still only exercised out-of-band, by `pnpm test:mcp-e2e` (`packages/cli/tests/mcp-e2e.mjs`) — a real stdio subprocess plus live captures of example.com, linear.app and stripe.com. Kept out of CI: slow, networked, browser-bound.
 - The manifest tool omits the CLI self-description (`cli: null`) — agents drive the MCP tools directly, not the CLI, so it's not needed there.
-- Tool naming tracks SEP-986 (in the 2026-07-28 spec RC); the RC's Tasks/Extensions may change server construction later.
+- Tool naming follows SEP-986, which is now **Final**: 1-64 characters, case-sensitive, `[A-Za-z0-9_./-]`. All six names conform with room to spare (longest is `coherent_apply_design`, 21 chars); the registration test asserts the normative rule.
+
+## The 2026-07-28 spec revision (assessed 2026-07-22)
+
+The next spec revision is a deliberate clean break, not an additive one, so it was assessed against this server before it lands.
+
+**What changes.** The `initialize` / `initialized` handshake is removed — the protocol is stateless. Protocol version, client info and client capabilities move into `_meta` on every request; clients may call `server/discover`; `Mcp-Session-Id` disappears. Servers built for `2025-11-25` do **not** interoperate with `2026-07-28` clients. Extensions become first-class, with MCP Apps (SEP-1865) and Tasks (SEP-2663, moved out of the core protocol) as the first two officials. Roots, Sampling and Logging are deprecated under a new lifecycle policy that guarantees ≥12 months between deprecation and removal.
+
+**What it means here.** Nothing. This is a tool-only stdio server: it uses no sessions, no Tasks, no MCP Apps, and none of the three deprecated features. Extensions are opt-in and negotiated — a server that advertises none keeps working. The handshake and `_meta` propagation live entirely inside the SDK's transport layer, below `registerTool`. The migration is expected to be an SDK bump with no change to `registerCoherentTools`.
+
+**What we're waiting on.** `@modelcontextprotocol/sdk@1.29.0` is still the latest published release and speaks up to `2025-11-25`; no SDK supports the new revision yet (Tier 1 SDKs are expected to ship inside the ten-week RC window). Our dependency range is `^1.29.0`, so a 1.x release carrying the new revision reaches users automatically — which is the risk as much as the fix. `mcp.test.ts` pins `LATEST_PROTOCOL_VERSION` as a tripwire: an SDK bump that moves the wire protocol turns CI red and points at the out-of-band stdio e2e that must be re-run before shipping.
 
 ## Alternatives considered
 
