@@ -11,6 +11,20 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.26.0] — 2026-07-23 — feat(extract): broad DOM harvest — real-site token breadth
+
+`coherent extract` captured 20 token categories in its schema but populated only 6-7 on real sites: shadows, gradients, borders, z-index and glassmorphism came back empty, and the type scale collapsed to two steps. Root cause: the sampler read exactly one element per semantic role (`<h1>`, `<section>`, `[class*="card"]`, …), and modern sites (Stripe, Vercel, Linear) render `<div>` + utility classes, so those anchors find one heading and no cards. Every value-based extractor was starved.
+
+Adds a **broad DOM harvest** (`sampleBroadElementsInPage`) that walks the visible DOM (capped at 5000 scanned / 600 kept) and feeds the value-based extractors every element carrying a visual signal (shadow, gradient, border, radius, backdrop-blur, positive z-index) or its own text. Measured on live stripe.com: **7 → 13 sections** — shadows (the signature `rgba(50,50,93,0.12) 0 16px 32px` elevation set), 10 brand gradients, 7 border styles, the z-index ladder, `backdrop-filter: blur(12px)`, and a full 7-step type ramp (display → body → small) instead of h1+body.
+
+Deliberately scoped to avoid regressions:
+- **Colours, brand-salience, and link/form/icon/container extractors stay on the curated anchors** — flooding the palette with hundreds of harvested elements would wreck the tuned brand-color logic (v0.22.4). The harvest carries a distinct `element` role those extractors ignore.
+- **Type ramp uses the modal (most-repeated) rendered size as `body`**, not the anchor `<p>` — on real sites the first paragraph is often a large lead, which would push the whole ramp down. One-off text sizes (< 2 occurrences) are dropped as decorative noise.
+- **Spacing stays on anchors** — padding/margin/gap across the whole DOM is mostly 1-2px incidental values that swamp the real 8/16/24 rhythm.
+- **Every value category is capped** (shadows/backgrounds/borders/radius 12, gradients/patterns 10, z-index 16, motion 14) so a busy page can't flood the output.
+
+Anchor-only callers (the fixture suite, any consumer passing curated samples) are byte-identical — the harvest engages only when live capture supplies `element` samples. Colour role labels (brand vs accent) still need the `--semantic` LLM pass; this release is about deterministic breadth. 16 new tests.
+
 ## [0.25.0] — 2026-07-23 — feat(export): conformant W3C DTCG 2025.10 object-value tokens
 
 The DTCG output shipped in v0.23.8 used the bare-string value forms (`$value: "#3b82f6"`, `$value: "1rem"`). Those are **not conformant** to the now-stable **2025.10** spec (published 2025-10-28), which makes both `color` and `dimension` normative MUST-be-object types. A strict validator (Style Dictionary v5, Tokens Studio, Figma variables import) rejects the string forms. This makes the output conformant.

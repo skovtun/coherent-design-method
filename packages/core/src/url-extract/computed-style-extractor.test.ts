@@ -381,4 +381,104 @@ describe('extractDesignTokens', () => {
       expect(t.breakpoints.strategy).toBe('unknown')
     })
   })
+
+  // ── broad DOM harvest (role: 'element') ────────────────────────────────────
+  // The breadth pass that lets shadows/gradients/borders/radius/type-ramp
+  // populate on real sites, WITHOUT diluting the tuned color/salience logic.
+  describe('broad harvest', () => {
+    const el = (styles: Record<string, string>, text = false): ComputedStyleSample => ({
+      selector: 'div',
+      role: 'element',
+      styles,
+      text,
+    })
+
+    it('aggregates shadows/borders/radius/z-index from element samples the anchors lack', () => {
+      const t = extractDesignTokens([
+        sample('body', { color: 'rgb(0,0,0)' }), // an anchor with none of these
+        el({ 'box-shadow': 'rgba(0,0,0,0.1) 0px 4px 8px 0px' }),
+        el({ border: '1px solid rgb(229, 231, 235)' }),
+        el({ 'border-radius': '12px' }),
+        el({ 'z-index': '50' }),
+      ])
+      expect(t.shadows.map(s => s.value)).toContain('rgba(0,0,0,0.1) 0px 4px 8px 0px')
+      expect(t.borderStyles).toHaveLength(1)
+      expect(t.radius.map(r => r.px)).toContain(12)
+      expect(t.zIndexScale.map(z => z.z)).toContain(50)
+    })
+
+    it('does NOT let element colors into the palette (brand salience is anchors-only)', () => {
+      const t = extractDesignTokens([
+        sample('body', { color: 'rgb(0,0,0)', 'background-color': 'rgb(255,255,255)' }),
+        sample('a', { color: 'rgb(99,91,255)' }), // the real brand color, on an anchor
+        el({ color: 'rgb(255,0,0)', 'background-color': 'rgb(0,255,0)' }), // garish harvested noise
+      ])
+      const hexes = t.colors.map(c => c.hex)
+      expect(hexes).toContain('#635bff') // anchor brand survives
+      expect(hexes).not.toContain('#ff0000') // harvested noise excluded
+      expect(hexes).not.toContain('#00ff00')
+    })
+
+    it('builds a multi-step type ramp from harvested text, body = the MODAL size', () => {
+      // 48/32/24 headings appear once each; 16px body copy repeats (modal).
+      const samples: ComputedStyleSample[] = [
+        sample('h1', { 'font-size': '48px', 'font-weight': '700' }),
+        sample('p', { 'font-size': '16px' }),
+        el({ 'font-size': '48px' }, true),
+        el({ 'font-size': '32px' }, true),
+        el({ 'font-size': '32px' }, true),
+        el({ 'font-size': '24px' }, true),
+        el({ 'font-size': '24px' }, true),
+        ...Array.from({ length: 6 }, () => el({ 'font-size': '16px' }, true)), // modal body
+        el({ 'font-size': '13px' }, true),
+        el({ 'font-size': '13px' }, true),
+      ]
+      const t = extractDesignTokens(samples)
+      const byRole = Object.fromEntries(t.typography.scale.map(s => [s.role, s.fontSize]))
+      expect(byRole.body).toBe('16px') // modal wins, not the 48px anchor h1
+      expect(byRole.display).toBe('48px')
+      expect(byRole.small).toBe('13px')
+      // supra-body sizes get descending heading labels
+      expect(t.typography.scale.filter(s => ['h1', 'h2', 'h3'].includes(s.role)).length).toBeGreaterThanOrEqual(2)
+    })
+
+    it('drops one-off harvested text sizes (< 2 occurrences) as decorative noise', () => {
+      const samples: ComputedStyleSample[] = [
+        sample('p', { 'font-size': '16px' }),
+        ...Array.from({ length: 4 }, () => el({ 'font-size': '16px' }, true)),
+        el({ 'font-size': '41px' }, true), // appears once → noise
+      ]
+      const t = extractDesignTokens(samples)
+      expect(t.typography.scale.map(s => s.fontSize)).not.toContain('41px')
+    })
+
+    it('caps shadows so a busy page cannot flood the output', () => {
+      const many = Array.from({ length: 30 }, (_, i) => el({ 'box-shadow': `rgba(0,0,0,0.1) 0px ${i + 1}px 8px 0px` }))
+      const t = extractDesignTokens([sample('body', {}), ...many])
+      expect(t.shadows.length).toBeLessThanOrEqual(12)
+    })
+
+    it('keeps spacing on the anchors so harvested 1-2px noise does not swamp the rhythm', () => {
+      const t = extractDesignTokens([
+        sample('section', { padding: '24px', gap: '16px' }),
+        el({ padding: '1px', margin: '2px', gap: '3px' }), // incidental micro-spacing
+      ])
+      const px = t.spacing.map(s => s.px)
+      expect(px).toContain(16)
+      expect(px).toContain(24)
+      expect(px).not.toContain(1)
+      expect(px).not.toContain(3)
+    })
+
+    it('anchor-only input is byte-identical (no element samples = legacy path)', () => {
+      const anchorsOnly: ComputedStyleSample[] = [
+        sample('h1', { 'font-size': '48px' }),
+        sample('h2', { 'font-size': '24px' }),
+        sample('p', { 'font-size': '16px' }),
+      ]
+      const t = extractDesignTokens(anchorsOnly)
+      // Legacy semantic-tag scale: h1, h2, body — no 'display'/'small' ramp.
+      expect(t.typography.scale.map(s => s.role)).toEqual(['h1', 'h2', 'body'])
+    })
+  })
 })

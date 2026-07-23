@@ -73,7 +73,9 @@ export function parseGradients(samples: ComputedStyleSample[]): GradientToken[] 
       }
     }
   }
-  return out
+  // Cap: the broad DOM harvest can surface many one-off gradients; a specimen
+  // wants the signature few, not every decorative fill on the page.
+  return out.slice(0, 10)
 }
 
 /** Internal: pull each `(linear|radial|conic)-gradient(...)` substring respecting paren depth. */
@@ -151,7 +153,7 @@ export function parsePatterns(samples: ComputedStyleSample[]): ExtractedDesignTo
       }
     }
   }
-  return out
+  return out.slice(0, 10)
 }
 
 /** Pull every `url("…")` (or unquoted) substring. */

@@ -296,6 +296,109 @@ export function sampleComputedStylesInPage(): ComputedStyleSample[] {
 export const SAMPLE_COMPUTED_STYLES_SCRIPT = `(${sampleComputedStylesInPage.toString()})()`
 
 /**
+ * Broad DOM harvest — the breadth pass that the 19-anchor sampler above cannot
+ * provide. Walks the visible DOM and keeps every element that carries a
+ * value-bearing visual signal (shadow, gradient, border, radius, backdrop-blur,
+ * positive z-index) OR renders its own text. Each kept element is tagged with
+ * the generic `element` role.
+ *
+ * Why this exists: real sites (Stripe, Vercel, Linear) render `<div>` + utility
+ * classes, not `<h2>`/`<section>`/`<article>`, so the semantic-anchor sampler
+ * finds one heading and no cards, and the shadow/gradient/border/type-scale
+ * extractors come back nearly empty. This pass feeds those extractors the whole
+ * page. It is INTENTIONALLY not consumed by the color / brand-salience / link /
+ * form / icon / container extractors (see extractDesignTokens), so the tuned
+ * palette logic keeps seeing only the curated anchors.
+ *
+ * Bounded for cost + noise: scans at most MAX_SCAN elements and keeps at most
+ * MAX_KEEP. Self-contained (no outer refs) because it is stringified into
+ * page.evaluate.
+ */
+export function sampleBroadElementsInPage(): Array<{
+  selector: string
+  role: 'element'
+  styles: Record<string, string>
+  text: boolean
+}> {
+  const styleProps = [
+    'color',
+    'background',
+    'background-color',
+    'background-image',
+    'font-family',
+    'font-size',
+    'font-weight',
+    'line-height',
+    'letter-spacing',
+    'border',
+    'border-radius',
+    'box-shadow',
+    'padding',
+    'margin',
+    'gap',
+    'transition',
+    'transition-duration',
+    'transition-timing-function',
+    'transition-property',
+    'outline',
+    'outline-offset',
+    'opacity',
+    'text-decoration',
+    'backdrop-filter',
+    'z-index',
+    'max-width',
+  ]
+  const MAX_SCAN = 5000
+  const MAX_KEEP = 600
+  const out: Array<{ selector: string; role: 'element'; styles: Record<string, string>; text: boolean }> = []
+  const all = document.querySelectorAll('*')
+  let scanned = 0
+  for (let idx = 0; idx < all.length; idx++) {
+    if (out.length >= MAX_KEEP || scanned >= MAX_SCAN) break
+    scanned++
+    const el = all[idx] as HTMLElement
+    const rect = el.getBoundingClientRect()
+    if (rect.width < 4 || rect.height < 4) continue
+    const cs = getComputedStyle(el)
+    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') continue
+
+    let hasText = false
+    for (let c = 0; c < el.childNodes.length; c++) {
+      const node = el.childNodes[c]
+      if (node.nodeType === 3 && node.textContent && node.textContent.trim().length > 0) {
+        hasText = true
+        break
+      }
+    }
+    const g = (k: string) => cs.getPropertyValue(k)
+    const shadow = g('box-shadow')
+    const bgImage = g('background-image')
+    const radius = g('border-radius')
+    const border = g('border')
+    const backdrop = g('backdrop-filter')
+    const zRaw = g('z-index')
+    const z = parseInt(zRaw, 10)
+    const hasSignal =
+      (!!shadow && shadow !== 'none') ||
+      (!!bgImage && bgImage !== 'none') ||
+      (!!radius && radius !== '0px' && radius !== '') ||
+      (!!border && border !== 'none' && !border.startsWith('0px')) ||
+      (!!backdrop && backdrop !== 'none' && backdrop !== '') ||
+      (Number.isFinite(z) && z > 0)
+    if (!hasText && !hasSignal) continue
+
+    const styles: Record<string, string> = {}
+    for (let i = 0; i < styleProps.length; i++) {
+      const v = cs.getPropertyValue(styleProps[i])
+      if (v) styles[styleProps[i]] = v
+    }
+    out.push({ selector: el.tagName.toLowerCase(), role: 'element', styles, text: hasText })
+  }
+  return out
+}
+export const SAMPLE_BROAD_ELEMENTS_SCRIPT = `(${sampleBroadElementsInPage.toString()})()`
+
+/**
  * In-page extraction of @media query rule text from all reachable stylesheets.
  * Cross-origin sheets throw on .cssRules access — caught silently per sheet.
  */
@@ -663,14 +766,24 @@ export async function captureSnapshot(
       await page.waitForTimeout(settleMs)
     }
 
-    const [hero, computedStyles, mediaQueries, mode, copyText, title] = await Promise.all([
+    const [hero, anchorStyles, broadStyles, mediaQueries, mode, copyText, title] = await Promise.all([
       page.evaluate<HeroDetection>(HERO_DETECTION_SCRIPT),
       page.evaluate<ComputedStyleSample[]>(SAMPLE_COMPUTED_STYLES_SCRIPT),
+      // The broad harvest can throw on pathological DOMs; degrade to anchors-only
+      // rather than fail the whole capture.
+      page.evaluate<ComputedStyleSample[]>(SAMPLE_BROAD_ELEMENTS_SCRIPT).catch(() => [] as ComputedStyleSample[]),
       page.evaluate<string[]>(EXTRACT_MEDIA_QUERIES_SCRIPT),
       page.evaluate<'light' | 'dark' | 'cream'>(DETECT_MODE_SCRIPT),
       page.evaluate<string>(EXTRACT_COPY_TEXT_SCRIPT),
       page.title(),
     ])
+    // Anchors first (curated roles the color/state extractors read), then the
+    // broad harvest (role 'element') that only the value-based extractors use.
+    // Null-safe: mocked pages (and pathological evaluates) can return non-arrays.
+    const computedStyles = [
+      ...(Array.isArray(anchorStyles) ? anchorStyles : []),
+      ...(Array.isArray(broadStyles) ? broadStyles : []),
+    ]
 
     const metaDescription = await page.evaluate<string>(EXTRACT_META_DESCRIPTION_SCRIPT).catch(() => '')
 

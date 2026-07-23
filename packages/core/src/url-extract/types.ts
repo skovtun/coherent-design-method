@@ -306,8 +306,19 @@ export interface ComputedStyleSample {
     | 'icon'
     | 'footer'
     | 'nav'
+    // Generic element from the broad DOM harvest (sampleBroadElementsInPage).
+    // Feeds the value-based extractors (shadows, gradients, borders, radius,
+    // type ramp, backgrounds, z-index, glassmorphism) so they populate on real
+    // sites that render divs+utilities instead of semantic tags. The color /
+    // brand-salience / role-state extractors deliberately IGNORE this role so
+    // the tuned palette logic is not diluted by hundreds of harvested elements.
+    | 'element'
   styles: Record<string, string>
   pseudo?: 'hover' | 'focus' | 'focus-visible' | 'active' | 'visited' | 'disabled'
+  /** True when the element renders its own (non-whitespace) text node. Only set
+   * by the broad harvest; lets the type-ramp cluster real text sizes and skip
+   * inherited wrapper sizes. */
+  text?: boolean
 }
 
 export interface ExtractOptions {
