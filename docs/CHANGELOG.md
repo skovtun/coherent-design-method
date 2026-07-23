@@ -11,6 +11,19 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.25.0] — 2026-07-23 — feat(export): conformant W3C DTCG 2025.10 object-value tokens
+
+The DTCG output shipped in v0.23.8 used the bare-string value forms (`$value: "#3b82f6"`, `$value: "1rem"`). Those are **not conformant** to the now-stable **2025.10** spec (published 2025-10-28), which makes both `color` and `dimension` normative MUST-be-object types. A strict validator (Style Dictionary v5, Tokens Studio, Figma variables import) rejects the string forms. This makes the output conformant.
+
+- **color** `$value` is now the sRGB object `{ colorSpace: "srgb", components: [r,g,b], hex, alpha? }` — components in `[0,1]`, `hex` kept as a fallback for tools that haven't adopted the components form, `alpha` emitted only when the color isn't fully opaque. Matches the Color-module worked example exactly (`#635bff` → `[0.3882, 0.3569, 1]`).
+- **dimension** (`spacing`, `radius`, `fontSize`) `$value` is now `{ value, unit }` with `unit` restricted to `px | rem`. Unitless `0` becomes `{ value: 0, unit: "px" }` — the spec requires a unit even at zero.
+- **fontFamily** (name or array) and **fontWeight** (number) were already conformant and are unchanged.
+- Anything the converters can't faithfully represent (an exotic color function, a `vh`/`%` dimension) falls back to its raw string `$value` for that one token — lossless, never dropped. In practice this never triggers: Coherent stores hex colors and px/rem dimensions.
+
+**This changes the shape of `--format dtcg` output**, and of the DTCG tokens embedded in `coherent manifest` and returned by the `coherent_tokens` MCP tool. The previous shape was non-conformant, so this is a correctness fix, not a feature toggle — there is no flag to re-emit the broken string form. Consumers reading the `hex` field get the same value as before; consumers reading `$value` as a string need to read `$value.hex` (color) or `$value.value`+`$value.unit` (dimension).
+
+Verified: the real exported file passes an independent validator written straight from the 2025.10 normative text (43/43 color+dimension tokens conform), plus 45 new unit tests including the spec's own worked example.
+
 ## [0.24.1] — 2026-07-22 — test: `coherent_extract` coverage + capture-timing parity
 
 Closes the one untested surface left by v0.24.0. `coherent_extract` is the only browser-bound MCP tool, so it shipped covered by manual e2e only — a regression in the SSRF gate or the driver lifecycle would have reached a user before it reached CI.
@@ -55,7 +68,7 @@ Works outside a project too (emits the static contract: atmospheres + CLI + prim
 
 `coherent export tokens --format dtcg` emits `design-system.tokens.json` in the **W3C Design Tokens Community Group** format — the emerging cross-tool standard (first stable spec 2025.10) consumed by Figma, Style Dictionary, Tokens Studio, Framer, and others. Groups are nested objects; each leaf token is `{ $type, $value }` (color → hex, spacing/radius/fontSize → dimension, fontWeight → number, fontFamily → name or array). Derived from the same normalized `config.tokens` as every other format, so it can't drift.
 
-First step of the agent-contract strategy (`docs/research/agent-contract-strategy.md`): speak the ecosystem's formats so a Coherent-extracted design system drops into any DTCG-aware tool. Emits the widely-interoperable string-value forms; strict 2025.10 object-value forms are a later hardening option.
+First step of the agent-contract strategy (`docs/research/agent-contract-strategy.md`): speak the ecosystem's formats so a Coherent-extracted design system drops into any DTCG-aware tool. (Shipped the string-value forms; hardened to conformant 2025.10 object-value forms in v0.25.0.)
 
 ## [0.23.7] — 2026-07-20 — fix(extract): drop spacing outliers + collapse breakpoint spam
 

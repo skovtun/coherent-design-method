@@ -55,17 +55,54 @@ describe('buildDtcgTokens (W3C DTCG format)', () => {
     expect(typeof parsed.$description).toBe('string')
   })
 
-  it('emits color tokens as { $type: color, $value } under light/dark groups', () => {
-    expect(parsed.color.light.primary).toEqual({ $type: 'color', $value: config.tokens.colors.light.primary })
-    expect(parsed.color.dark.background.$type).toBe('color')
-    expect(parsed.color.dark.background.$value).toBe(config.tokens.colors.dark.background)
+  it('emits color tokens in the DTCG 2025.10 sRGB object form under light/dark groups', () => {
+    const primary = parsed.color.light.primary
+    expect(primary.$type).toBe('color')
+    // $value is the object form, NOT a bare hex string (2025.10 Color module).
+    expect(typeof primary.$value).toBe('object')
+    expect(primary.$value.colorSpace).toBe('srgb')
+    expect(Array.isArray(primary.$value.components)).toBe(true)
+    expect(primary.$value.components).toHaveLength(3)
+    // hex fallback round-trips the source value for un-upgraded tools.
+    expect(primary.$value.hex).toBe(config.tokens.colors.light.primary.toLowerCase())
+    expect(parsed.color.dark.background.$value.colorSpace).toBe('srgb')
   })
 
-  it('types spacing/radius as dimension', () => {
-    const firstSpacing = Object.values(parsed.spacing ?? {})[0]
-    if (firstSpacing) expect(firstSpacing).toMatchObject({ $type: 'dimension' })
-    const firstRadius = Object.values(parsed.radius ?? {})[0]
-    if (firstRadius) expect(firstRadius).toMatchObject({ $type: 'dimension' })
+  it('color components are all in the sRGB [0,1] range', () => {
+    for (const mode of ['light', 'dark'] as const) {
+      for (const tok of Object.values(parsed.color[mode]) as Array<{ $value: { components: number[] } }>) {
+        for (const c of tok.$value.components) {
+          expect(c).toBeGreaterThanOrEqual(0)
+          expect(c).toBeLessThanOrEqual(1)
+        }
+      }
+    }
+  })
+
+  it('types spacing/radius/fontSize as dimension in the { value, unit } object form', () => {
+    for (const group of ['spacing', 'radius', 'fontSize'] as const) {
+      for (const tok of Object.values(parsed[group] ?? {}) as Array<{ $type: string; $value: unknown }>) {
+        expect(tok.$type).toBe('dimension')
+        // 2025.10: $value MUST be an object with a numeric value and a px|rem unit.
+        expect(typeof tok.$value).toBe('object')
+        const v = tok.$value as { value: number; unit: string }
+        expect(typeof v.value).toBe('number')
+        expect(['px', 'rem']).toContain(v.unit)
+      }
+    }
+  })
+
+  it('never leaves a bare-string $value on a color or dimension leaf (2025.10 conformance)', () => {
+    const walk = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return
+      const obj = node as Record<string, unknown>
+      if (obj.$type === 'color' || obj.$type === 'dimension') {
+        expect(typeof obj.$value).toBe('object')
+        return
+      }
+      for (const v of Object.values(obj)) walk(v)
+    }
+    walk(parsed)
   })
 
   it('types fontWeight as a number and fontFamily as a name or array', () => {

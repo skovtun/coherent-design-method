@@ -14,6 +14,7 @@
 import type { DesignSystemConfig } from '@getcoherent/core'
 import { buildCssVariables } from '@getcoherent/core'
 import { generateV4GlobalsCss } from '../utils/tailwind-version.js'
+import { cssColorToDtcg, cssDimensionToDtcg } from './dtcg-values.js'
 
 export const DESIGN_TOKENS_VERSION = '1'
 
@@ -53,13 +54,21 @@ export function buildTailwindV4File(config: DesignSystemConfig): string {
 }
 
 /**
- * W3C Design Tokens Community Group (DTCG) format — the emerging cross-tool
- * standard (`.tokens.json`; consumed by Figma, Style Dictionary, Tokens Studio,
- * Framer, …). Groups are nested objects; each leaf token is `{ $type, $value }`.
+ * W3C Design Tokens Community Group (DTCG) format — the cross-tool standard
+ * (`.tokens.json`; consumed by Figma, Style Dictionary, Tokens Studio, Framer,
+ * …). Groups are nested objects; each leaf token is `{ $type, $value }`.
  *
- * Emits the widely-interoperable string-value forms (hex color, "8px" dimension,
- * fontFamily as a name/array). The strict 2025.10 object-value forms
- * (`{ colorSpace, components }`, `{ value, unit }`) are a later hardening option.
+ * Conforms to the stable **2025.10** Format + Color modules
+ * (https://www.designtokens.org/tr/2025.10/): color `$value` is the sRGB object
+ * `{ colorSpace, components, hex[, alpha] }` and dimension `$value` is
+ * `{ value, unit }` — the bare-string forms this generator shipped in v0.23.8
+ * are NOT conformant to 2025.10 and a strict validator rejects them.
+ *
+ * fontFamily (name or array) and fontWeight (number) were already conformant
+ * and are unchanged. Any value the converters cannot faithfully represent
+ * (an exotic color function, a `vh`/`%` dimension) falls back to its raw string
+ * `$value` for that one token — lossless, never silently dropped, and in
+ * practice never hit because Coherent stores hex colors and px/rem dimensions.
  * Derived from the same `config.tokens` as every other format.
  */
 export function buildDtcgTokens(config: DesignSystemConfig): string {
@@ -67,20 +76,24 @@ export function buildDtcgTokens(config: DesignSystemConfig): string {
   const colorGroup = (palette: Record<string, unknown> | undefined) => {
     const out: Record<string, unknown> = {}
     for (const [k, v] of Object.entries(palette ?? {})) {
-      if (typeof v === 'string') out[k] = { $type: 'color', $value: v }
+      if (typeof v !== 'string') continue
+      const converted = cssColorToDtcg(v)
+      out[k] = { $type: 'color', $value: converted ?? v }
     }
     return out
   }
   const dimGroup = (rec: Record<string, unknown> | undefined) => {
     const out: Record<string, unknown> = {}
     for (const [k, v] of Object.entries(rec ?? {})) {
-      if (v != null) out[k] = { $type: 'dimension', $value: String(v) }
+      if (v == null) continue
+      const converted = cssDimensionToDtcg(v)
+      out[k] = { $type: 'dimension', $value: converted ?? String(v) }
     }
     return out
   }
 
   const doc: Record<string, unknown> = {
-    $description: `Design tokens for ${config.name ?? 'Design System'}, exported by Coherent in W3C DTCG format.`,
+    $description: `Design tokens for ${config.name ?? 'Design System'}, exported by Coherent in W3C DTCG format (2025.10).`,
     color: {
       light: colorGroup(t.colors?.light as Record<string, unknown> | undefined),
       dark: colorGroup(t.colors?.dark as Record<string, unknown> | undefined),
