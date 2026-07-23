@@ -21,21 +21,36 @@ export function extractDesignTokens(
   samples: ComputedStyleSample[],
   opts: ExtractDesignTokensOptions = {},
 ): ExtractedDesignTokens {
-  const colors = extractColors(samples)
+  // Two views of the sample set. `anchors` is the curated 19-role sampler
+  // output (the only thing present in fixture/unit tests, so their behavior is
+  // unchanged). `samples` also includes the broad DOM harvest (role 'element')
+  // when a live capture provided it.
+  //
+  // Colour, brand-salience and role/pseudo-state extractors read ANCHORS ONLY:
+  // diluting the palette with hundreds of harvested elements would wreck the
+  // tuned brand-color logic (v0.22.4). The value-based extractors read the FULL
+  // set so shadows/gradients/borders/radius/type-ramp/backgrounds actually
+  // populate on real, div-heavy sites.
+  const anchors = samples.some(s => s.role === 'element') ? samples.filter(s => s.role !== 'element') : samples
+
+  const colors = extractColors(anchors)
   const typography = extractTypography(samples)
-  const spacing = extractSpacingScale(samples)
+  // Spacing stays on anchors: padding/margin/gap across the whole DOM is mostly
+  // 1-2px incidental values that flood out the real rhythm (8/16/24/32). The
+  // curated anchors give a cleaner spacing scale.
+  const spacing = extractSpacingScale(anchors)
   const radius = extractRadiusScale(samples)
   const shadows = extractShadows(samples)
   const motion = { tokens: extractMotionTokens(samples) }
   const backgrounds = extractBackgrounds(samples)
   const zIndexScale = extractZIndex(samples)
-  const focusRings = extractFocusRings(samples)
-  const linkStates = extractLinkStates(samples)
-  const formControlStates = extractFormControlStates(samples)
-  const containerWidths = extractContainerWidths(samples)
+  const focusRings = extractFocusRings(anchors)
+  const linkStates = extractLinkStates(anchors)
+  const formControlStates = extractFormControlStates(anchors)
+  const containerWidths = extractContainerWidths(anchors)
   const borderStyles = extractBorderStyles(samples)
   const glassmorphism = extractGlassmorphism(samples)
-  const iconStyle = extractIconStyle(samples)
+  const iconStyle = extractIconStyle(anchors)
 
   return normalizeTokens(
     {
@@ -58,7 +73,7 @@ export function extractDesignTokens(
       borderStyles,
       iconStyle,
     },
-    { colorOccurrences: countColorOccurrences(samples) },
+    { colorOccurrences: countColorOccurrences(anchors) },
   )
 }
 
@@ -173,8 +188,11 @@ function bgRoleFor(role: ComputedStyleSample['role']): ExtractedColorToken['role
 // ─── typography ──────────────────────────────────────────────────────────────
 
 function extractTypography(samples: ComputedStyleSample[]): ExtractedDesignTokens['typography'] {
+  // Families from anchors only: the broad harvest can carry icon-fonts and
+  // one-off decorative faces that would pollute the primary family list.
+  const familySamples = samples.some(s => s.role === 'element') ? samples.filter(s => s.role !== 'element') : samples
   const families = dedupe(
-    samples
+    familySamples
       .map(s => s.styles['font-family'])
       .filter(Boolean)
       .flatMap(ff => ff.split(',').map(f => f.trim().replace(/^["']|["']$/g, '')))
@@ -225,9 +243,9 @@ function extractTypography(samples: ComputedStyleSample[]): ExtractedDesignToken
           return px === null || px > bodySizePx
         })
 
-  const scale: ExtractedDesignTokens['typography']['scale'] = [...survivors]
+  const anchorScale: ExtractedDesignTokens['typography']['scale'] = [...survivors]
   if (body && body.styles['font-size']) {
-    scale.push({
+    anchorScale.push({
       role: 'body',
       fontSize: body.styles['font-size'],
       lineHeight: body.styles['line-height'] || undefined,
@@ -237,11 +255,100 @@ function extractTypography(samples: ComputedStyleSample[]): ExtractedDesignToken
     })
   }
 
+  // Anchor-only path (all fixture/unit tests): behavior is byte-identical to
+  // the semantic-tag scale above. The broad-harvest ramp below only engages
+  // when a live capture supplied role:'element' text samples.
+  const textSamples = samples.filter(s => s.role === 'element' && s.text)
+  const scale = textSamples.length > 0 ? buildClusteredScale(textSamples, anchorScale, bodySizePx) : anchorScale
+
   return {
     families,
     scale,
     bodyLineHeight: body?.styles['line-height'] || undefined,
   }
+}
+
+/**
+ * Cluster a real type ramp from the broad text harvest. Modern sites style
+ * `<div>`s as headings, so the semantic-anchor scale collapses to h1+body; this
+ * recovers the full ramp by bucketing distinct rendered font sizes.
+ *
+ * Merges the anchor scale (whose semantic sizes + metadata are trusted) with
+ * distinct sizes seen on >= 2 harvested text elements (the >= 2 gate drops
+ * one-off decorative sizes), then relabels the whole ramp by descending size:
+ * display, h1..h6 for supra-body sizes, body at the body size, small/caption
+ * below. Capped at 10 steps.
+ */
+function buildClusteredScale(
+  textSamples: ComputedStyleSample[],
+  anchorScale: ExtractedDesignTokens['typography']['scale'],
+  bodySizePx: number | null,
+): ExtractedDesignTokens['typography']['scale'] {
+  type Step = ExtractedDesignTokens['typography']['scale'][number]
+  // Bucket harvested text by rounded px; keep the most common weight/family.
+  const buckets = new Map<number, { count: number; step: Step }>()
+  for (const s of textSamples) {
+    const px = parsePx(s.styles['font-size'])
+    if (px === null || px <= 0) continue
+    const key = Math.round(px)
+    const existing = buckets.get(key)
+    if (existing) {
+      existing.count++
+      continue
+    }
+    buckets.set(key, {
+      count: 1,
+      step: {
+        role: 'body', // placeholder; relabeled by rank below
+        fontSize: `${key}px`,
+        lineHeight: s.styles['line-height'] || undefined,
+        fontWeight: parseIntSafe(s.styles['font-weight']),
+        letterSpacing: s.styles['letter-spacing'] || undefined,
+        fontFamily: firstFamily(s.styles['font-family']),
+      },
+    })
+  }
+
+  // Seed from the anchor scale (trusted metadata + semantic sizes), then fold in
+  // harvested sizes that recur (>= 2 elements) and are not already represented.
+  const byPx = new Map<number, Step>()
+  for (const step of anchorScale) {
+    const px = parsePx(step.fontSize)
+    if (px !== null) byPx.set(Math.round(px), step)
+  }
+  for (const { count, step } of buckets.values()) {
+    const px = parsePx(step.fontSize)!
+    const key = Math.round(px)
+    if (byPx.has(key)) continue
+    if (count < 2) continue // one-off size = decorative noise, skip
+    byPx.set(key, step)
+  }
+
+  // Body size = the MODAL rendered text size (body copy is the most-repeated
+  // size on a page). Far more robust than the anchor <p>/<body>, which on real
+  // sites is often a large lead paragraph and would push the whole ramp down.
+  // Falls back to the anchor comparison size, then 16px.
+  let bodyPx = bodySizePx ?? 16
+  let bestCount = 0
+  for (const [px, { count }] of buckets) {
+    if (count > bestCount) {
+      bestCount = count
+      bodyPx = px
+    }
+  }
+
+  const sorted = [...byPx.entries()].sort((a, b) => b[0] - a[0])
+  const supra = sorted.filter(([px]) => px > bodyPx + 1)
+  const atBody = sorted.filter(([px]) => Math.abs(px - bodyPx) <= 1)
+  const sub = sorted.filter(([px]) => px < bodyPx - 1)
+
+  // TypeStep.role has no 'caption'; the single below-body step is 'small'.
+  const headingNames: Step['role'][] = ['display', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']
+  const out: Step[] = []
+  supra.slice(0, headingNames.length).forEach(([, step], i) => out.push({ ...step, role: headingNames[i] }))
+  if (atBody.length > 0) out.push({ ...atBody[0][1], role: 'body' })
+  if (sub.length > 0) out.push({ ...sub[0][1], role: 'small' })
+  return out.slice(0, 10)
 }
 
 function parseIntSafe(v: string | undefined): number | undefined {
@@ -293,6 +400,7 @@ function extractRadiusScale(samples: ComputedStyleSample[]): ExtractedDesignToke
   }
   return Array.from(values)
     .sort((a, b) => a - b)
+    .slice(0, 12)
     .map(px => ({ px }))
 }
 
@@ -306,7 +414,9 @@ function extractShadows(samples: ComputedStyleSample[]): ExtractedDesignTokens['
     seen.add(v)
     out.push({ value: v })
   }
-  return out
+  // Cap: the broad harvest can surface dozens of near-identical elevation
+  // shadows; a design system rarely has more than a handful of distinct steps.
+  return out.slice(0, 12)
 }
 
 // ─── motion ──────────────────────────────────────────────────────────────────
@@ -334,7 +444,7 @@ function extractMotionTokens(samples: ComputedStyleSample[]): ExtractedDesignTok
       out.push({ duration: `${d}ms`, easing: e, property: props[i] || props[0] || undefined })
     }
   }
-  return out
+  return out.slice(0, 14)
 }
 
 // ─── backgrounds ─────────────────────────────────────────────────────────────
@@ -361,7 +471,9 @@ function extractBackgrounds(samples: ComputedStyleSample[]): ExtractedDesignToke
     }
     if (role && !roles[role]) roles[role] = hex
   }
-  return { solid, roles }
+  // Cap the flat solid list (the broad harvest can surface many near-neutral
+  // fills); the role map keeps the semantically-anchored page/section/card.
+  return { solid: solid.slice(0, 12), roles }
 }
 
 // ─── z-index / containers / glassmorphism ────────────────────────────────────
@@ -392,7 +504,7 @@ function extractZIndex(samples: ComputedStyleSample[]): ExtractedDesignTokens['z
     const layer = LAYER_MEANINGFUL_ROLES.has(s.role) ? s.role : n < 0 ? `-z-${Math.abs(n)}` : `z-${n}`
     out.push({ layer, z: n })
   }
-  return out.sort((a, b) => a.z - b.z)
+  return out.sort((a, b) => a.z - b.z).slice(0, 16)
 }
 
 function extractContainerWidths(samples: ComputedStyleSample[]): ExtractedDesignTokens['containerWidths'] {
@@ -514,7 +626,7 @@ function extractBorderStyles(samples: ComputedStyleSample[]): ExtractedDesignTok
       style: m[2] as 'solid' | 'dashed' | 'dotted' | 'double',
     })
   }
-  return out
+  return out.slice(0, 12)
 }
 
 // ─── icon style ──────────────────────────────────────────────────────────────
