@@ -3,8 +3,9 @@
 </h1>
 
 <p align="center">
-  AI-powered design system generator.<br>
-  Describe what you need — get interconnected pages with shared components, design tokens, and auto-generated documentation.
+  Open-source platform that builds consistent multi-page prototypes and full frontend UI from a prompt.<br>
+  As the UI is generated, a design system grows alongside it — tokens, style, and reusable components that keep every page in one visual language.<br>
+  Extract a system from any live site, export it to DTCG / CSS / Tailwind, and hand it to AI agents over MCP.
 </p>
 
 <p align="center">
@@ -18,7 +19,7 @@
 
 <p align="center">
   <a href="https://youtu.be/A-rCpn6O3SI">
-    <img src="https://img.youtube.com/vi/A-rCpn6O3SI/maxresdefault.jpg" alt="Coherent Design Method — AI-powered design system generator" width="100%">
+    <img src="https://img.youtube.com/vi/A-rCpn6O3SI/maxresdefault.jpg" alt="Coherent Design Method — open-source platform for consistent multi-page UI and design systems" width="100%">
   </a>
 </p>
 

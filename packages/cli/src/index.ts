@@ -111,7 +111,7 @@ function hidden(cmd: Command): Command {
 program
   .name('coherent')
   .description(
-    'Coherent Design Method — AI-powered design system generator\nby Sergei Kovtun · https://www.linkedin.com/in/sergeikovtun/',
+    'Coherent Design Method — open-source platform for consistent multi-page UI and design systems\nby Sergei Kovtun · https://www.linkedin.com/in/sergeikovtun/',
   )
   .version(CLI_VERSION)
   // Update-notifier opt-out (v0.11.2). Suppresses the npm-version-newer
