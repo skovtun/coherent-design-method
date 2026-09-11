@@ -4,7 +4,7 @@
     "access": "public"
   },
   "version": "0.26.0",
-  "description": "CLI interface for Coherent Design Method",
+  "description": "Open-source platform that builds consistent multi-page UI from a prompt, growing a design system of tokens and reusable components alongside",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

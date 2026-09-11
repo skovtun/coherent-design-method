@@ -1,7 +1,7 @@
 {
   "name": "coherent-design-method",
   "version": "0.6.0",
-  "description": "AI-powered design system generator with stateful component management - BMAD for frontend",
+  "description": "Open-source platform that builds consistent multi-page UI from a prompt, growing a design system of tokens and reusable components alongside",
   "private": true,
   "type": "module",
   "scripts": {
