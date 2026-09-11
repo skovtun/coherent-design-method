@@ -151,6 +151,21 @@ Phase 2 extracts **atmosphere** from your prompt — mood phrases like "premium 
 | `coherent status` | Show current project status |
 | `coherent components list` | List all shared and UI components |
 | `coherent chat -i` | Interactive chat mode (REPL) |
+| `coherent extract <url>` | Extract a design system (tokens, type scale, surfaces) from a live site into DESIGN.md |
+| `coherent import design <file>` | Apply an external DESIGN.md to your project's tokens |
+| `coherent export tokens` | Export tokens as W3C DTCG JSON, CSS variables, and Tailwind config |
+| `coherent manifest` | Print the design contract (tokens, components, rules) for AI agents |
+| `coherent mcp` | Start the MCP server so AI agents can call Coherent directly |
+
+### AI agents (MCP)
+
+`coherent mcp` starts a stdio [MCP](https://modelcontextprotocol.io) server. An agent in Claude Code, Cursor, or any MCP client gets your design system as a contract it can call: validate generated TSX against the constraint system, read tokens (W3C DTCG), extract a system from a URL, or apply a DESIGN.md.
+
+```bash
+claude mcp add coherent -- coherent mcp
+```
+
+Tools: `coherent_validate`, `coherent_extract`, `coherent_constraints`, `coherent_manifest`, `coherent_apply_design`, `coherent_tokens`.
 
 ### Examples
 
@@ -334,7 +349,7 @@ The viewer updates automatically when you add pages or run `coherent sync`.
 
 ## Quality System
 
-Coherent validates generated code against 38+ validators covering typography, spacing, accessibility, color usage, touch targets, interaction states, and CVA-inheritance traps (Button-as-container patterns).
+Coherent validates generated code against 40+ validators covering typography, spacing, accessibility, color usage, touch targets, interaction states, and CVA-inheritance traps (Button-as-container patterns).
 
 ### `coherent check` (read-only diagnostics)
 
