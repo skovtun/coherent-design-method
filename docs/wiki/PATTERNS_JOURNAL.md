@@ -549,6 +549,21 @@ A `max_tokens` raise costs nothing extra per call — you pay per token *generat
 
 ---
 
+## PJ-020 · Eyebrow stacking reads as AI text (and our own rules prescribed it)
+
+**Observed:** In a sister project (the founder's agency site, 17 hero variants reviewed on a verdict board, 2026-10), the most repeated rejection was "too many labels": a pill badge, then an uppercase tracked micro-label (`SHEET 01 /`, `— 02`), then the H1, and an uppercase eyebrow above every section. The reviewer read it as "AI text" before reading any copy. Coherent's marketing output has the same shape.
+
+**Root cause:** our own rules asked for it. `DESIGN_QUALITY_MARKETING` → Step/Process told the model to add a "Label above: text-xs font-semibold tracking-widest uppercase", the hero rule allowed a badge above the headline, and the `mono-labels` atmosphere asked for uppercase section labels. Nothing capped how many, and nothing forbade stacking a badge and an eyebrow above one heading. Sonnet treats an optional pattern as a template and repeats it on every section.
+
+**Fix:**
+- Rule (DESIGN_THINKING → AI SLOP TEST): eyebrow stacking is a red flag on marketing pages. Default is no eyebrow; at most 2 per page; never two above one heading. The hero badge rule and the Step/Process label rule now reference that budget. The `mono-labels` atmosphere is capped to 2 on marketing pages.
+- Motion lesson from the same review (MOTION DECISION FRAMEWORK #5): signature motion tells ONE story readable in ~5s, and captions attach to the object they describe.
+- Validator `EYEBROW_OVERUSE` (warning, marketing pages only): more than 3 `uppercase` + `tracking-*` classNames in a file, `<TableHead>`/`<th>` exempt. The threshold is one above the rule's budget so a page that follows the rule never warns.
+
+**Lesson:** before adding an anti-slop rule, grep for the slop in our own prompts. A pattern marked "optional" in a prompt is still a suggestion the model will apply everywhere unless it carries a count.
+
+---
+
 ## How to add a new entry
 
 1. Observe the failure (screenshot/transcript in the repo's discussion).

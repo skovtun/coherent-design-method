@@ -1317,6 +1317,36 @@ describe('new quality rules v0.6.94', () => {
     const issues = validatePageQuality(code, [])
     expect(issues.some(i => i.type === 'EMOJI_IN_UI')).toBe(false)
   })
+
+  const eyebrow = (n: number) =>
+    Array.from(
+      { length: n },
+      (_, i) => `<p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Section ${i}</p>`,
+    ).join('\n')
+
+  it('EYEBROW_OVERUSE: flags more than 3 uppercase tracked labels', () => {
+    const issues = validatePageQuality(eyebrow(4), [], 'marketing')
+    expect(issues.some(i => i.type === 'EYEBROW_OVERUSE')).toBe(true)
+  })
+
+  it('EYEBROW_OVERUSE: allows up to 3', () => {
+    const issues = validatePageQuality(eyebrow(3), [], 'marketing')
+    expect(issues.some(i => i.type === 'EYEBROW_OVERUSE')).toBe(false)
+  })
+
+  it('EYEBROW_OVERUSE: ignores uppercase table headers', () => {
+    const code = Array.from(
+      { length: 6 },
+      (_, i) => `<TableHead className="text-xs uppercase tracking-wider">Col ${i}</TableHead>`,
+    ).join('\n')
+    const issues = validatePageQuality(code, [], 'marketing')
+    expect(issues.some(i => i.type === 'EYEBROW_OVERUSE')).toBe(false)
+  })
+
+  it('EYEBROW_OVERUSE: does not fire on app pages', () => {
+    const issues = validatePageQuality(eyebrow(6), [], 'app')
+    expect(issues.some(i => i.type === 'EYEBROW_OVERUSE')).toBe(false)
+  })
 })
 
 describe('Visual Sanity Layer v1 (v0.14.0)', () => {

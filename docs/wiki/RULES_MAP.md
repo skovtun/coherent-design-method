@@ -74,6 +74,7 @@ Every validator fires a typed issue. Grep for the type in `quality-validator.ts`
 | `MISSING_ARIA_LABEL` | Icon-only button without aria-label — add aria-label="description" for accessibility |
 | `SMALL_TOUCH_TARGET` | Icon button may be < 44px touch target — add min-h-[44px] or increase padding |
 | `EMOJI_IN_UI` | Emoji character in UI — use Lucide icon instead (vector, scalable, theme-aware) |
+| `EYEBROW_OVERUSE` | … uppercase tracked eyebrow labels — reads as AI text. Keep at most 2 per page; let headings carry sections |
 | `BUTTON_NO_VARIANT_IN_MAP` | <Button> inside .map() callback without explicit variant — default variant is bg-primary, every mapped item will render with the brand color |
 | `BUTTON_AS_ROW_NO_HEIGHT_OVERRIDE` | <Button> in .map() with avatar/multi-line content but no height override (h-auto / min-h-*) — shadcn Button has h-9 (36px) default; tall con |
 | `BUTTON_AS_CELL_NO_VERTICAL_LAYOUT` | <Button> in .map() with min-h-[*] (calendar/grid cell) and stacked children but no flex-col — shadcn Button defaults to inline-flex row layo |
@@ -132,6 +133,7 @@ Blocks: CORE = CORE_CONSTRAINTS. RULES_X = TIER-2 contextual blocks.
 | R017 | Focus returns to trigger element after overlay close | INTERACTION_PATTERNS | Nielsen #3 (user control) | — | `dialog.tsx`, `sheet.tsx` | 0.7.24 |
 | R018 | Back button compatibility with modals — no back-button traps | INTERACTION_PATTERNS | Nielsen #3 (user control) | — | — | 0.7.24 |
 | R019 | High-risk destructive: type-to-confirm. Reversible: optimistic + undo toast | INTERACTION_PATTERNS | Nielsen #5 (error prevention) + Gmail undo | — | — | 0.7.24 |
+| R052 | Marketing eyebrow budget: default none, max 2/page, never badge + eyebrow above one heading; signature motion = one 5s story | DESIGN_THINKING + DESIGN_QUALITY_MARKETING | PJ-020 eyebrow stacking reads as AI text | `EYEBROW_OVERUSE` (marketing, >3) | — | 0.26.1 |
 
 ## Contextual (TIER-2, keyword-matched)
 

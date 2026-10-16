@@ -84,12 +84,14 @@ Red flags → redesign that section:
 - Glassmorphism as default card treatment
 - Neon accents on dark backgrounds
 - Large rounded icon container above every section heading
+- Eyebrow stacking (marketing pages): a badge/pill AND an uppercase micro-label above the same heading, or an uppercase label ("FEATURES", "— 02 / SHEET") above every section. Reads as AI text. Default: no eyebrow — the heading carries the section. Max 2 uppercase eyebrows per page, never two above one heading.
 
 MOTION DECISION FRAMEWORK (before adding ANY animation):
 1. How often does the user trigger this? (100s/day → no animation)
 2. Is it keyboard-initiated? (yes → never animate)
 3. Purpose must be: state change, feedback, preventing jarring change, or spatial orientation
 4. If purpose is "looks cool" and user sees it often → don't animate
+5. Signature motion (hero, scroll story) tells ONE story readable in ~5 seconds. A caption or overlay attaches to the object it describes, never floats beside it. Content is crisp once motion settles.
 
 SIMPLICITY DISCIPLINE (solve TODAY's request, not TOMORROW's):
 - Build only what the instruction asks for. No speculative fields, no "flexible" configurability for hypothetical future use.
@@ -478,7 +480,7 @@ Choose ONE hero style per project. Don't default to centered:
 - Centered hero: only for bold statement pages. min-h-[80vh], max-w-3xl centered.
 - Offset hero: text with large py-20, image/visual breaking into next section with negative margin.
 Gradient text: use ONLY on one key phrase, not entire headline. Never on metrics.
-Badge above headline: optional, not required. When used: outline variant, text-xs.
+Badge above headline: optional, not required. When used: outline variant, text-xs. Never stack a badge AND an uppercase eyebrow above the same headline — pick one or neither.
 CTA row: flex items-center gap-4. Primary + secondary (outline).
 
 ### Comparison Sections (before/after, with/without)
@@ -489,7 +491,7 @@ CTA row: flex items-center gap-4. Primary + secondary (outline).
 
 ### Step/Process Sections
 - Numbered steps: circle with border, number inside (w-10 h-10 rounded-full border border-border/30 text-sm)
-- Label above: text-xs font-semibold tracking-widest uppercase text-muted-foreground
+- Label above (optional, counts toward the 2-eyebrow page budget): text-xs font-semibold tracking-widest uppercase text-muted-foreground
 
 ### Footer
 - Minimal: border-t border-border/10, py-10

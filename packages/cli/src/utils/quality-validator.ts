@@ -1225,6 +1225,25 @@ export function validatePageQuality(
     })
   }
 
+  // EYEBROW_OVERUSE: uppercase tracked micro-labels above many sections read
+  // as AI-generated text (founder review of 17 hero variants, 2026-10).
+  // Marketing pages only: app dashboards legitimately use section labels
+  // (e.g. the mono-labels atmosphere). Table headers are always exempt.
+  const eyebrowRe =
+    /className="[^"]*\buppercase\b[^"]*\btracking-(?:wide|wider|widest|\[[^\]]+\])[^"]*"|className="[^"]*\btracking-(?:wide|wider|widest|\[[^\]]+\])[^"]*\buppercase\b[^"]*"/
+  const eyebrowLines = code
+    .split('\n')
+    .map((l, i) => ({ l, i }))
+    .filter(({ l }) => eyebrowRe.test(l) && !/<(?:TableHead|th)\b/.test(l))
+  if (pageType === 'marketing' && eyebrowLines.length > 3) {
+    issues.push({
+      line: eyebrowLines[3].i + 1,
+      type: 'EYEBROW_OVERUSE',
+      message: `${eyebrowLines.length} uppercase tracked eyebrow labels — reads as AI text. Keep at most 2 per page; let headings carry sections`,
+      severity: 'warning',
+    })
+  }
+
   // v0.14.0 — VISUAL SANITY LAYER v1
   //
   // Three validators catching layout failures observed in 2026-04-27/28

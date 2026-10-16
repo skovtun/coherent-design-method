@@ -442,7 +442,7 @@ export function renderAtmosphereDirective(atmosphere: Atmosphere | undefined): s
     sans: '',
     'serif-headings': 'Page heading uses font-serif (Georgia, Charter). Body stays sans.',
     'mono-labels':
-      'Section labels and small UI text use font-mono (e.g. text-xs uppercase tracking-wider font-mono text-muted-foreground for "OVERVIEW", "FEATURES").',
+      'Section labels and small UI text use font-mono (e.g. text-xs uppercase tracking-wider font-mono text-muted-foreground for "OVERVIEW", "FEATURES"). On marketing pages keep it to 2 labels max, never stacked with a Badge.',
   }
 
   const lines = [

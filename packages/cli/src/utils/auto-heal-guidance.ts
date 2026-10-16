@@ -56,6 +56,8 @@ export const AUTO_HEAL_GUIDANCE: Record<string, string> = {
     'Add `aria-label="description of action"` to the icon-only button. Example: `<Button size="icon" aria-label="Close dialog">`.',
   SMALL_TOUCH_TARGET: 'Add min-h-[44px] to the button, or increase its padding to meet 44px minimum touch target.',
   EMOJI_IN_UI: 'Replace the emoji character with a Lucide icon (e.g. <Check className="size-4" />).',
+  EYEBROW_OVERUSE:
+    'Remove the uppercase tracked micro-labels above section headings; keep at most 2 on the page and never stack one with a Badge above the same heading.',
 
   // Links / interactive
   NESTED_INTERACTIVE:
