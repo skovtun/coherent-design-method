@@ -24,6 +24,7 @@ import {
 } from './request-parser.js'
 import {
   deduplicatePages,
+  normalizeRouteParams,
   readAnchorPageCodeFromDisk,
   startSpinnerHeartbeat,
   withRequestTimeout,
@@ -458,7 +459,7 @@ export async function splitGeneratePages(
     return { requests: [], plan: null }
   }
 
-  pageNames = deduplicatePages(pageNames)
+  pageNames = deduplicatePages(pageNames.map(p => ({ ...p, route: normalizeRouteParams(p.route) })))
 
   const hasHomePage = pageNames.some(p => p.route === '/')
   if (!hasHomePage) {

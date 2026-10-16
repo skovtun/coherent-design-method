@@ -83,20 +83,24 @@ function normalizeEnum(synonyms: Record<string, string>) {
   }
 }
 
+// `/campaigns/:id` → `/campaigns/[id]` (PJ-024). Mirrors normalizeRouteParams in
+// ./utils.ts; inlined because utils.ts imports this module's types.
+const NextRoute = z.string().transform(r => r.replace(/\/:([A-Za-z_][\w-]*)/g, '/[$1]'))
+
 export const RouteGroupSchema = z.object({
   id: z.string(),
   layout: z
     .string()
     .transform(normalizeEnum(LAYOUT_SYNONYMS))
     .pipe(z.enum(['header', 'sidebar', 'both', 'none'])),
-  pages: z.array(z.string()),
+  pages: z.array(NextRoute),
 })
 
 export const PlannedComponentSchema = z.object({
   name: z.string(),
   description: z.string().default(''),
   props: z.string().default('{}'),
-  usedBy: z.array(z.string()).default([]),
+  usedBy: z.array(NextRoute).default([]),
   type: z
     .string()
     .transform(normalizeEnum(COMPONENT_TYPE_SYNONYMS))

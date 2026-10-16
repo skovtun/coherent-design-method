@@ -609,6 +609,16 @@ A `max_tokens` raise costs nothing extra per call — you pay per token *generat
 
 ---
 
+## PJ-024 · `/campaigns/:id` written as a literal folder (detail pages unreachable)
+
+**Observed:** SubmitAd case-study run (13-screen marketplace spec). Phase 1 planned `Campaign Detail (/campaigns/:id)`, `Review Submission (/submissions/:id)`, `Creator Detail (/creators/:id)` — Express/React-Router param syntax. `routeToFsPath` slices the route verbatim, so the file would land in `app/(app)/campaigns/:id/page.tsx`: a static segment literally named `:id`, reachable only at `/campaigns/:id`. Links to `/campaigns/cmp-104` would 404, and `check`'s dynamic-route matching (PJ-022) only understands `[id]`.
+
+**Root cause:** nothing normalized route syntax. Sonnet 5 uses `[id]` for Next.js-shaped prompts but switches to `:id` when the spec reads like a product PRD (the SubmitAd prompt never said "Next.js").
+
+**Fix:** `normalizeRouteParams` (`:param` → `[param]`) on Phase 1 page routes and defensively in `routeToFsPath` / `routeToRelPath`; the architecture-plan schema normalizes `groups[].pages` and `sharedComponents[].usedBy` the same way so `getPageGroup` still matches.
+
+---
+
 ## How to add a new entry
 
 1. Observe the failure (screenshot/transcript in the repo's discussion).

@@ -732,3 +732,13 @@ describe('resolveExplicitPageTarget', () => {
     expect(resolveExplicitPageTarget({ page: 'accounts' }, pages)?.id).toBe('account')
   })
 })
+
+describe('normalizeRouteParams (PJ-024)', () => {
+  it('converts :param segments to Next.js [param]', async () => {
+    const { normalizeRouteParams, routeToRelPath } = await import('./utils.js')
+    expect(normalizeRouteParams('/campaigns/:id')).toBe('/campaigns/[id]')
+    expect(normalizeRouteParams('/creators/:handle/posts/:postId')).toBe('/creators/[handle]/posts/[postId]')
+    expect(normalizeRouteParams('/journal/[slug]')).toBe('/journal/[slug]')
+    expect(routeToRelPath('/submissions/:id')).toBe('app/(app)/submissions/[id]/page.tsx')
+  })
+})
