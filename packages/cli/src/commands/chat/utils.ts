@@ -54,7 +54,17 @@ export function isMarketingRoute(route: string): boolean {
   return MARKETING_ROUTES.has(slug)
 }
 
+/**
+ * Express/React-Router style params (`/campaigns/:id`) → Next.js segments
+ * (`/campaigns/[id]`). The planner emits both; written verbatim, `:id` became
+ * a literal static folder and the detail page was unreachable (PJ-024).
+ */
+export function normalizeRouteParams(route: string): string {
+  return route.replace(/\/:([A-Za-z_][\w-]*)/g, '/[$1]')
+}
+
 export function routeToFsPath(projectRoot: string, route: string, isAuthOrPlan?: boolean | ArchitecturePlan): string {
+  route = normalizeRouteParams(route)
   const plan = typeof isAuthOrPlan === 'object' ? isAuthOrPlan : undefined
   const isAuth = typeof isAuthOrPlan === 'boolean' ? isAuthOrPlan : false
   const slug = route.replace(/^\//, '')
@@ -73,6 +83,7 @@ export function routeToFsPath(projectRoot: string, route: string, isAuthOrPlan?:
 }
 
 export function routeToRelPath(route: string, isAuthOrPlan?: boolean | ArchitecturePlan): string {
+  route = normalizeRouteParams(route)
   const plan = typeof isAuthOrPlan === 'object' ? isAuthOrPlan : undefined
   const isAuth = typeof isAuthOrPlan === 'boolean' ? isAuthOrPlan : false
   const slug = route.replace(/^\//, '')

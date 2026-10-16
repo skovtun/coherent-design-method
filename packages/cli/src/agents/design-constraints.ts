@@ -84,12 +84,14 @@ Red flags → redesign that section:
 - Glassmorphism as default card treatment
 - Neon accents on dark backgrounds
 - Large rounded icon container above every section heading
+- Eyebrow stacking (marketing pages): a badge/pill AND an uppercase micro-label above the same heading, or an uppercase label ("FEATURES", "— 02 / SHEET") above every section. Reads as AI text. Default: no eyebrow — the heading carries the section. Max 2 uppercase eyebrows per page, never two above one heading.
 
 MOTION DECISION FRAMEWORK (before adding ANY animation):
 1. How often does the user trigger this? (100s/day → no animation)
 2. Is it keyboard-initiated? (yes → never animate)
 3. Purpose must be: state change, feedback, preventing jarring change, or spatial orientation
 4. If purpose is "looks cool" and user sees it often → don't animate
+5. Signature motion (hero, scroll story) tells ONE story readable in ~5 seconds. A caption or overlay attaches to the object it describes, never floats beside it. Content is crisp once motion settles.
 
 SIMPLICITY DISCIPLINE (solve TODAY's request, not TOMORROW's):
 - Build only what the instruction asks for. No speculative fields, no "flexible" configurability for hypothetical future use.
@@ -203,7 +205,7 @@ ANTI-PATTERNS (NEVER DO):
 - Nested bordered containers (card-in-card, or border+shadow wrapper around a list of bordered cards) → ONE level of visual depth per section. If the section header already sits in a Card, render children flat (stack of Cards with gap-y, or rows separated by <Separator />). Never: Card > div.border.rounded.shadow-sm > Card.border.shadow-sm[]. Yes: Section title outside + flat stack of Cards, OR single outer Card with <Separator /> rows.
 - Sparklines as decoration → only with real, readable data
 - shadow-md on cards → shadow-sm with tinted color, or no shadow
-- Inline mock data arrays in components → extract to src/data/
+- Mock data arrays inside component bodies → move to module scope at the top of the same file
 - Conditional renders without transitions → motion gaps are UX bugs
 - Same animation duration everywhere → frequency and context determine duration
 - transition: all → always specify: transition-colors, transition-transform, etc.
@@ -331,9 +333,9 @@ MOCK/SAMPLE DATA (for demo arrays, fake users, fake tasks, etc.):
     }
 - Images: use https://i.pravatar.cc/150?u=unique-id for avatars. "/placeholder.svg?height=40&width=40" for non-avatar images. Never broken paths.
 - IDs: sequential numbers (1, 2, 3) or short slugs ("proj-1"). Never random UUIDs.
-- Location: if an array has 5+ elements, extract to src/data/<kebab-name>.ts and import — keeps page components readable.
+- Location: if an array has 5+ elements, declare it at module scope at the top of the SAME file (typed const, outside the component) — keeps the component readable. NEVER import from a separate data module (e.g. "@/src/data/...", "@/data/..."): only the page file is written, so that import breaks the build.
     BAD (inline in app/dashboard/page.tsx): \`const transactions = [{...}, ..., {...}, ..., {...}, ..., {...}, ..., {...}]\`
-    GOOD: \`// src/data/transactions.ts\`  \`export const mockTransactions = [{...}, ...]\` then \`import { mockTransactions } from "@/src/data/transactions"\` in the page.
+    GOOD: \`const transactions: Transaction[] = [{...}, ...]\` at the top of app/dashboard/page.tsx, above \`export default function\`.
     Applies to: chart data arrays, table rows, user/product lists, activity feeds — anything with repeated object shape.
 
 ACCESSIBILITY (WCAG AA — mandatory):
@@ -478,7 +480,7 @@ Choose ONE hero style per project. Don't default to centered:
 - Centered hero: only for bold statement pages. min-h-[80vh], max-w-3xl centered.
 - Offset hero: text with large py-20, image/visual breaking into next section with negative margin.
 Gradient text: use ONLY on one key phrase, not entire headline. Never on metrics.
-Badge above headline: optional, not required. When used: outline variant, text-xs.
+Badge above headline: optional, not required. When used: outline variant, text-xs. Never stack a badge AND an uppercase eyebrow above the same headline — pick one or neither.
 CTA row: flex items-center gap-4. Primary + secondary (outline).
 
 ### Comparison Sections (before/after, with/without)
@@ -489,7 +491,7 @@ CTA row: flex items-center gap-4. Primary + secondary (outline).
 
 ### Step/Process Sections
 - Numbered steps: circle with border, number inside (w-10 h-10 rounded-full border border-border/30 text-sm)
-- Label above: text-xs font-semibold tracking-widest uppercase text-muted-foreground
+- Label above (optional, counts toward the 2-eyebrow page budget): text-xs font-semibold tracking-widest uppercase text-muted-foreground
 
 ### Footer
 - Minimal: border-t border-border/10, py-10
@@ -842,7 +844,7 @@ TABLE COLUMN SCHEMA (single source of truth):
 - Schema shape: \`const columns: { key: string; label: string; width?: string; align?: 'left'|'right'|'center'; render?: (row) => ReactNode }[] = [...]\`
 - Header: \`{columns.map(c => <TableHead key={c.key} className={c.width}>{c.label}</TableHead>)}\`
 - Body row: \`{columns.map(c => <TableCell key={c.key} className={c.align === 'right' ? 'text-right' : ''}>{c.render ? c.render(row) : row[c.key]}</TableCell>)}\`
-- NEVER hard-code headers and cells with different counts. If columns is a stable shape, extract to \`src/data/<name>-columns.ts\` and import.
+- NEVER hard-code headers and cells with different counts. If columns is a stable shape, declare a \`columns\` const at module scope in the same file.
 
 PAGINATION:
 - Use shadcn Pagination component. Never build custom.
@@ -905,7 +907,7 @@ CHARTS (full detail — applies any time the page needs charts/graphs/analytics)
     PieChart — portions of a whole, max 6 slices. If more categories, use BarChart instead.
 - Colors: ONLY chart CSS vars — stroke="var(--chart-1)", fill="var(--chart-1)". Cycle chart-1 → chart-5 for series. NEVER raw colors (stroke="#3b82f6"), NEVER theme tokens (var(--primary) for charts — reserves primary for UI actions).
 - Height: pick exactly one — h-[200px] (sparkline in stat card), h-[300px] (primary section chart), h-[400px] (full-width detail). No arbitrary heights.
-- Data shape: array of { label: string, ...numericKeys }. Min 8 points for line/area/bar, 2-6 slices for pie. Extract arrays with 5+ items to src/data/<name>.ts (see CONTENT rules).
+- Data shape: array of { label: string, ...numericKeys }. Min 8 points for line/area/bar, 2-6 slices for pie. Declare arrays with 5+ items at module scope in the same file (see CONTENT rules).
     Example: const revenueData = [{ month: "Jan", revenue: 42180, expenses: 28340 }, ...]
 - Axis: always include <XAxis dataKey="month" /> + <YAxis />. Hide extras: axisLine={false} tickLine={false}. tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}. No gridlines on small charts; <CartesianGrid strokeDasharray="3 3" vertical={false} /> only on h-[300/400px] detail charts.
 - Tooltip: ALWAYS wrap in ChartContainer + use ChartTooltip content={<ChartTooltipContent />}. NEVER import Tooltip from "recharts" directly.
@@ -1394,7 +1396,7 @@ PATTERNS:
 - Not found: create not-found.tsx for custom 404 pages.
 
 MOCK DATA ARCHITECTURE:
-- NEVER inline mock arrays in components. Extract to src/data/mockData.ts with typed exports.
+- NEVER declare mock arrays inside component bodies. Put typed consts at module scope in the same file.
 - Shared TypeScript interfaces: src/types/index.ts. Import: import { Project } from '@/types'
 - This makes replacing mock data with real API calls trivial.
 

@@ -396,5 +396,16 @@ describe('PageGenerator', () => {
       expect(footer).toContain("pathname?.startsWith('/design-system')")
       expect(footer).toContain('return null')
     })
+
+    it('never ships the old hardcoded product tagline (PJ-023)', () => {
+      const gen = new PageGenerator(makeConfig([], 'Halden'))
+      expect(gen.generateSharedFooterCode()).not.toContain('project management')
+    })
+
+    it("uses the project's own description when set", () => {
+      const config = { ...makeConfig([], 'Halden'), description: "Bergen's small-batch roaster" }
+      const footer = new PageGenerator(config).generateSharedFooterCode()
+      expect(footer).toContain(`{"Bergen's small-batch roaster"}`)
+    })
   })
 })

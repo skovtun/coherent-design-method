@@ -29,6 +29,20 @@ describe('parseFencedTsxResponse', () => {
     expect(out.changes.pageCode).toBe(tsx)
   })
 
+  it('finds the tsx fence when the JSON header is fenced too (P1 empty pages)', () => {
+    const raw = `\`\`\`\n{ "type": "add-page", "target": "new", "changes": { "name": "Wholesale", "route": "/wholesale" } }\n\`\`\`\n\n\`\`\`tsx\nimport Link from "next/link"\n${tsx}\n\`\`\``
+    const out = parseFencedTsxResponse(raw) as any
+    expect(out.changes.name).toBe('Wholesale')
+    expect(out.changes.pageCode).toContain('export default function Home')
+  })
+
+  it('finds the tsx fence when the header is in a ```json fence', () => {
+    const raw = `\`\`\`json\n{ "type": "add-page", "changes": { "route": "/x" } }\n\`\`\`\n\`\`\`tsx\n${tsx}\n\`\`\``
+    const out = parseFencedTsxResponse(raw) as any
+    expect(out.changes.route).toBe('/x')
+    expect(out.changes.pageCode).toBe(tsx)
+  })
+
   it('returns null for a plain JSON response (no fence)', () => {
     expect(parseFencedTsxResponse('{"requests":[{"type":"add-page"}]}')).toBeNull()
   })

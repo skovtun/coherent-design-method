@@ -555,17 +555,23 @@ export function validatePageQuality(
       'warning',
     ),
   )
-  if (INLINE_MOCK_ARRAY_RE.test(code)) {
-    const match = code.match(INLINE_MOCK_ARRAY_RE)
-    if (match && match.index !== undefined) {
-      const lineNum = code.slice(0, match.index).split('\n').length
-      issues.push({
-        line: lineNum,
-        type: 'INLINE_MOCK_DATA',
-        message: 'Inline array with 5+ items — extract to src/data/<name>.ts and import',
-        severity: 'info',
-      })
-    }
+  // INLINE_MOCK_DATA: a 5+ object array declared INSIDE a component (indented).
+  // Module-scope `const x = [...]` at column 0 is the recommended location —
+  // the pipeline writes one file per page, so a separate src/data module would
+  // be imported but never created (PJ-021).
+  const mockArrayGlobal = new RegExp(INLINE_MOCK_ARRAY_RE.source, 'g')
+  for (const match of code.matchAll(mockArrayGlobal)) {
+    if (match.index === undefined) continue
+    const lineStart = code.lastIndexOf('\n', match.index) + 1
+    if (!/^\s/.test(code.slice(lineStart, match.index))) continue
+    issues.push({
+      line: code.slice(0, match.index).split('\n').length,
+      type: 'INLINE_MOCK_DATA',
+      message:
+        'Array with 5+ items declared inside the component — move it to module scope (top of this file, outside the function)',
+      severity: 'info',
+    })
+    break
   }
   // DOUBLE_SIGN severity tiers:
   //   - ERROR:  numeric comparison on the same value being formatted
@@ -1225,6 +1231,25 @@ export function validatePageQuality(
     })
   }
 
+  // EYEBROW_OVERUSE: uppercase tracked micro-labels above many sections read
+  // as AI-generated text (founder review of 17 hero variants, 2026-10).
+  // Marketing pages only: app dashboards legitimately use section labels
+  // (e.g. the mono-labels atmosphere). Table headers are always exempt.
+  const eyebrowRe =
+    /className="[^"]*\buppercase\b[^"]*\btracking-(?:wide|wider|widest|\[[^\]]+\])[^"]*"|className="[^"]*\btracking-(?:wide|wider|widest|\[[^\]]+\])[^"]*\buppercase\b[^"]*"/
+  const eyebrowLines = code
+    .split('\n')
+    .map((l, i) => ({ l, i }))
+    .filter(({ l }) => eyebrowRe.test(l) && !/<(?:TableHead|th)\b/.test(l))
+  if (pageType === 'marketing' && eyebrowLines.length > 3) {
+    issues.push({
+      line: eyebrowLines[3].i + 1,
+      type: 'EYEBROW_OVERUSE',
+      message: `${eyebrowLines.length} uppercase tracked eyebrow labels — reads as AI text. Keep at most 2 per page; let headings carry sections`,
+      severity: 'warning',
+    })
+  }
+
   // v0.14.0 — VISUAL SANITY LAYER v1
   //
   // Three validators catching layout failures observed in 2026-04-27/28
@@ -1621,6 +1646,15 @@ export async function autoFixCode(code: string, context?: AutoFixContext): Promi
   if (!fixed.includes('\n') && fixed.includes('\\n')) {
     fixed = fixed.replace(/\\n/g, '\n')
     fixes.push('unescaped literal \\n to real newlines')
+  }
+
+  // A markdown fence leaked into the file (PJ-021): the fenced-TSX parser needs
+  // a closing fence, so a response that ends without one falls through with the
+  // opening ```tsx still attached. Valid TSX never starts with ```.
+  const fenceStart = /^\s*```[a-zA-Z]*[^\n]*\n/
+  if (fenceStart.test(fixed)) {
+    fixed = fixed.replace(fenceStart, '').replace(/\n```\s*$/, '\n')
+    fixes.push('stripped leaked markdown code fence')
   }
 
   // Fix escaped quotes in single-quoted strings (AI outputs: \'text' or 'text.\'' from JSON escaping)

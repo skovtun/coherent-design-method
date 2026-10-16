@@ -10,6 +10,7 @@ import {
   getPageType,
   generateArchitecturePlan,
   generateSharedComponentsFromPlan,
+  dropDuplicateLayoutChrome,
   updateArchitecturePlan,
   savePlan,
   loadPlan,
@@ -809,5 +810,38 @@ describe('ensureChartComponentInPlan', () => {
     const out = ensureChartComponentInPlan(plan)
     expect(out.sharedComponents).toHaveLength(12)
     expect(out.sharedComponents.some(c => c.name === 'StatsChart')).toBe(false)
+  })
+})
+
+describe('dropDuplicateLayoutChrome (PJ-022)', () => {
+  const planned = [
+    { name: 'SiteHeader', type: 'layout' },
+    { name: 'SiteFooter', type: 'layout' },
+    { name: 'ProductCard', type: 'widget' },
+  ]
+
+  it('drops planned header/footer when the layout already has them', () => {
+    const existing = [
+      { name: 'Header', type: 'layout' },
+      { name: 'Footer', type: 'layout' },
+    ]
+    const { kept, dropped } = dropDuplicateLayoutChrome(planned, existing)
+    expect(dropped).toEqual(['SiteHeader', 'SiteFooter'])
+    expect(kept.map(c => c.name)).toEqual(['ProductCard'])
+  })
+
+  it('keeps planned chrome when the role is not filled', () => {
+    const { kept } = dropDuplicateLayoutChrome(planned, [{ name: 'Header', type: 'layout' }])
+    expect(kept.map(c => c.name)).toEqual(['SiteFooter', 'ProductCard'])
+  })
+
+  it('keeps a planned component that IS the existing one (regeneration)', () => {
+    const { dropped } = dropDuplicateLayoutChrome(planned, [{ name: 'SiteHeader', type: 'layout' }])
+    expect(dropped).toEqual([])
+  })
+
+  it('ignores non-layout existing components', () => {
+    const { dropped } = dropDuplicateLayoutChrome(planned, [{ name: 'HeaderBanner', type: 'section' }])
+    expect(dropped).toEqual([])
   })
 })

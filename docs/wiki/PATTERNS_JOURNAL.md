@@ -549,6 +549,90 @@ A `max_tokens` raise costs nothing extra per call — you pay per token *generat
 
 ---
 
+## PJ-020 · Eyebrow stacking reads as AI text (and our own rules prescribed it)
+
+**Observed:** In a sister project (the founder's agency site, 17 hero variants reviewed on a verdict board, 2026-10), the most repeated rejection was "too many labels": a pill badge, then an uppercase tracked micro-label (`SHEET 01 /`, `— 02`), then the H1, and an uppercase eyebrow above every section. The reviewer read it as "AI text" before reading any copy. Coherent's marketing output has the same shape.
+
+**Root cause:** our own rules asked for it. `DESIGN_QUALITY_MARKETING` → Step/Process told the model to add a "Label above: text-xs font-semibold tracking-widest uppercase", the hero rule allowed a badge above the headline, and the `mono-labels` atmosphere asked for uppercase section labels. Nothing capped how many, and nothing forbade stacking a badge and an eyebrow above one heading. Sonnet treats an optional pattern as a template and repeats it on every section.
+
+**Fix:**
+- Rule (DESIGN_THINKING → AI SLOP TEST): eyebrow stacking is a red flag on marketing pages. Default is no eyebrow; at most 2 per page; never two above one heading. The hero badge rule and the Step/Process label rule now reference that budget. The `mono-labels` atmosphere is capped to 2 on marketing pages.
+- Motion lesson from the same review (MOTION DECISION FRAMEWORK #5): signature motion tells ONE story readable in ~5s, and captions attach to the object they describe.
+- Validator `EYEBROW_OVERUSE` (warning, marketing pages only): more than 3 `uppercase` + `tracking-*` classNames in a file, `<TableHead>`/`<th>` exempt. The threshold is one above the rule's budget so a page that follows the rule never warns.
+
+**Lesson:** before adding an anti-slop rule, grep for the slop in our own prompts. A pattern marked "optional" in a prompt is still a suggestion the model will apply everywhere unless it carries a count.
+
+---
+
+## PJ-021 · Pages that cannot build: leaked ```tsx fence + imports of data modules that were never written
+
+**Observed:** Portfolio-case dogfood (Halden, 11-page coffee-roaster site, one prompt). Two pages broke `next dev` for the WHOLE site: `journal/[slug]/page.tsx` started with a literal ```` ```tsx ```` line (SWC "Unterminated template"), and `shop/page.tsx` did `import { shopProducts } from '@/src/data/shop-products'` — a file that never existed. `coherent check` scored 57 and flagged neither as an error.
+
+**Root cause:**
+- *Fence:* `parseFencedTsxResponse` requires a closing `\n```` ``` ````. A response that ends without it (stopped early, or the model just omitted it) falls through to the raw path with the opening fence still attached. Nothing downstream strips a fence from page code.
+- *Data module:* our own rules said "extract 5+ item arrays to `src/data/<name>.ts` and import" (CORE, RULES_DATA_DISPLAY, charts, columns, auto-heal for `INLINE_MOCK_DATA`). The pipeline writes **one file per page**, so the model obeys, writes the import, and the module is never created. The `INLINE_MOCK_DATA` auto-heal actively pushed regenerations toward the broken shape.
+
+**Fix:**
+- `autoFixCode`: if code starts with a markdown fence line, strip it and a trailing fence (`stripped leaked markdown code fence`). Valid TSX never starts with ```` ``` ````, so the guard is deterministic.
+- Rules now say: 5+ item arrays go at **module scope in the same file**; never import a separate data module. `INLINE_MOCK_DATA` only fires for arrays declared *inside* a component (indented), so the recommended location no longer warns.
+
+**Lesson:** a rule that asks for a multi-file action is a bug when the pipeline writes one file. Check every "extract to X" instruction against what the writer can actually produce.
+
+---
+
+## PJ-022 · Two headers: planner's SiteHeader next to the layout's Header
+
+**Observed:** Same run. The architecture plan produced `SiteHeader`/`SiteFooter` (type `layout`) while the manifest already had `Header`/`Footer` (CID-001/002) wired into `app/layout.tsx`. Some pages imported `SiteHeader` and rendered it inside a layout that already renders `Header` — two headers, two footers. `check` warned on the other pages: "SiteHeader is available but not imported".
+
+**Root cause:** `generateSharedComponentsFromPlan` generated every planned component without checking which layout roles the manifest already fills. `stripInlineLayoutElements` only removes inline `<header>`/`<footer>` tags, not component usages.
+
+**Fix:** `dropDuplicateLayoutChrome` runs before shared generation and skips a planned `layout` component whose role (header/nav or footer) is already filled by a different manifest component. Pages then see only the layout-owned chrome.
+
+**Also fixed in the same run:** `coherent check` counted `/journal/resting-beans` as a broken link despite `/journal/[slug]` existing — check's link scan lacked the dynamic-route matching the validator and `autoFixCode` already had. Three false positives cost 45 score points (57 → 75 after the fixes, same code).
+
+**Also fixed (was IDEAS_BACKLOG P1):** Shop and Cafés came back with no `pageCode` on both the first attempt and the retry, silently. Raw dumps (`COHERENT_DEBUG_DIR`, new) showed the code WAS there: Sonnet 5 sometimes fences the JSON header in its own untagged ``` block before the ```tsx block. `parseFencedTsxResponse` took the first fence, treated the header as the page, returned null, and the JSON fallback produced an add-page without code. It now uses the first fence whose body is TSX. Verified on the captured failing response: 0 → 344 lines recovered. Reproduced on 3 of 3 runs (different pages each time) before the fix.
+
+---
+
+## PJ-023 · Prompt said "terracotta", site rendered default blue (and a project-management footer on a coffee site)
+
+**Observed:** Same Halden run. The planner extracted the mood correctly (`primaryHint: "terracotta"`, `background: "warm-stone"`), yet the site rendered `#3B82F6` primary on `#FFFFFF`/`#F3F4F6` with a violet `secondary` (purple "Partner" badges). The footer said "Modern project management for teams of all sizes."
+
+**Root cause:**
+- `resolveColorPreset` knew 8 hues (zinc, emerald, indigo, rose, amber, teal, violet, slate). Any other word returned `null` and the default blue stayed, with no warning. Brand words the planner actually emits (terracotta, forest, navy, sage, gold…) were all misses.
+- The atmosphere `background` only shaped class directives; it never touched `background`/`muted`/`border`/`secondary` tokens.
+- `PageGenerator.generateSharedFooterCode` hardcoded a product tagline from an early dogfood app.
+
+**Fix:** 24 more hues (every light shade AA with white text, tested), hex hints accepted, last word of compound hints ("deep terracotta") resolved, a warning for unknown hints. `resolveSurfacePreset` maps `warm-stone` / `soft-warm` to warm background, muted, border and a neutral secondary (AA body text in both modes, tested). Footer uses the project description, or nothing.
+
+**Lesson:** a silent fallback on the brand color is worse than a failure — the run "succeeds" and the output looks generic, which is exactly the problem Coherent exists to solve.
+
+---
+
+## PJ-024 · `/campaigns/:id` written as a literal folder (detail pages unreachable)
+
+**Observed:** SubmitAd case-study run (13-screen marketplace spec). Phase 1 planned `Campaign Detail (/campaigns/:id)`, `Review Submission (/submissions/:id)`, `Creator Detail (/creators/:id)` — Express/React-Router param syntax. `routeToFsPath` slices the route verbatim, so the file would land in `app/(app)/campaigns/:id/page.tsx`: a static segment literally named `:id`, reachable only at `/campaigns/:id`. Links to `/campaigns/cmp-104` would 404, and `check`'s dynamic-route matching (PJ-022) only understands `[id]`.
+
+**Root cause:** nothing normalized route syntax. Sonnet 5 uses `[id]` for Next.js-shaped prompts but switches to `:id` when the spec reads like a product PRD (the SubmitAd prompt never said "Next.js").
+
+**Fix:** `normalizeRouteParams` (`:param` → `[param]`) on Phase 1 page routes and defensively in `routeToFsPath` / `routeToRelPath`; the architecture-plan schema normalizes `groups[].pages` and `sharedComponents[].usedBy` the same way so `getPageGroup` still matches.
+
+---
+
+## PJ-025 · One invalid route aborted the whole run (8 of 18 pages written)
+
+**Observed:** SubmitAd run, after the PJ-024 fix. All 18 pages generated with code, then `✖ Chat command failed — pages.8.route: Must be a valid route`. Eight pages were on disk; the other ten were generated, paid for, and dropped.
+
+**Root cause:** two bugs stacked.
+- The config schema's route regex was `^\/[a-z0-9\-/[\]]*$` — lowercase only, so a camelCase param (`/advertiser/campaigns/[id]/review/[submissionId]`) failed validation. `[...slug]` failed too.
+- `applyRequests` ran requests in a plain loop; the Zod error from one page escaped the loop and the top-level handler ended the command.
+
+**Fix:** static segments stay kebab-case; dynamic params may be `[camelCase]` or `[...catchAll]`. `applyRequests` catches a non-`CoherentError` per request, records `success: false` with the first line of the reason, and applies the rest. Typed `CoherentError`s (contract signals like E007) still propagate.
+
+**Lesson:** in a batch of expensive AI outputs, validation failures must be per-item. The cost of one bad page should be one page.
+
+---
+
 ## How to add a new entry
 
 1. Observe the failure (screenshot/transcript in the repo's discussion).

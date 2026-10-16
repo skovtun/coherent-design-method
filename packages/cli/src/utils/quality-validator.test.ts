@@ -213,6 +213,26 @@ describe('autoFixCode shadow replacement', () => {
 })
 
 describe('autoFixCode', () => {
+  it('strips a leaked opening markdown fence with no closing fence', async () => {
+    const code = '```tsx\nexport default function Page() {\n  return <div />\n}\n'
+    const { code: out, fixes } = await autoFixCode(code)
+    expect(out.startsWith('export default')).toBe(true)
+    expect(fixes).toContain('stripped leaked markdown code fence')
+  })
+
+  it('strips both fences when the response is fully fenced', async () => {
+    const code = '```tsx\nexport default function Page() {\n  return <div />\n}\n```'
+    const { code: out } = await autoFixCode(code)
+    expect(out).not.toContain('```')
+  })
+
+  it('leaves fences inside template literals alone', async () => {
+    const code = 'export default function Page() {\n  const md = `\n```\n`\n  return <pre>{md}</pre>\n}\n'
+    const { code: out, fixes } = await autoFixCode(code)
+    expect(out).toContain('```')
+    expect(fixes).not.toContain('stripped leaked markdown code fence')
+  })
+
   it('replaces text-base with text-sm in className', async () => {
     const code = `<p className="text-base leading-relaxed">Text</p>`
     const { code: fixed, fixes } = await autoFixCode(code)
@@ -1317,6 +1337,36 @@ describe('new quality rules v0.6.94', () => {
     const issues = validatePageQuality(code, [])
     expect(issues.some(i => i.type === 'EMOJI_IN_UI')).toBe(false)
   })
+
+  const eyebrow = (n: number) =>
+    Array.from(
+      { length: n },
+      (_, i) => `<p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Section ${i}</p>`,
+    ).join('\n')
+
+  it('EYEBROW_OVERUSE: flags more than 3 uppercase tracked labels', () => {
+    const issues = validatePageQuality(eyebrow(4), [], 'marketing')
+    expect(issues.some(i => i.type === 'EYEBROW_OVERUSE')).toBe(true)
+  })
+
+  it('EYEBROW_OVERUSE: allows up to 3', () => {
+    const issues = validatePageQuality(eyebrow(3), [], 'marketing')
+    expect(issues.some(i => i.type === 'EYEBROW_OVERUSE')).toBe(false)
+  })
+
+  it('EYEBROW_OVERUSE: ignores uppercase table headers', () => {
+    const code = Array.from(
+      { length: 6 },
+      (_, i) => `<TableHead className="text-xs uppercase tracking-wider">Col ${i}</TableHead>`,
+    ).join('\n')
+    const issues = validatePageQuality(code, [], 'marketing')
+    expect(issues.some(i => i.type === 'EYEBROW_OVERUSE')).toBe(false)
+  })
+
+  it('EYEBROW_OVERUSE: does not fire on app pages', () => {
+    const issues = validatePageQuality(eyebrow(6), [], 'app')
+    expect(issues.some(i => i.type === 'EYEBROW_OVERUSE')).toBe(false)
+  })
 })
 
 describe('Visual Sanity Layer v1 (v0.14.0)', () => {
@@ -2299,17 +2349,32 @@ describe('DOUBLE_SIGN detection', () => {
 })
 
 describe('INLINE_MOCK_DATA detection', () => {
-  it('flags 5+ element inline object array', () => {
-    const code = `const users = [
+  it('flags 5+ element object array declared inside a component', () => {
+    const code = `export default function Page() {
+  const users = [
   { name: "Alice", age: 30 },
   { name: "Bob", age: 25 },
   { name: "Carol", age: 28 },
   { name: "Dave", age: 35 },
   { name: "Eve", age: 27 },
   { name: "Frank", age: 32 }
-]`
+]
+}`
     const issues = validatePageQuality(code)
     expect(issues.some(i => i.type === 'INLINE_MOCK_DATA')).toBe(true)
+  })
+
+  it('passes 5+ element array at module scope (the recommended location)', () => {
+    const code = `const users = [
+  { name: "Alice" },
+  { name: "Bob" },
+  { name: "Carol" },
+  { name: "Dave" },
+  { name: "Eve" }
+]
+export default function Page() { return null }`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'INLINE_MOCK_DATA')).toBe(false)
   })
 
   it('passes arrays with <5 elements', () => {

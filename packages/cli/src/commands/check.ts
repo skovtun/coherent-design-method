@@ -293,6 +293,11 @@ export async function checkCommand(opts: CheckOptions = {}) {
     routeSet.add('#')
     // Links pointing at a dead route are broken too — drop them from the valid set.
     for (const dead of result.deadRoutes) routeSet.delete(dead)
+    // /journal/[slug] covers /journal/any-post — same matching the validator
+    // and autoFixCode already use, so check doesn't report valid detail links.
+    const dynamicRouteRes = [...routeSet]
+      .filter(r => /\[[^\]]+\]/.test(r))
+      .map(r => new RegExp('^' + r.replace(/\[[^\]]+\]/g, '[^/]+') + '$'))
     for (const file of files) {
       const code = fileContents.get(file)!
       const relativePath = file.replace(projectRoot + '/', '')
@@ -314,7 +319,7 @@ export async function checkCommand(opts: CheckOptions = {}) {
             target.startsWith('/#')
           )
             continue
-          if (!routeSet.has(target)) {
+          if (!routeSet.has(target) && !dynamicRouteRes.some(re => re.test(target))) {
             result.links.broken.push({ file: relativePath, line: i + 1, href: target })
           }
         }

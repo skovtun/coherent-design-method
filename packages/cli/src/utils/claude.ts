@@ -7,6 +7,8 @@
 
 import Anthropic from '@anthropic-ai/sdk'
 import chalk from 'chalk'
+import { mkdirSync, writeFileSync } from 'fs'
+import { join } from 'path'
 import type { DiscoveryResult, DesignSystemConfig } from '@getcoherent/core'
 import { validateConfig } from '@getcoherent/core'
 import { resolveModel, isModelNotFoundError, findAvailableModel, DEFAULT_MODEL } from './model.js'
@@ -17,6 +19,22 @@ import type {
   SharedExtractionItem,
 } from './ai-provider.js'
 import { normalizeRequestShape, extractFirstJson, parseFencedTsxResponse } from './ai-provider.js'
+
+/**
+ * Diagnostics: `COHERENT_DEBUG_DIR=<dir>` writes every parse response (prompt
+ * head, stop_reason, raw text) to its own file. For silent failures where a
+ * page comes back without pageCode and nothing is thrown (IDEAS_BACKLOG P1).
+ */
+function dumpRawResponse(dir: string, prompt: string, rawText: string, response: unknown): void {
+  try {
+    mkdirSync(dir, { recursive: true })
+    const stop = (response as { stop_reason?: string }).stop_reason ?? 'unknown'
+    const file = join(dir, `${Date.now()}-${Math.random().toString(36).slice(2, 7)}.txt`)
+    writeFileSync(file, `STOP: ${stop}\nPROMPT HEAD:\n${prompt.slice(0, 600)}\n\n=== RAW ===\n${rawText}`)
+  } catch {
+    /* diagnostics must never break generation */
+  }
+}
 
 export class ClaudeClient implements AIProviderInterface {
   private client: Anthropic
@@ -330,6 +348,7 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
       }
 
       const rawText = this.requireText(response, 'parsing the request')
+      if (process.env.COHERENT_DEBUG_DIR) dumpRawResponse(process.env.COHERENT_DEBUG_DIR, prompt, rawText, response)
 
       // Fenced-TSX protocol (anchor + page phases): the model returns a JSON
       // header + a ```tsx code fence rather than cramming the whole page into an

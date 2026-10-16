@@ -207,9 +207,10 @@ describe('design-constraints number formatting rule', () => {
 })
 
 describe('design-constraints mock data location rule', () => {
-  it('CORE_CONSTRAINTS requires extract to src/data for 5+ element arrays', () => {
-    expect(CORE_CONSTRAINTS).toContain('src/data/')
+  it('CORE_CONSTRAINTS keeps 5+ element arrays at module scope in the same file (PJ-021)', () => {
+    expect(CORE_CONSTRAINTS).toContain('module scope')
     expect(CORE_CONSTRAINTS).toContain('5+ elements')
+    expect(CORE_CONSTRAINTS).toContain('NEVER import from a separate data module')
   })
 })
 
