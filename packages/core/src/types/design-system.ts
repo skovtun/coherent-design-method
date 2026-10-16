@@ -314,7 +314,16 @@ export const PageDefinitionSchema = z.object({
   route: z
     .string()
     .transform(r => (r.startsWith('/') ? r : `/${r}`))
-    .pipe(z.string().regex(/^\/[a-z0-9\-/[\]]*$/, 'Must be a valid route (e.g. /page, /products/[id])')),
+    // Static segments are kebab-case; dynamic params may be camelCase
+    // ([submissionId]) or catch-all ([...slug]) — PJ-025.
+    .pipe(
+      z
+        .string()
+        .regex(
+          /^\/(?:[a-z0-9\-/]|\[(?:\.\.\.)?[A-Za-z_][A-Za-z0-9_]*\])*$/,
+          'Must be a valid route (e.g. /page, /products/[id])',
+        ),
+    ),
 
   // Layout
   layout: PageLayoutSchema,

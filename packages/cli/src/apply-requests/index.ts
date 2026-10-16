@@ -31,6 +31,7 @@ import type { ModificationRequest } from '@getcoherent/core'
 import { dispatchDeterministic, isDeterministic } from './dispatch.js'
 import { dispatchAi } from './dispatch-ai.js'
 import type { ApplyMode, ApplyRequestsContext, ApplyResult } from './types.js'
+import { isCoherentError } from '../errors/CoherentError.js'
 
 export type { ApplyMode, ApplyRequestsContext, ApplyResult } from './types.js'
 export { applyManagerResult } from './managers.js'
@@ -68,16 +69,27 @@ export async function applyRequests(
 ): Promise<ApplyResult[]> {
   const results: ApplyResult[] = []
   for (const request of requests) {
-    if (isDeterministic(request)) {
-      const r = await dispatchDeterministic(request, ctx)
-      // dispatchDeterministic returns null only for AI types. Since
-      // isDeterministic is true here, r is non-null by construction.
-      results.push(r ?? unknownTypeFailure(request))
-    } else {
-      const r = await dispatchAi(request, ctx, mode)
-      // dispatchAi returns null only for deterministic types. Same
-      // construction-time invariant as above.
-      results.push(r ?? unknownTypeFailure(request))
+    // One bad request (e.g. a page whose route fails config validation) used
+    // to throw out of the loop and abort the run: 8 of 18 generated pages
+    // written, 10 lost (PJ-025). Record it as a failed result and keep going.
+    // Typed CoherentErrors are contract signals (E007 etc.) — still propagate.
+    try {
+      if (isDeterministic(request)) {
+        const r = await dispatchDeterministic(request, ctx)
+        // dispatchDeterministic returns null only for AI types. Since
+        // isDeterministic is true here, r is non-null by construction.
+        results.push(r ?? unknownTypeFailure(request))
+      } else {
+        const r = await dispatchAi(request, ctx, mode)
+        // dispatchAi returns null only for deterministic types. Same
+        // construction-time invariant as above.
+        results.push(r ?? unknownTypeFailure(request))
+      }
+    } catch (err) {
+      if (isCoherentError(err)) throw err
+      const target = (request as { target?: string }).target ?? request.type
+      const reason = err instanceof Error ? err.message.split('\n')[0] : String(err)
+      results.push({ success: false, message: `${request.type} "${target}" failed: ${reason}`, modified: [] })
     }
   }
   return results

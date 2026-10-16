@@ -30,6 +30,24 @@ describe('PageDefinitionSchema', () => {
     expect(result.success).toBe(true)
   })
 
+  it('accepts camelCase and nested dynamic params (PJ-025)', () => {
+    const r = PageDefinitionSchema.safeParse({
+      ...base,
+      id: 'review',
+      route: '/advertiser/campaigns/[id]/review/[submissionId]',
+    })
+    expect(r.success).toBe(true)
+  })
+
+  it('accepts catch-all [...slug]', () => {
+    expect(PageDefinitionSchema.safeParse({ ...base, id: 'docs', route: '/docs/[...slug]' }).success).toBe(true)
+  })
+
+  it('still rejects uppercase static segments and stray brackets', () => {
+    expect(PageDefinitionSchema.safeParse({ ...base, id: 'x', route: '/Campaigns' }).success).toBe(false)
+    expect(PageDefinitionSchema.safeParse({ ...base, id: 'y', route: '/a/[id' }).success).toBe(false)
+  })
+
   it('accepts [slug] route segments', () => {
     const result = PageDefinitionSchema.safeParse({ ...base, id: 'article', route: '/blog/[slug]' })
     expect(result.success).toBe(true)

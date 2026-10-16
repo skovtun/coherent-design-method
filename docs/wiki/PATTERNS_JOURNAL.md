@@ -619,6 +619,20 @@ A `max_tokens` raise costs nothing extra per call — you pay per token *generat
 
 ---
 
+## PJ-025 · One invalid route aborted the whole run (8 of 18 pages written)
+
+**Observed:** SubmitAd run, after the PJ-024 fix. All 18 pages generated with code, then `✖ Chat command failed — pages.8.route: Must be a valid route`. Eight pages were on disk; the other ten were generated, paid for, and dropped.
+
+**Root cause:** two bugs stacked.
+- The config schema's route regex was `^\/[a-z0-9\-/[\]]*$` — lowercase only, so a camelCase param (`/advertiser/campaigns/[id]/review/[submissionId]`) failed validation. `[...slug]` failed too.
+- `applyRequests` ran requests in a plain loop; the Zod error from one page escaped the loop and the top-level handler ended the command.
+
+**Fix:** static segments stay kebab-case; dynamic params may be `[camelCase]` or `[...catchAll]`. `applyRequests` catches a non-`CoherentError` per request, records `success: false` with the first line of the reason, and applies the rest. Typed `CoherentError`s (contract signals like E007) still propagate.
+
+**Lesson:** in a batch of expensive AI outputs, validation failures must be per-item. The cost of one bad page should be one page.
+
+---
+
 ## How to add a new entry
 
 1. Observe the failure (screenshot/transcript in the repo's discussion).
