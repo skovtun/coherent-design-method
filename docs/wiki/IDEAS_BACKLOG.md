@@ -141,7 +141,7 @@ Each `###` block below is an indexable entry (wiki-index.ts scans `###` headings
 ---
 id: P1
 type: idea
-status: open
+status: resolved
 target: v0.26.x
 effort: 2-3h
 date: 2026-10-15
@@ -149,6 +149,8 @@ confidence: verified
 ---
 
 ### P1 · Diagnose silent empty pages (no pageCode on first attempt AND retry)
+
+**Resolved 2026-10-15:** fenced JSON header made the parser pick the wrong fence. See PJ-022. Kept below for history.
 
 Halden dogfood (PJ-022 "still open"): Shop and Cafés came back with no `pageCode` from both the Phase 6 call and the lightweight retry in `split-generator.ts`, and no "generation failed" line was printed, so the first call returned a request without code rather than throwing. Next step: persist the raw response for empty pages to `.coherent/debug/` (opt-in or always for failures), rerun the Halden prompt, and classify (truncated JSON, header-only fenced response, wrong `type`). Both pages regenerated fine with `coherent chat "regenerate ..."`.
 

@@ -937,6 +937,13 @@ export function DSButton() {
    * Generate shared Footer component code for components/shared/footer.tsx.
    */
   generateSharedFooterCode(): string {
+    // Only the project's own description — a hardcoded product tagline leaked
+    // "project management" copy onto every generated site (PJ-023).
+    const desc = (this.config.description ?? '').trim()
+    const tagline =
+      desc && !/^Built with Coherent/i.test(desc)
+        ? `            <p className="mt-2 text-sm text-muted-foreground">\n              {${JSON.stringify(desc)}}\n            </p>\n`
+        : ''
     const appName = this.escapeString(this.config.name)
     const navItems = this.config.navigation?.items || []
     const authRoutes = new Set([
@@ -1012,10 +1019,7 @@ export function Footer() {
             <Link href="/" className="text-sm font-semibold text-foreground hover:text-foreground/90 transition-colors">
               ${appName}
             </Link>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Modern project management for teams of all sizes.
-            </p>
-          </div>
+${tagline}          </div>
 ${productColumn}
 ${companyColumn}
         </div>

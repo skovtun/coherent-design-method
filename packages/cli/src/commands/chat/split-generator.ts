@@ -48,7 +48,7 @@ import {
   extractAtmosphereFromMessage,
 } from './plan-generator.js'
 import { buildReusePlan, buildReusePlanDirective, verifyReusePlan } from '../../utils/reuse-planner.js'
-import { resolveColorPreset } from '../../utils/color-presets.js'
+import { resolveColorPreset, resolveSurfacePreset } from '../../utils/color-presets.js'
 import {
   readDesignMemory,
   extractDecisionsFromCode,
@@ -541,6 +541,14 @@ export async function splitGeneratePages(
         if (colorOverride && modCtx.config.tokens?.colors) {
           modCtx.config.tokens.colors.light.primary = colorOverride.light
           modCtx.config.tokens.colors.dark.primary = colorOverride.dark
+        }
+        const surface = resolveSurfacePreset(merged.background)
+        if (surface && modCtx.config.tokens?.colors) {
+          Object.assign(modCtx.config.tokens.colors.light, surface.light)
+          Object.assign(modCtx.config.tokens.colors.dark, surface.dark)
+        }
+        if (merged.primaryHint && !colorOverride && merged.primaryHint !== 'blue') {
+          console.log(chalk.yellow(`  ⚠ Unknown primary hint "${merged.primaryHint}" — kept the default primary`))
         }
 
         const groupsSummary = plan.groups.map(g => `${g.id} (${g.layout}, ${g.pages.length} pages)`).join(', ')

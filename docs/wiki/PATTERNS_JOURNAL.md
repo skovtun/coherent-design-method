@@ -590,7 +590,22 @@ A `max_tokens` raise costs nothing extra per call — you pay per token *generat
 
 **Also fixed in the same run:** `coherent check` counted `/journal/resting-beans` as a broken link despite `/journal/[slug]` existing — check's link scan lacked the dynamic-route matching the validator and `autoFixCode` already had. Three false positives cost 45 score points (57 → 75 after the fixes, same code).
 
-**Still open:** Shop and Cafés came back with no `pageCode` on both the first attempt and the lightweight retry, with no error surfaced. Needs the raw responses to diagnose; logged in IDEAS_BACKLOG.
+**Also fixed (was IDEAS_BACKLOG P1):** Shop and Cafés came back with no `pageCode` on both the first attempt and the retry, silently. Raw dumps (`COHERENT_DEBUG_DIR`, new) showed the code WAS there: Sonnet 5 sometimes fences the JSON header in its own untagged ``` block before the ```tsx block. `parseFencedTsxResponse` took the first fence, treated the header as the page, returned null, and the JSON fallback produced an add-page without code. It now uses the first fence whose body is TSX. Verified on the captured failing response: 0 → 344 lines recovered. Reproduced on 3 of 3 runs (different pages each time) before the fix.
+
+---
+
+## PJ-023 · Prompt said "terracotta", site rendered default blue (and a project-management footer on a coffee site)
+
+**Observed:** Same Halden run. The planner extracted the mood correctly (`primaryHint: "terracotta"`, `background: "warm-stone"`), yet the site rendered `#3B82F6` primary on `#FFFFFF`/`#F3F4F6` with a violet `secondary` (purple "Partner" badges). The footer said "Modern project management for teams of all sizes."
+
+**Root cause:**
+- `resolveColorPreset` knew 8 hues (zinc, emerald, indigo, rose, amber, teal, violet, slate). Any other word returned `null` and the default blue stayed, with no warning. Brand words the planner actually emits (terracotta, forest, navy, sage, gold…) were all misses.
+- The atmosphere `background` only shaped class directives; it never touched `background`/`muted`/`border`/`secondary` tokens.
+- `PageGenerator.generateSharedFooterCode` hardcoded a product tagline from an early dogfood app.
+
+**Fix:** 24 more hues (every light shade AA with white text, tested), hex hints accepted, last word of compound hints ("deep terracotta") resolved, a warning for unknown hints. `resolveSurfacePreset` maps `warm-stone` / `soft-warm` to warm background, muted, border and a neutral secondary (AA body text in both modes, tested). Footer uses the project description, or nothing.
+
+**Lesson:** a silent fallback on the brand color is worse than a failure — the run "succeeds" and the output looks generic, which is exactly the problem Coherent exists to solve.
 
 ---
 

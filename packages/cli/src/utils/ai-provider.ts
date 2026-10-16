@@ -117,15 +117,25 @@ export function parseFencedTsxResponse(raw: string): Record<string, unknown> | n
   // jsx / typescript / javascript / ts / js, and occasionally an untagged ```.
   // We do NOT anchor to start/end: the model may prepend a sentence or append a
   // note. The header is the first balanced JSON object BEFORE the fence.
-  const fenceMatch = text.match(/```(?:tsx|jsx|typescript|javascript|ts|js)?\s*\n([\s\S]*?)\n```/)
-  if (!fenceMatch || fenceMatch.index === undefined) return null
+  // Sonnet 5 sometimes fences the JSON header too (an untagged ``` block before
+  // the ```tsx one). Taking the FIRST fence then read the header as the page,
+  // returned null, and the JSON fallback produced add-page with no pageCode —
+  // the silent empty pages of IDEAS_BACKLOG P1. Use the first fence whose body
+  // is actually TSX; the header is the first JSON object before it.
+  const fenceRe = /```(?:tsx|jsx|typescript|javascript|ts|js|json)?[ \t]*\n([\s\S]*?)\n```/g
+  const isTsx = (body: string) => /export\s+(default|function)|import\s.+from\s/.test(body) && !/^\s*[{[]/.test(body)
+  let fenceMatch: RegExpExecArray | null = null
+  for (let m = fenceRe.exec(text); m; m = fenceRe.exec(text)) {
+    if (isTsx(m[1])) {
+      fenceMatch = m
+      break
+    }
+  }
+  if (!fenceMatch) return null
   const tsxBody = fenceMatch[1]
   const beforeFence = text.slice(0, fenceMatch.index)
   const headerJson = extractFirstJson(beforeFence)
   if (!headerJson.startsWith('{') && !headerJson.startsWith('[')) return null
-  // Reject when the fenced body isn't actually TSX/JSX (e.g. a ```json header
-  // block the model fenced by mistake) — a real page has a default export.
-  if (!/export\s+default|export\s+function|=>/.test(tsxBody) && !/<[A-Za-z]/.test(tsxBody)) return null
   try {
     const header = JSON.parse(headerJson) as Record<string, unknown>
     let req: Record<string, unknown> | null = null
