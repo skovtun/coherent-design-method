@@ -139,6 +139,34 @@ Each `###` block below is an indexable entry (wiki-index.ts scans `###` headings
 > - **Strategic direction** (the real "copy styles" answer, see review): **R9** reference retrieval + **R8** structured anchor — both gated on **R7** benchmark harness for honest measurement. R7 is the unlock for grounding all of the above in data instead of vibes.
 
 ---
+id: P1
+type: idea
+status: open
+target: v0.26.x
+effort: 2-3h
+date: 2026-10-15
+confidence: verified
+---
+
+### P1 · Diagnose silent empty pages (no pageCode on first attempt AND retry)
+
+Halden dogfood (PJ-022 "still open"): Shop and Cafés came back with no `pageCode` from both the Phase 6 call and the lightweight retry in `split-generator.ts`, and no "generation failed" line was printed, so the first call returned a request without code rather than throwing. Next step: persist the raw response for empty pages to `.coherent/debug/` (opt-in or always for failures), rerun the Halden prompt, and classify (truncated JSON, header-only fenced response, wrong `type`). Both pages regenerated fine with `coherent chat "regenerate ..."`.
+
+---
+id: P2
+type: idea
+status: open
+target: v0.26.x
+effort: 1h
+date: 2026-10-15
+confidence: verified
+---
+
+### P2 · Pass pageType to validatePageQuality from check / chat / fix
+
+Only MCP `coherent_validate` passes `pageType`, so marketing-only checks (`MISSING_METADATA`, `EYEBROW_OVERUSE`) never fire in `coherent check` or the inline post-generation check. Derive it from the route via `inferPageTypeFromRoute` (or the plan's group). Expect new `MISSING_METADATA` warnings on existing projects — call that out in the changelog.
+
+---
 id: R10
 type: idea
 status: open

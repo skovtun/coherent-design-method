@@ -564,6 +564,36 @@ A `max_tokens` raise costs nothing extra per call — you pay per token *generat
 
 ---
 
+## PJ-021 · Pages that cannot build: leaked ```tsx fence + imports of data modules that were never written
+
+**Observed:** Portfolio-case dogfood (Halden, 11-page coffee-roaster site, one prompt). Two pages broke `next dev` for the WHOLE site: `journal/[slug]/page.tsx` started with a literal ```` ```tsx ```` line (SWC "Unterminated template"), and `shop/page.tsx` did `import { shopProducts } from '@/src/data/shop-products'` — a file that never existed. `coherent check` scored 57 and flagged neither as an error.
+
+**Root cause:**
+- *Fence:* `parseFencedTsxResponse` requires a closing `\n```` ``` ````. A response that ends without it (stopped early, or the model just omitted it) falls through to the raw path with the opening fence still attached. Nothing downstream strips a fence from page code.
+- *Data module:* our own rules said "extract 5+ item arrays to `src/data/<name>.ts` and import" (CORE, RULES_DATA_DISPLAY, charts, columns, auto-heal for `INLINE_MOCK_DATA`). The pipeline writes **one file per page**, so the model obeys, writes the import, and the module is never created. The `INLINE_MOCK_DATA` auto-heal actively pushed regenerations toward the broken shape.
+
+**Fix:**
+- `autoFixCode`: if code starts with a markdown fence line, strip it and a trailing fence (`stripped leaked markdown code fence`). Valid TSX never starts with ```` ``` ````, so the guard is deterministic.
+- Rules now say: 5+ item arrays go at **module scope in the same file**; never import a separate data module. `INLINE_MOCK_DATA` only fires for arrays declared *inside* a component (indented), so the recommended location no longer warns.
+
+**Lesson:** a rule that asks for a multi-file action is a bug when the pipeline writes one file. Check every "extract to X" instruction against what the writer can actually produce.
+
+---
+
+## PJ-022 · Two headers: planner's SiteHeader next to the layout's Header
+
+**Observed:** Same run. The architecture plan produced `SiteHeader`/`SiteFooter` (type `layout`) while the manifest already had `Header`/`Footer` (CID-001/002) wired into `app/layout.tsx`. Some pages imported `SiteHeader` and rendered it inside a layout that already renders `Header` — two headers, two footers. `check` warned on the other pages: "SiteHeader is available but not imported".
+
+**Root cause:** `generateSharedComponentsFromPlan` generated every planned component without checking which layout roles the manifest already fills. `stripInlineLayoutElements` only removes inline `<header>`/`<footer>` tags, not component usages.
+
+**Fix:** `dropDuplicateLayoutChrome` runs before shared generation and skips a planned `layout` component whose role (header/nav or footer) is already filled by a different manifest component. Pages then see only the layout-owned chrome.
+
+**Also fixed in the same run:** `coherent check` counted `/journal/resting-beans` as a broken link despite `/journal/[slug]` existing — check's link scan lacked the dynamic-route matching the validator and `autoFixCode` already had. Three false positives cost 45 score points (57 → 75 after the fixes, same code).
+
+**Still open:** Shop and Cafés came back with no `pageCode` on both the first attempt and the lightweight retry, with no error surfaced. Needs the raw responses to diagnose; logged in IDEAS_BACKLOG.
+
+---
+
 ## How to add a new entry
 
 1. Observe the failure (screenshot/transcript in the repo's discussion).

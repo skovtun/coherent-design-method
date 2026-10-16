@@ -29,7 +29,7 @@ export const AUTO_HEAL_GUIDANCE: Record<string, string> = {
   DOUBLE_SIGN:
     'Remove the manual +/- ternary prefix. Use `Intl.NumberFormat` with `signDisplay: "always"` (or "exceptZero") instead.',
   INLINE_MOCK_DATA:
-    'Extract the inline array to `src/data/<kebab-name>.ts` as a named export and import it. Keeps the page component readable.',
+    'Move the array out of the component to module scope at the top of this same file (typed `const`). Do NOT create or import a separate data module — only this file is written.',
 
   // Tables
   TABLE_COLUMN_MISMATCH:

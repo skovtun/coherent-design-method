@@ -46,7 +46,7 @@ Every validator fires a typed issue. Grep for the type in `quality-validator.ts`
 | `DIALOG_FULL_WIDTH` | <…Content> without a max-w-* class renders full-width on wide screens. Add max-w-lg (default) or sm:max-w-md for Sheet. |
 | `DIALOG_CUSTOM_OVERLAY` | Custom fixed inset-0 overlay detected. Use shadcn <Dialog>/<AlertDialog>/<Sheet> — they handle overlay, focus trap, and Escape automatically |
 | `ALERT_DIALOG_NON_DESTRUCTIVE` | AlertDialog "…" doesn't look destructive. AlertDialog is for irreversible actions (delete, cancel subscription, log out). Use a regular Dial |
-| `INLINE_MOCK_DATA` | Inline array with 5+ items — extract to src/data/<name>.ts and import |
+| `INLINE_MOCK_DATA` | Array with 5+ items declared inside the component — move it to module scope (top of this file, outside the function) |
 | `SM_BREAKPOINT` | sm: breakpoint — consider if md:/lg: is sufficient… |
 | `PLACEHOLDER` | Placeholder content detected — use real contextual content |
 | `NO_RESPONSIVE` | Grid layout without responsive breakpoints (md: or lg:) |
@@ -120,7 +120,7 @@ Blocks: CORE = CORE_CONSTRAINTS. RULES_X = TIER-2 contextual blocks.
 | R004 | No nested bordered containers | CORE | PJ-001 Budget Progress triple-border | (soft via NESTED_CONTAINERS intent) | — | 0.6.99 |
 | R005 | Charts via shadcn Chart + recharts; no placeholders | CORE + RULES_DATA_DISPLAY | PJ-002 "Chart would go here" | `CHART_PLACEHOLDER`, `CHART_EMPTY_BOX` | `chart-card.tsx` | 0.6.99 |
 | R006 | Money via Intl.NumberFormat | CORE | PJ-003 `$\{v.toFixed(2)}` | `RAW_NUMBER_FORMAT` | `stat-card.tsx` | 0.6.99 |
-| R007 | Mock data 5+ elements → extract to src/data/ | CORE | Inline 40-row arrays in page.tsx | `INLINE_MOCK_DATA` | — | 0.6.99 |
+| R007 | Mock data 5+ elements → module scope in the same file (was: src/data/, reversed 0.26.1 — PJ-021) | CORE | Inline 40-row arrays in page.tsx; imports of never-written data modules | `INLINE_MOCK_DATA` (inside component only) | — | 0.6.99 / 0.26.1 |
 | R008 | Filter bar: one row, flex-wrap, h-10 uniform, no duplicates | CORE + RULES_FORMS | PJ-006 | `FILTER_DUPLICATE`, `FILTER_HEIGHT_MISMATCH`, `SEARCH_ICON_MISPLACED` | `filter-bar.tsx` | 0.6.100 |
 | R009 | Table: columns schema as single source of truth | RULES_DATA_DISPLAY | PJ-004 empty columns | `TABLE_COLUMN_MISMATCH` | — | 0.7.0 |
 | R010 | Overlays: shadcn primitives only, max-w-* required | CORE | PJ-008 full-width modal | `DIALOG_FULL_WIDTH`, `DIALOG_CUSTOM_OVERLAY` | `dialog.tsx`, `alert-dialog.tsx`, `sheet.tsx` | 0.7.1 |
@@ -134,6 +134,7 @@ Blocks: CORE = CORE_CONSTRAINTS. RULES_X = TIER-2 contextual blocks.
 | R018 | Back button compatibility with modals — no back-button traps | INTERACTION_PATTERNS | Nielsen #3 (user control) | — | — | 0.7.24 |
 | R019 | High-risk destructive: type-to-confirm. Reversible: optimistic + undo toast | INTERACTION_PATTERNS | Nielsen #5 (error prevention) + Gmail undo | — | — | 0.7.24 |
 | R052 | Marketing eyebrow budget: default none, max 2/page, never badge + eyebrow above one heading; signature motion = one 5s story | DESIGN_THINKING + DESIGN_QUALITY_MARKETING | PJ-020 eyebrow stacking reads as AI text | `EYEBROW_OVERUSE` (marketing, >3) | — | 0.26.1 |
+| R053 | Planned layout chrome is skipped when the manifest already fills that role (header/footer) | pipeline (`plan-generator.ts`) | PJ-022 two headers | — (`dropDuplicateLayoutChrome`) | — | 0.26.1 |
 
 ## Contextual (TIER-2, keyword-matched)
 

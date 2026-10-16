@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
 import chalk from 'chalk'
-import { generateSharedComponent } from '@getcoherent/core'
+import { generateSharedComponent, loadManifest } from '@getcoherent/core'
 import type { AIProviderInterface } from '../../utils/ai-provider.js'
 import { inferPageTypeFromRoute, getDesignQualityForType, CORE_CONSTRAINTS } from '../../agents/design-constraints.js'
 import { findMissingPackagesInCode, installPackages } from '../../utils/self-heal.js'
@@ -648,6 +648,37 @@ function extractUsageExample(code: string, componentName: string): string | unde
   return `<${componentName} ${example} />`
 }
 
+const LAYOUT_ROLES: Array<[string, RegExp]> = [
+  ['header', /header|nav|topbar/i],
+  ['footer', /footer/i],
+]
+
+/**
+ * Drop planned layout-chrome components whose role (header / footer) is
+ * already filled by a layout component in the manifest. Without this the
+ * planner's `SiteHeader` lands next to the scaffold's `Header`, pages import
+ * the planned one, and the root layout renders the other: two headers (PJ-022).
+ */
+export function dropDuplicateLayoutChrome<T extends { name: string; type: string }>(
+  planned: T[],
+  existing: Array<{ name: string; type: string }>,
+): { kept: T[]; dropped: string[] } {
+  const filled = new Set(
+    LAYOUT_ROLES.filter(([, re]) => existing.some(e => e.type === 'layout' && re.test(e.name))).map(([role]) => role),
+  )
+  const dropped: string[] = []
+  const kept = planned.filter(c => {
+    if (c.type !== 'layout') return true
+    const role = LAYOUT_ROLES.find(([, re]) => re.test(c.name))?.[0]
+    if (role && filled.has(role) && !existing.some(e => e.name === c.name)) {
+      dropped.push(c.name)
+      return false
+    }
+    return true
+  })
+  return { kept, dropped }
+}
+
 export async function generateSharedComponentsFromPlan(
   plan: ArchitecturePlan,
   styleContext: string,
@@ -655,6 +686,18 @@ export async function generateSharedComponentsFromPlan(
   aiProvider: AIProviderInterface,
 ): Promise<GeneratedComponent[]> {
   if (plan.sharedComponents.length === 0) return []
+
+  try {
+    const manifest = await loadManifest(projectRoot)
+    const { kept, dropped } = dropDuplicateLayoutChrome(plan.sharedComponents, manifest.shared)
+    if (dropped.length > 0) {
+      console.log(chalk.dim(`  Skipped ${dropped.join(', ')} — the root layout already owns that chrome`))
+      plan = { ...plan, sharedComponents: kept }
+      if (kept.length === 0) return []
+    }
+  } catch {
+    /* no manifest yet — nothing to dedupe against */
+  }
 
   const componentSpecs = plan.sharedComponents
     .map(

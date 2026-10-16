@@ -213,6 +213,26 @@ describe('autoFixCode shadow replacement', () => {
 })
 
 describe('autoFixCode', () => {
+  it('strips a leaked opening markdown fence with no closing fence', async () => {
+    const code = '```tsx\nexport default function Page() {\n  return <div />\n}\n'
+    const { code: out, fixes } = await autoFixCode(code)
+    expect(out.startsWith('export default')).toBe(true)
+    expect(fixes).toContain('stripped leaked markdown code fence')
+  })
+
+  it('strips both fences when the response is fully fenced', async () => {
+    const code = '```tsx\nexport default function Page() {\n  return <div />\n}\n```'
+    const { code: out } = await autoFixCode(code)
+    expect(out).not.toContain('```')
+  })
+
+  it('leaves fences inside template literals alone', async () => {
+    const code = 'export default function Page() {\n  const md = `\n```\n`\n  return <pre>{md}</pre>\n}\n'
+    const { code: out, fixes } = await autoFixCode(code)
+    expect(out).toContain('```')
+    expect(fixes).not.toContain('stripped leaked markdown code fence')
+  })
+
   it('replaces text-base with text-sm in className', async () => {
     const code = `<p className="text-base leading-relaxed">Text</p>`
     const { code: fixed, fixes } = await autoFixCode(code)
@@ -2329,17 +2349,32 @@ describe('DOUBLE_SIGN detection', () => {
 })
 
 describe('INLINE_MOCK_DATA detection', () => {
-  it('flags 5+ element inline object array', () => {
-    const code = `const users = [
+  it('flags 5+ element object array declared inside a component', () => {
+    const code = `export default function Page() {
+  const users = [
   { name: "Alice", age: 30 },
   { name: "Bob", age: 25 },
   { name: "Carol", age: 28 },
   { name: "Dave", age: 35 },
   { name: "Eve", age: 27 },
   { name: "Frank", age: 32 }
-]`
+]
+}`
     const issues = validatePageQuality(code)
     expect(issues.some(i => i.type === 'INLINE_MOCK_DATA')).toBe(true)
+  })
+
+  it('passes 5+ element array at module scope (the recommended location)', () => {
+    const code = `const users = [
+  { name: "Alice" },
+  { name: "Bob" },
+  { name: "Carol" },
+  { name: "Dave" },
+  { name: "Eve" }
+]
+export default function Page() { return null }`
+    const issues = validatePageQuality(code)
+    expect(issues.some(i => i.type === 'INLINE_MOCK_DATA')).toBe(false)
   })
 
   it('passes arrays with <5 elements', () => {
