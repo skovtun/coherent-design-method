@@ -23,6 +23,7 @@ import { withImpact, type EditScope } from './router.js'
 import {
   beginTransaction,
   commitTransaction,
+  diffTrees,
   extendTransaction,
   hashTree,
   listTransactions,
@@ -485,6 +486,27 @@ export async function verifyEdit(
     landed,
     buildError,
   }
+}
+
+/**
+ * Files changed since the last committed edit without going through Coherent
+ * (another agent without the write guard, an IDE, a script). The portable
+ * counterpart of the Claude-only hook: it works whoever made the change.
+ * Null when no edit has been committed yet (no trusted reference state).
+ */
+export function changedOutsideCoherent(rootInput: string): { since: string; files: string[] } | null {
+  const root = resolve(rootInput)
+  if (openTransaction(root)) return null // an edit is in progress; its own diff covers this
+  const ids = listTransactions(root, { active: true })
+  for (const id of ids.reverse()) {
+    const tx = loadTransaction(root, id)
+    if (tx.status === 'committed' && tx.after) {
+      const now = hashTree(root, tx.allowed)
+      const d = diffTrees(tx.after, now)
+      return { since: id, files: [...d.created, ...d.modified, ...d.deleted] }
+    }
+  }
+  return null
 }
 
 /** Keep a failed edit as is: close its transaction with verdict "failed" (still undoable). */

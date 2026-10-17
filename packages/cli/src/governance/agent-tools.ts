@@ -15,7 +15,14 @@ import { z } from 'zod'
 import { CLI_VERSION } from '@getcoherent/core'
 import { buildGraph } from './graph.js'
 import { buildInventory } from './router.js'
-import { beginEdit, loadSession, rollbackEdit, verifyEdit, type EditSession } from './session.js'
+import {
+  beginEdit,
+  changedOutsideCoherent,
+  loadSession,
+  rollbackEdit,
+  verifyEdit,
+  type EditSession,
+} from './session.js'
 import { openTransaction } from './transaction.js'
 
 export const AGENT_PROTOCOL = 1
@@ -96,6 +103,15 @@ export function registerGovernanceTools(server: McpServer): void {
         root: r,
         capabilities: { renderedVerification: await hasBrowser() },
         openEdit: open ? summary(loadSession(r, open.id)) : null,
+        changedOutsideCoherent: (() => {
+          const d = changedOutsideCoherent(r)
+          return d?.files.length
+            ? {
+                ...d,
+                note: 'These files changed since the last verified edit without Coherent. Tell the user; offer to verify them (begin an edit declaring them, then verify) before building on them.',
+              }
+            : null
+        })(),
         inventory: buildInventory(buildGraph(r)),
       })
     }),

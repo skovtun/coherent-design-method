@@ -127,12 +127,31 @@ program
 
 program
   .command('init')
-  .argument('[name]', 'Project directory name (created if it does not exist)')
-  .description('Initialize a new Coherent project')
-  .option('--skill-mode', 'Skip API key setup; expect /coherent-chat in Claude Code')
-  .option('--api-mode', 'Force API key setup; emit coherent chat CTA')
-  .option('--both', 'API key optional; emit CTAs for both skill and chat rails')
-  .action((nameArg: string | undefined, opts: InitOptions) => initCommand(nameArg, opts))
+  .argument('[name]', 'Project directory (created if it does not exist)')
+  .description(
+    'Set up agent mode: in an empty folder create a Next.js app, in an existing one add the Coherent agent (Claude Code, Codex)',
+  )
+  .option('--link', 'Use this CLI build by absolute path instead of a project dev dependency (development)')
+  .option('--skip-install', 'Write the agent files only; no npm installs')
+  .option('--classic', 'Deprecated: the old generator project (coherent chat pipeline)')
+  .option('--skill-mode', 'With --classic: skip API key setup; expect /coherent-chat in Claude Code')
+  .option('--api-mode', 'With --classic: force API key setup; emit coherent chat CTA')
+  .option('--both', 'With --classic: API key optional; emit CTAs for both rails')
+  .action(
+    async (
+      nameArg: string | undefined,
+      opts: InitOptions & { classic?: boolean; link?: boolean; skipInstall?: boolean },
+    ) => {
+      if (opts.classic) {
+        console.warn(
+          'coherent init --classic is deprecated: the generator pipeline is being replaced by agent mode (ADR-0011/0012).',
+        )
+        return initCommand(nameArg, opts)
+      }
+      const { agentInitCommand } = await import('./commands/agent-init.js')
+      return agentInitCommand(nameArg, opts)
+    },
+  )
 
 // ─── Auth (AI provider credentials) ─────────────────────────────────
 

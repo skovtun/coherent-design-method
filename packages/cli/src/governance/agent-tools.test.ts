@@ -168,3 +168,17 @@ describe('pre-write hook', () => {
     expect(edit(join(root, 'src/app/about/page.tsx'))).toContain(`amend="${begun.txId}"`)
   })
 })
+
+describe('changes made outside Coherent', () => {
+  it('reports files changed since the last verified edit', async () => {
+    const { call } = await connect()
+    await call('coherent_begin_edit', { request: 'r', scope: 'page', modify: ['src/app/page.tsx'] })
+    write('src/app/page.tsx', 'export default () => <main />\n')
+    await call('coherent_verify_edit', { level: 'final' })
+    expect((await call('coherent_inventory', {})).changedOutsideCoherent).toBeNull()
+    // e.g. Codex without the write guard, or an IDE
+    write('src/app/about/page.tsx', 'export default () => <p>Changed elsewhere</p>\n')
+    const inv = await call('coherent_inventory', {})
+    expect(inv.changedOutsideCoherent.files).toEqual(['src/app/about/page.tsx'])
+  })
+})
