@@ -569,7 +569,7 @@ A `max_tokens` raise costs nothing extra per call — you pay per token *generat
 
 **Root cause:** (1) a running dev server is not a trustworthy oracle; (2) Turbopack's persistent production build cache (`.next/cache`) intermittently did not invalidate a CSS-only change to `globals.css` (Tailwind v4 + `@tailwindcss/postcss`); a controlled two-build repro was fresh, so it is intermittent, not deterministic; (3) a 24-unit RGB noise threshold hid a real token edit (`#ffffff → #fafaf9` = 16 units).
 
-**Fix:** verification builds its own production server (`next build` + `next start` on a free port; Next 16 keeps dev output in `.next/dev`, so a running dev server is undisturbed), wipes `.next/cache` before every verification build (cold build of a 13-page app ≈ 6s), and compares pixels exactly. Screenshots are cached by tree hash, so a chain of edits reuses each "after" as the next "before".
+**Fix:** verification builds its own production server (`next build` + `next start` on a free port; Next 16 keeps dev output in `.next/dev`, so a running dev server is undisturbed), wipes `.next/cache` before every verification build (cold build of a 13-page app ≈ 6s), and compares pixels exactly, except a ±1 per-channel tolerance (added after an untouched control failed on 26 rounded-border edge pixels that differed by exactly 1 between identical builds; the smallest real token edit moves 5+ per channel). Screenshots are cached by tree hash, so a chain of edits reuses each "after" as the next "before".
 
 **Lesson:** verify against an artifact you built, from a cold cache, with an exact comparison. Pixel-sample the cached screenshots when a result looks wrong; it located a one-step lag that log output could not.
 

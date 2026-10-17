@@ -93,10 +93,11 @@ function walk(root: string, dir = root, out: string[] = []): string[] {
   return out
 }
 
-function listTree(root: string): string[] {
+function listTree(root: string, extra: string[] = []): string[] {
   // In a git repo, .gitignore already names build output, caches and local
-  // secrets; outside git fall back to a walk minus well-known dirs.
-  const files = gitFiles(root) ?? walk(root)
+  // secrets; outside git fall back to a walk minus well-known dirs. A
+  // transaction's own planned paths are always included, ignored or not.
+  const files = [...new Set([...(gitFiles(root) ?? walk(root)), ...extra])]
   return files.filter(f => {
     if (skipped(f)) return false
     const full = join(root, f)
@@ -105,9 +106,9 @@ function listTree(root: string): string[] {
   })
 }
 
-export function hashTree(root: string): Record<string, string> {
+export function hashTree(root: string, extra: string[] = []): Record<string, string> {
   const out: Record<string, string> = {}
-  for (const f of listTree(root).sort()) out[f] = sha(readFileSync(join(root, f)))
+  for (const f of listTree(root, extra).sort()) out[f] = sha(readFileSync(join(root, f)))
   return out
 }
 
@@ -118,7 +119,12 @@ export interface TxChanges {
 }
 
 export type TxStatus = 'open' | 'committed' | 'rolled_back'
-export type Verdict = 'verified' | 'verified_without_visual' | 'blocked_by_preexisting_failure' | 'failed'
+export type Verdict =
+  | 'verified'
+  | 'partially_verified'
+  | 'verified_without_visual'
+  | 'blocked_by_preexisting_failure'
+  | 'failed'
 
 export interface TxRecord {
   id: string
@@ -188,7 +194,7 @@ export function beginTransaction(root: string, label: string, allowed: string[])
   mkdirSync(join(root, TX_DIR), { recursive: true })
   // Snapshots hold project source; keep them out of the user's commits.
   writeFileSync(join(root, TX_DIR, '.gitignore'), '*\n')
-  const before = hashTree(root)
+  const before = hashTree(root, write)
   const unsaved: string[] = []
   let total = 0
   for (const f of Object.keys(before)) {
@@ -230,13 +236,13 @@ export function diffTrees(before: Record<string, string>, after: Record<string, 
 
 /** What changed since the transaction began, without closing it. */
 export function pendingChanges(root: string, rec: TxRecord): TxChanges {
-  return diffTrees(rec.before, hashTree(root))
+  return diffTrees(rec.before, hashTree(root, rec.allowed))
 }
 
 export function commitTransaction(root: string, rec: TxRecord, verdict?: Verdict): TxRecord {
   const cur = loadTransaction(root, rec.id)
   if (statusOf(cur) !== 'open') throw new Error(`Edit ${rec.id} is ${statusOf(cur)}, not open`)
-  const after = hashTree(root)
+  const after = hashTree(root, cur.allowed)
   const done: TxRecord = { ...cur, status: 'committed', after, changes: diffTrees(cur.before, after), verdict }
   save(root, done)
   return done
@@ -259,7 +265,7 @@ export function rollbackTransaction(root: string, id: string, opts: { force?: bo
   const rec = loadTransaction(root, id)
   const status = statusOf(rec)
   if (status === 'rolled_back') throw new Error(`Edit ${id} was already rolled back`)
-  const now = hashTree(root)
+  const now = hashTree(root, rec.allowed)
   const since = diffTrees(rec.before, now)
   const changedNow = [...since.created, ...since.modified, ...since.deleted]
 
@@ -305,7 +311,7 @@ export function rollbackTransaction(root: string, id: string, opts: { force?: bo
       restored[kind].push(f)
     }
   }
-  const check = hashTree(root)
+  const check = hashTree(root, rec.allowed)
   const drift = [...owned].filter(f => !unsaved.has(f) && check[f] !== rec.before[f])
   if (drift.length)
     throw new Error(`Rollback of ${id} left ${drift.length} file(s) different: ${drift.slice(0, 5).join(', ')}`)

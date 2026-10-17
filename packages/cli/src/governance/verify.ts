@@ -6,13 +6,17 @@
  * scope (the write-set guard proves it at the file level).
  */
 import { execFileSync, spawn, type ChildProcess } from 'child_process'
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'fs'
+import { createHash } from 'crypto'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { createServer } from 'net'
 import { join } from 'path'
+import { diffTrees, hashTree } from './transaction.js'
 
 export interface TypecheckResult {
   ok: boolean
   errors: string[]
+  /** Set when there is nothing to typecheck with (JS project, no local TypeScript). */
+  skipped?: string
 }
 
 const WIN = process.platform === 'win32'
@@ -21,19 +25,17 @@ const bin = (root: string, name: string) => join(root, 'node_modules', '.bin', W
 
 export function typecheck(root: string): TypecheckResult {
   const tsc = bin(root, 'tsc')
+  // A JS project (jsconfig, no TypeScript) has nothing to check, and `npx tsc`
+  // would fetch an unrelated "tsc" package; the build stays the gate there.
+  if (!existsSync(join(root, 'tsconfig.json'))) return { ok: true, errors: [], skipped: 'no tsconfig.json' }
+  if (!existsSync(tsc)) return { ok: true, errors: [], skipped: 'typescript is not installed in the project' }
   try {
-    execFileSync(
-      existsSync(tsc) ? tsc : 'npx',
-      existsSync(tsc)
-        ? ['--noEmit', '--incremental', 'false', '-p', '.']
-        : ['tsc', '--noEmit', '--incremental', 'false', '-p', '.'],
-      {
-        cwd: root,
-        encoding: 'utf-8',
-        stdio: ['ignore', 'pipe', 'pipe'],
-        shell: WIN,
-      },
-    )
+    execFileSync(tsc, ['--noEmit', '--incremental', 'false', '-p', '.'], {
+      cwd: root,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: WIN,
+    })
     return { ok: true, errors: [] }
   } catch (e) {
     const out = String((e as { stdout?: string }).stdout ?? '') + String((e as { stderr?: string }).stderr ?? '')
@@ -57,6 +59,10 @@ export interface Shot {
   viewport: 'desktop' | 'mobile'
   path: string
 }
+
+/** Collision-free file name: "/foo-bar" and "/foo/bar" slug alike, so the route hash disambiguates. */
+export const shotName = (route: string, vp: string) =>
+  `${route.replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'root'}-${createHash('sha1').update(route).digest('hex').slice(0, 8)}-${vp}.png`
 
 const VIEWPORTS = { desktop: { width: 1440, height: 900 }, mobile: { width: 390, height: 844 } } as const
 
@@ -84,7 +90,7 @@ export async function captureRoutes(
         await page.goto(baseUrl + r.url, { waitUntil: 'networkidle', timeout: 90_000 })
         await page.addStyleTag({ content: FREEZE_CSS })
         await page.waitForTimeout(600)
-        const path = join(outDir, `${r.route.replace(/[^a-z0-9]+/gi, '_') || 'root'}-${vp}.png`)
+        const path = join(outDir, shotName(r.route, vp))
         await page.screenshot({ path, fullPage: true })
         shots.push({ route: r.route, viewport: vp, path })
         await page.close()
@@ -99,8 +105,11 @@ export async function captureRoutes(
 
 /**
  * Fraction of pixels that differ for each pair (size mismatch counts as fully
- * different), in one browser. Exact comparison: renders come from deterministic
- * builds, and a noise threshold hid real token edits (#ffffff → #fafaf9 is 16 units total).
+ * different), in one browser. A pixel differs when any channel moves by more
+ * than 1: anti-aliasing on rounded borders varies by exactly 1 between
+ * identical builds (observed: 26 edge pixels on an untouched control page),
+ * while the smallest real token edit seen moves 5+ per channel
+ * (#ffffff → #fafaf9). A summed 24-unit threshold once hid exactly that edit.
  */
 export async function diffMany(pairs: [string, string][]): Promise<number[]> {
   if (!pairs.length) return []
@@ -121,7 +130,7 @@ export async function diffMany(pairs: [string, string][]): Promise<number[]> {
         const da = px(ia), db = px(ib)
         let diff = 0
         for (let i = 0; i < da.length; i += 4)
-          if (da[i] !== db[i] || da[i + 1] !== db[i + 1] || da[i + 2] !== db[i + 2]) diff++
+          if (Math.abs(da[i] - db[i]) > 1 || Math.abs(da[i + 1] - db[i + 1]) > 1 || Math.abs(da[i + 2] - db[i + 2]) > 1) diff++
         return diff / (da.length / 4)
       })()`
       out.push((await page.evaluate(script)) as number)
@@ -182,6 +191,8 @@ function freePort(): Promise<number> {
  * deterministic, doubles as the "project still builds" check, and since
  * Next 16 keeps dev output in .next/dev it does not disturb a running dev server.
  */
+const BUILD_REWRITES = ['tsconfig.json', 'jsconfig.json']
+
 export async function startPreview(root: string): Promise<PreviewServer> {
   const next = bin(root, 'next')
   if (!existsSync(next)) throw new Error('next is not installed in this project (node_modules/.bin/next missing)')
@@ -189,6 +200,13 @@ export async function startPreview(root: string): Promise<PreviewServer> {
   // of the next build (observed: renders lagged exactly one globals.css edit
   // behind the source). A cold build of a 13-page app is ~6s; correctness wins.
   rmSync(join(root, '.next', 'cache'), { recursive: true, force: true })
+  // `next build` rewrites tsconfig.json on a minimally configured project. The
+  // build is an observer here: put config back, and refuse to go on if it
+  // touched anything else, so build side effects never leak into an edit.
+  const sourceBefore = hashTree(root)
+  const configs = Object.fromEntries(
+    BUILD_REWRITES.filter(f => existsSync(join(root, f))).map(f => [f, readFileSync(join(root, f))]),
+  )
   try {
     execFileSync(next, ['build'], {
       cwd: root,
@@ -200,7 +218,12 @@ export async function startPreview(root: string): Promise<PreviewServer> {
   } catch (e) {
     const out = String((e as { stdout?: string }).stdout ?? '') + String((e as { stderr?: string }).stderr ?? '')
     throw new PreviewBuildError(`next build failed:\n${out.split('\n').slice(-25).join('\n')}`)
+  } finally {
+    for (const [f, c] of Object.entries(configs)) writeFileSync(join(root, f), c)
   }
+  const touched = diffTrees(sourceBefore, hashTree(root))
+  const stray = [...touched.created, ...touched.modified, ...touched.deleted]
+  if (stray.length) throw new Error(`next build changed project source files: ${stray.slice(0, 5).join(', ')}`)
   const port = await freePort()
   const child = spawn(next, ['start', '-p', String(port)], {
     cwd: root,
@@ -235,7 +258,7 @@ export async function shotsForTree(
     (['desktop', 'mobile'] as const).map(vp => ({
       route: t.route,
       viewport: vp,
-      path: join(dir, `${t.route.replace(/[^a-z0-9]+/gi, '_') || 'root'}-${vp}.png`),
+      path: join(dir, shotName(t.route, vp)),
     })),
   )
   if (expected.every(s => existsSync(s.path))) return expected

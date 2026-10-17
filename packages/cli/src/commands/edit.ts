@@ -62,7 +62,8 @@ export interface EditReport {
   txId: string
   changes: TxChanges
   outOfPlan: string[]
-  typecheck: { ok: boolean; errors: string[]; repaired: boolean }
+  /** `errors` are only the ones the edit introduced; `baselineErrors` were there before. */
+  typecheck: { ok: boolean; errors: string[]; repaired: boolean; baselineErrors: number; skipped?: string }
   visual?: { route: string; viewport: string; diff: number; expected: 'change' | 'same'; pass: boolean }[]
   /** Why the rendered check did not run, when it did not. */
   visualSkipped?: string
@@ -105,12 +106,47 @@ function writeFiles(root: string, files: Record<string, string>) {
   }
 }
 
-const leakKey = (l: Leak) => `${l.file}\0${l.identity.value}\0${l.excerpt}`
 const errorLeaks = (root: string) => scanLeaks(buildGraph(root)).filter(l => l.identity.severity === 'error')
 
-const treeKey = (root: string) =>
+/**
+ * Leaks the edit added: per file and identity, occurrences beyond the count
+ * before the edit. Counting (not matching line text) keeps a restyled line
+ * that still carries a pre-existing identity from reading as a new leak.
+ */
+export function introducedLeaksOf(before: Leak[], after: Leak[], touched: Set<string>): Leak[] {
+  const key = (l: Leak) => `${l.file}\0${l.identity.value}`
+  const had = new Map<string, number>()
+  for (const l of before) had.set(key(l), (had.get(key(l)) ?? 0) + 1)
+  const out: Leak[] = []
+  const seen = new Map<string, number>()
+  for (const l of after) {
+    if (!touched.has(l.file)) continue
+    const n = (seen.get(key(l)) ?? 0) + 1
+    seen.set(key(l), n)
+    if (n > (had.get(key(l)) ?? 0)) out.push(l)
+  }
+  return out
+}
+
+/** TypeScript errors the edit introduced: positions shift with edits, so compare without them. */
+export function newTypeErrors(baseline: string[], after: string[]): string[] {
+  const norm = (e: string) => e.replace(/\(\d+,\d+\)/, '').trim()
+  const left = new Map<string, number>()
+  for (const e of baseline) left.set(norm(e), (left.get(norm(e)) ?? 0) + 1)
+  return after.filter(e => {
+    const n = left.get(norm(e)) ?? 0
+    if (n > 0) {
+      left.set(norm(e), n - 1)
+      return false
+    }
+    return true
+  })
+}
+
+// Planned paths are hashed even when git ignores them, so an edit to one changes the key.
+const treeKey = (root: string, extra: string[]) =>
   createHash('sha256')
-    .update(JSON.stringify(hashTree(root)))
+    .update(JSON.stringify(hashTree(root, extra)))
     .digest('hex')
     .slice(0, 16)
 
@@ -118,6 +154,9 @@ export function affectedRoutes(plan: PlanWithImpact, graph: ProjectGraph): strin
   const own = plan.modify.filter(f => graph.nodes[f]?.kind === 'page').map(f => graph.nodes[f].route!)
   return [...new Set([...plan.impact.routes, ...own])].sort()
 }
+
+const MAX_AFFECTED = 12
+const MAX_CONTROLS = 2
 
 export async function runEdit(request: string, opts: EditOptions, llm: Completer): Promise<EditReport | null> {
   const root = resolve(opts.dir ?? process.cwd())
@@ -133,7 +172,7 @@ export async function runEdit(request: string, opts: EditOptions, llm: Completer
   const pages = Object.values(graph.nodes)
     .filter(n => n.kind === 'page')
     .map(n => n.route!)
-  const controls = pages.filter(r => !affected.includes(r) && concreteUrl(r, params)).slice(0, 2)
+  const controls = pages.filter(r => !affected.includes(r) && concreteUrl(r, params)).slice(0, MAX_CONTROLS)
   const variantPages = plan.modify.filter(f => graph.nodes[f]?.kind === 'page').map(f => graph.nodes[f].route!)
   const targets = [
     // A variant is opt-in: only the pages the plan edits may change; every other
@@ -146,15 +185,16 @@ export async function runEdit(request: string, opts: EditOptions, llm: Completer
   ]
     .map(t => ({ ...t, url: concreteUrl(t.route, params) }))
     .filter((t): t is { route: string; expected: 'change' | 'same'; url: string } => !!t.url)
-    .slice(0, 6)
+    .slice(0, MAX_AFFECTED + MAX_CONTROLS)
   const unverifiedRoutes = affected.filter(r => !targets.some(t => t.route === r))
 
   let visual = opts.visual !== false
   let visualSkipped: string | undefined = visual ? undefined : 'disabled (--no-visual)'
   let preexistingFailure = false
   const runDir = join(root, '.coherent', 'edits', new Date().toISOString().replace(/[:.]/g, '-'))
+  const planned = [...plan.modify, ...plan.create]
   const shoot = (key: string) =>
-    opts.url ? captureRoutes(opts.url, targets, join(runDir, key)) : shotsForTree(root, treeKey(root), targets)
+    opts.url ? captureRoutes(opts.url, targets, join(runDir, key)) : shotsForTree(root, treeKey(root, planned), targets)
   let before: Shot[] = []
   if (visual) {
     try {
@@ -170,21 +210,27 @@ export async function runEdit(request: string, opts: EditOptions, llm: Completer
     }
   }
 
-  const leaksBefore = new Set(errorLeaks(root).map(leakKey))
-  const tx = beginTransaction(root, request, [...plan.modify, ...plan.create])
+  const leaksBefore = errorLeaks(root)
+  // Errors already in the project are not the edit's; only new ones fail it.
+  const baseline = typecheck(root)
+  const check = () => {
+    const r = typecheck(root)
+    return { ok: !newTypeErrors(baseline.errors, r.errors).length, errors: newTypeErrors(baseline.errors, r.errors) }
+  }
+  const tx = beginTransaction(root, request, planned)
   let tc: { ok: boolean; errors: string[] }
   let repaired = false
   try {
     const prompt = buildApplyPrompt(request, plan, graph)
     writeFiles(root, parseApplyOutput(await llm(APPLY_SYSTEM, prompt), plan))
-    tc = typecheck(root)
+    tc = check()
     if (!tc.ok) {
       const fix = await llm(
         APPLY_SYSTEM,
         `${buildApplyPrompt(request, plan, buildGraph(root))}\n\n## TypeScript errors after your edit — fix them, same files only\n${tc.errors.slice(0, 30).join('\n')}`,
       )
       writeFiles(root, parseApplyOutput(fix, plan))
-      tc = typecheck(root)
+      tc = check()
       repaired = tc.ok
     }
   } catch (e) {
@@ -196,7 +242,7 @@ export async function runEdit(request: string, opts: EditOptions, llm: Completer
   const allowed = new Set([...plan.modify, ...plan.create])
   const outOfPlan = [...changes.created, ...changes.modified, ...changes.deleted].filter(f => !allowed.has(f))
   const touched = new Set([...changes.created, ...changes.modified])
-  const introducedLeaks = errorLeaks(root).filter(l => touched.has(l.file) && !leaksBefore.has(leakKey(l)))
+  const introducedLeaks = introducedLeaksOf(leaksBefore, errorLeaks(root), touched)
 
   let visualRes: EditReport['visual']
   let buildError: string | undefined
@@ -234,14 +280,19 @@ export async function runEdit(request: string, opts: EditOptions, llm: Completer
     introducedLeaks.length > 0 ||
     !landed ||
     !(visualRes ?? []).every(v => v.pass)
-  // Partial verification is never reported as verified.
+  // Partial verification is never reported as verified: every affected route
+  // must have been rendered, at least one expected to change, on a project
+  // that typechecked before the edit.
+  const preexisting = preexistingFailure || !baseline.ok
   const verdict: Verdict = failed
     ? 'failed'
-    : visualRes
-      ? 'verified'
-      : preexistingFailure
+    : !visualRes
+      ? preexisting
         ? 'blocked_by_preexisting_failure'
         : 'verified_without_visual'
+      : preexisting || unverifiedRoutes.length > 0 || expectedChange.length === 0
+        ? 'partially_verified'
+        : 'verified'
 
   const rolledBack = verdict === 'failed' && !opts.keep
   if (rolledBack) rollbackTransaction(root, tx.id)
@@ -253,7 +304,7 @@ export async function runEdit(request: string, opts: EditOptions, llm: Completer
     txId: tx.id,
     changes,
     outOfPlan,
-    typecheck: { ...tc, repaired },
+    typecheck: { ...tc, repaired, baselineErrors: baseline.errors.length, skipped: baseline.skipped },
     visual: visualRes,
     visualSkipped,
     unverifiedRoutes,
@@ -288,6 +339,11 @@ function printReport(r: EditReport) {
   )
   for (const l of r.introducedLeaks)
     console.log(chalk.red(`Identity leak introduced: ${l.file}:${l.line} ${l.identity.kind} — ${l.excerpt}`))
+  if (r.typecheck.skipped) console.log(chalk.yellow(`TypeScript check skipped: ${r.typecheck.skipped}`))
+  if (r.typecheck.baselineErrors)
+    console.log(
+      chalk.yellow(`TypeScript: ${r.typecheck.baselineErrors} error(s) already in the project before this edit`),
+    )
   if (r.buildError) console.log(chalk.red(`Build: ${r.buildError.split('\n').slice(0, 8).join('\n  ')}`))
   if (r.visualSkipped) console.log(chalk.yellow(`Rendered check not run: ${r.visualSkipped}`))
   if (r.visual && !r.landed) console.log(chalk.red('Edit did not visibly change any affected page'))
@@ -308,6 +364,7 @@ function printReport(r: EditReport) {
     )
   const label: Record<Verdict, string> = {
     verified: chalk.green('VERIFIED'),
+    partially_verified: chalk.yellow('APPLIED — PARTIALLY VERIFIED (see unrendered routes / pre-existing errors)'),
     verified_without_visual: chalk.yellow('APPLIED — NOT VISUALLY VERIFIED'),
     blocked_by_preexisting_failure: chalk.yellow(
       'APPLIED — VERIFICATION BLOCKED (project did not build before the edit)',
@@ -351,5 +408,9 @@ export async function editCommand(request: string | undefined, opts: EditOptions
   }
   const client = ClaudeClient.create()
   const report = await runEdit(request, opts, (s, u) => client.complete(s, u))
-  if (report) printReport(report)
+  if (report) {
+    printReport(report)
+    // Scripts and agents must not read a failed (rolled-back) edit as applied.
+    if (report.verdict === 'failed') process.exitCode = 1
+  }
 }
