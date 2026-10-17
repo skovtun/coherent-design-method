@@ -147,11 +147,28 @@ export function writeAgentFiles(dir: string, inv: ReturnType<typeof cliInvocatio
  * The agent designs it on request (template rule), so every new app gets its
  * own take on the same content.
  */
-export function writeWelcomePage(dir: string) {
+export function writeWelcomePage(dir: string, pick: () => number = Math.random) {
   const app = existsSync(join(dir, 'src', 'app')) ? join(dir, 'src', 'app') : join(dir, 'app')
   mkdirSync(app, { recursive: true })
-  writeFileSync(join(app, 'page.tsx'), readFileSync(join(templatesDir(), 'welcome-page.tsx'), 'utf-8'))
+  // Left to itself the model converges on one look (observed twice in a row:
+  // paper background, serif display, vermilion). A drawn direction makes every
+  // new app's starter different while staying in a big-tech register.
+  const direction = WELCOME_DIRECTIONS[Math.floor(pick() * WELCOME_DIRECTIONS.length)]
+  const page = readFileSync(join(templatesDir(), 'welcome-page.tsx'), 'utf-8').replace(
+    /^\/\* coherent-welcome: agent-v1/,
+    `/* coherent-welcome: agent-v1 | direction: ${direction}`,
+  )
+  writeFileSync(join(app, 'page.tsx'), page)
 }
+
+export const WELCOME_DIRECTIONS = [
+  'Apple — bright white, an enormous tight sans headline, calm gray bands, product-shot gravity, slow precise reveals',
+  'Linear — near-black canvas, hairline borders, soft radial glow, crisp small sans, keyboard-fast motion',
+  'Stripe — white with a vivid animated gradient mesh in the hero, a precise column grid, confident color',
+  'Vercel — pure black and white, visible grid lines, geometric shapes, monospace accents, zero ornament',
+  'Google — bright primary color blocks, rounded shapes, friendly sans, playful but orderly motion',
+  'Nothing — monochrome with one red signal, dot-matrix and monospace type, industrial labels and modules',
+]
 
 /** Dynamic routes that need an example URL in .coherent/preview-params.json to be rendered. */
 function dynamicRoutesWithoutParams(dir: string): string[] {

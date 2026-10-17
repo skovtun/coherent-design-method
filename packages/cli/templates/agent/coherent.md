@@ -31,7 +31,7 @@ Undo: "undo that" / "верни как было" → `coherent_rollback_edit`. I
 
 ## The welcome page
 
-If the home page (`src/app/page.tsx` or `app/page.tsx`) starts with the comment `coherent-welcome:`, it is Coherent's unstyled starter. When the user asks you to style it (or just to start), design it in your own direction, as a showcase of taste: typography, layout, color, motion. Keep every text and section verbatim; only the presentation is yours. Remove the `coherent-welcome:` comment line when you have styled it. When the user describes their actual product, replace the welcome page with the product's home.
+If the home page (`src/app/page.tsx` or `app/page.tsx`) starts with the comment `coherent-welcome:`, it is Coherent's unstyled starter. When the user asks you to style it (or just to start), design it as a big-tech product launch page, following the `direction:` named in that comment: take the register of that company's marketing pages (type scale, grid, color logic, motion), never its logo, name or assets. Use a sans-serif or mono system typeface family; no editorial print look (paper-toned backgrounds, serif display type). Keep every text and section verbatim; only the presentation is yours. Remove the comment line when you have styled it. When the user describes their actual product, replace the welcome page with the product's home.
 
 ## Design
 

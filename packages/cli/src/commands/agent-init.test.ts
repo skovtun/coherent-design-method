@@ -115,7 +115,9 @@ describe('agentInitCommand', () => {
     }
     await agentInitCommand(app, { link: true }, run)
     const page = readFileSync(join(app, 'src', 'app', 'page.tsx'), 'utf-8')
-    expect(page).toMatch(/^\/\* coherent-welcome: agent-v1/)
+    expect(page).toMatch(
+      /^\/\* coherent-welcome: agent-v1 \| direction: (Apple|Linear|Stripe|Vercel|Google|Nothing) — /,
+    )
     expect(page).toContain('Describe your product. Your agent builds it.')
     expect(existsSync(join(app, '.mcp.json'))).toBe(true)
   })
