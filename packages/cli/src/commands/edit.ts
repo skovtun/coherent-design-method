@@ -3,7 +3,8 @@
  *
  * Flow: code-derived graph → routed plan → impact preview → transaction →
  * guarded write → typecheck (one repair pass) → rendered check of affected and
- * control routes → report. `coherent edit --undo [id]` restores byte-for-byte.
+ * control routes + leak scan → commit, or roll back a failed edit → report.
+ * `coherent edit --undo [id]` restores the edit's files byte-for-byte.
  */
 import chalk from 'chalk'
 import { mkdirSync, writeFileSync } from 'fs'
@@ -11,7 +12,7 @@ import { dirname, join, resolve } from 'path'
 import { createInterface } from 'readline'
 import { ClaudeClient } from '../utils/claude.js'
 import { buildGraph, type ProjectGraph } from '../governance/graph.js'
-import { scanLeaks } from '../governance/privacy.js'
+import { scanLeaks, type Leak } from '../governance/privacy.js'
 import {
   APPLY_SYSTEM,
   buildApplyPrompt,
@@ -25,14 +26,18 @@ import {
   commitTransaction,
   hashTree,
   listTransactions,
+  pendingChanges,
   rollbackTransaction,
+  safeRelPath,
   type TxChanges,
+  type Verdict,
 } from '../governance/transaction.js'
 import {
   captureRoutes,
   concreteUrl,
-  diffRatio,
+  diffMany,
   loadPreviewParams,
+  PreviewBuildError,
   shotsForTree,
   typecheck,
   type Shot,
@@ -47,6 +52,8 @@ export interface EditOptions {
   undo?: string | boolean
   force?: boolean
   visual?: boolean
+  /** Keep an edit that failed verification instead of rolling it back. */
+  keep?: boolean
 }
 
 export interface EditReport {
@@ -57,9 +64,18 @@ export interface EditReport {
   outOfPlan: string[]
   typecheck: { ok: boolean; errors: string[]; repaired: boolean }
   visual?: { route: string; viewport: string; diff: number; expected: 'change' | 'same'; pass: boolean }[]
+  /** Why the rendered check did not run, when it did not. */
+  visualSkipped?: string
+  /** Affected routes no screenshot covered (dynamic without preview params, or past the cap). */
+  unverifiedRoutes: string[]
+  /** Identity leaks (real name/email/home path) the edit itself introduced. */
+  introducedLeaks: Leak[]
   /** False when no affected route rendered any difference: the edit did not visibly land. */
   landed: boolean
   buildError?: string
+  verdict: Verdict
+  /** A failed edit is rolled back unless --keep. */
+  rolledBack: boolean
   ok: boolean
 }
 
@@ -83,10 +99,14 @@ function printPlan(plan: PlanWithImpact, graph: ProjectGraph) {
 
 function writeFiles(root: string, files: Record<string, string>) {
   for (const [p, c] of Object.entries(files)) {
-    mkdirSync(dirname(join(root, p)), { recursive: true })
-    writeFileSync(join(root, p), c)
+    const dest = join(root, safeRelPath(root, p))
+    mkdirSync(dirname(dest), { recursive: true })
+    writeFileSync(dest, c)
   }
 }
+
+const leakKey = (l: Leak) => `${l.file}\0${l.identity.value}\0${l.excerpt}`
+const errorLeaks = (root: string) => scanLeaks(buildGraph(root)).filter(l => l.identity.severity === 'error')
 
 const treeKey = (root: string) =>
   createHash('sha256')
@@ -127,8 +147,11 @@ export async function runEdit(request: string, opts: EditOptions, llm: Completer
     .map(t => ({ ...t, url: concreteUrl(t.route, params) }))
     .filter((t): t is { route: string; expected: 'change' | 'same'; url: string } => !!t.url)
     .slice(0, 6)
+  const unverifiedRoutes = affected.filter(r => !targets.some(t => t.route === r))
 
   let visual = opts.visual !== false
+  let visualSkipped: string | undefined = visual ? undefined : 'disabled (--no-visual)'
+  let preexistingFailure = false
   const runDir = join(root, '.coherent', 'edits', new Date().toISOString().replace(/[:.]/g, '-'))
   const shoot = (key: string) =>
     opts.url ? captureRoutes(opts.url, targets, join(runDir, key)) : shotsForTree(root, treeKey(root), targets)
@@ -137,51 +160,64 @@ export async function runEdit(request: string, opts: EditOptions, llm: Completer
     try {
       before = await shoot('before')
     } catch (e) {
-      // A missing browser or a broken pre-existing build must not block the edit itself.
+      // A missing browser or a broken pre-existing build must not block the edit,
+      // but the result can then never be reported as fully verified.
       visual = false
-      console.log(chalk.yellow(`⚠ Rendered check skipped: ${String((e as Error).message).split('\n')[0]}`))
+      preexistingFailure = e instanceof PreviewBuildError
+      visualSkipped = `${preexistingFailure ? 'project did not build before the edit' : 'browser unavailable'}: ${String((e as Error).message).split('\n')[0]}`
+      console.log(chalk.yellow(`⚠ Rendered check skipped: ${visualSkipped}`))
       console.log(chalk.dim('  Fix: npx playwright install chromium; make sure `next build` passes before editing.'))
     }
   }
 
-  const tx = beginTransaction(root, request)
-  const prompt = buildApplyPrompt(request, plan, graph)
-  writeFiles(root, parseApplyOutput(await llm(APPLY_SYSTEM, prompt), plan))
-
-  let tc = typecheck(root)
+  const leaksBefore = new Set(errorLeaks(root).map(leakKey))
+  const tx = beginTransaction(root, request, [...plan.modify, ...plan.create])
+  let tc: { ok: boolean; errors: string[] }
   let repaired = false
-  if (!tc.ok) {
-    const fix = await llm(
-      APPLY_SYSTEM,
-      `${buildApplyPrompt(request, plan, buildGraph(root))}\n\n## TypeScript errors after your edit — fix them, same files only\n${tc.errors.slice(0, 30).join('\n')}`,
-    )
-    writeFiles(root, parseApplyOutput(fix, plan))
+  try {
+    const prompt = buildApplyPrompt(request, plan, graph)
+    writeFiles(root, parseApplyOutput(await llm(APPLY_SYSTEM, prompt), plan))
     tc = typecheck(root)
-    repaired = tc.ok
+    if (!tc.ok) {
+      const fix = await llm(
+        APPLY_SYSTEM,
+        `${buildApplyPrompt(request, plan, buildGraph(root))}\n\n## TypeScript errors after your edit — fix them, same files only\n${tc.errors.slice(0, 30).join('\n')}`,
+      )
+      writeFiles(root, parseApplyOutput(fix, plan))
+      tc = typecheck(root)
+      repaired = tc.ok
+    }
+  } catch (e) {
+    // Nothing usable was produced: leave the project exactly as it was.
+    rollbackTransaction(root, tx.id)
+    throw e
   }
-  const committed = commitTransaction(root, tx)
-  const changes = committed.changes!
+  const changes = pendingChanges(root, tx)
   const allowed = new Set([...plan.modify, ...plan.create])
   const outOfPlan = [...changes.created, ...changes.modified, ...changes.deleted].filter(f => !allowed.has(f))
+  const touched = new Set([...changes.created, ...changes.modified])
+  const introducedLeaks = errorLeaks(root).filter(l => touched.has(l.file) && !leaksBefore.has(leakKey(l)))
 
   let visualRes: EditReport['visual']
   let buildError: string | undefined
   if (visual && tc.ok) {
     try {
       const after = await shoot('after')
-      visualRes = []
-      for (const b of before) {
+      const pairs = before.map(b => {
         const a = after.find(x => x.route === b.route && x.viewport === b.viewport)!
+        return [b.path, a.path] as [string, string]
+      })
+      const diffs = await diffMany(pairs)
+      visualRes = before.map((b, i) => {
         const t = targets.find(x => x.route === b.route)!
-        const diff = await diffRatio(b.path, a.path)
-        visualRes.push({
+        return {
           route: b.route,
           viewport: b.viewport,
-          diff,
+          diff: diffs[i],
           expected: t.expected,
-          pass: t.expected === 'same' ? diff === 0 : true,
-        })
-      }
+          pass: t.expected === 'same' ? diffs[i] === 0 : true,
+        }
+      })
     } catch (e) {
       buildError = String((e as Error).message)
     }
@@ -191,7 +227,26 @@ export async function runEdit(request: string, opts: EditOptions, llm: Completer
   // a component without rendering it under current data may legitimately stay put.
   const expectedChange = (visualRes ?? []).filter(v => v.expected === 'change')
   const landed = !visualRes || !expectedChange.length || expectedChange.some(v => v.diff > 0)
-  const ok = tc.ok && !buildError && outOfPlan.length === 0 && landed && (visualRes ?? []).every(v => v.pass)
+  const failed =
+    !tc.ok ||
+    !!buildError ||
+    outOfPlan.length > 0 ||
+    introducedLeaks.length > 0 ||
+    !landed ||
+    !(visualRes ?? []).every(v => v.pass)
+  // Partial verification is never reported as verified.
+  const verdict: Verdict = failed
+    ? 'failed'
+    : visualRes
+      ? 'verified'
+      : preexistingFailure
+        ? 'blocked_by_preexisting_failure'
+        : 'verified_without_visual'
+
+  const rolledBack = verdict === 'failed' && !opts.keep
+  if (rolledBack) rollbackTransaction(root, tx.id)
+  else commitTransaction(root, tx, verdict)
+
   const report: EditReport = {
     request,
     plan,
@@ -200,9 +255,14 @@ export async function runEdit(request: string, opts: EditOptions, llm: Completer
     outOfPlan,
     typecheck: { ...tc, repaired },
     visual: visualRes,
+    visualSkipped,
+    unverifiedRoutes,
+    introducedLeaks,
     landed,
     buildError,
-    ok,
+    verdict,
+    rolledBack,
+    ok: verdict === 'verified',
   }
   mkdirSync(runDir, { recursive: true })
   writeFileSync(join(runDir, 'report.json'), JSON.stringify(report, null, 2))
@@ -226,7 +286,10 @@ function printReport(r: EditReport) {
           `TypeScript: ${r.typecheck.errors.length} error(s)\n  ${r.typecheck.errors.slice(0, 5).join('\n  ')}`,
         ),
   )
+  for (const l of r.introducedLeaks)
+    console.log(chalk.red(`Identity leak introduced: ${l.file}:${l.line} ${l.identity.kind} — ${l.excerpt}`))
   if (r.buildError) console.log(chalk.red(`Build: ${r.buildError.split('\n').slice(0, 8).join('\n  ')}`))
+  if (r.visualSkipped) console.log(chalk.yellow(`Rendered check not run: ${r.visualSkipped}`))
   if (r.visual && !r.landed) console.log(chalk.red('Edit did not visibly change any affected page'))
   for (const v of r.visual ?? []) {
     const mark = !v.pass ? chalk.red('✗') : v.expected === 'change' && v.diff === 0 ? chalk.dim('·') : chalk.green('✓')
@@ -234,31 +297,57 @@ function printReport(r: EditReport) {
       `  ${mark} ${v.route} ${v.viewport}: ${(v.diff * 100).toFixed(2)}% pixels changed (expected ${v.expected})`,
     )
   }
+  if (r.unverifiedRoutes.length)
+    console.log(
+      chalk.yellow(
+        `  Not rendered (no preview params or over the cap): ${r.unverifiedRoutes.join(', ')}` +
+          (r.unverifiedRoutes.some(x => x.includes('['))
+            ? chalk.dim('\n  Map dynamic routes in .coherent/preview-params.json, e.g. {"/items/[id]": "/items/1"}')
+            : ''),
+      ),
+    )
+  const label: Record<Verdict, string> = {
+    verified: chalk.green('VERIFIED'),
+    verified_without_visual: chalk.yellow('APPLIED — NOT VISUALLY VERIFIED'),
+    blocked_by_preexisting_failure: chalk.yellow(
+      'APPLIED — VERIFICATION BLOCKED (project did not build before the edit)',
+    ),
+    failed: chalk.red('FAILED'),
+  }
   console.log(
-    `\n${r.ok ? chalk.green('OK') : chalk.red('NEEDS ATTENTION')} — undo with: coherent edit --undo ${r.txId}`,
+    `\n${label[r.verdict]} — ` +
+      (r.rolledBack
+        ? 'rolled back, project unchanged (re-run with --keep to inspect a failed edit)'
+        : `undo with: coherent edit --undo ${r.txId}`),
   )
 }
 
 export async function editCommand(request: string | undefined, opts: EditOptions) {
   const root = resolve(opts.dir ?? process.cwd())
   if (opts.undo) {
-    const ids = listTransactions(root)
+    const ids = listTransactions(root, { active: true })
     const id = opts.undo === true || opts.undo === 'last' ? ids[ids.length - 1] : String(opts.undo)
     if (!id) throw new Error('No edit transactions to undo')
-    const undone = rollbackTransaction(root, id, { force: opts.force })
+    const res = rollbackTransaction(root, id, { force: opts.force })
+    const r = res.restored
     console.log(
       chalk.green(
-        `Restored ${id}: ${undone.modified.length} modified, ${undone.created.length} created removed, ${undone.deleted.length} deleted restored. Tree verified byte-identical.`,
+        `Restored ${id}: ${r.modified.length} modified, ${r.created.length} created removed, ${r.deleted.length} deleted restored. Restored files verified byte-identical.`,
       ),
     )
+    if (res.untouched.length)
+      console.log(chalk.dim(`Left as they are (not part of this edit): ${res.untouched.slice(0, 8).join(', ')}`))
+    if (res.unrestorable.length)
+      console.log(chalk.red(`Could not restore (never snapshotted: secrets/oversized): ${res.unrestorable.join(', ')}`))
     return
   }
   if (!request) throw new Error('Usage: coherent edit "<what to change>"')
 
-  const leaks = scanLeaks(buildGraph(root)).filter(l => l.identity.severity === 'error')
+  const leaks = errorLeaks(root)
   if (leaks.length) {
-    console.log(chalk.red(`⚠ ${leaks.length} environment identity leak(s) in source (real name/email/home path):`))
-    for (const l of leaks.slice(0, 5)) console.log(chalk.red(`  ${l.file}:${l.line} ${l.identity.kind} — ${l.excerpt}`))
+    console.log(chalk.yellow(`⚠ ${leaks.length} existing identity leak(s) in source (real name/email/home path):`))
+    for (const l of leaks.slice(0, 5))
+      console.log(chalk.yellow(`  ${l.file}:${l.line} ${l.identity.kind} — ${l.excerpt}`))
   }
   const client = ClaudeClient.create()
   const report = await runEdit(request, opts, (s, u) => client.complete(s, u))

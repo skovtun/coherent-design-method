@@ -33,7 +33,8 @@ coherent fix --verbose           # Auto-fix with per-file breakdown
 coherent fix --dry-run           # Show what would be fixed without writing
 coherent edit "<request>"        # Scoped edit (tokens/component/variant/page): impact preview, undoable, build+screenshot verified
 coherent edit "<request>" --dry-run   # Show scope + affected pages only
-coherent edit --undo [id]        # Byte-exact rollback of the last (or given) edit; refuses if newer edits sit on top (--force)
+coherent edit "<request>" --keep      # Keep an edit that failed verification (default: rolled back)
+coherent edit --undo [id]        # Byte-exact rollback of that edit's own files; refuses if newer edits changed them (--force)
 coherent fix --journal           # Capture session YAML to .coherent/fix-sessions/ for later review
 coherent journal list            # List captured fix sessions
 coherent journal aggregate       # Rank validators by recurrence across all sessions

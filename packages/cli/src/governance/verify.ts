@@ -5,7 +5,7 @@
  * render pixel-identical, which is the rendered proof that the edit stayed in
  * scope (the write-set guard proves it at the file level).
  */
-import { execFileSync, spawn } from 'child_process'
+import { execFileSync, spawn, type ChildProcess } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'fs'
 import { createServer } from 'net'
 import { join } from 'path'
@@ -15,8 +15,12 @@ export interface TypecheckResult {
   errors: string[]
 }
 
+const WIN = process.platform === 'win32'
+/** node_modules/.bin entry; on Windows the runnable shim is the .cmd, which needs a shell. */
+const bin = (root: string, name: string) => join(root, 'node_modules', '.bin', WIN ? `${name}.cmd` : name)
+
 export function typecheck(root: string): TypecheckResult {
-  const tsc = join(root, 'node_modules', '.bin', 'tsc')
+  const tsc = bin(root, 'tsc')
   try {
     execFileSync(
       existsSync(tsc) ? tsc : 'npx',
@@ -27,6 +31,7 @@ export function typecheck(root: string): TypecheckResult {
         cwd: root,
         encoding: 'utf-8',
         stdio: ['ignore', 'pipe', 'pipe'],
+        shell: WIN,
       },
     )
     return { ok: true, errors: [] }
@@ -93,38 +98,68 @@ export async function captureRoutes(
 }
 
 /**
- * Fraction of pixels that differ (size mismatch counts as fully different).
- * Exact comparison: renders come from deterministic builds, and a noise
- * threshold hid real token edits (#ffffff → #fafaf9 is 16 units total).
+ * Fraction of pixels that differ for each pair (size mismatch counts as fully
+ * different), in one browser. Exact comparison: renders come from deterministic
+ * builds, and a noise threshold hid real token edits (#ffffff → #fafaf9 is 16 units total).
  */
-export async function diffRatio(a: string, b: string): Promise<number> {
+export async function diffMany(pairs: [string, string][]): Promise<number[]> {
+  if (!pairs.length) return []
   const chromium = await loadChromium()
   const browser = await chromium.launch()
   try {
     const page = await browser.newPage()
     const toUrl = (p: string) => 'data:image/png;base64,' + readFileSync(p).toString('base64')
-    // Runs in the browser; passed as a string because the CLI has no DOM lib types.
-    const script = `(async () => {
-      const load = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src })
-      const [ia, ib] = await Promise.all([load(${JSON.stringify(toUrl(a))}), load(${JSON.stringify(toUrl(b))})])
-      if (ia.width !== ib.width || ia.height !== ib.height) return 1
-      const px = img => { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height
-        const g = c.getContext('2d'); g.drawImage(img, 0, 0); return g.getImageData(0, 0, img.width, img.height).data }
-      const da = px(ia), db = px(ib)
-      let diff = 0
-      for (let i = 0; i < da.length; i += 4)
-        if (da[i] !== db[i] || da[i + 1] !== db[i + 1] || da[i + 2] !== db[i + 2]) diff++
-      return diff / (da.length / 4)
-    })()`
-    return (await page.evaluate(script)) as number
+    const out: number[] = []
+    for (const [a, b] of pairs) {
+      // Runs in the browser; passed as a string because the CLI has no DOM lib types.
+      const script = `(async () => {
+        const load = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src })
+        const [ia, ib] = await Promise.all([load(${JSON.stringify(toUrl(a))}), load(${JSON.stringify(toUrl(b))})])
+        if (ia.width !== ib.width || ia.height !== ib.height) return 1
+        const px = img => { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height
+          const g = c.getContext('2d'); g.drawImage(img, 0, 0); return g.getImageData(0, 0, img.width, img.height).data }
+        const da = px(ia), db = px(ib)
+        let diff = 0
+        for (let i = 0; i < da.length; i += 4)
+          if (da[i] !== db[i] || da[i + 1] !== db[i + 1] || da[i + 2] !== db[i + 2]) diff++
+        return diff / (da.length / 4)
+      })()`
+      out.push((await page.evaluate(script)) as number)
+    }
+    return out
   } finally {
     await browser.close()
   }
 }
 
+export async function diffRatio(a: string, b: string): Promise<number> {
+  return (await diffMany([[a, b]]))[0]
+}
+
 export interface PreviewServer {
   url: string
-  stop(): void
+  stop(): Promise<void>
+}
+
+/** Thrown when the project does not build before the edit: verification is blocked, not failed by the edit. */
+export class PreviewBuildError extends Error {}
+
+/**
+ * Stop `next start` and everything it spawned, and wait for it. Killing only
+ * the npm/next shim leaves the real server orphaned (and on Windows the shim
+ * is a .cmd whose child survives a plain kill).
+ */
+function stopTree(child: ChildProcess): Promise<void> {
+  if (child.exitCode !== null || child.pid === undefined) return Promise.resolve()
+  const pid = child.pid
+  const exited = new Promise<void>(res => child.once('exit', () => res()))
+  try {
+    if (WIN) execFileSync('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' })
+    else process.kill(-pid, 'SIGTERM')
+  } catch {
+    child.kill('SIGKILL')
+  }
+  return Promise.race([exited, new Promise<void>(res => setTimeout(res, 5000))])
 }
 
 function freePort(): Promise<number> {
@@ -148,7 +183,7 @@ function freePort(): Promise<number> {
  * Next 16 keeps dev output in .next/dev it does not disturb a running dev server.
  */
 export async function startPreview(root: string): Promise<PreviewServer> {
-  const next = join(root, 'node_modules', '.bin', 'next')
+  const next = bin(root, 'next')
   if (!existsSync(next)) throw new Error('next is not installed in this project (node_modules/.bin/next missing)')
   // Turbopack's persistent build cache intermittently kept a CSS-only edit out
   // of the next build (observed: renders lagged exactly one globals.css edit
@@ -160,28 +195,32 @@ export async function startPreview(root: string): Promise<PreviewServer> {
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, NEXT_TELEMETRY_DISABLED: '1' },
+      shell: WIN,
     })
   } catch (e) {
     const out = String((e as { stdout?: string }).stdout ?? '') + String((e as { stderr?: string }).stderr ?? '')
-    throw new Error(`next build failed:\n${out.split('\n').slice(-25).join('\n')}`)
+    throw new PreviewBuildError(`next build failed:\n${out.split('\n').slice(-25).join('\n')}`)
   }
   const port = await freePort()
   const child = spawn(next, ['start', '-p', String(port)], {
     cwd: root,
     stdio: 'ignore',
     env: { ...process.env, NEXT_TELEMETRY_DISABLED: '1' },
+    // Own process group on POSIX so stopTree can signal the whole tree.
+    detached: !WIN,
+    shell: WIN,
   })
   const url = `http://localhost:${port}`
   for (let i = 0; i < 60; i++) {
     try {
       const r = await fetch(url, { redirect: 'manual' })
-      if (r.status < 500) return { url, stop: () => child.kill() }
+      if (r.status < 500) return { url, stop: () => stopTree(child) }
     } catch {
       /* not up yet */
     }
     await new Promise(r => setTimeout(r, 500))
   }
-  child.kill()
+  await stopTree(child)
   throw new Error(`next start did not answer on ${url} within 30s`)
 }
 
@@ -204,6 +243,6 @@ export async function shotsForTree(
   try {
     return await captureRoutes(server.url, targets, dir)
   } finally {
-    server.stop()
+    await server.stop()
   }
 }

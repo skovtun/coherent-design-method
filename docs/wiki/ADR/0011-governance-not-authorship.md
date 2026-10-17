@@ -46,6 +46,8 @@ Six edits on project A (2 tokens, 2 shared component, 2 page-local incl. one var
 
 **Result (2026-10-17, third run, cold builds + exact pixel diff):** all six passed. Routing 6/6 (tokens→`globals.css`; component→one file; variant→`KpiCard` + Earnings page only); write set held on every edit; typecheck clean without repair; control routes 0.00% changed, including the two other `KpiCard` consumers under the variant; undo of all six restored the tree byte-for-byte (verified via `git status` against the baseline commit), and the undo guard refused to roll back an edit with newer edits on top. Two verifier defects found and fixed on the way (PJ-027).
 
+**Hardening (2026-10-17, Codex review before agent mode):** the slice committed before verifying, could report an unrendered edit as OK, accepted `../` create paths, warned about identity leaks only before the edit, copied `.env` into snapshots, and rolled back the whole tree (erasing concurrent IDE edits). Fixed: verification precedes commit and a failed edit is rolled back; four explicit verdicts; transactions persist state and write set, one open per project; rollback restores only the transaction's own files; paths normalized and symlink-checked; secrets never snapshotted. Live re-check on A: page edit `VERIFIED` (controls 0.00%), undo restored the edited file while a concurrent hand edit to another file survived.
+
 ## Alternatives rejected
 
 - **DesignDirection schema compiled into restyled primitives + AI chrome before generation** (Codex consult, 2026-10-16): keeps Coherent as design author; the A/B showed the authoring layer is the problem.

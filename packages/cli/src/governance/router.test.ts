@@ -42,6 +42,11 @@ describe('parsePlan', () => {
     )
     expect(() => parsePlan('{"scope":"page","modify":[],"create":[]}', graph)).toThrow(/empty plan/)
   })
+
+  it('rejects paths that escape the project', () => {
+    expect(() => parsePlan('{"scope":"new-component","create":["../../evil.tsx"]}', graph)).toThrow(/Unsafe path/)
+    expect(() => parsePlan('{"scope":"new-component","create":["/tmp/evil.tsx"]}', graph)).toThrow(/Unsafe path/)
+  })
 })
 
 describe('withImpact', () => {

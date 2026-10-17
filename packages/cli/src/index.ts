@@ -351,6 +351,7 @@ program
   .option('--yes', 'Apply without confirmation')
   .option('--undo [id]', 'Restore the last (or given) edit transaction byte-for-byte')
   .option('--force', 'With --undo: discard changes made after that edit')
+  .option('--keep', 'Keep an edit that failed verification instead of rolling it back')
   // Lazy: the governance graph loads the TypeScript compiler, which other commands never need.
   .action(async (request, opts) => (await import('./commands/edit.js')).editCommand(request, opts))
 

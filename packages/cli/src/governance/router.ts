@@ -9,6 +9,7 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { impactOf, type Impact, type ProjectGraph } from './graph.js'
+import { normalizeRelPath } from './transaction.js'
 
 export type Completer = (system: string, user: string) => Promise<string>
 
@@ -94,8 +95,8 @@ export function parsePlan(raw: string, graph: ProjectGraph): EditPlan {
   const p = JSON.parse(json) as Partial<EditPlan>
   const scopes: EditScope[] = ['tokens', 'component', 'variant', 'page', 'new-component']
   if (!p.scope || !scopes.includes(p.scope)) throw new Error(`Router returned unknown scope: ${String(p.scope)}`)
-  const modify = [...new Set(p.modify ?? [])]
-  const create = [...new Set(p.create ?? [])]
+  const modify = [...new Set((p.modify ?? []).map(normalizeRelPath))]
+  const create = [...new Set((p.create ?? []).map(normalizeRelPath))]
   const unknown = modify.filter(f => !graph.nodes[f])
   if (unknown.length) throw new Error(`Router planned edits to files that do not exist: ${unknown.join(', ')}`)
   const clash = create.filter(f => graph.nodes[f])
@@ -180,7 +181,7 @@ export function parseApplyOutput(raw: string, plan: EditPlan): Record<string, st
   const allowed = new Set([...plan.modify, ...plan.create])
   const files: Record<string, string> = {}
   for (const m of raw.matchAll(/<file path="([^"]+)">\n?([\s\S]*?)<\/file>/g)) {
-    const path = m[1].trim()
+    const path = normalizeRelPath(m[1].trim())
     if (!allowed.has(path))
       throw new Error(`Edit tried to write ${path}, which is outside the plan (${[...allowed].join(', ')})`)
     files[path] = m[2]
