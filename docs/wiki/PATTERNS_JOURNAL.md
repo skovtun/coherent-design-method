@@ -549,6 +549,32 @@ A `max_tokens` raise costs nothing extra per call — you pay per token *generat
 
 ---
 
+## PJ-026 · The pipeline loses to the same model with no pipeline (A/B, SubmitAd)
+
+**Observed:** Same spec, same model (`claude-sonnet-5`), same stack. **A** = plain Claude Code (`claude -p`, one agent, whole app in context). **B** = `coherent chat`. A won all 8 matched screens: correct app shell (sidebar, role switcher, wallet), working charts, AI review flags with "Accept fix / Ignore". B: marketing header + footer on every app page, empty chart, AI review flags rendered with the creator-matching component ("96% match", "Swap"), text squeezed one word per line.
+
+**Root cause:** every B defect is a Coherent step, not a model limit — template `Header()/Footer()` in `PageGenerator.ts`; keyword-category reuse (`reuse-planner.ts`, `ComponentManager.findBestMatch` take the first category match → "AI suggestion" reused for "AI flag"); pages generated 3-at-a-time each told to generate one page only (`split-generator.ts`); the spec compressed into a plan before any page sees it; ~20K tokens of mostly prohibitive rules.
+
+**Fix:** direction change, not a patch — ADR-0011 (model authors, Coherent governs). Slice shipped on `feat/governance-graph`: code-derived transitive graph, scoped `coherent edit` with an enforced write set, byte-exact transactions, build-based rendered checks, identity-leak scan.
+
+**Lesson:** guardrails written for a weaker model become a ceiling for a stronger one. Re-run a plain-model baseline whenever the default model changes; a rule that cannot beat the baseline is a cost, not a safeguard.
+
+**Also observed in A:** the agent read `git config` and put the founder's real name + email into the sidebar, settings and sign-in field. Generated apps get screenshotted and published → `governance/privacy.ts`.
+
+---
+
+## PJ-027 · Rendered verification lagged one CSS edit behind the source
+
+**Observed:** `coherent edit` token edits reported "0% pixels changed" while `globals.css` held the new values; the change then showed up in the *next* edit's screenshots (pixel-sampled: after-T1 still `#ffffff`, after-T2 showed T1's `#fafaf9` with the old blue button, after-C1 showed T2's green). TSX edits rendered on time. Separately, a user's running `next dev` (Turbopack) kept serving the pre-edit `--primary` minutes after the write.
+
+**Root cause:** (1) a running dev server is not a trustworthy oracle; (2) Turbopack's persistent production build cache (`.next/cache`) intermittently did not invalidate a CSS-only change to `globals.css` (Tailwind v4 + `@tailwindcss/postcss`); a controlled two-build repro was fresh, so it is intermittent, not deterministic; (3) a 24-unit RGB noise threshold hid a real token edit (`#ffffff → #fafaf9` = 16 units).
+
+**Fix:** verification builds its own production server (`next build` + `next start` on a free port; Next 16 keeps dev output in `.next/dev`, so a running dev server is undisturbed), wipes `.next/cache` before every verification build (cold build of a 13-page app ≈ 6s), and compares pixels exactly. Screenshots are cached by tree hash, so a chain of edits reuses each "after" as the next "before".
+
+**Lesson:** verify against an artifact you built, from a cold cache, with an exact comparison. Pixel-sample the cached screenshots when a result looks wrong; it located a one-step lag that log output could not.
+
+---
+
 ## How to add a new entry
 
 1. Observe the failure (screenshot/transcript in the repo's discussion).

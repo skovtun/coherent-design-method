@@ -52,7 +52,7 @@
     "generate-rules-map": "node scripts/generate-rules-map.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
-    "prepublishOnly": "node -e \"if (!(process.env.npm_config_user_agent || '').includes('pnpm')) { console.error('\\n❌ Use pnpm publish, not npm publish.\\nReason: npm does not resolve workspace:* protocol, publishing will break global install.\\nRun: pnpm publish --no-git-checks\\n'); process.exit(1); }\""
+    "prepublishOnly": "node -e \"if (!(process.env.npm_config_user_agent || '').includes('pnpm')) { console.error('\\n\u274c Use pnpm publish, not npm publish.\\nReason: npm does not resolve workspace:* protocol, publishing will break global install.\\nRun: pnpm publish --no-git-checks\\n'); process.exit(1); }\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.0",
@@ -65,6 +65,7 @@
     "open": "^10.1.0",
     "ora": "^7.0.1",
     "prompts": "^2.4.2",
+    "typescript": "^5.3.3",
     "zod": "^3.22.4"
   },
   "devDependencies": {
@@ -73,8 +74,7 @@
     "lucide-react": "^1.0.1",
     "playwright": "1.59.1",
     "react": "^19.2.4",
-    "tsup": "^8.0.1",
-    "typescript": "^5.3.3"
+    "tsup": "^8.0.1"
   },
   "peerDependencies": {
     "playwright": "^1.40.0"

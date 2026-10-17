@@ -139,6 +139,28 @@ Each `###` block below is an indexable entry (wiki-index.ts scans `###` headings
 > - **Strategic direction** (the real "copy styles" answer, see review): **R9** reference retrieval + **R8** structured anchor — both gated on **R7** benchmark harness for honest measurement. R7 is the unlock for grounding all of the above in data instead of vibes.
 
 ---
+id: G1
+type: idea
+status: open
+target: after ADR-0011 slice review
+effort: multi-session
+date: 2026-10-17
+confidence: verified
+---
+
+### G1 — Governance layer follow-ups after the `coherent edit` slice (ADR-0011)
+
+**Source:** slice on `feat/governance-graph`, 2026-10-17. Six edits on project A (2 tokens, 2 shared component, 2 page-local incl. a variant): 6/6 routed correctly, write set held, typecheck clean with no repair passes, controls pixel-identical (variant included), byte-exact undo of all six (3 runs), undo guard blocks discarding newer edits.
+
+**Open, in order:**
+1. **Generation order** (separate decision): whole-app sequential generation, A-style, replacing per-page 3-at-a-time. Measure against the A baseline before any parallelism.
+2. **Optional direction fork** for "wow": 2-3 shell + anchor-screen directions, human picks, then free generation.
+3. **Converge registries**: `DesignSystemConfig.components` + `coherent.components.json` → index over the code-derived graph (stable IDs, semantic purpose, provenance, hand-edit detection).
+4. **Duplicate detection as proposal-only remediation**: fixture = A with known duplicates inlined + the AI-flag/AI-suggestion false friend; gate ≥90% precision, ≥80% recall, zero auto-merges.
+5. **MCP exposure** of graph/impact/edit for Cursor/Claude Code (`coherent mcp install`).
+6. Not yet exercised live: an edit that **creates** files (undo of created files is unit-tested only); dynamic routes need `.coherent/preview-params.json`; mobile-only regressions are reported but "change" is judged per edit, not per route.
+
+---
 id: R10
 type: idea
 status: open

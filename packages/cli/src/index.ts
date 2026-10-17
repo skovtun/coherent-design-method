@@ -337,6 +337,24 @@ program
   .action(opts => undoCommand(opts))
 
 program
+  .command('edit [request]')
+  .description(
+    'Scoped prompt edit: routes to tokens / component / variant / page, previews impact, applies as an undoable transaction',
+  )
+  .option('--dir <path>', 'Project root (default: cwd)')
+  .option(
+    '--url <url>',
+    'Use this running server for rendered checks instead of a fresh production build (faster, may serve stale assets)',
+  )
+  .option('--no-visual', 'Skip rendered checks')
+  .option('--dry-run', 'Show the plan and impact only')
+  .option('--yes', 'Apply without confirmation')
+  .option('--undo [id]', 'Restore the last (or given) edit transaction byte-for-byte')
+  .option('--force', 'With --undo: discard changes made after that edit')
+  // Lazy: the governance graph loads the TypeScript compiler, which other commands never need.
+  .action(async (request, opts) => (await import('./commands/edit.js')).editCommand(request, opts))
+
+program
   .command('migrate')
   .description('Upgrade project to use real shadcn/ui components')
   .option('--dry-run', 'Preview changes without applying')
