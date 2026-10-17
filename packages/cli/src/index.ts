@@ -309,7 +309,18 @@ program
 program
   .command('mcp')
   .description('Start the Coherent MCP server (stdio) — exposes the design contract + validator to AI agents')
-  .action(() => mcpCommand())
+  .option('--profile <name>', 'agent: governance tools only (inventory, begin/verify/rollback edit)')
+  .action(opts => mcpCommand(opts))
+
+// `coherent hook pre-write` — PreToolUse hook for the Coherent agent: blocks
+// writes outside the open edit's declared files. Lazy: runs on every write.
+program
+  .command('hook <name>')
+  .description('Claude Code hook entry points for agent mode (pre-write)')
+  .action(async (name: string) => {
+    if (name !== 'pre-write') throw new Error(`Unknown hook: ${name}`)
+    await (await import('./governance/hook.js')).preWriteHookCommand()
+  })
 
 program
   .command('sync')

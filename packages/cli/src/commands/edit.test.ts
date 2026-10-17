@@ -39,7 +39,8 @@ vi.mock('../governance/privacy.js', async orig => {
   }
 })
 
-import { introducedLeaksOf, newTypeErrors, runEdit } from './edit.js'
+import { runEdit } from './edit.js'
+import { introducedLeaksOf, newTypeErrors } from '../governance/session.js'
 import { hashTree, listTransactions, loadTransaction } from '../governance/transaction.js'
 
 let root: string

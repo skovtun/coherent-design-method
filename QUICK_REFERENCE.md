@@ -35,6 +35,8 @@ coherent edit "<request>"        # Scoped edit (tokens/component/variant/page): 
 coherent edit "<request>" --dry-run   # Show scope + affected pages only
 coherent edit "<request>" --keep      # Keep an edit that failed verification (default: rolled back, exit 1)
 coherent edit --undo [id]        # Byte-exact rollback of that edit's own files; refuses if newer edits changed them (--force)
+coherent mcp --profile agent     # Agent mode: governance-only MCP tools (inventory, begin/verify/rollback edit)
+coherent hook pre-write          # Claude Code PreToolUse hook: deny writes outside the open edit
 coherent fix --journal           # Capture session YAML to .coherent/fix-sessions/ for later review
 coherent journal list            # List captured fix sessions
 coherent journal aggregate       # Rank validators by recurrence across all sessions

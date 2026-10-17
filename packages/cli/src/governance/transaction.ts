@@ -227,6 +227,36 @@ export function beginTransaction(root: string, label: string, allowed: string[])
   return rec
 }
 
+/**
+ * Add paths to an open transaction's write set. `create` paths are new: rollback
+ * deletes them, even if already written. A `modify` path that exists but was
+ * not in the snapshot (git-ignored) is snapshotted now, so rollback restores
+ * it to this state instead of deleting it.
+ */
+export function extendTransaction(root: string, id: string, add: { modify: string[]; create: string[] }): TxRecord {
+  const rec = loadTransaction(root, id)
+  if (statusOf(rec) !== 'open') throw new Error(`Edit ${id} is ${statusOf(rec)}, not open`)
+  const fresh = (ps: string[]) => ps.map(p => safeRelPath(root, p)).filter(p => !(rec.allowed ?? []).includes(p))
+  const modify = fresh(add.modify)
+  const create = fresh(add.create)
+  const before = { ...rec.before }
+  const unsaved = [...(rec.unsaved ?? [])]
+  for (const f of modify) {
+    const src = join(root, f)
+    if (f in before || !existsSync(src) || !lstatSync(src).isFile()) continue
+    before[f] = sha(readFileSync(src))
+    if (SECRET.test(f) || lstatSync(src).size > MAX_FILE) unsaved.push(f)
+    else {
+      const dest = join(txPath(root, id), 'files', f)
+      mkdirSync(dirname(dest), { recursive: true })
+      writeFileSync(dest, readFileSync(src))
+    }
+  }
+  const next = { ...rec, allowed: [...(rec.allowed ?? []), ...modify, ...create].sort(), before, unsaved }
+  save(root, next)
+  return next
+}
+
 export function diffTrees(before: Record<string, string>, after: Record<string, string>): TxChanges {
   const created = Object.keys(after).filter(f => !(f in before))
   const deleted = Object.keys(before).filter(f => !(f in after))
