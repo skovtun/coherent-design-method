@@ -58,7 +58,24 @@ export interface Shot {
   route: string
   viewport: 'desktop' | 'mobile'
   path: string
+  /** Console errors and uncaught page errors (hydration mismatches land here) while rendering. */
+  errors?: string[]
 }
+
+/**
+ * Stable form of a browser error for before/after comparison: drop URLs,
+ * positions and long digit runs that differ between builds, keep the message.
+ */
+export const normalizeBrowserError = (e: string) =>
+  e
+    .split('\n')[0]
+    .replace(/https?:\/\/\S+/g, '<url>')
+    .replace(/:\d+:\d+/g, '')
+    .replace(/\d{4,}/g, '#')
+    .trim()
+    .slice(0, 300)
+
+const errorsSidecar = (shotPath: string) => `${shotPath}.errors.json`
 
 /** Collision-free file name: "/foo-bar" and "/foo/bar" slug alike, so the route hash disambiguates. */
 export const shotName = (route: string, vp: string) =>
@@ -84,15 +101,32 @@ export async function captureRoutes(
   const shots: Shot[] = []
   try {
     for (const vp of ['desktop', 'mobile'] as const) {
-      const ctx = await browser.newContext({ viewport: VIEWPORTS[vp], reducedMotion: 'reduce' })
+      // The preview server runs on this machine; a browser in the same zone and
+      // locale hides SSR/client mismatches that real users elsewhere hit
+      // (observed: dates rendered a day apart server vs client). Render as a
+      // far-away user so those hydration errors surface.
+      const ctx = await browser.newContext({
+        viewport: VIEWPORTS[vp],
+        reducedMotion: 'reduce',
+        timezoneId: 'Pacific/Kiritimati',
+        locale: 'de-DE',
+      })
       for (const r of routes) {
         const page = await ctx.newPage()
+        // A page can look right and still be broken: React reports hydration
+        // mismatches and runtime failures only to the console.
+        const errors: string[] = []
+        page.on('console', m => {
+          if (m.type() === 'error') errors.push(m.text())
+        })
+        page.on('pageerror', e => errors.push(e.message))
         await page.goto(baseUrl + r.url, { waitUntil: 'networkidle', timeout: 90_000 })
         await page.addStyleTag({ content: FREEZE_CSS })
         await page.waitForTimeout(600)
         const path = join(outDir, shotName(r.route, vp))
         await page.screenshot({ path, fullPage: true })
-        shots.push({ route: r.route, viewport: vp, path })
+        writeFileSync(errorsSidecar(path), JSON.stringify(errors))
+        shots.push({ route: r.route, viewport: vp, path, errors })
         await page.close()
       }
       await ctx.close()
@@ -261,7 +295,8 @@ export async function shotsForTree(
       path: join(dir, shotName(t.route, vp)),
     })),
   )
-  if (expected.every(s => existsSync(s.path))) return expected
+  if (expected.every(s => existsSync(s.path) && existsSync(errorsSidecar(s.path))))
+    return expected.map(s => ({ ...s, errors: JSON.parse(readFileSync(errorsSidecar(s.path), 'utf-8')) as string[] }))
   const server = await startPreview(root)
   try {
     return await captureRoutes(server.url, targets, dir)

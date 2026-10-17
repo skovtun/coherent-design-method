@@ -101,6 +101,9 @@ export function registerGovernanceTools(server: McpServer): void {
     }),
   )
 
+  // No `visual` switch here on purpose: an agent once restarted an edit with
+  // rendered checks turned off rather than wait for them (2026-10-17). Opting
+  // out is a human decision (CLI --no-visual); a missing browser degrades on its own.
   server.registerTool(
     'coherent_begin_edit',
     {
@@ -113,7 +116,6 @@ export function registerGovernanceTools(server: McpServer): void {
         scope: SCOPE,
         modify: z.array(z.string()).default([]).describe('Existing files you will change (project-relative).'),
         create: z.array(z.string()).default([]).describe('New files you will create (project-relative).'),
-        visual: z.boolean().optional().describe('Rendered verification (default true).'),
         amend: z.string().optional().describe('txId of the open edit to add files to.'),
       },
     },
@@ -123,7 +125,6 @@ export function registerGovernanceTools(server: McpServer): void {
         scope: a.scope,
         modify: a.modify,
         create: a.create,
-        visual: a.visual,
         amend: a.amend,
         log: m => console.error(m),
       })

@@ -40,6 +40,7 @@ import {
   concreteUrl,
   diffMany,
   loadPreviewParams,
+  normalizeBrowserError,
   PreviewBuildError,
   shotsForTree,
   typecheck,
@@ -86,6 +87,27 @@ export interface VisualResult {
   pass: boolean
 }
 
+/**
+ * Browser errors the edit introduced, per route: after-render errors beyond
+ * the count of the same normalized message before the edit.
+ */
+export function newBrowserErrors(before: Shot[], after: Shot[]): { route: string; viewport: string; error: string }[] {
+  const out: { route: string; viewport: string; error: string }[] = []
+  for (const a of after) {
+    const b = before.find(x => x.route === a.route && x.viewport === a.viewport)
+    if (!b) continue
+    const left = new Map<string, number>()
+    for (const e of b.errors ?? []) left.set(normalizeBrowserError(e), (left.get(normalizeBrowserError(e)) ?? 0) + 1)
+    for (const e of a.errors ?? []) {
+      const k = normalizeBrowserError(e)
+      const n = left.get(k) ?? 0
+      if (n > 0) left.set(k, n - 1)
+      else out.push({ route: a.route, viewport: a.viewport, error: e.split('\n')[0].slice(0, 300) })
+    }
+  }
+  return out
+}
+
 export interface VerifyResult {
   txId: string
   level: 'fast' | 'final'
@@ -104,6 +126,10 @@ export interface VerifyResult {
   introducedLeaks: Leak[]
   visual?: VisualResult[]
   visualSkipped?: string
+  /** Console/page errors (hydration, runtime) that appeared with this edit. */
+  newBrowserErrors: { route: string; viewport: string; error: string }[]
+  /** Rendered routes that already logged errors before the edit. */
+  preexistingBrowserErrors: number
   unverifiedRoutes: string[]
   landed: boolean
   buildError?: string
@@ -291,7 +317,7 @@ export async function beginEdit(rootInput: string, input: BeginInput): Promise<E
       visual = false
       const broken = e instanceof PreviewBuildError
       preexistingFailure ||= broken
-      visualSkipped = `${broken ? 'project did not build before the edit' : 'browser unavailable'}: ${String((e as Error).message).split('\n')[0]}`
+      visualSkipped = `${broken ? 'project did not build before the edit' : 'rendered check unavailable'}: ${String((e as Error).message).split('\n')[0]}`
     }
   }
 
@@ -368,10 +394,21 @@ export async function verifyEdit(
     unverifiedRoutes: s.unverifiedRoutes,
     visualSkipped: s.visualSkipped,
   }
+  const preexistingBrowserErrors = s.beforeShots.filter(b => (b.errors ?? []).length).length
   if (opts.level === 'fast')
-    return { ...base, level: 'fast', status: 'open', ok: !problems.length, problems, landed: true }
+    return {
+      ...base,
+      level: 'fast',
+      status: 'open',
+      ok: !problems.length,
+      problems,
+      landed: true,
+      newBrowserErrors: [],
+      preexistingBrowserErrors,
+    }
 
   let visual: VisualResult[] | undefined
+  let browserErrors: VerifyResult['newBrowserErrors'] = []
   let buildError: string | undefined
   if (s.visual && !typeErrors.length && !outOfPlan.length) {
     try {
@@ -381,6 +418,7 @@ export async function verifyEdit(
         .map(b => [b, after.find(x => x.route === b.route && x.viewport === b.viewport)] as const)
         .filter((p): p is readonly [Shot, Shot] => !!p[1])
       const diffs = await diffMany(pairs.map(([b, a]) => [b.path, a.path]))
+      browserErrors = newBrowserErrors(s.beforeShots, after)
       visual = pairs.map(([b], i) => {
         const t = s.targets.find(x => x.route === b.route)!
         return {
@@ -402,6 +440,8 @@ export async function verifyEdit(
   const landed = !visual || !expectedChange.length || expectedChange.some(v => v.diff > 0)
   if (buildError) problems.push(`Build/render failed:\n${buildError.split('\n').slice(0, 12).join('\n')}`)
   if (!landed) problems.push('The edit did not visibly change any affected page.')
+  for (const e of browserErrors.slice(0, 10))
+    problems.push(`New browser error on ${e.route} (${e.viewport}): ${e.error}`)
   for (const v of visual ?? [])
     if (!v.pass)
       problems.push(`${v.route} (${v.viewport}) should render unchanged but ${(v.diff * 100).toFixed(2)}% changed.`)
@@ -412,6 +452,7 @@ export async function verifyEdit(
     !!missing.length ||
     !!buildError ||
     !landed ||
+    browserErrors.length > 0 ||
     !(visual ?? []).every(v => v.pass) ||
     (!changes.created.length && !changes.modified.length && !changes.deleted.length)
 
@@ -424,7 +465,10 @@ export async function verifyEdit(
       ? s.preexistingFailure
         ? 'blocked_by_preexisting_failure'
         : 'verified_without_visual'
-      : s.preexistingFailure || s.unverifiedRoutes.length > 0 || expectedChange.length === 0
+      : s.preexistingFailure ||
+          preexistingBrowserErrors > 0 ||
+          s.unverifiedRoutes.length > 0 ||
+          expectedChange.length === 0
         ? 'partially_verified'
         : 'verified'
   if (verdict !== 'failed') commitTransaction(root, tx, verdict)
@@ -436,6 +480,8 @@ export async function verifyEdit(
     ok: verdict !== 'failed',
     problems,
     visual,
+    newBrowserErrors: browserErrors,
+    preexistingBrowserErrors,
     landed,
     buildError,
   }

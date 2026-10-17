@@ -58,6 +58,8 @@ export interface EditReport {
   unverifiedRoutes: string[]
   /** Identity leaks (real name/email/home path) the edit itself introduced. */
   introducedLeaks: Leak[]
+  /** Console/page errors (hydration, runtime) that appeared with this edit. */
+  newBrowserErrors: VerifyResult['newBrowserErrors']
   /** False when no affected route rendered any difference: the edit did not visibly land. */
   landed: boolean
   buildError?: string
@@ -163,6 +165,7 @@ export async function runEdit(request: string, opts: EditOptions, llm: Completer
     visualSkipped: res.visualSkipped,
     unverifiedRoutes: res.unverifiedRoutes,
     introducedLeaks: res.introducedLeaks,
+    newBrowserErrors: res.newBrowserErrors,
     landed: res.landed,
     buildError: res.buildError,
     verdict,
@@ -199,6 +202,8 @@ function printReport(r: EditReport) {
     console.log(
       chalk.yellow(`TypeScript: ${r.typecheck.baselineErrors} error(s) already in the project before this edit`),
     )
+  for (const e of r.newBrowserErrors)
+    console.log(chalk.red(`New browser error on ${e.route} (${e.viewport}): ${e.error}`))
   if (r.buildError) console.log(chalk.red(`Build: ${r.buildError.split('\n').slice(0, 8).join('\n  ')}`))
   if (r.visualSkipped) console.log(chalk.yellow(`Rendered check not run: ${r.visualSkipped}`))
   if (r.visual && !r.landed) console.log(chalk.red('Edit did not visibly change any affected page'))

@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
-const vis = vi.hoisted(() => ({ diff: 0.1 }))
+const vis = vi.hoisted(() => ({ diff: 0.1, calls: 0, afterErrors: [] as string[] }))
 
 // Fake compiler: one error per line containing BROKEN, positioned like tsc output.
 vi.mock('../governance/verify.js', async orig => {
@@ -12,8 +12,13 @@ vi.mock('../governance/verify.js', async orig => {
   return {
     ...(await orig<typeof import('../governance/verify.js')>()),
     // Rendering is faked: each shot "differs" by vis.diff.
-    shotsForTree: async (_r: string, key: string, targets: { route: string }[]) =>
-      targets.flatMap(t => ['desktop', 'mobile'].map(viewport => ({ route: t.route, viewport, path: key }))),
+    // First call renders "before", the next one "after".
+    shotsForTree: async (_r: string, key: string, targets: { route: string }[]) => {
+      const errors = vis.calls++ === 0 ? [] : vis.afterErrors
+      return targets.flatMap(t =>
+        ['desktop', 'mobile'].map(viewport => ({ route: t.route, viewport, path: key, errors })),
+      )
+    },
     diffMany: async (pairs: unknown[]) => pairs.map(() => vis.diff),
     typecheck: (root: string) => {
       const errors: string[] = []
@@ -40,7 +45,7 @@ vi.mock('../governance/privacy.js', async orig => {
 })
 
 import { runEdit } from './edit.js'
-import { introducedLeaksOf, newTypeErrors } from '../governance/session.js'
+import { introducedLeaksOf, newBrowserErrors, newTypeErrors } from '../governance/session.js'
 import { hashTree, listTransactions, loadTransaction } from '../governance/transaction.js'
 
 let root: string
@@ -190,6 +195,8 @@ describe('verified means every affected route was rendered', () => {
       "import { Card } from '../../../components/card'\nexport default function I() {\n  return <Card />\n}\n",
     )
     vis.diff = 0.1
+    vis.calls = 0
+    vis.afterErrors = []
   })
   const edit = (file: string) =>
     runEdit(
@@ -220,5 +227,46 @@ describe('verified means every affected route was rendered', () => {
     const r = await edit('src/components/card.tsx')
     expect(r!.landed).toBe(false)
     expect(r!.verdict).toBe('failed')
+  })
+})
+
+describe('browser errors', () => {
+  it('fails an edit that introduces a hydration error, even when the render looks right', async () => {
+    write('src/components/card.tsx', 'export function Card() {\n  return <div />\n}\n')
+    write(PAGE, "import { Card } from '../components/card'\nexport default function P() {\n  return <Card />\n}\n")
+    vis.diff = 0.1
+    vis.calls = 0
+    vis.afterErrors = ["Uncaught Error: Hydration failed because the server rendered text didn't match the client."]
+    const r = await runEdit(
+      'x',
+      { dir: root, yes: true },
+      llm(
+        JSON.stringify({ scope: 'component', modify: ['src/components/card.tsx'], create: [], rationale: 'r' }),
+        files({ 'src/components/card.tsx': 'export function Card() {\n  return <span />\n}' }),
+      ),
+    )
+    expect(r!.newBrowserErrors.map(e => e.route)).toEqual(['/', '/'])
+    expect(r!.verdict).toBe('failed')
+    expect(r!.rolledBack).toBe(true)
+  })
+
+  it('compares errors without URLs, positions or build hashes', () => {
+    const before = [
+      {
+        route: '/',
+        viewport: 'desktop' as const,
+        path: 'a',
+        errors: ['Failed at http://localhost:4001/_next/x.js:1:2033'],
+      },
+    ]
+    const after = [
+      {
+        route: '/',
+        viewport: 'desktop' as const,
+        path: 'b',
+        errors: ['Failed at http://localhost:5123/_next/y.js:1:9001', 'TypeError: x is undefined'],
+      },
+    ]
+    expect(newBrowserErrors(before, after).map(e => e.error)).toEqual(['TypeError: x is undefined'])
   })
 })

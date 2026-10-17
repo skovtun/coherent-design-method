@@ -66,7 +66,6 @@ describe('agent-mode MCP tools', () => {
       request: 'make the card a section',
       scope: 'component',
       modify: ['src/components/card.tsx'],
-      visual: false,
     })
     expect(begun.affectedRoutes).toEqual(['/'])
     expect((await call('coherent_inventory', {})).openEdit.txId).toBe(begun.txId)
@@ -85,7 +84,7 @@ describe('agent-mode MCP tools', () => {
 
   it('catches a write outside the declared set (e.g. via Bash) and keeps a failed edit open', async () => {
     const { call } = await connect()
-    await call('coherent_begin_edit', { request: 'r', scope: 'page', modify: ['src/app/page.tsx'], visual: false })
+    await call('coherent_begin_edit', { request: 'r', scope: 'page', modify: ['src/app/page.tsx'] })
     write('src/app/page.tsx', 'export default () => <main />\n')
     write('src/app/about/page.tsx', 'export default () => <p>Sneaky</p>\n')
     const fast = await call('coherent_verify_edit', { level: 'fast' })
@@ -102,7 +101,6 @@ describe('agent-mode MCP tools', () => {
       request: 'r',
       scope: 'page',
       modify: ['src/app/page.tsx'],
-      visual: false,
     })
     write('src/app/page.tsx', 'export default () => <main />\n')
     write('src/components/badge.tsx', 'export const Badge = () => <span />\n')
@@ -126,7 +124,6 @@ describe('agent-mode MCP tools', () => {
       request: 'r',
       scope: 'page',
       modify: ['src/app/page.tsx'],
-      visual: false,
     })
     write('src/app/page.tsx', 'export default () => <main />\n')
     const b = await connect() // a new server process
@@ -140,10 +137,10 @@ describe('agent-mode MCP tools', () => {
     const { call } = await connect()
     await expect(call('coherent_verify_edit', { level: 'fast' })).rejects.toThrow(/No open edit/)
     await expect(
-      call('coherent_begin_edit', { request: 'r', scope: 'page', create: ['../escape.tsx'], visual: false }),
+      call('coherent_begin_edit', { request: 'r', scope: 'page', create: ['../escape.tsx'] }),
     ).rejects.toThrow(/Unsafe path/)
     await expect(
-      call('coherent_begin_edit', { request: 'r', scope: 'page', modify: ['src/nope.tsx'], visual: false }),
+      call('coherent_begin_edit', { request: 'r', scope: 'page', modify: ['src/nope.tsx'] }),
     ).rejects.toThrow(/do not exist/)
   })
 })
@@ -165,7 +162,6 @@ describe('pre-write hook', () => {
       request: 'r',
       scope: 'page',
       modify: ['src/app/page.tsx'],
-      visual: false,
     })
     expect(edit(join(root, 'src/app/page.tsx'))).toBeNull()
     expect(edit('src/app/page.tsx')).toBeNull()
