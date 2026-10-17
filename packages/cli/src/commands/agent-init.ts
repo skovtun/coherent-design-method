@@ -17,7 +17,7 @@
  */
 import chalk from 'chalk'
 import { execFileSync } from 'child_process'
-import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'fs'
 import { dirname, join, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { CLI_VERSION } from '@getcoherent/core'
@@ -159,6 +159,9 @@ export function writeWelcomePage(dir: string, pick: () => number = Math.random) 
     `/* coherent-welcome: agent-v1 | direction: ${direction}`,
   )
   writeFileSync(join(app, 'page.tsx'), page)
+  // Next serves app/icon.svg as the favicon; drop create-next-app's default one.
+  writeFileSync(join(app, 'icon.svg'), readFileSync(join(templatesDir(), 'icon.svg'), 'utf-8'))
+  rmSync(join(app, 'favicon.ico'), { force: true })
 }
 
 export const WELCOME_DIRECTIONS = [

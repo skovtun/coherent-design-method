@@ -31,11 +31,26 @@ const steps = [
   ['Verdict', 'verified, partially verified (and why), or failed and rolled back. Never a silent pass.'],
 ]
 
+/** The Coherent mark (app > page > component nesting). Size and color are free; the drawing is not. */
+function CoherentMark({ size = 24 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="2.5" y="2.5" width="19" height="19" rx="2" stroke="currentColor" strokeWidth="2" />
+      <rect x="7" y="7" width="4" height="4" rx="0.75" fill="currentColor" />
+      <rect x="13" y="7" width="4" height="4" rx="0.75" fill="currentColor" opacity="0.45" />
+      <rect x="7" y="13" width="4" height="4" rx="0.75" fill="currentColor" opacity="0.45" />
+      <rect x="13" y="13" width="4" height="4" rx="0.75" fill="currentColor" />
+    </svg>
+  )
+}
+
 export default function Home() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-16">
       <header>
-        <p>Coherent</p>
+        <p>
+          <CoherentMark /> Coherent
+        </p>
         <h1>Describe your product. Your agent builds it. Coherent keeps it coherent.</h1>
         <p>
           This app is set up for agent mode. You talk to your coding agent in plain language; it designs and writes the

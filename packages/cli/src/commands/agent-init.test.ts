@@ -119,6 +119,8 @@ describe('agentInitCommand', () => {
       /^\/\* coherent-welcome: agent-v1 \| direction: (Apple|Linear|Stripe|Vercel|Google|Nothing) — /,
     )
     expect(page).toContain('Describe your product. Your agent builds it.')
+    expect(page).toContain('function CoherentMark')
+    expect(existsSync(join(app, 'src', 'app', 'icon.svg'))).toBe(true)
     expect(existsSync(join(app, '.mcp.json'))).toBe(true)
   })
 
