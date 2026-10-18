@@ -267,6 +267,20 @@ Return ONLY the JSON object, no markdown, no code blocks, no explanations.`
     return JSON.parse(this.extractJSON(this.requireText(response, 'generating JSON')))
   }
 
+  /** Plain system+user completion returning the text block (governance edit router). */
+  async complete(systemPrompt: string, userPrompt: string, maxTokens = 32000): Promise<string> {
+    const response = await this.send(
+      {
+        model: this.defaultModel,
+        max_tokens: maxTokens,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
+      },
+      'completing',
+    )
+    return this.requireText(response, 'completing')
+  }
+
   /**
    * Test API connection
    */

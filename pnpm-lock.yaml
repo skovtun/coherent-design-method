@@ -65,6 +65,9 @@ importers:
       prompts:
         specifier: ^2.4.2
         version: 2.4.2
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
       zod:
         specifier: ^3.22.4
         version: 3.25.76
@@ -87,9 +90,6 @@ importers:
       tsup:
         specifier: ^8.0.1
         version: 8.5.1(jiti@1.21.7)(postcss@8.5.6)(typescript@5.9.3)
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
 
   packages/core:
     dependencies:

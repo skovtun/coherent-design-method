@@ -139,6 +139,30 @@ Each `###` block below is an indexable entry (wiki-index.ts scans `###` headings
 > - **Strategic direction** (the real "copy styles" answer, see review): **R9** reference retrieval + **R8** structured anchor — both gated on **R7** benchmark harness for honest measurement. R7 is the unlock for grounding all of the above in data instead of vibes.
 
 ---
+id: G1
+type: idea
+status: open
+target: after ADR-0011 slice review
+effort: multi-session
+date: 2026-10-17
+confidence: verified
+---
+
+### G1 — Governance layer follow-ups after the `coherent edit` slice (ADR-0011)
+
+**Source:** slice on `feat/governance-graph`, 2026-10-17. Six edits on project A (2 tokens, 2 shared component, 2 page-local incl. a variant): 6/6 routed correctly, write set held, typecheck clean with no repair passes, controls pixel-identical (variant included), byte-exact undo of all six (3 runs), undo guard blocks discarding newer edits.
+
+**Open, in order:**
+1. **Generation order** (separate decision): whole-app sequential generation, A-style, replacing per-page 3-at-a-time. Measure against the A baseline before any parallelism.
+2. **Optional direction fork** for "wow": 2-3 shell + anchor-screen directions, human picks, then free generation.
+3. **Converge registries**: `DesignSystemConfig.components` + `coherent.components.json` → index over the code-derived graph (stable IDs, semantic purpose, provenance, hand-edit detection).
+4. **Duplicate detection as proposal-only remediation**: fixture = A with known duplicates inlined + the AI-flag/AI-suggestion false friend; gate ≥90% precision, ≥80% recall, zero auto-merges.
+5. **Agent mode** — spike done, see ADR-0012 (core `governance/session.ts`, `coherent mcp --profile agent`, hook, agent template; headless agent run `verified` a variant edit end to end). Open: desktop Set Agent run by the user, `coherent agent install`, cold begin cost, greenfield mode. Original plan (supersedes "MCP exposure"; Codex consult 2026-10-17). Host-neutral governance core with CLI and MCP as thin adapters; 4 MCP tools first (`inventory`, `begin_edit` incl. impact, `verify_edit`, `rollback_edit`) with a capability/version handshake; post-write verification is the enforcement boundary, Claude Code hooks are UX only (Bash/subagent/IDE writes bypass them). Tiered verification: fast checkpoint (write set, leaks, incremental typecheck, dev render, target median < 15s) during repair, one production gate (< 60s) per request. Drop the authoring layer from the agent (`coherent_constraints`, `coherent_apply_design` on the old backup path, `coherent_manifest`). Keep a deterministic `init`/bootstrap. Greenfield is a separate mode (isolated workspace → adopt → acceptance gate), not an oversized edit. **First:** a manual spike proving Set Agent discovery, root/cwd, hook coverage, restart recovery and MCP call timeouts before any installer. Go/no-go: 100% out-of-plan writes detected, zero concurrent user edits lost, interrupted transactions recover, nothing reported verified when checks were skipped.
+6. **Deterministic preview contract** before exact pixel diff can generalize beyond mock data: frozen clock, seeded fixtures, stable auth state, blocked analytics, font readiness, readiness selectors, masks for declared dynamic regions.
+7. **Transaction/verify hardening shipped 2026-10-17** (Codex findings): verify-then-commit with failed edits rolled back (`--keep` to inspect); explicit verdicts (`verified` / `verified_without_visual` / `blocked_by_preexisting_failure` / `failed`), never partial-as-verified; persisted state + write set, one open transaction per project; rollback touches only the transaction's own files (IDE edits survive; live-checked on A); path normalization + symlink-escape guard; secrets/oversized files never copied, `.coherent/tx` git-ignored, git-visible file set; identity leaks introduced by the edit fail it; unrendered affected routes reported; one browser for all diffs; preview server process-tree kill; Windows `.cmd` shims. Codex code review round (same day): `partially_verified` unless every affected route is rendered and at least one expected to change (affected cap raised to 12); TypeScript errors compared against a pre-edit baseline; planned paths hashed even when git-ignored; nonzero exit on `failed`; build-side config rewrites restored and other build source writes refused; JS projects skip typecheck instead of `npx tsc`; leak detection counts occurrences per file/identity; collision-free screenshot names; ±1 per-channel pixel tolerance for anti-aliasing noise.
+8. Not yet exercised live: an edit that **creates** files (undo of created files is unit-tested only); dynamic routes need `.coherent/preview-params.json`; mobile-only regressions are reported but "change" is judged per edit, not per route.
+
+---
 id: R10
 type: idea
 status: open

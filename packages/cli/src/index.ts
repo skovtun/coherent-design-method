@@ -127,12 +127,31 @@ program
 
 program
   .command('init')
-  .argument('[name]', 'Project directory name (created if it does not exist)')
-  .description('Initialize a new Coherent project')
-  .option('--skill-mode', 'Skip API key setup; expect /coherent-chat in Claude Code')
-  .option('--api-mode', 'Force API key setup; emit coherent chat CTA')
-  .option('--both', 'API key optional; emit CTAs for both skill and chat rails')
-  .action((nameArg: string | undefined, opts: InitOptions) => initCommand(nameArg, opts))
+  .argument('[name]', 'Project directory (created if it does not exist)')
+  .description(
+    'Set up agent mode: in an empty folder create a Next.js app, in an existing one add the Coherent agent (Claude Code, Codex)',
+  )
+  .option('--link', 'Use this CLI build by absolute path instead of a project dev dependency (development)')
+  .option('--skip-install', 'Write the agent files only; no npm installs')
+  .option('--classic', 'Deprecated: the old generator project (coherent chat pipeline)')
+  .option('--skill-mode', 'With --classic: skip API key setup; expect /coherent-chat in Claude Code')
+  .option('--api-mode', 'With --classic: force API key setup; emit coherent chat CTA')
+  .option('--both', 'With --classic: API key optional; emit CTAs for both rails')
+  .action(
+    async (
+      nameArg: string | undefined,
+      opts: InitOptions & { classic?: boolean; link?: boolean; skipInstall?: boolean },
+    ) => {
+      if (opts.classic) {
+        console.warn(
+          'coherent init --classic is deprecated: the generator pipeline is being replaced by agent mode (ADR-0011/0012).',
+        )
+        return initCommand(nameArg, opts)
+      }
+      const { agentInitCommand } = await import('./commands/agent-init.js')
+      return agentInitCommand(nameArg, opts)
+    },
+  )
 
 // ─── Auth (AI provider credentials) ─────────────────────────────────
 
@@ -309,7 +328,18 @@ program
 program
   .command('mcp')
   .description('Start the Coherent MCP server (stdio) — exposes the design contract + validator to AI agents')
-  .action(() => mcpCommand())
+  .option('--profile <name>', 'agent: governance tools only (inventory, begin/verify/rollback edit)')
+  .action(opts => mcpCommand(opts))
+
+// `coherent hook pre-write` — PreToolUse hook for the Coherent agent: blocks
+// writes outside the open edit's declared files. Lazy: runs on every write.
+program
+  .command('hook <name>')
+  .description('Claude Code hook entry points for agent mode (pre-write)')
+  .action(async (name: string) => {
+    if (name !== 'pre-write') throw new Error(`Unknown hook: ${name}`)
+    await (await import('./governance/hook.js')).preWriteHookCommand()
+  })
 
 program
   .command('sync')
@@ -335,6 +365,25 @@ program
   .description('Restore project to state before last coherent chat')
   .option('--list', 'List available backups')
   .action(opts => undoCommand(opts))
+
+program
+  .command('edit [request]')
+  .description(
+    'Scoped prompt edit: routes to tokens / component / variant / page, previews impact, applies as an undoable transaction',
+  )
+  .option('--dir <path>', 'Project root (default: cwd)')
+  .option(
+    '--url <url>',
+    'Use this running server for rendered checks instead of a fresh production build (faster, may serve stale assets)',
+  )
+  .option('--no-visual', 'Skip rendered checks')
+  .option('--dry-run', 'Show the plan and impact only')
+  .option('--yes', 'Apply without confirmation')
+  .option('--undo [id]', 'Restore the last (or given) edit transaction byte-for-byte')
+  .option('--force', 'With --undo: discard changes made after that edit')
+  .option('--keep', 'Keep an edit that failed verification instead of rolling it back')
+  // Lazy: the governance graph loads the TypeScript compiler, which other commands never need.
+  .action(async (request, opts) => (await import('./commands/edit.js')).editCommand(request, opts))
 
 program
   .command('migrate')

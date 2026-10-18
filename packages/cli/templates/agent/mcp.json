@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "coherent": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["{{COHERENT_BIN}}", "mcp", "--profile", "agent"]
+    }
+  }
+}

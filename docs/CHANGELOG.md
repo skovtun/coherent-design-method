@@ -8,8 +8,35 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 - **v0.11.x → v0.12.0+**: see [`docs/MIGRATION-v0.12.md`](./MIGRATION-v0.12.md). Skill-rail status messages changed format (6 strings).
 - v0.13.0: no breaking changes for end users. Internal infrastructure improvements only.
+- **v0.26.x → v0.27.0**: see [`docs/MIGRATION-v0.27.md`](./MIGRATION-v0.27.md). `coherent init` now sets up agent mode; the old generator project is `init --classic` (deprecated).
 
 ---
+
+## [0.27.0] — 2026-10-18 — feat: agent mode — the model designs, Coherent governs
+
+**Breaking: `coherent init` now sets up agent mode.** An A/B on the same spec and model (plain Claude Code vs the `coherent chat` pipeline) went to plain Claude Code on all 8 matched screens, and every pipeline defect traced to a Coherent authoring step: template Header/Footer on app pages, keyword-category component reuse (an AI creator suggestion rendered as an AI review flag), per-page fragmentation. Coherent stops authoring design ([ADR-0011](./wiki/ADR/0011-governance-not-authorship.md)). The coding agent designs; Coherent governs each edit ([ADR-0012](./wiki/ADR/0012-agent-mode-adapter.md)).
+
+**Governance core** (`governance/`, host-neutral `session.ts`):
+- **Code-derived graph** from the TypeScript AST on every run: nodes, exports, props, client boundaries, import edges. Impact is transitive and layout-scoped. No stored registry.
+- **Scoped edits** with an enforced write set: scope `tokens` | `component` | `variant` | `page` | `new-component`; the apply step may write only declared files. Paths are normalized and symlink-checked.
+- **Transactions**: snapshot before the edit, rollback restores only the edit's own files (concurrent hand edits survive), created files and empty dirs are removed, secrets are never snapshotted. One open transaction per project, state persisted so a restarted server recovers it.
+- **Verification before commit**: type errors against a baseline, production build, desktop + mobile renders, exact pixel diff with ±1 per channel tolerance (anti-aliasing), new console/page/hydration errors (baseline-relative), identity leaks (`git config` name/email pasted into mock UI). The verification browser runs in `Pacific/Kiritimati` + `de-DE` so SSR/client mismatches surface.
+- **Honest verdicts**: `verified`, `partially_verified` (an affected route went unrendered), `verified_without_visual`, `blocked_by_preexisting_failure`, `failed`. A failed edit is rolled back; nonzero exit.
+
+**Adapters**:
+- **`coherent mcp --profile agent`** — four tools: `coherent_inventory` (graph, open edit, `changedOutsideCoherent`, protocol handshake), `coherent_begin_edit` (impact folded in; `amend` adds files), `coherent_verify_edit` (`fast` | `final`), `coherent_rollback_edit`. No authoring tools. The agent cannot turn renders off; opting out stays a human CLI flag.
+- **`coherent hook pre-write`** — Claude Code `PreToolUse` hook that denies Edit/Write/MultiEdit/NotebookEdit outside the open edit's write set. Fast feedback only: verification diffs the whole tree, so Bash and IDE writes are caught there.
+- **`coherent edit "<request>"`** — the same session from the CLI with Coherent's own model routing the request; `--dry-run`, `--keep`, `--undo [id]` (`--force`), `--url`, `--no-visual`.
+
+**`coherent init`** (replaces the generator scaffold):
+- Empty folder → official `create-next-app --empty` + `shadcn init` + a welcome page (fixed platform content and the Coherent mark, no styling; init draws one of six big-tech design directions for the agent to restyle it in). Existing Next.js app → agent files only. Re-run → update in place. Anything else → refused.
+- Writes `.claude/agents/coherent.md`, `.mcp.json`, `.claude/settings.json` (default agent + hook, merged; keeps a user's own default agent), a managed `AGENTS.md` section for Codex, `.gitignore` entries; pins `@getcoherent/cli` + `playwright` as dev dependencies using the project's own package manager (`packageManager` → lockfile → npm). Yarn Plug'n'Play is refused.
+- `--link` uses the local CLI build (development); `--skip-install` writes files only. The old init is `--classic` (deprecated; `--skill-mode` / `--api-mode` / `--both` apply only with it).
+
+**Packaging**: `typescript` moved to `dependencies` of `@getcoherent/cli` (the graph needs the compiler at runtime; `edit` and the hook load it lazily).
+
+Verified live on a real app (project A): six-edit go/no-go (routing 6/6, write set held, controls 0.00% changed, byte-exact undo); headless `claude -p --agent coherent` edit `verified` in 57s; desktop-app session with the project-default agent; an injected hydration mismatch failed `final` and rolled back; `init` in an empty folder in 53s. Not yet verified: installs through a published npm version (only `--link` was run live), Windows, greenfield whole-app builds. Tests: 2639 passing.
+
 
 ## [0.26.0] — 2026-07-23 — feat(extract): broad DOM harvest — real-site token breadth
 

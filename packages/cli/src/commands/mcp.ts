@@ -267,7 +267,12 @@ export function registerCoherentTools(server: McpServer): void {
   )
 }
 
-export async function mcpCommand(): Promise<void> {
+/**
+ * `--profile agent` serves only the governance tools (agent mode, ADR-0011):
+ * the authoring tools above made generated apps worse, so an agent driving a
+ * project through Coherent never sees them.
+ */
+export async function mcpCommand(opts: { profile?: string } = {}): Promise<void> {
   // Defensive: keep the stdout channel clean for JSON-RPC frames. Any wrapped
   // function that logs would otherwise corrupt the protocol stream. In Node,
   // console.log/info/debug all write to process.stdout — reroute all three to
@@ -278,7 +283,12 @@ export async function mcpCommand(): Promise<void> {
   console.debug = toStderr
 
   const server = new McpServer({ name: 'coherent', version: CLI_VERSION })
-  registerCoherentTools(server)
+  if (opts.profile === 'agent') {
+    const { registerGovernanceTools } = await import('../governance/agent-tools.js')
+    registerGovernanceTools(server)
+  } else if (opts.profile && opts.profile !== 'default') {
+    throw new Error(`Unknown MCP profile: ${opts.profile} (use "agent" or omit)`)
+  } else registerCoherentTools(server)
 
   const transport = new StdioServerTransport()
   await server.connect(transport)
