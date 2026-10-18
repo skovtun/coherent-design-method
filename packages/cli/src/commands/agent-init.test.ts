@@ -2,7 +2,14 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { agentInitCommand, cliInvocation, detectProject, writeAgentFiles, type Runner } from './agent-init.js'
+import {
+  agentInitCommand,
+  cliInvocation,
+  detectPackageManager,
+  detectProject,
+  writeAgentFiles,
+  type Runner,
+} from './agent-init.js'
 
 let dir: string
 const write = (p: string, c: string) => {
@@ -34,6 +41,21 @@ describe('detectProject', () => {
     expect(detectProject(dir)).toBe('other')
     nextApp()
     expect(detectProject(dir)).toBe('next')
+  })
+})
+
+describe('detectPackageManager', () => {
+  it('prefers the packageManager field, then the lockfile, then npm', () => {
+    write('package.json', JSON.stringify({ packageManager: 'yarn@4.5.0' }))
+    write('pnpm-lock.yaml', '')
+    expect(detectPackageManager(dir)).toBe('yarn')
+    write('package.json', '{}')
+    expect(detectPackageManager(dir)).toBe('pnpm')
+    rmSync(join(dir, 'pnpm-lock.yaml'))
+    write('bun.lock', '')
+    expect(detectPackageManager(dir)).toBe('bun')
+    rmSync(join(dir, 'bun.lock'))
+    expect(detectPackageManager(dir)).toBe('npm')
   })
 })
 
@@ -101,6 +123,24 @@ describe('agentInitCommand', () => {
       expect.stringMatching(/^npm install --save-dev @getcoherent\/cli@/),
       'npx --no-install playwright install',
     ])
+  })
+
+  it("installs with the project's own package manager instead of npm", async () => {
+    nextApp()
+    write('pnpm-lock.yaml', 'lockfileVersion: 9.0\n')
+    const run = vi.fn<Parameters<Runner>, void>()
+    await agentInitCommand(dir, {}, run)
+    expect(run.mock.calls.map(c => c[0] + ' ' + c[1].slice(0, 2).join(' '))).toEqual([
+      'pnpm add --save-dev',
+      'pnpm exec playwright',
+    ])
+    expect(existsSync(join(dir, 'package-lock.json'))).toBe(false)
+  })
+
+  it('refuses Yarn Plug-n-Play, where the hook cannot find the CLI in node_modules', async () => {
+    nextApp()
+    write('.pnp.cjs', '')
+    await expect(agentInitCommand(dir, {}, vi.fn())).rejects.toThrow(/Plug'n'Play/)
   })
 
   it('creates a new app in an empty folder with the welcome page, unstyled', async () => {

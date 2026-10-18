@@ -36,6 +36,38 @@ const defaultRunner: Runner = (cmd, args, cwd) => {
   execFileSync(cmd, args, { cwd, stdio: 'inherit', shell: process.platform === 'win32' })
 }
 
+export type PackageManager = 'npm' | 'pnpm' | 'yarn' | 'bun'
+
+/** The project's own package manager: `packageManager` in package.json, then the lockfile, else npm. */
+export function detectPackageManager(dir: string): PackageManager {
+  const declared = (readJson(join(dir, 'package.json')).packageManager as string | undefined)?.split('@')[0]
+  if (declared === 'pnpm' || declared === 'yarn' || declared === 'bun' || declared === 'npm') return declared
+  if (existsSync(join(dir, 'pnpm-lock.yaml'))) return 'pnpm'
+  if (existsSync(join(dir, 'yarn.lock'))) return 'yarn'
+  if (existsSync(join(dir, 'bun.lock')) || existsSync(join(dir, 'bun.lockb'))) return 'bun'
+  return 'npm'
+}
+
+/** Dev-dependency install and local-binary exec commands for a package manager. */
+export function pmCommands(pm: PackageManager): {
+  addDev: (pkgs: string[]) => [string, string[]]
+  exec: (bin: string, args: string[]) => [string, string[]]
+} {
+  switch (pm) {
+    case 'pnpm':
+      return { addDev: p => ['pnpm', ['add', '--save-dev', ...p]], exec: (b, a) => ['pnpm', ['exec', b, ...a]] }
+    case 'yarn':
+      return { addDev: p => ['yarn', ['add', '--dev', ...p]], exec: (b, a) => ['yarn', [b, ...a]] }
+    case 'bun':
+      return { addDev: p => ['bun', ['add', '--dev', ...p]], exec: (b, a) => ['bun', ['x', b, ...a]] }
+    default:
+      return {
+        addDev: p => ['npm', ['install', '--save-dev', ...p]],
+        exec: (b, a) => ['npx', ['--no-install', b, ...a]],
+      }
+  }
+}
+
 const START = '<!-- coherent:start -->'
 const END = '<!-- coherent:end -->'
 const STATE_IGNORES = ['.coherent/tx/', '.coherent/shots/', '.coherent/edits/']
@@ -234,9 +266,16 @@ export async function agentInitCommand(
 
   const setUp = existsSync(join(dir, '.claude', 'agents', 'coherent.md'))
   if (!opts.link && !opts.skipInstall) {
-    console.log(chalk.bold(`Adding @getcoherent/cli@${CLI_VERSION} and the verification browser…`))
-    run('npm', ['install', '--save-dev', `@getcoherent/cli@${CLI_VERSION}`, 'playwright'], dir)
-    run('npx', ['--no-install', 'playwright', 'install', 'chromium'], dir)
+    // Use the project's own manager: npm in a pnpm/yarn project would add a competing lockfile.
+    const pm = detectPackageManager(dir)
+    if (existsSync(join(dir, '.pnp.cjs')))
+      throw new Error(
+        'Yarn Plug\'n\'Play is not supported: the hook runs the CLI from node_modules. Set "nodeLinker: node-modules" in .yarnrc.yml and run yarn first.',
+      )
+    const cmds = pmCommands(pm)
+    console.log(chalk.bold(`Adding @getcoherent/cli@${CLI_VERSION} and the verification browser (${pm})…`))
+    run(...cmds.addDev([`@getcoherent/cli@${CLI_VERSION}`, 'playwright']), dir)
+    run(...cmds.exec('playwright', ['install', 'chromium']), dir)
   }
   const inv = cliInvocation(dir, !!opts.link)
   const notes = writeAgentFiles(dir, inv)
