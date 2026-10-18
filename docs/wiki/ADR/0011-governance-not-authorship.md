@@ -1,15 +1,15 @@
 ---
 id: ADR-0011
 type: adr
-status: proposed
+status: accepted
 date: 2026-10-17
 confidence: verified
-shipped_in: []
+shipped_in: [0.27.0]
 ---
 
 # ADR 0011 — Governance, not authorship: the model designs, Coherent governs
 
-**Status:** Proposed (vertical slice on `feat/governance-graph`)
+**Status:** Accepted (shipped in v0.27.0)
 **Date:** 2026-10-17
 
 ## Context

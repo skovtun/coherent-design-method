@@ -3,139 +3,101 @@
 </h1>
 
 <p align="center">
-  AI-powered design system generator.<br>
-  Describe what you need — get interconnected pages with shared components, design tokens, and auto-generated documentation.
+  The model designs. Coherent governs.<br>
+  Your coding agent builds the UI; Coherent scopes every edit, checks it in a real browser, and rolls back what fails.
 </p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@getcoherent/cli"><img src="https://img.shields.io/npm/v/@getcoherent/cli.svg" alt="npm version"></a>
   <a href="https://github.com/skovtun/coherent-design-method/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" alt="Node 20+">
-  <img src="https://img.shields.io/badge/next.js-15-black" alt="Next.js 15">
-</p>
-
----
-
-<p align="center">
-  <a href="https://youtu.be/A-rCpn6O3SI">
-    <img src="https://img.youtube.com/vi/A-rCpn6O3SI/maxresdefault.jpg" alt="Coherent Design Method — AI-powered design system generator" width="100%">
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://youtu.be/A-rCpn6O3SI">▶ Watch on YouTube</a> ·
-  <a href="https://github.com/skovtun/coherent-design-method/releases/download/v0.7.15/Coherent.Design.Method.DEMO.mp4">Download MP4</a>
+  <img src="https://img.shields.io/badge/next.js-app%20router-black" alt="Next.js App Router">
 </p>
 
 ---
 
 ## What is Coherent?
 
-Most AI tools generate pages. Coherent generates **systems**.
+Frontier coding agents already write good UI. What they don't do is prove an edit stayed inside its lane: that "make the KPI cards on Earnings more prominent" changed Earnings and left the two other pages using the same card pixel-identical, that the build still passes, that no hydration error appeared, that your `git config` name didn't end up in a mock profile.
 
-When you ask for five pages, every page shares the same header, footer, color palette, spacing, and component library. Change the primary color once — all pages update. Add a component once — reuse it everywhere by ID. The design system documentation writes itself.
+Coherent is that layer. Since v0.27.0 it no longer generates design itself ([ADR-0011](docs/wiki/ADR/0011-governance-not-authorship.md): in a head-to-head on the same spec, plain Claude Code beat Coherent's own generation pipeline on every screen). Instead, every edit the agent makes goes through a governed session:
 
-Coherent is a CLI that creates production-ready Next.js projects with a built-in design system. You describe what you want in plain English, and Coherent generates real code — not wireframes, not mockups, but working pages with real components, real data patterns, and a live Design System viewer at `/design-system`.
+1. **Inventory.** A graph of your app built from the code itself (TypeScript AST): pages, layouts, shared components, who imports what. Nothing stored that can drift.
+2. **Begin edit.** The agent declares a scope (`tokens`, `component`, `variant`, `page`, `new-component`) and the files it will write. Coherent answers with the impact: which routes must change, which must not.
+3. **Verify.** Type errors (against a baseline, so pre-existing ones don't block you), a production build, before/after screenshots on desktop and mobile, an exact pixel diff on control routes, new browser and hydration errors, identity leaks.
+4. **Verdict.** `verified`, `partially_verified`, `verified_without_visual`, `blocked_by_preexisting_failure` or `failed`. A failed edit is rolled back; rollback touches only that edit's own files, so your concurrent hand edits survive.
 
 ## Quick Start
 
-**Prerequisites:** [Node.js](https://nodejs.org/) 20 or later.
+**Prerequisites:** [Node.js](https://nodejs.org/) 20 or later, and [Claude Code](https://claude.com/claude-code) (CLI or desktop app) or Codex.
 
-### 1. Install
-
-```bash
-npm install -g @getcoherent/cli
-```
-
-<details>
-<summary>Or install from source</summary>
+### New app
 
 ```bash
-git clone https://github.com/skovtun/coherent-design-method.git
-cd coherent-design-method
-pnpm install && pnpm build
-cd packages/cli && pnpm link --global
+npx @getcoherent/cli init my-app
 ```
 
-</details>
+In an empty folder this runs the official `create-next-app` and `shadcn init`, adds a welcome page, and installs the Coherent agent. Open `my-app` in Claude Code and describe what you want; the Coherent agent is the project's default agent, so there is nothing to select.
 
-### 2. Create a project
+### Existing Next.js app
 
 ```bash
-coherent init my-app
-cd my-app
+cd my-next-app
+npx @getcoherent/cli init
 ```
 
-This creates a Next.js 15 project with Tailwind CSS, a component library, design tokens, and a Design System viewer — all pre-configured. Init detects your setup and wires the right generation path automatically:
+Adds only the agent; your code is not touched. Run it again later to update the agent files.
 
-- Claude Code installed, no API key → skill mode (no key required).
-- API key present → API-key mode.
-- Both → both available.
+### What init writes
 
-Init prints the exact next command for your setup. No flags needed; pass `--skill-mode` or `--api-mode` only if you want to force one.
+| File | Purpose |
+|------|---------|
+| `.claude/agents/coherent.md` | The Coherent agent (prompt + the `coherent` MCP server) |
+| `.mcp.json` | `coherent mcp --profile agent`: four governance tools |
+| `.claude/settings.json` | Makes `coherent` the default agent and adds the write guard hook (merged with your settings) |
+| `AGENTS.md` | A managed section for agents without hooks (Codex) |
+| `.gitignore` | Local state under `.coherent/` |
+| `package.json` | `@getcoherent/cli` and `playwright` as dev dependencies, installed with your project's package manager |
 
-### 3. Generate pages
-
-Follow the command init printed for you. It's one of:
-
-```
-# If init detected Claude Code (skill mode — runs inside Claude Code, no API key)
-/coherent-generate "create a SaaS landing page with pricing, about us, and contact pages"
-```
-
-```bash
-# If init set up an API key (standalone, from any shell)
-coherent chat "create a SaaS landing page with pricing, about us, and contact pages"
-```
-
-Either way, Coherent plans all pages, generates the home page first (establishing the visual style), then generates remaining pages with the same components, spacing, and color palette.
-
-### 4. Preview
-
-```bash
-coherent preview
-```
-
-Opens your app at `http://localhost:3000`. The Design System viewer is at `http://localhost:3000/design-system`.
-
-### 5. Iterate
-
-Keep using whichever invocation init pointed you at:
-
-```
-# Skill mode
-/coherent-generate "change primary color to indigo and make buttons more rounded"
-/coherent-generate "add a dashboard page with stats and recent activity"
-```
-
-```bash
-# API-key mode
-coherent chat "update the pricing page: add a fourth enterprise tier"
-```
-
-Every change respects the existing design system. New pages inherit shared components. Token changes cascade everywhere.
+Dynamic routes (`/orders/[id]`) need an example URL to be screenshotted; init lists them and tells you where to add one (`.coherent/preview-params.json`).
 
 ## How It Works
 
-When you request multiple pages, Coherent uses a 6-phase pipeline to ensure visual consistency:
-
 ```
-Phase 1: Plan Pages         →  AI plans pages, routes, layout groups (sidebar/header/auth)
-Phase 2: Architecture Plan  →  AI creates component architecture + extracts atmosphere
-                               ("premium, Notion meets Linear" → dark-zinc, tight spacing, mono labels)
-Phase 3: Generate Home      →  AI generates the landing/home page (sets visual direction)
-Phase 4: Extract Patterns   →  Captures style patterns (cards, spacing, colors, typography)
-Phase 5: Shared Components  →  Generates reusable components (StatCard, DataTable, etc.)
-Phase 6: Generate Pages     →  AI generates remaining pages in parallel with shared context
+agent ──► coherent_inventory      code graph, open edit, files changed outside Coherent
+      ──► coherent_begin_edit     scope + write set → impact, baseline renders, transaction
+      ──► (agent writes files)    PreToolUse hook denies writes outside the write set
+      ──► coherent_verify_edit    fast: write set, new type errors, identity leaks
+                                  final: + production build, renders, pixel diff → verdict
+      ──► coherent_rollback_edit  restore only this edit's files
 ```
 
-Phase 2 extracts **atmosphere** from your prompt — mood phrases like "premium and focused" get mapped to concrete CSS choices (backgrounds, spacing, accents). Phase 4 captures the visual patterns from the home page and injects them into every subsequent page prompt.
+The hook is fast feedback, not the boundary: Bash, subagents and IDE writes bypass it. The boundary is verification, which diffs the whole tree after the edit. Agents without hooks are covered by `changedOutsideCoherent` in the inventory.
+
+The verification browser runs in a far time zone and another locale (`Pacific/Kiritimati`, `de-DE`) so server/client mismatches show up as errors instead of passing silently on your machine.
+
+### Without an agent
+
+The same governed session is available from the CLI, with Coherent's own model routing the request:
+
+```bash
+coherent edit "make the primary color emerald"            # plan → impact → apply → verify
+coherent edit "tighten the pricing cards" --dry-run       # scope and affected routes only
+coherent edit --undo                                      # byte-exact rollback of the last edit
+```
+
+## Classic generator (deprecated)
+
+Everything below describes the old generation pipeline (`coherent chat`, `/coherent-generate`, the Design System viewer). It still works in projects created with `coherent init --classic`, but it is no longer developed and will be removed in a future release. See [MIGRATION-v0.27](docs/MIGRATION-v0.27.md).
 
 ## CLI Commands
 
 | Command | Description |
 |---------|-------------|
-| `coherent init` | Create a new Coherent project with Next.js, Tailwind, and design system |
+| `coherent init [dir]` | Agent mode setup: new Next.js app in an empty folder, agent only in an existing app |
+| `coherent edit "<request>"` | Governed edit from the CLI: scope, impact, apply, verify, undo |
+| `coherent mcp --profile agent` | MCP server with the four governance tools |
+| `coherent init --classic` | Deprecated: old generator project with design system viewer |
 | `coherent chat "<message>"` | Generate or modify pages using natural language |
 | `coherent preview` | Start the dev server with auto-fix and file watching |
 | `coherent check` | Show all problems: page quality, component integrity, broken links |

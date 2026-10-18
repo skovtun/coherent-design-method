@@ -5,9 +5,8 @@ A cheat sheet for Coherent CLI commands and workflows.
 ## Commands
 
 ```bash
-coherent init                    # Create a new project
-coherent init --skill-mode       # Set up for the Claude Code /coherent-chat rail (skips API-key setup)
-coherent init --api-mode         # Force API-key setup (coherent chat rail); --both = optional, emit both CTAs
+coherent init --classic --skill-mode  # Deprecated generator project for the /coherent-chat rail (skips API-key setup)
+coherent init --classic --api-mode    # Deprecated generator project, API-key rail; --both = both CTAs
 coherent chat "<message>"        # Generate/modify pages with AI (needs API key)
 coherent chat "use @PricingTable + @CID-001 for ..."  # v0.18: pin shared components by name or CID via @-syntax
 coherent chat --page "X" "..."   # Edit only page X
@@ -164,12 +163,27 @@ coherent chat "regenerate landing with @CID-001 header"
 
 Resolution: exact CID match (case-insensitive) → exact name match → fall back to keyword match with inline warning. Unresolved tokens print `⚠ @<name> did not match...`. Email addresses (`user@example.com`) are NOT extracted.
 
-## Typical Workflow
+## Typical Workflow (v0.27.0+, agent mode)
+
+```bash
+# 1. New app (or run inside an existing Next.js app to add the agent only)
+npx @getcoherent/cli init my-app
+
+# 2. Open my-app in Claude Code (CLI or desktop) and describe what you want.
+#    The Coherent agent is the project default: each edit is scoped, verified
+#    in a real browser and rolled back if it fails.
+
+# 3. Without an agent: the same governed edit from the CLI
+coherent edit "make the primary color emerald"
+coherent edit --undo
+```
+
+## Typical Workflow (classic generator, deprecated)
 
 ```bash
 # 1. Create project
 mkdir my-app && cd my-app
-coherent init
+coherent init --classic
 
 # 2. Generate pages
 coherent chat "create a SaaS app with dashboard, settings, and pricing pages"
@@ -177,20 +191,8 @@ coherent chat "create a SaaS app with dashboard, settings, and pricing pages"
 # 3. Preview
 coherent preview
 
-# 4. Edit in your editor (Cursor, VS Code, etc.)
-# ... make changes to components, styles, logic ...
-
-# 5. Sync Design System with your changes
-coherent sync
-
-# 6. Check quality
-coherent check
-
-# 7. Fix issues automatically
-coherent fix
-
-# 8. Export for deployment
-coherent export
+# 4. Sync, check, fix, export
+coherent sync && coherent check && coherent fix && coherent export
 ```
 
 ## Chat Examples

@@ -1,13 +1,16 @@
 # Coherent Design Method
 
-> Coherent solves a specific problem: AI-generated UIs all look the same.
-> Every tool produces Inter font, purple gradients, identical card grids.
-> Coherent's job is to make that impossible — by encoding design decisions
-> as a tiered constraint system that runs before the AI writes a single line of code.
+> The model designs. Coherent governs.
+> Since v0.27.0 Coherent does not author UI. The coding agent (Claude Code, Codex)
+> builds the app; Coherent scopes every edit against a code-derived graph, enforces
+> its write set, verifies it in a real browser (build, renders, pixel diff, browser
+> errors, identity leaks), returns an honest verdict and rolls back what fails.
+> Why: ADR-0011 (plain Claude Code beat the `coherent chat` pipeline on every screen).
+> The generator pipeline below is **classic / deprecated** (`init --classic`).
 
-**Current version:** 0.26.0
+**Current version:** 0.27.0
 **Packages:** `@getcoherent/core` + `@getcoherent/cli` (published together, same version)
-**Tests:** 2587 passing
+**Tests:** 2639 passing
 
 ---
 
@@ -41,6 +44,11 @@ Update them when you:
 When you receive a task in this project, route it:
 
 ```
+Task touches agent mode, coherent edit, init, or verification?
+  └─ YES → work in packages/cli/src/governance/ (see GOVERNANCE section)
+           and commands/agent-init.ts. Read ADR-0011 + ADR-0012 first.
+Task touches the classic generator (deprecated, fixes only)?
+  └─ route below:
 Task touches design rules or visual output?
   └─ YES → work in design-constraints.ts (see CONSTRAINTS section)
   └─ NO, touches generation pipeline?
@@ -104,9 +112,37 @@ gh pr create --title "..." --body "..."
 
 ---
 
-## The Constraint System — Most Important File
+## Governance (agent mode) — the product since v0.27.0
 
-`packages/cli/src/agents/design-constraints.ts` is the heart of the product.
+```
+packages/cli/src/governance/
+  session.ts      host-neutral core: beginEdit / verifyEdit (fast|final) / rollbackEdit
+  graph.ts        code-derived graph from the TypeScript AST (transitive, layout-scoped impact)
+  router.ts       scope routing for `coherent edit` (tokens|component|variant|page|new-component)
+  transaction.ts  snapshot + rollback of the edit's own files only; no secrets
+  verify.ts       baseline type errors, prod build, renders, pixel diff (±1/channel), browser errors
+  privacy.ts      identity-leak detection (git user name/email in UI)
+  agent-tools.ts  the 4 MCP agent tools over session.ts (inventory, begin/verify/rollback edit)
+  hook.ts         `coherent hook pre-write` (PreToolUse write guard, feedback only)
+packages/cli/src/commands/
+  agent-init.ts   `coherent init`: new app / agent-only / update; writes agent, .mcp.json, settings, AGENTS.md
+  edit.ts         `coherent edit` CLI adapter
+  mcp.ts          `--profile agent` serves agent-tools.ts only, no authoring tools
+packages/cli/templates/agent/   agent definition, welcome page
+```
+
+**Invariants (do not break):**
+- Post-write verification is the enforcement boundary; the hook is only feedback (Bash/IDE writes bypass it).
+- Verification runs before commit; a failed edit is rolled back; verdicts never overstate coverage.
+- Rollback touches only the transaction's own files.
+- The agent tool surface has no authoring tools and cannot disable renders.
+- Claude Code host facts (found by trying): inline `mcpServers` and `hooks` in agent frontmatter do not work; project `.mcp.json` and `.claude/settings.json` do.
+
+---
+
+## The Constraint System — classic generator (deprecated)
+
+`packages/cli/src/agents/design-constraints.ts` was the heart of the generator (still used by `init --classic` projects).
 It is a TypeScript module with dynamic selection logic — not a flat markdown file.
 This distinction matters: it means rules are injected based on context, not always-on.
 
@@ -193,7 +229,7 @@ A broken regex silently stops rules from loading — hard to debug.
 
 ---
 
-## The Generation Pipeline
+## The Generation Pipeline (classic, deprecated)
 
 ```
 coherent chat "build a project management app"

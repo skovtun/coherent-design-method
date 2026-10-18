@@ -1,15 +1,15 @@
 ---
 id: ADR-0012
 type: adr
-status: proposed
+status: accepted
 date: 2026-10-17
 confidence: verified
-shipped_in: []
+shipped_in: [0.27.0]
 ---
 
 # ADR 0012 — Agent mode: governance as an adapter over a host-neutral core
 
-**Status:** Proposed (spike on `feat/governance-graph`)
+**Status:** Accepted (shipped in v0.27.0)
 **Date:** 2026-10-17
 
 ## Context
