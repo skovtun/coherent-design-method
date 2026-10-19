@@ -306,7 +306,7 @@ export function SectionLabel({ children }: { children: ReactNode }) {
 
 export function Panel({ label, right, children }: { label: string; right?: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-md border border-border bg-card">
+    <section className="rounded-lg border border-border bg-card shadow-sm">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <SectionLabel>{label}</SectionLabel>
         {right}
@@ -507,7 +507,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-dvh bg-background text-foreground">
-      <aside className="hidden w-64 shrink-0 border-r border-border bg-muted/30 md:block">
+      <aside className="hidden w-64 shrink-0 border-r border-border bg-background md:block">
         <div className="sticky top-0 flex h-dvh flex-col">
           <div className="px-5 pb-4 pt-5">
             <Link href="/design-system" className="block">
@@ -567,7 +567,7 @@ export function Shell({ children }: { children: ReactNode }) {
             {nav}
           </div>
         ) : null}
-        <main className="flex-1">
+        <main className="flex-1 bg-muted/70">
           <div className="mx-auto w-full max-w-7xl px-4 py-6 lg:px-6 lg:py-8">{children}</div>
           <div className="mx-auto w-full max-w-7xl px-4 pb-4 lg:px-6">
             <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-t border-border pt-4 text-xs text-muted-foreground">
@@ -623,11 +623,19 @@ export default function DesignSystemHome() {
   const shared = components.filter(c => c.section === 'shared').length
   const colors = tokens.filter(t => t.category === 'color').length
   const total = Object.values(activity).reduce((a, b) => a + b, 0)
-  const end = new Date()
+  // Columns are calendar weeks starting on Sunday, like GitHub; days after today stay empty.
+  const today = new Date()
+  const start = new Date(today)
+  start.setDate(start.getDate() - start.getDay() - (WEEKS - 1) * 7)
   const days = Array.from({ length: WEEKS * 7 }, (_, i) => {
-    const d = new Date(end)
-    d.setDate(d.getDate() - (WEEKS * 7 - 1 - i))
-    return d.toISOString().slice(0, 10)
+    const d = new Date(start)
+    d.setDate(d.getDate() + i)
+    return d > today ? null : d.toISOString().slice(0, 10)
+  })
+  const months = Array.from({ length: WEEKS }, (_, col) => {
+    const d = new Date(start)
+    d.setDate(d.getDate() + col * 7)
+    return d.getDate() <= 7 ? d.toLocaleString('en', { month: 'short' }) : ''
   })
   const summary = [
     { href: '/design-system/tokens', label: 'foundations', value: tokens.length, hint: 'tokens · colors · type' },
@@ -652,7 +660,7 @@ export default function DesignSystemHome() {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {summary.map(s => (
-          <Link key={s.href} href={s.href} className="group rounded-md border border-border bg-card p-4 transition-colors hover:border-primary hover:bg-muted">
+          <Link key={s.href} href={s.href} className="group rounded-lg border border-border bg-card shadow-sm p-4 transition-colors hover:border-primary hover:bg-muted">
             <div className="font-mono text-xs uppercase tracking-widest text-muted-foreground">{s.label}</div>
             <div className="mt-1.5 font-mono text-3xl font-medium tabular-nums text-foreground">{s.value}</div>
             <div className="mt-2 flex items-center justify-between font-mono text-xs text-muted-foreground">
@@ -665,23 +673,30 @@ export default function DesignSystemHome() {
 
       <Panel label="activity · last year" right={<span className="font-mono text-xs tabular-nums text-muted-foreground">{total} edits</span>}>
         <div className="overflow-x-auto p-4">
-          <div className="flex items-start gap-1">
+          <div className="flex gap-1">
+            <div className="flex shrink-0 flex-col gap-1 pr-1 pt-5 font-mono text-xs text-muted-foreground">
+              {['', 'Mon', '', 'Wed', '', 'Fri', ''].map((d, i) => (
+                <div key={i} className="h-3 leading-3">{d}</div>
+              ))}
+            </div>
             {Array.from({ length: WEEKS }, (_, col) => (
               <div key={col} className="flex shrink-0 flex-col gap-1">
-                {days.slice(col * 7, col * 7 + 7).map(day => {
+                <div className="h-4 w-3 overflow-visible whitespace-nowrap font-mono text-xs text-muted-foreground">{months[col]}</div>
+                {days.slice(col * 7, col * 7 + 7).map((day, row) => {
+                  if (!day) return <div key={row} className="size-3" />
                   const n = activity[day] ?? 0
                   const level = n === 0 ? 0 : Math.min(4, Math.ceil(n / 2))
-                  return <div key={day} title={day + ': ' + n + ' edit' + (n === 1 ? '' : 's')} className="size-2.5 rounded-sm" style={{ backgroundColor: levelColor(level) }} />
+                  return <div key={day} title={day + ': ' + n + ' edit' + (n === 1 ? '' : 's')} className="size-3" style={{ backgroundColor: levelColor(level), borderRadius: 2 }} />
                 })}
               </div>
             ))}
           </div>
-          <div className="mt-3 flex items-center gap-2 font-mono text-xs text-muted-foreground">
-            <span>less</span>
+          <div className="mt-3 flex items-center justify-end gap-1 font-mono text-xs text-muted-foreground">
+            <span className="mr-1">less</span>
             {[0, 1, 2, 3, 4].map(l => (
-              <div key={l} className="size-2.5 rounded-sm" style={{ backgroundColor: levelColor(l) }} />
+              <div key={l} className="size-3" style={{ backgroundColor: levelColor(l), borderRadius: 2 }} />
             ))}
-            <span>more</span>
+            <span className="ml-1">more</span>
           </div>
         </div>
       </Panel>
@@ -751,7 +766,7 @@ export default function FoundationsPage() {
       <PageTitle title="Foundations" sub="The tokens every component and page is built from. Change one by name: &quot;--primary: a warmer shade&quot;." />
       <div className="grid gap-3 sm:grid-cols-2">
         {cards.map(c => (
-          <Link key={c.href} href={c.href} className="group flex items-center justify-between rounded-md border border-border bg-card p-5 transition-colors hover:border-primary hover:bg-muted">
+          <Link key={c.href} href={c.href} className="group flex items-center justify-between rounded-lg border border-border bg-card shadow-sm p-5 transition-colors hover:border-primary hover:bg-muted">
             <div>
               <div className="font-medium">{c.label}</div>
               <div className="mt-1 font-mono text-xs text-muted-foreground">{c.meta}</div>
@@ -766,30 +781,153 @@ export default function FoundationsPage() {
 `
 
 const COLORS = `${HEAD}import { tokens } from '../../_data'
-import { PageTitle } from '../../_ui'
+import { PageTitle, Panel, SectionLabel } from '../../_ui'
+
+type Tok = (typeof tokens)[number]
+type Role = { base: Tok; fg?: Tok }
+
+const GROUPS: { label: string; hint: string; match: (n: string) => boolean }[] = [
+  { label: 'surfaces & text', hint: 'page, cards, popovers and the text on them', match: n => /^--(background|foreground|card|popover|muted)/.test(n) },
+  { label: 'brand & actions', hint: 'buttons, links, highlights', match: n => /^--(primary|secondary|accent)/.test(n) },
+  { label: 'status', hint: 'errors, success, warnings', match: n => /^--(destructive|success|warning|info|error)/.test(n) },
+  { label: 'lines & focus', hint: 'borders, inputs, focus rings', match: n => /^--(border|input|ring)$/.test(n) },
+  { label: 'charts', hint: 'data series', match: n => n.startsWith('--chart') },
+  { label: 'sidebar', hint: 'app navigation', match: n => n.startsWith('--sidebar') },
+]
+
+const isFg = (n: string) => n === '--foreground' || n.endsWith('-foreground')
+const baseOf = (n: string) => (n === '--foreground' ? '--background' : n.slice(0, -'-foreground'.length))
+const fgOf = (n: string) => (n === '--background' ? '--foreground' : n + '-foreground')
+
+/** A colour and the text colour meant to sit on it, shown together. */
+function roles(list: Tok[], all: Map<string, Tok>): Role[] {
+  return list
+    .filter(t => !(isFg(t.name) && all.has(baseOf(t.name))))
+    .map(t => ({ base: t, fg: isFg(t.name) ? undefined : all.get(fgOf(t.name)) }))
+}
+
+function luminance(c?: string) {
+  const m = c?.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
+  if (!m) return null
+  const h = m[1].length === 3 ? m[1].split('').map(x => x + x).join('') : m[1]
+  const [r, g, b] = [0, 2, 4]
+    .map(i => parseInt(h.slice(i, i + 2), 16) / 255)
+    .map(v => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)))
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+function contrast(a?: string, b?: string) {
+  const x = luminance(a)
+  const y = luminance(b)
+  if (x === null || y === null) return null
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
+}
+
+const ink = (bg?: string) => {
+  const l = luminance(bg)
+  return l === null ? undefined : l > 0.4 ? '#000000' : '#ffffff'
+}
+
+function Contrast({ ratio, theme }: { ratio: number | null; theme: string }) {
+  if (ratio === null) return null
+  const ok = ratio >= 4.5
+  const large = ratio >= 3
+  return (
+    <span className={'rounded-md border border-border px-1.5 py-0.5 font-mono text-xs ' + (ok ? 'text-foreground' : large ? 'text-muted-foreground' : 'text-destructive')}>
+      {theme} {ratio.toFixed(1)} · {ok ? 'AA' : large ? 'AA large' : 'fails AA'}
+    </span>
+  )
+}
+
+function Half({ bg, fg, label }: { bg?: string; fg?: string; label: string }) {
+  return (
+    <div className="flex h-24 flex-1 flex-col justify-between p-3" style={{ background: bg, color: fg ?? ink(bg) }}>
+      <span className="font-mono text-xs" style={{ opacity: 0.75 }}>{label}</span>
+      {fg ? <span className="text-2xl font-medium leading-none">Aa</span> : null}
+    </div>
+  )
+}
+
+function RoleCard({ role }: { role: Role }) {
+  const { base, fg } = role
+  return (
+    <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+      <div className="flex">
+        <Half bg={base.value} fg={fg?.value} label="light" />
+        <Half bg={base.dark ?? base.value} fg={fg?.dark ?? fg?.value} label={base.dark ? 'dark' : 'dark · same'} />
+      </div>
+      <div className="space-y-1.5 border-t border-border p-3">
+        {[base, fg].filter((t): t is Tok => !!t).map(t => (
+          <div key={t.name} className="flex flex-wrap items-baseline justify-between gap-x-3">
+            <span className="font-mono text-sm text-foreground">{t.name}</span>
+            <span className="font-mono text-xs text-muted-foreground">
+              {t.value}
+              {t.dark && t.dark !== t.value ? ' / ' + t.dark : ''}
+            </span>
+          </div>
+        ))}
+        {fg ? (
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            <Contrast ratio={contrast(base.value, fg.value)} theme="light" />
+            <Contrast ratio={contrast(base.dark ?? base.value, fg.dark ?? fg.value)} theme="dark" />
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+function Strip({ roles, dark }: { roles: Role[]; dark: boolean }) {
+  return (
+    <div className="flex h-14 overflow-hidden rounded-lg border border-border">
+      {roles.map(r => {
+        const v = dark ? r.base.dark ?? r.base.value : r.base.value
+        return <div key={r.base.name} title={r.base.name + ' ' + v} className="flex-1" style={{ background: v }} />
+      })}
+    </div>
+  )
+}
 
 export default function ColorsPage() {
   const colors = tokens.filter(t => t.category === 'color')
+  const all = new Map(colors.map(t => [t.name, t]))
+  const placed = new Set<string>()
+  const groups = GROUPS.map(g => {
+    const list = colors.filter(t => !placed.has(t.name) && g.match(t.name))
+    list.forEach(t => placed.add(t.name))
+    return { ...g, roles: roles(list, all) }
+  })
+  const rest = colors.filter(t => !placed.has(t.name))
+  if (rest.length) groups.push({ label: 'other', hint: 'custom colors', match: () => true, roles: roles(rest, all) })
+  const shown = groups.filter(g => g.roles.length)
+  const palette = shown.filter(g => g.label !== 'sidebar').flatMap(g => g.roles)
   return (
-    <div className="flex flex-col gap-6">
-      <PageTitle title="Color" sub={colors.length + ' color tokens. Left: light theme, right: dark.'} />
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {colors.map(t => (
-          <div key={t.name} className="overflow-hidden rounded-md border border-border bg-card">
-            <div className="flex h-20">
-              <div className="flex-1" style={{ background: t.value || undefined }} />
-              {t.dark ? <div className="flex-1" style={{ background: t.dark }} /> : null}
-            </div>
-            <div className="space-y-1 border-t border-border p-3">
-              <div className="font-mono text-sm">{t.name}</div>
-              <div className="font-mono text-xs text-muted-foreground">
-                {t.value}
-                {t.dark ? ' · dark ' + t.dark : ''}
-              </div>
-            </div>
+    <div className="flex flex-col gap-8">
+      <PageTitle
+        title="Color"
+        sub={colors.length + ' color tokens. Each colour is shown with the text colour meant for it, in light and dark, with its contrast.'}
+      />
+      <Panel label="palette">
+        <div className="space-y-2 p-4">
+          <div className="font-mono text-xs text-muted-foreground">light</div>
+          <Strip roles={palette} dark={false} />
+          <div className="pt-2 font-mono text-xs text-muted-foreground">dark</div>
+          <Strip roles={palette} dark />
+        </div>
+      </Panel>
+      {shown.map(g => (
+        <section key={g.label} className="flex flex-col gap-3">
+          <div className="flex items-baseline gap-3">
+            <SectionLabel>{g.label}</SectionLabel>
+            <span className="text-xs text-muted-foreground">{g.hint}</span>
           </div>
-        ))}
-      </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {g.roles.map(r => (
+              <RoleCard key={r.base.name} role={r} />
+            ))}
+          </div>
+        </section>
+      ))}
     </div>
   )
 }
@@ -968,7 +1106,7 @@ export function IconCatalog() {
       />
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 lg:grid-cols-8">
         {hits.slice(0, 160).map(([name, Icon]) => (
-          <div key={name} title={name} className="flex flex-col items-center gap-2 rounded-md border border-border p-3">
+          <div key={name} title={name} className="flex flex-col items-center gap-2 rounded-lg border border-border bg-card p-3 shadow-sm">
             <Icon className="size-5" />
             <span className="w-full truncate text-center font-mono text-xs text-muted-foreground">{name}</span>
           </div>
@@ -1001,7 +1139,7 @@ export default function IconsPage() {
             {icons.map(i => {
               const Icon = usedIcons[i.name]
               return (
-                <div key={i.name} className="flex items-center gap-3 rounded-md border border-border p-3">
+                <div key={i.name} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 shadow-sm">
                   {Icon ? <Icon className="size-5 shrink-0" /> : null}
                   <div className="min-w-0">
                     <div className="truncate font-mono text-sm">{i.name}</div>
@@ -1050,7 +1188,7 @@ export default function IndexPage() {
                     ? c.routes.length + (c.routes.length === 1 ? ' page' : ' pages')
                     : 'default'
                 return (
-                  <Link key={c.slug} href={hrefOf(c)} className="group flex items-center justify-between rounded-md border border-border bg-card p-4 transition-colors hover:border-primary hover:bg-muted">
+                  <Link key={c.slug} href={hrefOf(c)} className="group flex items-center justify-between rounded-lg border border-border bg-card shadow-sm p-4 transition-colors hover:border-primary hover:bg-muted">
                     <div className="min-w-0">
                       <div className="font-medium">{c.name}</div>
                       <div className="mt-1 font-mono text-xs text-muted-foreground">
@@ -1182,33 +1320,57 @@ import { PageTitle, Panel } from '../_ui'
 
 export default function SitemapPage() {
   const bySlug = new Map(components.map(c => [c.slug, c]))
+  const area = (route: string) => '/' + (route.split('/')[1] ?? '')
+  const areas = [...new Set(pages.map(p => area(p.route)))]
   return (
     <div className="flex flex-col gap-6">
-      <PageTitle title="Sitemap" sub={pages.length + ' pages, and the components each one is built from.'} />
-      <Panel label="pages">
-        <div className="divide-y divide-border">
-          {pages.map(p => (
-            <div key={p.route} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-start">
-              <div className="w-72 shrink-0 font-mono text-sm">
-                {p.route.includes('[') ? p.route : <Link href={p.route} className="hover:underline">{p.route}</Link>}
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {p.components
-                  .map(s => bySlug.get(s))
-                  .filter(c => c && c.section === 'shared')
-                  .map(c => (
-                    <Link key={c!.slug} href={hrefOf(c!)} className="rounded-md border border-border px-2 py-0.5 font-mono text-xs hover:bg-muted">
-                      {c!.name}
-                    </Link>
-                  ))}
-                <span className="font-mono text-xs text-muted-foreground">
-                  + {p.components.filter(s => bySlug.get(s)?.section === 'components').length} base
-                </span>
-              </div>
+      <PageTitle title="Sitemap" sub={pages.length + ' pages, grouped by section, and the components each one is built from.'} />
+      {areas.map(a => {
+        const list = pages.filter(p => area(p.route) === a)
+        return (
+          <Panel key={a} label={a === '/' ? 'root' : a} right={<span className="font-mono text-xs tabular-nums text-muted-foreground">{list.length} {list.length === 1 ? 'page' : 'pages'}</span>}>
+            <div className="divide-y divide-border">
+              {list.map(p => {
+                const used = p.components.map(s => bySlug.get(s)).filter((c): c is NonNullable<typeof c> => !!c)
+                const shared = used.filter(c => c.section === 'shared')
+                const base = used.filter(c => c.section === 'components')
+                const cut = p.route.lastIndexOf('/')
+                const parent = cut > 0 ? p.route.slice(0, cut) : ''
+                const leaf = p.route.slice(cut) || '/'
+                const label = (
+                  <span className="break-all">
+                    <span className="text-muted-foreground">{parent}</span>
+                    <span className="text-foreground">{leaf}</span>
+                  </span>
+                )
+                return (
+                  <div key={p.route} className="flex min-w-0 flex-col gap-2 px-4 py-3">
+                    <div className="font-mono text-sm">
+                      {p.route.includes('[') ? label : <Link href={p.route} className="hover:underline">{label}</Link>}
+                    </div>
+                    {used.length ? (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {shared.map(c => (
+                          <Link key={c.slug} href={hrefOf(c)} className="rounded-md border border-border bg-card px-2 py-0.5 font-mono text-xs text-foreground hover:bg-muted">
+                            {c.name}
+                          </Link>
+                        ))}
+                        {base.map(c => (
+                          <Link key={c.slug} href={hrefOf(c)} className="rounded-md bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground hover:text-foreground">
+                            {c.name}
+                          </Link>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">no design-system components</span>
+                    )}
+                  </div>
+                )
+              })}
             </div>
-          ))}
-        </div>
-      </Panel>
+          </Panel>
+        )
+      })}
     </div>
   )
 }
@@ -1288,7 +1450,7 @@ export default function RecommendationsPage() {
       <PageTitle title="Recommendations" sub="The state of this design system, and the rules Coherent checks on every edit." />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {stats.map(s => (
-          <div key={s.label} className="rounded-md border border-border bg-card p-4">
+          <div key={s.label} className="rounded-lg border border-border bg-card shadow-sm p-4">
             <div className={'font-mono text-3xl font-medium tabular-nums ' + (s.value ? 'text-foreground' : 'text-primary')}>{s.value}</div>
             <div className="mt-1 font-mono text-xs text-muted-foreground">{s.label}</div>
           </div>
@@ -1303,7 +1465,7 @@ export default function RecommendationsPage() {
                 <p className="text-muted-foreground">Ask your agent to add previews for these, so they can be reviewed here:</p>
                 <div className="flex flex-wrap gap-1.5">
                   {noPreview.map(c => (
-                    <Link key={c.slug} href={hrefOf(c)} className="rounded-md border border-border px-2 py-0.5 font-mono text-xs hover:bg-muted">{c.id ?? c.name}</Link>
+                    <Link key={c.slug} href={hrefOf(c)} className="rounded-md border border-border bg-card px-2 py-0.5 font-mono text-xs hover:bg-muted">{c.id ?? c.name}</Link>
                   ))}
                 </div>
               </div>
@@ -1314,7 +1476,7 @@ export default function RecommendationsPage() {
                 <p className="text-muted-foreground">Place them, or ask your agent to remove them.</p>
                 <div className="flex flex-wrap gap-1.5">
                   {unused.map(c => (
-                    <Link key={c.slug} href={hrefOf(c)} className="rounded-md border border-border px-2 py-0.5 font-mono text-xs hover:bg-muted">{c.name}</Link>
+                    <Link key={c.slug} href={hrefOf(c)} className="rounded-md border border-border bg-card px-2 py-0.5 font-mono text-xs hover:bg-muted">{c.name}</Link>
                   ))}
                 </div>
               </div>
