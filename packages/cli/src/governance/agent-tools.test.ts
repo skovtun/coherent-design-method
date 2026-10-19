@@ -194,7 +194,8 @@ describe('design system (ADR-0013)', () => {
     const sync = await call('coherent_ds_sync', {})
     expect(sync.assigned).toEqual([{ id: 'CID-001', name: 'Card', file: 'src/components/card.tsx' }])
     expect(read('src/components/card.tsx')).toMatch(/^\/\*\* @coherent-id CID-001 \*\/\nexport function Card/)
-    expect(read('src/app/design-system/page.tsx')).toContain('"CID-001"')
+    expect(read('src/app/design-system/_data.ts')).toContain('"CID-001"')
+    expect(sync.withoutPreview).toEqual([{ id: 'CID-001', name: 'Card', file: 'src/components/card.tsx' }])
     // Only comments were added: the page that renders Card must stay identical.
     expect(sync.renderedRoutes).toContain('/ (must not change)')
     const final = await call('coherent_verify_edit', { level: 'final' })
@@ -221,7 +222,9 @@ describe('design system (ADR-0013)', () => {
       scope: 'component',
       target: 'CID-001',
     })
-    expect(begun.writeSet.modify).toEqual(['src/components/card.tsx', 'src/app/design-system/page.tsx'])
+    expect(begun.writeSet.modify[0]).toBe('src/components/card.tsx')
+    expect(begun.writeSet.modify).toContain('src/app/design-system/_data.ts')
+    expect(begun.affectedRoutes).toEqual(['/'])
     write('src/components/card.tsx', read('src/components/card.tsx').replace('<div />', '<section />'))
     expect((await call('coherent_verify_edit', { level: 'final' })).ok).toBe(true)
 
@@ -271,5 +274,26 @@ describe('design system (ADR-0013)', () => {
     )
     write('src/components/badge.tsx', '/** @coherent-id CID-002 */\nexport function Badge() { return <span /> }\n')
     expect((await call('coherent_verify_edit', { level: 'fast' })).ok).toBe(true)
+  })
+
+  it('lets the agent add previews with a design-system edit, and nothing else through it', async () => {
+    const { call } = await connect()
+    await call('coherent_ds_sync', {})
+    await call('coherent_verify_edit', { level: 'final' })
+    await expect(
+      call('coherent_begin_edit', { request: 'r', scope: 'design-system', modify: ['src/components/card.tsx'] }),
+    ).rejects.toThrow(/only writes component previews/)
+    await call('coherent_begin_edit', {
+      request: 'add a preview for CID-001',
+      scope: 'design-system',
+      create: ['src/components/card.preview.tsx'],
+    })
+    write(
+      'src/components/card.preview.tsx',
+      "import { Card } from './card'\nexport default function Preview() { return <Card /> }\n",
+    )
+    expect((await call('coherent_verify_edit', { level: 'final' })).ok).toBe(true)
+    expect(read('src/app/design-system/_previews.tsx')).toContain("from '../../components/card.preview'")
+    expect((await call('coherent_inventory', {})).designSystem.components[0]).toMatchObject({ id: 'CID-001' })
   })
 })

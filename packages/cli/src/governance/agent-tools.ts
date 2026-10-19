@@ -42,11 +42,12 @@ const ROOT = z
   .describe('Absolute project root. Defaults to the project this server was started for.')
 
 const SCOPE = z
-  .enum(['tokens', 'component', 'variant', 'page', 'new-component'])
+  .enum(['tokens', 'component', 'variant', 'page', 'new-component', 'design-system'])
   .describe(
     'tokens: design tokens in the stylesheet. component: one shared component, every consumer changes. ' +
       'variant: an opt-in prop on a shared component, set only on some pages; other consumers must render identically. ' +
-      'page: one page only. new-component: a new shared block (check the inventory for one with the same PURPOSE first).',
+      'page: one page only. new-component: a new shared block (check the inventory for one with the same PURPOSE first). ' +
+      'design-system: only component previews (<name>.preview.tsx next to a component) for the /design-system viewer.',
   )
 
 async function hasBrowser(): Promise<boolean> {
@@ -208,7 +209,8 @@ export function registerGovernanceTools(server: McpServer): void {
         ...summary(r.session),
         assigned: r.assigned,
         page: r.page,
-        next: 'Coherent wrote the files. Call coherent_verify_edit with level "final".',
+        withoutPreview: r.withoutPreview,
+        next: 'Coherent wrote the files. Call coherent_verify_edit with level "final". Then write previews for the components listed in withoutPreview: one coherent_begin_edit with scope "design-system" creating <name>.preview.tsx files (default export, realistic data).',
       })
     }),
   )

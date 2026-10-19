@@ -21,7 +21,7 @@ Reply in the user's language.
    - `variant`: "only on X". Add an opt-in prop whose default reproduces today's render, set it only on X. Every other consumer must render pixel-identically.
    - `page`: one page's own markup.
    - `new-component`: a new block. First look for an existing component with the same PURPOSE (not the same shape; an AI review flag and an AI creator suggestion look alike and are different things). Reuse it if it fits; otherwise create one next to the existing shared components so the next page can reuse it.
-   When the user names a component or token ("CID-007: …", "@PricingTable", "--radius"), pass it as `target`: Coherent resolves the file and holds the edit to it.
+   When the user names a component or token ("CID-007: …", "@PricingTable", "--radius"), pass it as `target`: Coherent resolves the file and holds the edit to it. When they describe it in words ("the KPI cards", "the blue button in the header"), find it in the inventory yourself, say which one you picked with its ID ("KpiCard, CID-008, on 3 pages"), and pass that ID as `target`; if two components fit, ask which.
    Tell the user in one line what the change will touch ("affects 3 of 13 pages: …") before or while you work.
 3. **Write only the declared files.** Writes to anything else are blocked; if you discover you need another file, call `coherent_begin_edit` with `amend` set to the open txId and just the extra files. Do not route around the block with shell commands: verification diffs the whole project and fails the edit.
 4. **`coherent_verify_edit` level `fast`** (seconds) after writing: undeclared changes, new TypeScript errors, real names or emails in the UI. Fix and repeat until clean.
@@ -42,7 +42,11 @@ Build pages from components: every major block of a page (hero, pricing, a table
 
 Every exported component carries its ID in a comment right above it: `/** @coherent-id CID-012 */`. When you create components, `coherent_begin_edit` returns the IDs to use; a new component without one fails verification. Never reuse or renumber an ID.
 
-After the first build of an app, or when the user asks to see the design system, call `coherent_ds_sync` and then `coherent_verify_edit` level `final`: it gives every component an ID and writes `/design-system` (every token and component, with IDs and the pages that use them). Later edits keep that page current on their own; never edit it by hand. Send the user the link.
+After the first build of an app, or when the user asks to see the design system, call `coherent_ds_sync` and then `coherent_verify_edit` level `final`: it gives every component an ID and writes the `/design-system` viewer (foundations, every component with its ID, variants, props and the pages that use it, rules). Later edits keep it current on their own; never edit those files by hand. Send the user the link.
+
+Previews: primitives get a live preview automatically. For shared components and blocks you write one: `<name>.preview.tsx` next to the component, default export, the component filled with realistic data in the app's style. After a sync, write the previews it lists under `withoutPreview` in one edit with scope `design-system`; when you create a component later, add its preview in the same edit.
+
+Tokens come first. If the user states colors, fonts, radius or density, those win over any direction: put them into the stylesheet tokens before building screens, and build every screen from the tokens.
 
 ## Design
 

@@ -20,14 +20,14 @@ import { dirname, join, resolve } from 'path'
 import {
   buildDesignSystem,
   DS_ROUTE,
-  dsPagePath,
   freeIds,
+  isPreviewFile,
   managedPage,
   planSync,
-  renderDesignSystemPage,
   resolveTarget,
   type ResolvedTarget,
 } from './design-system.js'
+import { dsFiles, renderDesignSystemFiles, type SiteContext } from './design-system-site.js'
 import { buildGraph, type Impact, type ProjectGraph } from './graph.js'
 import { scanLeaks, type Leak } from './privacy.js'
 import { withImpact, type EditScope } from './router.js'
@@ -262,6 +262,8 @@ export interface BeginInput {
   amend?: string
   /** Address of the thing to change: `CID-007`, `@KpiCard`, `--radius`. Resolved to its file; the scope is checked against it. */
   target?: string
+  /** Coherent's own design-system sync (writes ID comments); not available to agents. */
+  internal?: boolean
   log?: (msg: string) => void
 }
 
@@ -307,27 +309,72 @@ export function checkScope(graph: ProjectGraph, scope: EditScope, modify: string
     throw new Error(`A token edit changes only stylesheets; ${notStyle.join(', ')} need their own edit.`)
 }
 
-/** The generated page joins every edit that changes components or tokens, so it is rebuilt and verified with it. */
-function withDesignSystemPage(root: string, graph: ProjectGraph, modify: string[], create: string[]): string[] {
-  const page = managedPage(root, graph.appDir)
-  if (!page || modify.includes(page)) return modify
-  const shapes = [...modify, ...create].some(
-    f =>
-      /\.css$/.test(f) ||
-      /(^|\/)components\//.test(f) ||
-      ['component', 'ui', 'style'].includes(graph.nodes[f]?.kind ?? ''),
-  )
-  return shapes ? [...modify, page] : modify
+function siteContext(root: string, exclude?: string): SiteContext {
+  let appName = 'App'
+  try {
+    const name = String(JSON.parse(readFileSync(join(root, 'package.json'), 'utf-8')).name ?? '')
+    if (name)
+      appName = name
+        .replace(/^@[^/]+\//, '')
+        .replace(/[-_]+/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase())
+  } catch {
+    // no package.json name: keep the default
+  }
+  const edits = listTransactions(root, { active: true })
+    .filter(id => id !== exclude)
+    .map(id => loadTransaction(root, id))
+    .filter(t => t.status !== 'open')
+    .reverse()
+    .slice(0, 8)
+    .map(t => ({ label: t.label, verdict: t.verdict ?? null, at: t.startedAt }))
+  return { appName, edits }
 }
 
-/** Rewrite the generated page from the code as it is now (inside the open edit). */
-function refreshDesignSystemPage(root: string, s: Pick<EditSession, 'modify' | 'create'>) {
+const renderSite = (root: string, graph: ProjectGraph, exclude?: string) =>
+  renderDesignSystemFiles(buildDesignSystem(graph), graph.appDir, siteContext(root, exclude))
+
+/**
+ * The generated viewer joins every edit that changes components or tokens, so
+ * it is rebuilt, verified and undone with it. Missing files (an older, smaller
+ * viewer) are created.
+ */
+function withDesignSystemFiles(
+  root: string,
+  graph: ProjectGraph,
+  modify: string[],
+  create: string[],
+  always = false,
+): { modify: string[]; create: string[] } {
+  if (!managedPage(root, graph.appDir)) return { modify, create }
+  const shapes =
+    always ||
+    [...modify, ...create].some(
+      f =>
+        /\.css$/.test(f) ||
+        /(^|\/)components\//.test(f) ||
+        ['component', 'ui', 'style'].includes(graph.nodes[f]?.kind ?? ''),
+    )
+  if (!shapes) return { modify, create }
+  const files = dsFiles(graph.appDir).filter(f => !modify.includes(f) && !create.includes(f))
+  return {
+    modify: [...modify, ...files.filter(f => existsSync(join(root, f)))],
+    create: [...create, ...files.filter(f => !existsSync(join(root, f)))],
+  }
+}
+
+/** Rewrite the declared viewer files from the code as it is now (inside the open edit, before any build). */
+function refreshDesignSystemFiles(root: string, s: Pick<EditSession, 'modify' | 'create' | 'txId'>) {
+  const declared = new Set([...s.modify, ...s.create])
   const graph = buildGraph(root)
-  const page = dsPagePath(graph.appDir)
-  if (![...s.modify, ...s.create].includes(page)) return
+  const page = dsFiles(graph.appDir)[0]
+  if (!declared.has(page)) return
   if (existsSync(join(root, page)) && !managedPage(root, graph.appDir)) return
-  mkdirSync(dirname(join(root, page)), { recursive: true })
-  writeFileSync(join(root, page), renderDesignSystemPage(buildDesignSystem(graph)))
+  for (const [file, text] of renderSite(root, graph, s.txId)) {
+    if (!declared.has(file)) continue
+    mkdirSync(dirname(join(root, file)), { recursive: true })
+    writeFileSync(join(root, file), text)
+  }
 }
 
 /** Components in the touched files that carry no ID, or share one, once the project has a design system. */
@@ -393,9 +440,19 @@ export async function beginEdit(rootInput: string, input: BeginInput): Promise<E
   const target = input.target ? resolveTarget(buildDesignSystem(graph), input.target) : undefined
   if (target && !modify.length) modify = [target.type === 'component' ? target.component.file : target.token.file]
   checkWriteSet(root, modify, create)
-  if (input.scope !== 'design-system') {
-    checkScope(graph, input.scope, modify, target)
-    modify = withDesignSystemPage(root, graph, modify, create)
+  if (input.scope === 'design-system' && !input.internal) {
+    // The agent's design-system edits: component previews only.
+    const other = [...modify, ...create].filter(f => !isPreviewFile(f))
+    if (other.length)
+      throw new Error(
+        `A design-system edit only writes component previews (<name>.preview.tsx); ${other.join(', ')} need their own edit.`,
+      )
+  }
+  if (input.scope !== 'design-system') checkScope(graph, input.scope, modify, target)
+  if (!input.internal) {
+    const withDs = withDesignSystemFiles(root, graph, modify, create, input.scope === 'design-system')
+    modify = withDs.modify
+    create.push(...withDs.create.filter(f => !create.includes(f)))
   }
   const open = openTransaction(root)
   if (open) throw new Error(`Edit ${open.id} is still open; verify, roll it back, or amend it before starting another`)
@@ -464,7 +521,7 @@ export async function verifyEdit(
   const tx = loadTransaction(root, s.txId)
   if (tx.status !== 'open') throw new Error(`Edit ${s.txId} is ${tx.status}; nothing to verify`)
 
-  refreshDesignSystemPage(root, s)
+  refreshDesignSystemFiles(root, s)
   const changes = pendingChanges(root, tx)
   const allowed = new Set([...s.modify, ...s.create])
   const outOfPlan = [...changes.created, ...changes.modified, ...changes.deleted].filter(f => !allowed.has(f))
@@ -632,14 +689,20 @@ export function rollbackEdit(
 }
 
 export interface DsSyncResult {
-  /** Null when IDs and the page are already current. */
+  /** Null when IDs and the viewer are already current. */
   session: EditSession | null
   assigned: { id: string; name: string; file: string }[]
   page: string
+  /** Shared components and blocks with no preview yet: the agent writes `<name>.preview.tsx` for them. */
+  withoutPreview: { id: string | null; name: string; file: string }[]
 }
 
+/** Viewer files compared without the activity list, which changes with every edit. */
+const withoutActivity = (text: string) =>
+  text.replace(/export const edits[\s\S]*?\n\]\n|export const edits[^\n]*\n/, '')
+
 /**
- * Give every component an ID and (re)write the /design-system page, as a
+ * Give every component an ID and (re)write the /design-system viewer, as a
  * normal edit: Coherent declares and writes the files, the caller verifies.
  * Every page must render exactly as before (only comments are added).
  */
@@ -647,19 +710,29 @@ export async function dsSync(rootInput: string, opts: { log?: (msg: string) => v
   const root = resolve(rootInput)
   const graph = buildGraph(root)
   const plan = planSync(graph)
+  const files = dsFiles(graph.appDir)
+  const pending = () =>
+    buildDesignSystem(buildGraph(root))
+      .components.filter(c => c.kind !== 'ui' && !c.preview)
+      .map(c => ({ id: c.id ?? null, name: c.name, file: c.file }))
   if (!plan.annotations.size && plan.pageExists) {
-    const current = readFileSync(join(root, plan.page), 'utf-8')
-    if (current === renderDesignSystemPage(buildDesignSystem(graph)))
-      return { session: null, assigned: [], page: plan.page }
+    const fresh = renderSite(root, graph)
+    const current = files.every(
+      f =>
+        existsSync(join(root, f)) &&
+        withoutActivity(readFileSync(join(root, f), 'utf-8')) === withoutActivity(fresh.get(f) ?? ''),
+    )
+    if (current) return { session: null, assigned: [], page: plan.page, withoutPreview: pending() }
   }
   const s = await beginEdit(root, {
-    request: 'Sync the design system: component IDs and the /design-system page',
+    request: 'Sync the design system: component IDs and the /design-system viewer',
     scope: 'design-system',
-    modify: [...plan.annotations.keys(), ...(plan.pageExists ? [plan.page] : [])],
-    create: plan.pageExists ? [] : [plan.page],
+    internal: true,
+    modify: [...plan.annotations.keys(), ...files.filter(f => existsSync(join(root, f)))],
+    create: files.filter(f => !existsSync(join(root, f))),
     log: opts.log,
   })
   for (const [file, text] of plan.annotations) writeFileSync(join(root, file), text)
-  refreshDesignSystemPage(root, s)
-  return { session: s, assigned: plan.assigned, page: plan.page }
+  refreshDesignSystemFiles(root, s)
+  return { session: s, assigned: plan.assigned, page: plan.page, withoutPreview: pending() }
 }

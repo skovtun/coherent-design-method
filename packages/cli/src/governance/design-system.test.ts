@@ -3,15 +3,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { buildGraph } from './graph.js'
-import {
-  annotate,
-  buildDesignSystem,
-  componentDecls,
-  parseTokens,
-  planSync,
-  renderDesignSystemPage,
-  resolveTarget,
-} from './design-system.js'
+import { annotate, buildDesignSystem, componentDecls, parseTokens, planSync, resolveTarget } from './design-system.js'
+import { renderDesignSystemFiles } from './design-system-site.js'
 
 describe('componentDecls', () => {
   it('finds exported components in every export style, with the ID each carries', () => {
@@ -130,13 +123,26 @@ describe('design system from a project', () => {
     expect(() => planSync(buildGraph(root))).toThrow(/not Coherent's design-system page/)
   })
 
-  it('renders a page with every ID and token, using theme utilities only', () => {
-    const page = renderDesignSystemPage(buildDesignSystem(buildGraph(root)))
-    expect(page).toContain('@coherent-generated design-system')
-    expect(page).toContain('"CID-002"')
-    expect(page).toContain('"--primary"')
-    // No arbitrary Tailwind values in className strings.
-    expect(page.match(/className="[^"]*\[[^"]*"/g)).toBeNull()
+  it('renders the viewer with every ID, token and generated primitive preview, theme utilities only', () => {
+    write(
+      'src/components/ui/badge.tsx',
+      "import { cva } from 'class-variance-authority'\nconst badgeVariants = cva('rounded', { variants: { variant: { default: 'bg-primary', outline: 'border' } }, defaultVariants: { variant: 'default' } })\nfunction Badge() { return <span /> }\nexport { Badge, badgeVariants }\n",
+    )
+    const files = renderDesignSystemFiles(buildDesignSystem(buildGraph(root)), 'src/app', {
+      appName: 'Demo',
+      edits: [],
+    })
+    expect([...files.keys()]).toContain('src/app/design-system/components/[id]/page.tsx')
+    const data = files.get('src/app/design-system/_data.ts')!
+    expect(data).toContain('"CID-002"')
+    expect(data).toContain('"--primary"')
+    const previews = files.get('src/app/design-system/_previews.tsx')!
+    expect(previews).toMatch(/import \{ Badge as C\d+_Badge \} from '\.\.\/\.\.\/components\/ui\/badge'/)
+    expect(previews).toContain('variant="outline">Outline<')
+    for (const [, text] of files) {
+      expect(text.startsWith('// @coherent-generated design-system')).toBe(true)
+      expect(text.match(/className="[^"]*\[[^"]*"/g)).toBeNull()
+    }
   })
 })
 

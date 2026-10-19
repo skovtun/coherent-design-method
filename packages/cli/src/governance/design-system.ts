@@ -14,7 +14,9 @@
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import ts from 'typescript'
-import { impactOf, type ProjectGraph } from './graph.js'
+import { DS_MARKER, impactOf, type ProjectGraph } from './graph.js'
+
+export { DS_MARKER }
 
 export type ComponentKind = 'ui' | 'shared' | 'block'
 export type TokenCategory = 'color' | 'font' | 'size' | 'space' | 'radius' | 'shadow' | 'other'
@@ -29,6 +31,18 @@ export interface DsComponent {
   routes: string[]
   /** Other exports of a primitive's file (`SelectItem` of `Select`): addressed through the primitive's ID. */
   parts?: string[]
+  /** URL segment of its page in the viewer: the ID, lowercased. */
+  slug: string
+  /** Variant groups declared with cva (`variant`, `size`), with their classes. */
+  variants?: VariantGroup[]
+  /** Project-relative path of `<name>.preview.tsx` next to the component, written by the agent. */
+  preview?: string
+}
+
+export interface VariantGroup {
+  name: string
+  options: { value: string; classes: string }[]
+  default?: string
 }
 
 export interface DsToken {
@@ -51,7 +65,6 @@ export interface DesignSystem {
   route: string
 }
 
-export const DS_MARKER = '@coherent-generated design-system'
 export const DS_ROUTE = '/design-system'
 const ID_RE = /@coherent-id\s+(CID-\d+)/i
 
@@ -185,6 +198,53 @@ export function parseTokens(file: string, css: string): DsToken[] {
   return [...tokens.values()]
 }
 
+const literalText = (e: ts.Expression, sf: ts.SourceFile) =>
+  ts.isStringLiteralLike(e) ? e.text : e.getText(sf).replace(/\s+/g, ' ')
+
+const propName = (p: ts.ObjectLiteralElementLike) =>
+  p.name && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)) ? p.name.text : undefined
+
+/** cva(...) definitions in a file: `buttonVariants` → its variant groups. */
+export function cvaDefinitions(file: string, text: string): { name: string; groups: VariantGroup[] }[] {
+  if (!text.includes('cva(')) return []
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const out: { name: string; groups: VariantGroup[] }[] = []
+  for (const st of sf.statements) {
+    if (!ts.isVariableStatement(st)) continue
+    for (const d of st.declarationList.declarations) {
+      const call = d.initializer
+      if (!ts.isIdentifier(d.name) || !call || !ts.isCallExpression(call)) continue
+      if (!ts.isIdentifier(call.expression) || call.expression.text !== 'cva') continue
+      const cfg = call.arguments[1]
+      if (!cfg || !ts.isObjectLiteralExpression(cfg)) continue
+      const obj = (key: string) => {
+        const p = cfg.properties.find(x => propName(x) === key)
+        return p && ts.isPropertyAssignment(p) && ts.isObjectLiteralExpression(p.initializer)
+          ? p.initializer
+          : undefined
+      }
+      const defaults = new Map<string, string>()
+      for (const p of obj('defaultVariants')?.properties ?? [])
+        if (ts.isPropertyAssignment(p) && propName(p)) defaults.set(propName(p)!, literalText(p.initializer, sf))
+      const groups: VariantGroup[] = []
+      for (const g of obj('variants')?.properties ?? []) {
+        if (!ts.isPropertyAssignment(g) || !propName(g) || !ts.isObjectLiteralExpression(g.initializer)) continue
+        const options = g.initializer.properties
+          .filter(ts.isPropertyAssignment)
+          .filter(o => propName(o))
+          .map(o => ({ value: propName(o)!, classes: literalText(o.initializer, sf) }))
+        groups.push({ name: propName(g)!, options, default: defaults.get(propName(g)!) })
+      }
+      out.push({ name: d.name.text, groups })
+    }
+  }
+  return out
+}
+
+const PREVIEW_RE = /\.preview\.(tsx|jsx)$/
+export const previewPathFor = (file: string) => file.replace(/\.(tsx|jsx)$/, '.preview.tsx')
+export const isPreviewFile = (file: string) => PREVIEW_RE.test(file)
+
 const formatId = (n: number) => `CID-${String(n).padStart(3, '0')}`
 
 /** The export a primitive file is named after (`alert-dialog.tsx` → AlertDialog), else its first. */
@@ -201,9 +261,12 @@ export function buildDesignSystem(graph: ProjectGraph): DesignSystem {
   const nodes = Object.values(graph.nodes)
   const components: DsComponent[] = []
   for (const n of nodes) {
-    if ((n.kind !== 'component' && n.kind !== 'ui') || !/\.(tsx|jsx)$/.test(n.id)) continue
+    if ((n.kind !== 'component' && n.kind !== 'ui') || !/\.(tsx|jsx)$/.test(n.id) || isPreviewFile(n.id)) continue
     const routes = impactOf(graph, n.id).routes
-    const all = componentDecls(n.id, readFileSync(join(graph.root, n.id), 'utf-8'))
+    const text = readFileSync(join(graph.root, n.id), 'utf-8')
+    const all = componentDecls(n.id, text)
+    const cvas = cvaDefinitions(n.id, text)
+    const preview = existsSync(join(graph.root, previewPathFor(n.id))) ? previewPathFor(n.id) : undefined
     // A primitive is one design-system entry: `select.tsx` is Select, its other exports are parts.
     const main = n.kind === 'ui' ? primaryDecl(n.id, all) : undefined
     for (const d of main ? [main] : all) {
@@ -215,6 +278,11 @@ export function buildDesignSystem(graph: ProjectGraph): DesignSystem {
         props: n.exports.find(e => e.name === d.name || e.name === `default(${d.name})`)?.props,
         routes,
         ...(main ? { parts: all.filter(x => x !== main).map(x => x.name) } : {}),
+        slug: (d.id ?? `${n.id}-${d.name}`).toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        variants: (
+          cvas.find(c => c.name.toLowerCase() === `${d.name}variants`.toLowerCase()) ?? (main ? cvas[0] : undefined)
+        )?.groups,
+        preview: all.length === 1 || main ? preview : undefined,
       })
     }
   }
@@ -319,145 +387,4 @@ export function planSync(graph: ProjectGraph): SyncPlan {
     assigned.push(...r.assigned.map(a => ({ ...a, file })))
   }
   return { annotations, assigned, page, pageExists }
-}
-
-const KIND_LABEL: Record<ComponentKind, string> = { ui: 'Primitive', shared: 'Shared', block: 'Block' }
-const CATEGORY_ORDER: TokenCategory[] = ['color', 'font', 'size', 'space', 'radius', 'shadow', 'other']
-
-/** The generated `/design-system` page. Uses theme utilities only, no arbitrary values. */
-export function renderDesignSystemPage(ds: DesignSystem): string {
-  const tokens = CATEGORY_ORDER.flatMap(cat =>
-    ds.tokens
-      .filter(t => t.category === cat)
-      .map(t => ({ name: t.name, category: t.category, value: t.value, dark: t.dark ?? null })),
-  )
-  const components = ds.components.map(c => ({
-    id: c.id ?? null,
-    name: c.name,
-    kind: KIND_LABEL[c.kind],
-    file: c.file,
-    props: c.props ? c.props.replace(/\s+/g, ' ').slice(0, 160) : null,
-    parts: c.parts ?? [],
-    routes: c.routes,
-  }))
-  return `// ${DS_MARKER}: written by Coherent from the code on every edit that touches components or tokens. Do not edit by hand.
-import Link from 'next/link'
-
-const tokens: { name: string; category: string; value: string; dark: string | null }[] = ${JSON.stringify(tokens, null, 2)}
-
-const components: {
-  id: string | null
-  name: string
-  kind: string
-  file: string
-  props: string | null
-  parts: string[]
-  routes: string[]
-}[] = ${JSON.stringify(components, null, 2)}
-
-const categories = ['color', 'font', 'size', 'space', 'radius', 'shadow', 'other']
-
-function Swatch({ name, category }: { name: string; category: string }) {
-  const v = \`var(\${name})\`
-  if (category === 'color') return <span className="size-8 shrink-0 rounded-md border" style={{ background: v }} />
-  if (category === 'radius') return <span className="size-8 shrink-0 border bg-muted" style={{ borderRadius: v }} />
-  if (category === 'shadow') return <span className="size-8 shrink-0 rounded-md bg-background" style={{ boxShadow: v }} />
-  if (category === 'font') return <span className="w-8 shrink-0 text-lg" style={{ fontFamily: v }}>Aa</span>
-  return <span className="size-8 shrink-0" />
-}
-
-export const metadata = { title: 'Design system' }
-
-export default function DesignSystemPage() {
-  return (
-    <main className="mx-auto max-w-6xl space-y-16 px-6 py-12">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Design system</h1>
-        <p className="text-muted-foreground">
-          {components.length} components and {tokens.length} tokens, read from the code. Change any of them by
-          address: &quot;CID-007: rounder corners&quot;, &quot;--primary: warmer&quot;.
-        </p>
-      </header>
-
-      <section className="space-y-8">
-        <h2 className="text-xl font-semibold">Tokens</h2>
-        {categories
-          .filter(c => tokens.some(t => t.category === c))
-          .map(c => (
-            <div key={c} className="space-y-3">
-              <h3 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">{c}</h3>
-              <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {tokens
-                  .filter(t => t.category === c)
-                  .map(t => (
-                    <li key={t.name} className="flex items-center gap-3 rounded-lg border p-3">
-                      <Swatch name={t.name} category={t.category} />
-                      <div className="min-w-0">
-                        <div className="truncate font-mono text-sm">{t.name}</div>
-                        <div className="truncate text-xs text-muted-foreground">
-                          {t.value}
-                          {t.dark ? \` · dark \${t.dark}\` : ''}
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-              </ul>
-            </div>
-          ))}
-      </section>
-
-      <section className="space-y-4">
-        <h2 className="text-xl font-semibold">Components</h2>
-        <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-muted text-muted-foreground">
-              <tr>
-                <th className="px-4 py-2 font-medium">ID</th>
-                <th className="px-4 py-2 font-medium">Component</th>
-                <th className="px-4 py-2 font-medium">Kind</th>
-                <th className="px-4 py-2 font-medium">Used on</th>
-              </tr>
-            </thead>
-            <tbody>
-              {components.map(c => (
-                <tr key={\`\${c.file}:\${c.name}\`} className="border-t align-top">
-                  <td className="whitespace-nowrap px-4 py-3 font-mono">{c.id ?? '—'}</td>
-                  <td className="px-4 py-3">
-                    <div className="font-medium">{c.name}</div>
-                    <div className="font-mono text-xs text-muted-foreground">{c.file}</div>
-                    {c.props ? <div className="mt-1 font-mono text-xs text-muted-foreground">{c.props}</div> : null}
-                    {c.parts.length ? (
-                      <div className="mt-1 text-xs text-muted-foreground">Parts: {c.parts.join(', ')}</div>
-                    ) : null}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{c.kind}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-2">
-                      {c.routes.length ? (
-                        c.routes.map(r =>
-                          r.includes('[') ? (
-                            <span key={r} className="font-mono text-xs text-muted-foreground">
-                              {r}
-                            </span>
-                          ) : (
-                            <Link key={r} href={r} className="font-mono text-xs underline underline-offset-4">
-                              {r}
-                            </Link>
-                          ),
-                        )
-                      ) : (
-                        <span className="text-xs text-muted-foreground">not on a page yet</span>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </main>
-  )
-}
-`
 }
