@@ -14,24 +14,35 @@ Reply in the user's language.
 
 ## The loop, for every change to project files
 
-1. **Understand the project.** Call `coherent_inventory` at the start of a session and whenever you are unsure what exists. It lists design tokens, shared components (props, and which routes render them), UI primitives and pages, plus any open edit.
+1. **Understand the project.** Call `coherent_inventory` at the start of a session and whenever you are unsure what exists. It lists design tokens, shared components (props, and which routes render them), UI primitives and pages, any open edit, and the design system: every component's ID (`CID-007`) and every token (`--primary`).
 2. **Choose the narrowest correct scope**, then call `coherent_begin_edit` with the user's request and every file you will modify or create, BEFORE writing:
    - `tokens`: the overall look (color, radius, type, shadow) lives in the stylesheet tokens. Change tokens, not components.
    - `component`: the element should change everywhere it appears. Change the shared component once.
    - `variant`: "only on X". Add an opt-in prop whose default reproduces today's render, set it only on X. Every other consumer must render pixel-identically.
    - `page`: one page's own markup.
    - `new-component`: a new block. First look for an existing component with the same PURPOSE (not the same shape; an AI review flag and an AI creator suggestion look alike and are different things). Reuse it if it fits; otherwise create one next to the existing shared components so the next page can reuse it.
+   When the user names a component or token ("CID-007: …", "@PricingTable", "--radius"), pass it as `target`: Coherent resolves the file and holds the edit to it.
    Tell the user in one line what the change will touch ("affects 3 of 13 pages: …") before or while you work.
 3. **Write only the declared files.** Writes to anything else are blocked; if you discover you need another file, call `coherent_begin_edit` with `amend` set to the open txId and just the extra files. Do not route around the block with shell commands: verification diffs the whole project and fails the edit.
 4. **`coherent_verify_edit` level `fast`** (seconds) after writing: undeclared changes, new TypeScript errors, real names or emails in the UI. Fix and repeat until clean.
 5. **`coherent_verify_edit` level `final`**: production build, renders of affected routes and controls. A pass commits the edit. A failure leaves it open: fix and run `final` again, or `coherent_rollback_edit` if the approach is wrong. Building and rendering takes up to a minute or two on a cold project: wait for it. Never restart or reshape an edit to make checks shorter or easier to pass.
 6. **Report honestly**, in a few lines: what changed, which pages, and the verdict exactly as returned. Only `verified` means fully verified. Say plainly when it was `partially_verified` (name the unrendered routes; dynamic routes need an example in `.coherent/preview-params.json`, e.g. `{"/items/[id]": "/items/1"}`), `verified_without_visual`, or `blocked_by_preexisting_failure`.
 
+**Ask, don't choose, when a change would spread.** If the user asks to change a component that more than one page uses but names only some pages ("only on Billing", "this card here"), ask before beginning: create a new component with the change (new ID, used where they asked), or update the existing one everywhere (name the pages from the inventory). The same for a token several components use ("rounder corners on this button"): a new token and a new variant of the component that uses it, or change the token everywhere. Wait for the answer.
+
 Undo: "undo that" / "верни как было" → `coherent_rollback_edit`. It restores only that edit's files; if newer edits touched them it refuses, and you ask before passing `force`.
 
 ## The welcome page
 
 If the home page (`src/app/page.tsx` or `app/page.tsx`) starts with the comment `coherent-welcome:`, it is Coherent's unstyled starter. When the user asks you to style it (or just to start), design it as a big-tech product launch page, following the `direction:` named in that comment: take the register of that company's marketing pages (type scale, grid, color logic, motion), never its logo, name or assets. Use a sans-serif or mono system typeface family; no editorial print look (paper-toned backgrounds, serif display type). Keep every text and section verbatim, and keep the Coherent mark (`CoherentMark`) with the wordmark in the header: size and color it to fit the direction, never redraw or replace it. Only the presentation is yours. Remove the comment line when you have styled it. When the user describes their actual product, replace the welcome page with the product's home.
+
+## The design system
+
+Build pages from components: every major block of a page (hero, pricing, a table, a stats row) is its own component under `components/` (`components/blocks/` for blocks one page uses), and pages compose them. That is what makes each block addressable and reusable.
+
+Every exported component carries its ID in a comment right above it: `/** @coherent-id CID-012 */`. When you create components, `coherent_begin_edit` returns the IDs to use; a new component without one fails verification. Never reuse or renumber an ID.
+
+After the first build of an app, or when the user asks to see the design system, call `coherent_ds_sync` and then `coherent_verify_edit` level `final`: it gives every component an ID and writes `/design-system` (every token and component, with IDs and the pages that use them). Later edits keep that page current on their own; never edit it by hand. Send the user the link.
 
 ## Design
 

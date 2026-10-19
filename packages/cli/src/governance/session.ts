@@ -15,8 +15,19 @@
  * (session.json), so a restarted MCP server or CLI picks the session up.
  */
 import { createHash } from 'crypto'
-import { existsSync, readFileSync, writeFileSync } from 'fs'
-import { join, resolve } from 'path'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { dirname, join, resolve } from 'path'
+import {
+  buildDesignSystem,
+  DS_ROUTE,
+  dsPagePath,
+  freeIds,
+  managedPage,
+  planSync,
+  renderDesignSystemPage,
+  resolveTarget,
+  type ResolvedTarget,
+} from './design-system.js'
 import { buildGraph, type Impact, type ProjectGraph } from './graph.js'
 import { scanLeaks, type Leak } from './privacy.js'
 import { withImpact, type EditScope } from './router.js'
@@ -206,10 +217,11 @@ export function planTargets(
   modify: string[],
   impact: Impact,
 ): { targets: Target[]; unverifiedRoutes: string[] } {
-  const affected = affectedRoutes(modify, impact, graph)
+  // The generated design-system page changes with every component edit: never a target or a control.
+  const affected = affectedRoutes(modify, impact, graph).filter(r => r !== DS_ROUTE)
   const params = loadPreviewParams(root)
   const pages = Object.values(graph.nodes)
-    .filter(n => n.kind === 'page')
+    .filter(n => n.kind === 'page' && n.route !== DS_ROUTE)
     .map(n => n.route!)
   const controls = pages.filter(r => !affected.includes(r) && concreteUrl(r, params)).slice(0, MAX_CONTROLS)
   const edited = ownPages(modify, graph)
@@ -218,7 +230,11 @@ export function planTargets(
     // other consumer of the component is a control that must render identically.
     ...affected.map(r => ({
       route: r,
-      expected: scope === 'variant' && !edited.includes(r) ? ('same' as const) : ('change' as const),
+      // A design-system sync only adds ID comments: every page must render exactly as before.
+      expected:
+        scope === 'design-system' || (scope === 'variant' && !edited.includes(r))
+          ? ('same' as const)
+          : ('change' as const),
     })),
     ...controls.map(r => ({ route: r, expected: 'same' as const })),
   ]
@@ -244,6 +260,8 @@ export interface BeginInput {
   url?: string
   /** Add files to an open session instead of starting one. */
   amend?: string
+  /** Address of the thing to change: `CID-007`, `@KpiCard`, `--radius`. Resolved to its file; the scope is checked against it. */
+  target?: string
   log?: (msg: string) => void
 }
 
@@ -254,6 +272,83 @@ function checkWriteSet(root: string, modify: string[], create: string[]) {
   const clash = create.filter(f => existsSync(join(root, f)))
   if (clash.length) throw new Error(`Files to create already exist: ${clash.join(', ')}`)
   if (!modify.length && !create.length) throw new Error('Empty write set: declare files to modify or create')
+}
+
+/**
+ * Scope ↔ file-kind rules that need no judgment: a page edit leaves components
+ * and tokens alone, a token edit touches only stylesheets, and an addressed
+ * component edit touches only that component.
+ */
+export function checkScope(graph: ProjectGraph, scope: EditScope, modify: string[], target?: ResolvedTarget) {
+  const kind = (f: string) => graph.nodes[f]?.kind
+  // An addressed target gets the precise message first.
+  if (target?.type === 'token' && scope !== 'tokens')
+    throw new Error(`${target.token.name} is a token: use scope "tokens".`)
+  if (target?.type === 'component') {
+    const c = target.component
+    const label = `${c.id ?? c.name} (${c.file})`
+    if (scope !== 'component' && scope !== 'variant')
+      throw new Error(`${label} is a component: use scope "component" (everywhere) or "variant" (only some pages).`)
+    if (!modify.includes(c.file)) throw new Error(`The edit of ${label} must modify ${c.file}.`)
+    const others = modify.filter(f => f !== c.file)
+    if (scope === 'component' && others.length)
+      throw new Error(`An edit of ${label} changes only ${c.file}; ${others.join(', ')} need their own edit.`)
+    const nonPages = others.filter(f => kind(f) !== 'page' && kind(f) !== 'layout')
+    if (scope === 'variant' && nonPages.length)
+      throw new Error(`A variant of ${label} may also change only the pages that opt in; not ${nonPages.join(', ')}.`)
+  }
+  const shared = modify.filter(f => ['component', 'ui', 'style'].includes(kind(f) ?? ''))
+  if (scope === 'page' && shared.length)
+    throw new Error(
+      `A page edit cannot change components or tokens (${shared.join(', ')}). Use scope "component" to change one everywhere, or "variant" to change it only on some pages.`,
+    )
+  const notStyle = modify.filter(f => kind(f) !== 'style')
+  if (scope === 'tokens' && notStyle.length)
+    throw new Error(`A token edit changes only stylesheets; ${notStyle.join(', ')} need their own edit.`)
+}
+
+/** The generated page joins every edit that changes components or tokens, so it is rebuilt and verified with it. */
+function withDesignSystemPage(root: string, graph: ProjectGraph, modify: string[], create: string[]): string[] {
+  const page = managedPage(root, graph.appDir)
+  if (!page || modify.includes(page)) return modify
+  const shapes = [...modify, ...create].some(
+    f =>
+      /\.css$/.test(f) ||
+      /(^|\/)components\//.test(f) ||
+      ['component', 'ui', 'style'].includes(graph.nodes[f]?.kind ?? ''),
+  )
+  return shapes ? [...modify, page] : modify
+}
+
+/** Rewrite the generated page from the code as it is now (inside the open edit). */
+function refreshDesignSystemPage(root: string, s: Pick<EditSession, 'modify' | 'create'>) {
+  const graph = buildGraph(root)
+  const page = dsPagePath(graph.appDir)
+  if (![...s.modify, ...s.create].includes(page)) return
+  if (existsSync(join(root, page)) && !managedPage(root, graph.appDir)) return
+  mkdirSync(dirname(join(root, page)), { recursive: true })
+  writeFileSync(join(root, page), renderDesignSystemPage(buildDesignSystem(graph)))
+}
+
+/** Components in the touched files that carry no ID, or share one, once the project has a design system. */
+function idProblems(root: string, touched: string[]): string[] {
+  const graph = buildGraph(root)
+  const ds = buildDesignSystem(graph)
+  if (!ds.page && !ds.components.some(c => c.id)) return []
+  const out: string[] = []
+  const touchedSet = new Set(touched)
+  const missing = ds.components.filter(c => !c.id && touchedSet.has(c.file))
+  if (missing.length) {
+    const ids = freeIds(ds, missing.length)
+    out.push(
+      `Components without an ID: ${missing.map((c, i) => `${c.name} in ${c.file} → add \`/** @coherent-id ${ids[i]} */\` above its declaration`).join('; ')}.`,
+    )
+  }
+  for (const d of ds.duplicates.filter(d => d.components.some(c => touched.some(f => c.endsWith(`(${f})`)))))
+    out.push(
+      `${d.id} is on several components (${d.components.join(', ')}); give the new one the next free ID ${ds.nextId}.`,
+    )
+  return out
 }
 
 export async function beginEdit(rootInput: string, input: BeginInput): Promise<EditSession> {
@@ -293,9 +388,15 @@ export async function beginEdit(rootInput: string, input: BeginInput): Promise<E
     return next
   }
 
-  const modify = norm(input.modify)
+  let modify = norm(input.modify)
   const create = norm(input.create)
+  const target = input.target ? resolveTarget(buildDesignSystem(graph), input.target) : undefined
+  if (target && !modify.length) modify = [target.type === 'component' ? target.component.file : target.token.file]
   checkWriteSet(root, modify, create)
+  if (input.scope !== 'design-system') {
+    checkScope(graph, input.scope, modify, target)
+    modify = withDesignSystemPage(root, graph, modify, create)
+  }
   const open = openTransaction(root)
   if (open) throw new Error(`Edit ${open.id} is still open; verify, roll it back, or amend it before starting another`)
 
@@ -363,6 +464,7 @@ export async function verifyEdit(
   const tx = loadTransaction(root, s.txId)
   if (tx.status !== 'open') throw new Error(`Edit ${s.txId} is ${tx.status}; nothing to verify`)
 
+  refreshDesignSystemPage(root, s)
   const changes = pendingChanges(root, tx)
   const allowed = new Set([...s.modify, ...s.create])
   const outOfPlan = [...changes.created, ...changes.modified, ...changes.deleted].filter(f => !allowed.has(f))
@@ -383,6 +485,8 @@ export async function verifyEdit(
   if (missing.length) problems.push(`Declared new files not created: ${missing.join(', ')}`)
   if (!changes.created.length && !changes.modified.length && !changes.deleted.length)
     problems.push('Nothing changed yet.')
+  const designSystemProblems = idProblems(root, [...touched])
+  problems.push(...designSystemProblems)
 
   const base = {
     txId: s.txId,
@@ -454,6 +558,7 @@ export async function verifyEdit(
     !!buildError ||
     !landed ||
     browserErrors.length > 0 ||
+    designSystemProblems.length > 0 ||
     !(visual ?? []).every(v => v.pass) ||
     (!changes.created.length && !changes.modified.length && !changes.deleted.length)
 
@@ -469,7 +574,7 @@ export async function verifyEdit(
       : s.preexistingFailure ||
           preexistingBrowserErrors > 0 ||
           s.unverifiedRoutes.length > 0 ||
-          expectedChange.length === 0
+          (expectedChange.length === 0 && s.scope !== 'design-system')
         ? 'partially_verified'
         : 'verified'
   if (verdict !== 'failed') commitTransaction(root, tx, verdict)
@@ -524,4 +629,37 @@ export function rollbackEdit(
     opts.txId ?? openTransaction(root)?.id ?? listTransactions(root, { active: true }).slice(-1)[0] ?? undefined
   if (!id) throw new Error('No edit to roll back')
   return { txId: id, ...rollbackTransaction(root, id, { force: opts.force }) }
+}
+
+export interface DsSyncResult {
+  /** Null when IDs and the page are already current. */
+  session: EditSession | null
+  assigned: { id: string; name: string; file: string }[]
+  page: string
+}
+
+/**
+ * Give every component an ID and (re)write the /design-system page, as a
+ * normal edit: Coherent declares and writes the files, the caller verifies.
+ * Every page must render exactly as before (only comments are added).
+ */
+export async function dsSync(rootInput: string, opts: { log?: (msg: string) => void } = {}): Promise<DsSyncResult> {
+  const root = resolve(rootInput)
+  const graph = buildGraph(root)
+  const plan = planSync(graph)
+  if (!plan.annotations.size && plan.pageExists) {
+    const current = readFileSync(join(root, plan.page), 'utf-8')
+    if (current === renderDesignSystemPage(buildDesignSystem(graph)))
+      return { session: null, assigned: [], page: plan.page }
+  }
+  const s = await beginEdit(root, {
+    request: 'Sync the design system: component IDs and the /design-system page',
+    scope: 'design-system',
+    modify: [...plan.annotations.keys(), ...(plan.pageExists ? [plan.page] : [])],
+    create: plan.pageExists ? [] : [plan.page],
+    log: opts.log,
+  })
+  for (const [file, text] of plan.annotations) writeFileSync(join(root, file), text)
+  refreshDesignSystemPage(root, s)
+  return { session: s, assigned: plan.assigned, page: plan.page }
 }

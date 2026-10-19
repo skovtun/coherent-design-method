@@ -54,8 +54,8 @@ const write = (p: string, c: string) => {
   writeFileSync(join(root, p), c)
 }
 const PAGE = 'src/app/page.tsx'
-const plan = (modify: string[], create: string[] = []) =>
-  JSON.stringify({ scope: 'page', modify, create, rationale: 'r' })
+const plan = (modify: string[], create: string[] = [], scope = 'page') =>
+  JSON.stringify({ scope, modify, create, rationale: 'r' })
 const files = (o: Record<string, string>) =>
   Object.entries(o)
     .map(([p, c]) => `<file path="${p}">\n${c}\n</file>`)
@@ -131,7 +131,7 @@ describe('runEdit', () => {
     const r = await runEdit(
       'x',
       opts(),
-      llm(plan(['src/generated/tokens.css']), files({ 'src/generated/tokens.css': ':root{--a:2}' })),
+      llm(plan(['src/generated/tokens.css'], [], 'tokens'), files({ 'src/generated/tokens.css': ':root{--a:2}' })),
     )
     expect(r!.changes.modified).toEqual(['src/generated/tokens.css'])
     const { rollbackTransaction } = await import('../governance/transaction.js')

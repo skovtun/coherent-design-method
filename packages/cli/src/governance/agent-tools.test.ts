@@ -51,6 +51,7 @@ describe('agent-mode MCP tools', () => {
     const { tools } = await client.listTools()
     expect(tools.map(t => t.name).sort()).toEqual([
       'coherent_begin_edit',
+      'coherent_ds_sync',
       'coherent_inventory',
       'coherent_rollback_edit',
       'coherent_verify_edit',
@@ -183,5 +184,92 @@ describe('changes made outside Coherent', () => {
     write('src/app/about/page.tsx', 'export default () => <p>Changed elsewhere</p>\n')
     const inv = await call('coherent_inventory', {})
     expect(inv.changedOutsideCoherent.files).toEqual(['src/app/about/page.tsx'])
+  })
+})
+
+describe('design system (ADR-0013)', () => {
+  it('syncs IDs and the /design-system page as a normal, verified, undoable edit', async () => {
+    const { call } = await connect()
+    const before = hashTree(root)
+    const sync = await call('coherent_ds_sync', {})
+    expect(sync.assigned).toEqual([{ id: 'CID-001', name: 'Card', file: 'src/components/card.tsx' }])
+    expect(read('src/components/card.tsx')).toMatch(/^\/\*\* @coherent-id CID-001 \*\/\nexport function Card/)
+    expect(read('src/app/design-system/page.tsx')).toContain('"CID-001"')
+    // Only comments were added: the page that renders Card must stay identical.
+    expect(sync.renderedRoutes).toContain('/ (must not change)')
+    const final = await call('coherent_verify_edit', { level: 'final' })
+    expect(final).toMatchObject({ ok: true, status: 'committed' })
+
+    const inv = await call('coherent_inventory', {})
+    expect(inv.designSystem.page).toBe('/design-system')
+    expect(inv.designSystem.components).toEqual([
+      { id: 'CID-001', name: 'Card', kind: 'block', file: 'src/components/card.tsx', routes: ['/'] },
+    ])
+    expect(await call('coherent_ds_sync', {})).toMatchObject({ inSync: true })
+
+    await call('coherent_rollback_edit', {})
+    expect(hashTree(root)).toEqual(before)
+  })
+
+  it('edits by ID: the component file only, with the page kept current inside the same edit', async () => {
+    const { call } = await connect()
+    await call('coherent_ds_sync', {})
+    await call('coherent_verify_edit', { level: 'final' })
+
+    const begun = await call('coherent_begin_edit', {
+      request: 'CID-001: make it a section',
+      scope: 'component',
+      target: 'CID-001',
+    })
+    expect(begun.writeSet.modify).toEqual(['src/components/card.tsx', 'src/app/design-system/page.tsx'])
+    write('src/components/card.tsx', read('src/components/card.tsx').replace('<div />', '<section />'))
+    expect((await call('coherent_verify_edit', { level: 'final' })).ok).toBe(true)
+
+    await expect(call('coherent_begin_edit', { request: 'r', scope: 'page', target: 'CID-001' })).rejects.toThrow(
+      /is a component: use scope "component"/,
+    )
+    await expect(
+      call('coherent_begin_edit', {
+        request: 'r',
+        scope: 'component',
+        target: '@card',
+        modify: ['src/components/card.tsx', 'src/app/page.tsx'],
+      }),
+    ).rejects.toThrow(/changes only src\/components\/card.tsx/)
+  })
+
+  it('keeps page edits away from components and token edits in the stylesheet', async () => {
+    const { call } = await connect()
+    write('src/app/globals.css', ':root { --radius: 0.5rem; }\n')
+    await expect(
+      call('coherent_begin_edit', {
+        request: 'r',
+        scope: 'page',
+        modify: ['src/app/page.tsx', 'src/components/card.tsx'],
+      }),
+    ).rejects.toThrow(/A page edit cannot change components or tokens/)
+    await expect(
+      call('coherent_begin_edit', { request: 'r', scope: 'tokens', modify: ['src/app/page.tsx'] }),
+    ).rejects.toThrow(/A token edit changes only stylesheets/)
+  })
+
+  it('fails a new component without an ID once the project has a design system, and says which ID to use', async () => {
+    const { call } = await connect()
+    await call('coherent_ds_sync', {})
+    await call('coherent_verify_edit', { level: 'final' })
+    const begun = await call('coherent_begin_edit', {
+      request: 'add a badge',
+      scope: 'new-component',
+      create: ['src/components/badge.tsx'],
+    })
+    expect(begun.idsForNewComponents[0]).toBe('CID-002')
+    write('src/components/badge.tsx', 'export function Badge() { return <span /> }\n')
+    const fast = await call('coherent_verify_edit', { level: 'fast' })
+    expect(fast.ok).toBe(false)
+    expect(fast.problems.join('\n')).toMatch(
+      /Badge in src\/components\/badge.tsx → add `\/\*\* @coherent-id CID-002 \*\/`/,
+    )
+    write('src/components/badge.tsx', '/** @coherent-id CID-002 */\nexport function Badge() { return <span /> }\n')
+    expect((await call('coherent_verify_edit', { level: 'fast' })).ok).toBe(true)
   })
 })
