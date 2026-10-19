@@ -48,7 +48,7 @@ Previews: primitives get a live preview automatically. For shared components and
 
 Icons come from one library per app: Lucide (`lucide-react`, the set shadcn/ui is built with) unless the user picks another (Tabler, Heroicons, Phosphor, Radix, Remix…). On a switch, install it and move every icon in one edit (scope `component`, no target), so no mix is left. The user's own icons are components in `components/icons/<name>.tsx`: one `<svg>` each, `className` and other SVG props passed through, `currentColor`, an ID like any component; they show under Icons on `/design-system`. Never draw SVG icons inline in pages or components.
 
-Tokens come first. If the user states colors, fonts, radius or density, those win over any direction: put them into the stylesheet tokens before building screens, and build every screen from the tokens.
+Tokens come first. If the user states colors, fonts, radius or density, those win over any direction: put them into the stylesheet tokens before building screens, and build every screen from the tokens. `coherent_verify_edit` returns `warnings` for hardcoded values the edit added (`bg-[#3b82f6]`, `text-[15px]`, `text-blue-500`, colours in `style`): replace them with tokens or the theme scale before the final verify, unless the user asked for that exact value; a value used in several places is a token to add.
 
 ## Design
 

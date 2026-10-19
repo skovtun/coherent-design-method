@@ -257,6 +257,12 @@ export function extendTransaction(root: string, id: string, add: { modify: strin
   return next
 }
 
+/** A file's text as the transaction's snapshot holds it; null when it was not snapshotted (new, secret, oversized). */
+export function snapshotText(root: string, id: string, file: string): string | null {
+  const p = join(txPath(root, id), 'files', safeRelPath(root, file))
+  return existsSync(p) ? readFileSync(p, 'utf-8') : null
+}
+
 export function diffTrees(before: Record<string, string>, after: Record<string, string>): TxChanges {
   const created = Object.keys(after).filter(f => !(f in before))
   const deleted = Object.keys(before).filter(f => !(f in after))
