@@ -145,6 +145,19 @@ describe('agent-mode MCP tools', () => {
     await call('coherent_rollback_edit', {})
   })
 
+  it('warns about hardcoded values the edit adds, without failing it', async () => {
+    write('src/app/about/page.tsx', 'export default () => <p className="text-[13px]">About</p>\n')
+    const { call } = await connect()
+    await call('coherent_begin_edit', { request: 'r', scope: 'page', modify: ['src/app/about/page.tsx'] })
+    write('src/app/about/page.tsx', 'export default () => <p className="text-[13px] bg-[#ff0000]">About</p>\n')
+    const v = await call('coherent_verify_edit', { level: 'fast' })
+    expect(v.ok).toBe(true)
+    expect(v.warnings).toEqual([
+      expect.stringMatching(/^src\/app\/about\/page\.tsx:1 bg-\[#ff0000\] — use a colour token/),
+    ])
+    await call('coherent_rollback_edit', {})
+  })
+
   it('recovers the open edit from disk after a server restart', async () => {
     const a = await connect()
     const begun = await a.call('coherent_begin_edit', {
@@ -280,6 +293,38 @@ describe('design system (ADR-0013)', () => {
     await expect(
       call('coherent_begin_edit', { request: 'r', scope: 'tokens', create: ['src/components/swatch.tsx'] }),
     ).rejects.toThrow(/A token edit changes only stylesheets/)
+  })
+
+  it('re-syncs a viewer that only needs regenerating', async () => {
+    const { call } = await connect()
+    await call('coherent_ds_sync', {})
+    await call('coherent_verify_edit', { level: 'final' })
+    // An outdated generated file (an older viewer): the sync changes only the viewer, and that is its job.
+    write('src/app/design-system/_data.ts', read('src/app/design-system/_data.ts').replace('"Card"', '"Old"'))
+    const sync = await call('coherent_ds_sync', {})
+    expect(sync.assigned).toEqual([])
+    expect((await call('coherent_verify_edit', { level: 'final' })).ok).toBe(true)
+  })
+
+  it('puts every edit, page edits included, into the viewer activity with its verdict', async () => {
+    const { call } = await connect()
+    await call('coherent_ds_sync', {})
+    await call('coherent_verify_edit', { level: 'final' })
+    const begun = await call('coherent_begin_edit', {
+      request: 'Retitle about',
+      scope: 'page',
+      modify: ['src/app/about/page.tsx'],
+    })
+    expect(begun.writeSet.modify).toContain('src/app/design-system/_activity.ts')
+    write('src/app/about/page.tsx', 'export default () => <p>About us</p>\n')
+    const v = await call('coherent_verify_edit', { level: 'final' })
+    expect(v.changes.modified).toContain('src/app/design-system/_activity.ts')
+    expect(v.changes).toEqual(loadTransaction(root, begun.txId).changes)
+    const activity = read('src/app/design-system/_activity.ts')
+    expect(activity).toMatch(new RegExp('"label": "Retitle about",\\s*"verdict": "' + v.verdict + '"'))
+    expect(hashTree(root)['src/app/design-system/_activity.ts']).toBe(
+      loadTransaction(root, begun.txId).after!['src/app/design-system/_activity.ts'],
+    )
   })
 
   it('fails a new component without an ID once the project has a design system, and says which ID to use', async () => {

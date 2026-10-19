@@ -63,6 +63,8 @@ export interface EditReport {
   /** False when no affected route rendered any difference: the edit did not visibly land. */
   landed: boolean
   buildError?: string
+  /** Hardcoded design values the edit added (advisory). */
+  warnings: string[]
   verdict: Verdict
   /** A failed edit is rolled back unless --keep. */
   rolledBack: boolean
@@ -168,6 +170,7 @@ export async function runEdit(request: string, opts: EditOptions, llm: Completer
     newBrowserErrors: res.newBrowserErrors,
     landed: res.landed,
     buildError: res.buildError,
+    warnings: res.warnings ?? [],
     verdict,
     rolledBack,
     ok: verdict === 'verified',
@@ -230,6 +233,10 @@ function printReport(r: EditReport) {
       'APPLIED — VERIFICATION BLOCKED (project did not build before the edit)',
     ),
     failed: chalk.red('FAILED'),
+  }
+  if (r.warnings.length) {
+    console.log(chalk.yellow(`\nHardcoded values added (${r.warnings.length}), not failing the edit:`))
+    for (const w of r.warnings.slice(0, 12)) console.log(chalk.yellow(`  ${w}`))
   }
   console.log(
     `\n${label[r.verdict]} — ` +

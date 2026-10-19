@@ -12,6 +12,12 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.29.0] — 2026-10-19 — feat: hardcoded values flagged; the design-system viewer is always current
+
+- **Hardcoded values.** Every edit's verification returns `warnings` for colours, type sizes, spacing, radius and shadows it writes as literals instead of tokens: `bg-[#3b82f6]`, `text-blue-500`, `text-[15px]`, `rounded-[10px]`, colours in `style={{…}}` or svg `fill`. Only what the edit adds counts; the theme scale (`p-4`, `text-sm`, `rounded-lg`) and `var(--…)` are tokens; layout sizes like `w-[280px]` are not flagged. Warnings never fail an edit. `coherent edit` prints them; the agent replaces them unless you asked for that value.
+- **`/design-system` → Recommendations** lists hardcoded values across the app by file, and values repeated 3+ times as candidates for a token.
+- **The viewer is always current.** It now joins every edit once it exists, page edits included, and the edit being committed lands in Recent changes, the heatmap and the component's history with its verdict. Before, a page edit left them one edit behind.
+
 ## [0.28.2] — 2026-10-19 — fix: scope rules hold through amends; ds sync never left half-applied
 
 Found by a Codex review of 0.28.

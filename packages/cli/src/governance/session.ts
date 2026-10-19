@@ -32,6 +32,7 @@ import {
 import { DS_VOLATILE, dsFiles, renderDesignSystemFiles, type SiteContext } from './design-system-site.js'
 import { buildGraph, type Impact, type ProjectGraph } from './graph.js'
 import { scanLeaks, type Leak } from './privacy.js'
+import { addedRawValues, rawValues, rawValueWarning } from './raw-values.js'
 import { withImpact, type EditScope } from './router.js'
 import {
   beginTransaction,
@@ -45,6 +46,7 @@ import {
   pendingChanges,
   rollbackTransaction,
   safeRelPath,
+  snapshotText,
   type RollbackResult,
   type TxChanges,
   type Verdict,
@@ -136,6 +138,8 @@ export interface VerifyResult {
   ok: boolean
   /** Human-readable reasons, written for the agent that has to act on them. */
   problems: string[]
+  /** Hardcoded design values this edit adds (file:line value — hint). Advisory: the verdict ignores them. */
+  warnings: string[]
   changes: TxChanges
   outOfPlan: string[]
   typeErrors: string[]
@@ -335,7 +339,9 @@ const ICON_LIBRARIES: { pkg: string; label: string }[] = [
 ]
 const NAMED_IMPORT = /import\s*(?:type\s*)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g
 
-function siteContext(root: string, graph: ProjectGraph, exclude?: string): SiteContext {
+type ActivityEntry = SiteContext['edits'][number]
+
+function siteContext(root: string, graph: ProjectGraph, exclude?: string, current?: ActivityEntry): SiteContext {
   let pkg: Record<string, unknown> = {}
   try {
     pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf-8'))
@@ -350,7 +356,7 @@ function siteContext(root: string, graph: ProjectGraph, exclude?: string): SiteC
         .replace(/\b\w/g, c => c.toUpperCase())
     : 'App'
   const deps = { ...(pkg.dependencies as object), ...(pkg.devDependencies as object) } as Record<string, string>
-  const edits = listTransactions(root, { active: true })
+  const edits: ActivityEntry[] = listTransactions(root, { active: true })
     .filter(id => id !== exclude)
     .map(id => loadTransaction(root, id))
     .filter(t => t.status !== 'open')
@@ -361,6 +367,9 @@ function siteContext(root: string, graph: ProjectGraph, exclude?: string): SiteC
       at: t.startedAt,
       files: [...(t.changes?.modified ?? []), ...(t.changes?.created ?? [])],
     }))
+  if (current) edits.unshift(current)
+  const viewer = `${graph.appDir}/design-system/`
+  for (const e of edits) e.files = (e.files ?? []).filter(f => !f.startsWith(viewer))
   const icons = new Map<string, { name: string; module: string; library: string; files: Set<string> }>()
   for (const n of Object.values(graph.nodes)) {
     if (!/\.(tsx|jsx|ts)$/.test(n.id)) continue
@@ -404,12 +413,30 @@ function siteContext(root: string, graph: ProjectGraph, exclude?: string): SiteC
       .map(i => ({ ...i, files: [...i.files].sort() }))
       .sort((x, y) => x.name.localeCompare(y.name) || x.module.localeCompare(y.module)),
     iconLibraries: ICON_LIBRARIES.filter(l => deps[l.pkg]).map(l => l.label),
+    rawValues: Object.values(graph.nodes)
+      .filter(n => /\.(tsx|jsx)$/.test(n.id) && !isPreviewFile(n.id))
+      .flatMap(n => rawValues(n.id, readFileSync(join(root, n.id), 'utf-8')).map(v => ({ file: n.id, ...v })))
+      .sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line),
     hasIcons: 'lucide-react' in deps,
   }
 }
 
-const renderSite = (root: string, graph: ProjectGraph, exclude?: string) =>
-  renderDesignSystemFiles(buildDesignSystem(graph), graph.appDir, siteContext(root, graph, exclude))
+const renderSite = (root: string, graph: ProjectGraph, exclude?: string, current?: ActivityEntry) =>
+  renderDesignSystemFiles(buildDesignSystem(graph), graph.appDir, siteContext(root, graph, exclude, current))
+
+/**
+ * Put the edit being committed into the viewer's activity (recent changes,
+ * heatmap, component history) right before the commit, with its verdict, so
+ * the viewer is never one edit behind. Only the data file changes; the pages
+ * that read it were built and verified with the edit.
+ */
+function stampActivity(root: string, s: EditSession, entry: ActivityEntry) {
+  const graph = buildGraph(root)
+  const file = `${graph.appDir}/design-system/${DS_VOLATILE}`
+  if (![...s.modify, ...s.create].includes(file) || !managedPage(root, graph.appDir)) return
+  const text = renderSite(root, graph, s.txId, entry).get(file)
+  if (text !== undefined) writeFileSync(join(root, file), text)
+}
 
 /** Generated viewer files no longer produced (an older viewer's pages): removed inside the edit. */
 function obsoleteDsFiles(root: string, appDir: string): string[] {
@@ -429,7 +456,7 @@ function obsoleteDsFiles(root: string, appDir: string): string[] {
 }
 
 /**
- * The generated viewer joins every edit that changes components or tokens, so
+ * Once the app has a design system, the generated viewer joins every edit, so
  * it is rebuilt, verified and undone with it. Missing files (an older, smaller
  * viewer) are created.
  */
@@ -438,18 +465,10 @@ function withDesignSystemFiles(
   graph: ProjectGraph,
   modify: string[],
   create: string[],
-  always = false,
 ): { modify: string[]; create: string[] } {
+  // Once the app has a design system, every edit carries the viewer: components
+  // and tokens show their new state, and every edit lands in its activity.
   if (!managedPage(root, graph.appDir)) return { modify, create }
-  const shapes =
-    always ||
-    [...modify, ...create].some(
-      f =>
-        /\.css$/.test(f) ||
-        /(^|\/)components\//.test(f) ||
-        ['component', 'ui', 'style'].includes(graph.nodes[f]?.kind ?? ''),
-    )
-  if (!shapes) return { modify, create }
   const files = [...dsFiles(graph.appDir), ...obsoleteDsFiles(root, graph.appDir)].filter(
     f => !modify.includes(f) && !create.includes(f),
   )
@@ -575,7 +594,7 @@ export async function beginEdit(rootInput: string, input: BeginInput): Promise<E
   }
   if (input.scope !== 'design-system') checkScope(graph, input.scope, modify, target, create)
   if (!input.internal) {
-    const withDs = withDesignSystemFiles(root, graph, modify, create, input.scope === 'design-system')
+    const withDs = withDesignSystemFiles(root, graph, modify, create)
     modify = withDs.modify
     create.push(...withDs.create.filter(f => !create.includes(f)))
   }
@@ -667,8 +686,23 @@ export async function verifyEdit(
   for (const l of introducedLeaks)
     problems.push(`Real ${l.identity.kind} written into ${l.file}:${l.line}; use placeholder data.`)
   if (missing.length) problems.push(`Declared new files not created: ${missing.join(', ')}`)
-  if (!changes.created.length && !changes.modified.length && !changes.deleted.length)
-    problems.push('Nothing changed yet.')
+  // The viewer refreshes inside every edit; it is not a change the agent made.
+  const viewerDir = `${buildGraph(root).appDir}/design-system/`
+  // (A design-system edit is about the viewer and previews: there, the viewer is the change.)
+  const own = [...changes.created, ...changes.modified, ...changes.deleted].filter(
+    f => s.scope === 'design-system' || !f.startsWith(viewerDir),
+  )
+  if (!own.length) problems.push('Nothing changed yet.')
+  // Hardcoded values this edit adds: warnings, never a failed verdict (ADR-0013 slice 2).
+  const warnings = [...touched]
+    .filter(f => !f.startsWith(viewerDir) && /\.(tsx|jsx)$/.test(f))
+    .flatMap(f => {
+      const before = snapshotText(root, s.txId, f)
+      return addedRawValues(
+        before === null ? [] : rawValues(f, before),
+        rawValues(f, readFileSync(join(root, f), 'utf-8')),
+      ).map(v => rawValueWarning(f, v))
+    })
   const designSystemProblems = idProblems(root, [...touched])
   problems.push(...designSystemProblems)
 
@@ -682,6 +716,7 @@ export async function verifyEdit(
     introducedLeaks,
     unverifiedRoutes: s.unverifiedRoutes,
     visualSkipped: s.visualSkipped,
+    warnings,
   }
   const preexistingBrowserErrors = s.beforeShots.filter(b => (b.errors ?? []).length).length
   if (opts.level === 'fast')
@@ -744,7 +779,7 @@ export async function verifyEdit(
     browserErrors.length > 0 ||
     designSystemProblems.length > 0 ||
     !(visual ?? []).every(v => v.pass) ||
-    (!changes.created.length && !changes.modified.length && !changes.deleted.length)
+    !own.length
 
   // Partial verification is never reported as verified: every affected route
   // must have been rendered, at least one expected to change, on a project
@@ -761,9 +796,20 @@ export async function verifyEdit(
           (expectedChange.length === 0 && s.scope !== 'design-system')
         ? 'partially_verified'
         : 'verified'
-  if (verdict !== 'failed') commitTransaction(root, tx, verdict)
+  // The committed record is the truth: it includes the activity file stamped just before the commit.
+  let committed = changes
+  if (verdict !== 'failed') {
+    stampActivity(root, s, {
+      label: tx.label,
+      verdict,
+      at: tx.startedAt,
+      files: [...changes.modified, ...changes.created],
+    })
+    committed = commitTransaction(root, tx, verdict).changes ?? pendingChanges(root, tx)
+  }
   return {
     ...base,
+    changes: committed,
     level: 'final',
     status: verdict === 'failed' ? 'open' : 'committed',
     verdict,

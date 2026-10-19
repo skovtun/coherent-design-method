@@ -32,6 +32,8 @@ export interface SiteContext {
   icons: { name: string; module: string; library: string; files: string[] }[]
   /** Icon libraries installed in the app, by label. */
   iconLibraries?: string[]
+  /** Hardcoded design values across the app (ADR-0013 slice 2). */
+  rawValues?: { file: string; line: number; kind: string; value: string }[]
   /** lucide-react is a dependency: the Icons page can browse the whole set. */
   hasIcons: boolean
 }
@@ -294,6 +296,8 @@ export const icons: { key: string; name: string; library: string; files: string[
   )}
 
 export const iconLibraries: string[] = ${JSON.stringify(ctx.iconLibraries ?? [])}
+
+export const rawValues: { file: string; line: number; kind: string; value: string }[] = ${JSON.stringify(ctx.rawValues ?? [], null, 2)}
 
 export const duplicates: { id: string; components: string[] }[] = ${JSON.stringify(ds.duplicates)}
 
@@ -1655,9 +1659,11 @@ export default function DocsPage() {
 `
 
 const RECOMMENDATIONS = `${HEAD}import Link from 'next/link'
-import { components, duplicates, hrefOf, tokens } from '../_data'
+import { components, duplicates, hrefOf, rawValues, tokens } from '../_data'
 import { PageTitle, Panel } from '../_ui'
 import { pairs } from '../_color'
+
+const KIND_LABEL: Record<string, string> = { color: 'colour', type: 'type size', spacing: 'spacing', radius: 'radius', shadow: 'shadow' }
 
 const enforced = [
   ['Addressed edits stay in place', 'An edit of a component by ID or name may change only that component. Pages that use it change; pages that do not must render pixel-identically.'],
@@ -1665,6 +1671,7 @@ const enforced = [
   ['Tokens live in the stylesheet', 'A token edit changes only stylesheets, and every page follows.'],
   ['Every component has an ID', 'A new component without an @coherent-id comment, or with an ID already taken, fails verification.'],
   ['Shared changes are asked, not assumed', 'Asked to change something several pages use on only some of them, the agent asks: new component or token, or everywhere.'],
+  ['Hardcoded values are flagged', 'Colours, type sizes, spacing, radius and shadows an edit writes as literals (bg-[#hex], text-[15px], text-blue-500, style colours) come back as warnings. They do not fail the edit yet.'],
   ['Every edit is proven', 'Declared files only, no new type or browser errors, a production build, before/after renders, no real names or emails. A failed edit is never committed.'],
 ]
 
@@ -1672,6 +1679,12 @@ export default function RecommendationsPage() {
   const noPreview = components.filter(c => !c.preview && c.section === 'shared')
   const unused = components.filter(c => c.section === 'shared' && c.routes.length === 0)
   const noDark = tokens.filter(t => t.category === 'color' && !t.dark)
+  const rawFiles = [...new Set(rawValues.map(v => v.file))]
+  const repeated = Object.entries(
+    rawValues.reduce<Record<string, number>>((acc, v) => ({ ...acc, [v.value]: (acc[v.value] ?? 0) + 1 }), {}),
+  )
+    .filter(([, n]) => n > 2)
+    .sort((a, b) => b[1] - a[1])
   const weak = pairs(tokens).filter(p => (p.light !== null && p.light < 4.5) || (p.dark !== null && p.dark < 4.5))
   const stats = [
     { label: 'components without ID', value: components.filter(c => !c.id).length },
@@ -1679,11 +1692,12 @@ export default function RecommendationsPage() {
     { label: 'shared components without preview', value: noPreview.length },
     { label: 'components not on any page', value: unused.length },
     { label: 'text colours below AA contrast', value: weak.length },
+    { label: 'hardcoded values', value: rawValues.length },
   ]
   return (
     <div className="flex flex-col gap-6">
       <PageTitle title="Recommendations" sub="The state of this design system, and the rules Coherent checks on every edit." />
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         {stats.map(s => (
           <div key={s.label} className="rounded-lg border border-border bg-card shadow-sm p-4">
             <div className={'font-mono text-3xl font-medium tabular-nums ' + (s.value ? 'text-foreground' : 'text-primary')}>{s.value}</div>
@@ -1740,6 +1754,41 @@ export default function RecommendationsPage() {
                 <p className="font-mono text-xs text-muted-foreground">{noDark.map(t => t.name).join(' · ')}</p>
               </div>
             ) : null}
+          </div>
+        </Panel>
+      ) : null}
+      {rawValues.length ? (
+        <Panel label={'hardcoded values · ' + rawValues.length} right={<span className="font-mono text-xs text-muted-foreground">{rawFiles.length} files</span>}>
+          <div className="divide-y divide-border text-sm">
+            <p className="px-4 py-3 text-muted-foreground">
+              Colours, sizes and radii written as literals instead of tokens. They do not follow a token change. Coherent warns when an edit adds one; ask your agent to replace them, for example &quot;replace hardcoded values in {rawFiles[0]}&quot;.
+            </p>
+            {repeated.length ? (
+              <div className="space-y-2 px-4 py-3">
+                <div className="font-medium">Repeated: candidates for a token</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {repeated.map(([value, n]) => (
+                    <span key={value} className="rounded-md border border-border bg-card px-2 py-0.5 font-mono text-xs">
+                      {value} <span className="text-muted-foreground">×{n}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {rawFiles.map(f => (
+              <div key={f} className="space-y-1 px-4 py-3">
+                <div className="font-mono text-xs text-foreground">{f}</div>
+                {rawValues
+                  .filter(v => v.file === f)
+                  .map(v => (
+                    <div key={v.line + v.value} className="flex gap-3 font-mono text-xs text-muted-foreground">
+                      <span className="w-10 shrink-0 tabular-nums">:{v.line}</span>
+                      <span className="text-foreground">{v.value}</span>
+                      <span>{KIND_LABEL[v.kind] ?? v.kind}</span>
+                    </div>
+                  ))}
+              </div>
+            ))}
           </div>
         </Panel>
       ) : null}
