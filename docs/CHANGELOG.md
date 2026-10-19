@@ -12,6 +12,13 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.28.2] — 2026-10-19 — fix: scope rules hold through amends; ds sync never left half-applied
+
+Found by a Codex review of 0.28.
+- **Amends are held to the edit's scope.** Adding files to an open edit (`amend`) skipped the scope rules, so a page edit could take in a shared component or a stylesheet, and a design-system edit any file. An amend now runs the same checks as the start of the edit, keeps an addressed target (`CID-…`, `--token`), and treats a "create" of a file that already existed as a modification.
+- **A token edit may create only stylesheets.** New component files were not checked against the token scope. A page edit may still create new components (component-first).
+- **`coherent ds sync` rolls back on errors**, not just on a failed verdict: if syncing or verification throws, the sync it opened is undone; if that undo fails too, both errors are reported and the command exits nonzero.
+
 ## [0.28.1] — 2026-10-19 — fix: icons in the design-system viewer
 
 - **Icon search finds renamed icons.** Lucide renamed some icons (Home is now House) and keeps the old name as an alias; the library search matched only current names, so "home" found nothing. It now matches aliases too and says when nothing matches.

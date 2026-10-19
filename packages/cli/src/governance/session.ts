@@ -91,6 +91,10 @@ export interface EditSession {
   visualSkipped?: string
   /** The project failed to build (or typecheck) before the edit. */
   preexistingFailure: boolean
+  /** The addressed component or token (`CID-007`, `--radius`): an amend is held to the same scope. */
+  target?: string
+  /** Coherent's own edit (ID sync): may write the viewer and ID comments. */
+  internal?: boolean
 }
 
 export interface VisualResult {
@@ -283,7 +287,13 @@ function checkWriteSet(root: string, modify: string[], create: string[]) {
  * and tokens alone, a token edit touches only stylesheets, and an addressed
  * component edit touches only that component.
  */
-export function checkScope(graph: ProjectGraph, scope: EditScope, modify: string[], target?: ResolvedTarget) {
+export function checkScope(
+  graph: ProjectGraph,
+  scope: EditScope,
+  modify: string[],
+  target?: ResolvedTarget,
+  create: string[] = [],
+) {
   const kind = (f: string) => graph.nodes[f]?.kind
   // An addressed target gets the precise message first.
   if (target?.type === 'token' && scope !== 'tokens')
@@ -306,7 +316,9 @@ export function checkScope(graph: ProjectGraph, scope: EditScope, modify: string
     throw new Error(
       `A page edit cannot change components or tokens (${shared.join(', ')}). Use scope "component" to change one everywhere, or "variant" to change it only on some pages.`,
     )
-  const notStyle = modify.filter(f => kind(f) !== 'style')
+  // New files are judged by what they are: a token edit may add a stylesheet, nothing else.
+  // (A page edit may create new components: that is component-first, not restyling a shared one.)
+  const notStyle = [...modify.filter(f => kind(f) !== 'style'), ...create.filter(f => !/\.(css|scss)$/.test(f))]
   if (scope === 'tokens' && notStyle.length)
     throw new Error(`A token edit changes only stylesheets; ${notStyle.join(', ')} need their own edit.`)
 }
@@ -500,6 +512,28 @@ export async function beginEdit(rootInput: string, input: BeginInput): Promise<E
     if (loadTransaction(root, s.txId).status !== 'open') throw new Error(`Edit ${s.txId} is not open`)
     const addModify = norm(input.modify).filter(f => !s.modify.includes(f) && !s.create.includes(f))
     const addCreate = norm(input.create).filter(f => !s.create.includes(f) && !s.modify.includes(f))
+    // An amend is held to the rules the edit began with: same scope, same target.
+    // A "create" of a file that existed before the edit is a modification.
+    const existed = loadTransaction(root, s.txId).before
+    const changed = [...s.modify, ...addModify, ...addCreate.filter(f => f in existed)]
+    if (s.scope === 'design-system' && !s.internal) {
+      const other = [...addModify, ...addCreate].filter(f => !isPreviewFile(f))
+      if (other.length)
+        throw new Error(
+          `A design-system edit only writes component previews (<name>.preview.tsx); ${other.join(', ')} need their own edit.`,
+        )
+    }
+    if (s.scope !== 'design-system') {
+      const viewer = `${graph.appDir}/design-system/`
+      const target = s.target ? resolveTarget(buildDesignSystem(graph), s.target) : undefined
+      checkScope(
+        graph,
+        s.scope,
+        changed.filter(f => !f.startsWith(viewer)),
+        target,
+        [...s.create, ...addCreate].filter(f => !f.startsWith(viewer) && !changed.includes(f)),
+      )
+    }
     // Files the agent may already have written count as existing now; what
     // matters is that they are declared before verification.
     extendTransaction(root, s.txId, { modify: addModify, create: addCreate })
@@ -539,7 +573,7 @@ export async function beginEdit(rootInput: string, input: BeginInput): Promise<E
         `A design-system edit only writes component previews (<name>.preview.tsx); ${other.join(', ')} need their own edit.`,
       )
   }
-  if (input.scope !== 'design-system') checkScope(graph, input.scope, modify, target)
+  if (input.scope !== 'design-system') checkScope(graph, input.scope, modify, target, create)
   if (!input.internal) {
     const withDs = withDesignSystemFiles(root, graph, modify, create, input.scope === 'design-system')
     modify = withDs.modify
@@ -590,6 +624,8 @@ export async function beginEdit(rootInput: string, input: BeginInput): Promise<E
     beforeShots,
     visualSkipped,
     preexistingFailure,
+    ...(input.target ? { target: input.target } : {}),
+    ...(input.internal ? { internal: true } : {}),
   }
   saveSession(root, s)
   return s
