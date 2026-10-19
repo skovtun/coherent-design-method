@@ -8,9 +8,9 @@
 > Why: ADR-0011 (plain Claude Code beat the `coherent chat` pipeline on every screen).
 > The generator pipeline below is **classic / deprecated** (`init --classic`).
 
-**Current version:** 0.28.0
+**Current version:** 0.28.1
 **Packages:** `@getcoherent/core` + `@getcoherent/cli` (published together, same version)
-**Tests:** 2655 passing
+**Tests:** 2656 passing
 
 ---
 

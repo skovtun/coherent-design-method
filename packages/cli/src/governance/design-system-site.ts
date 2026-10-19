@@ -28,8 +28,10 @@ export interface SiteContext {
   edits: { label: string; verdict: string | null; at: string; files?: string[] }[]
   /** Page routes of the app, for the sitemap. */
   pages: string[]
-  /** lucide-react icons the app imports, with the files that import them. */
-  icons: { name: string; files: string[] }[]
+  /** Library icons the app imports (Lucide, Tabler, Heroicons…), with the files that import them. */
+  icons: { name: string; module: string; library: string; files: string[] }[]
+  /** Icon libraries installed in the app, by label. */
+  iconLibraries?: string[]
   /** lucide-react is a dependency: the Icons page can browse the whole set. */
   hasIcons: boolean
 }
@@ -285,7 +287,13 @@ export const tokens: DsToken[] = ${JSON.stringify(tokens, null, 2)}
 
 export const pages: { route: string; components: string[] }[] = ${JSON.stringify(pages, null, 2)}
 
-export const icons: { name: string; files: string[] }[] = ${JSON.stringify(ctx.icons, null, 2)}
+export const icons: { key: string; name: string; library: string; files: string[] }[] = ${JSON.stringify(
+    ctx.icons.map(i => ({ key: i.module + ':' + i.name, name: i.name, library: i.library, files: i.files })),
+    null,
+    2,
+  )}
+
+export const iconLibraries: string[] = ${JSON.stringify(ctx.iconLibraries ?? [])}
 
 export const duplicates: { id: string; components: string[] }[] = ${JSON.stringify(ds.duplicates)}
 
@@ -597,6 +605,8 @@ export function Shell({ children }: { children: ReactNode }) {
             <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-t border-border pt-4 text-xs text-muted-foreground">
               <a href="https://getcoherent.design" target="_blank" rel="noopener noreferrer" className="font-medium text-foreground transition-colors hover:text-primary">Coherent Design Method</a>
               <span aria-hidden>·</span>
+              <a href="https://github.com/skovtun/coherent-design-method" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-foreground">GitHub</a>
+              <span aria-hidden>·</span>
               <span>design system read from this app&apos;s code</span>
             </div>
           </div>
@@ -858,7 +868,7 @@ export function pairs(tokens: Tok[]) {
 
 const COPY = `${HEAD}'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 
 /** Click to copy: IDs, token names and values are what you type into an edit. */
 export function Copy({ text, className = '' }: { text: string; className?: string }) {
@@ -876,6 +886,27 @@ export function Copy({ text, className = '' }: { text: string; className?: strin
       className={'cursor-copy transition-colors hover:text-primary ' + className}
     >
       {done ? 'copied' : text}
+    </button>
+  )
+}
+
+/** A card that copies \`text\` on click; its content stays, a small note confirms. */
+export function CopyTile({ text, className = '', children }: { text: string; className?: string; children: ReactNode }) {
+  const [done, setDone] = useState(false)
+  return (
+    <button
+      type="button"
+      title={'Copy ' + text}
+      onClick={() => {
+        void navigator.clipboard?.writeText(text).then(() => {
+          setDone(true)
+          setTimeout(() => setDone(false), 1200)
+        })
+      }}
+      className={'relative cursor-copy ' + className}
+    >
+      {children}
+      {done ? <span className="absolute right-2 top-2 font-mono text-xs text-primary">copied</span> : null}
     </button>
   )
 }
@@ -1152,32 +1183,71 @@ export default function SpacingPage() {
 }
 `
 
-function renderIcons(ctx: SiteContext): { used: string; catalog: string } {
-  const names = ctx.icons.map(i => i.name)
-  const used =
-    ctx.hasIcons && names.length
-      ? `${HEAD}import type { ComponentType } from 'react'
-import { ${names.map((n, i) => `${n} as I${i}`).join(', ')} } from 'lucide-react'
+/** A user's own icon: a component under an `icons/` folder whose props are SVG props (or none). */
+const isCustomIcon = (c: DsComponent) =>
+  c.kind !== 'ui' && /(^|\/)icons\//.test(c.file) && (!c.props || /svg/i.test(c.props))
 
-export const usedIcons: Record<string, ComponentType<{ className?: string }>> = {
-${names.map((n, i) => `  ${JSON.stringify(n)}: I${i},`).join('\n')}
+function renderIcons(ds: DesignSystem, ctx: SiteContext, dir: string): { used: string; catalog: string } {
+  const byModule = new Map<string, { name: string; key: string; i: number }[]>()
+  ctx.icons.forEach((icon, i) =>
+    byModule.set(icon.module, [
+      ...(byModule.get(icon.module) ?? []),
+      { name: icon.name, key: icon.module + ':' + icon.name, i },
+    ]),
+  )
+  const custom = ds.components.filter(isCustomIcon)
+  const imports = [
+    ...[...byModule].map(
+      ([module, list]) =>
+        `import { ${list.map(x => `${x.name} as I${x.i}`).join(', ')} } from ${JSON.stringify(module)}`,
+    ),
+    ...custom.map((c, i) => `import { ${c.name} as U${i} } from ${JSON.stringify(toImport(dir, c.file))}`),
+  ]
+  const used = `${HEAD}import type { ComponentType } from 'react'
+${imports.join('\n')}
+
+type IconComponent = ComponentType<{ className?: string }>
+
+export const usedIcons: Record<string, IconComponent> = {
+${[...byModule.values()]
+  .flat()
+  .map(x => `  ${JSON.stringify(x.key)}: I${x.i} as IconComponent,`)
+  .join('\n')}
 }
-`
-      : `${HEAD}import type { ComponentType } from 'react'
 
-export const usedIcons: Record<string, ComponentType<{ className?: string }>> = {}
+/** The app's own icons (components under an icons/ folder), by component slug. */
+export const customIcons: { slug: string; name: string; id: string | null; Icon: IconComponent }[] = [
+${custom.map((c, i) => `  { slug: ${JSON.stringify(c.slug)}, name: ${JSON.stringify(c.name)}, id: ${JSON.stringify(c.id ?? null)}, Icon: U${i} as IconComponent },`).join('\n')}
+]
 `
   const catalog = ctx.hasIcons
     ? `${HEAD}'use client'
 
 import { useState, type ComponentType } from 'react'
-import { icons } from 'lucide-react'
+import * as lucide from 'lucide-react'
 
-const all = Object.entries(icons as unknown as Record<string, ComponentType<{ className?: string }>>)
+type IconComponent = ComponentType<{ className?: string }>
+const canonical = Object.entries(lucide.icons as unknown as Record<string, IconComponent>)
+const nameOf = new Map(canonical.map(([name, Icon]) => [Icon, name]))
+// Renamed icons keep their old export (Home is now House): search both.
+const aliases = new Map<string, string[]>()
+for (const [key, value] of Object.entries(lucide as unknown as Record<string, IconComponent>)) {
+  const name = nameOf.get(value)
+  if (!name || key === name || key.startsWith('Lucide') || key.endsWith('Icon')) continue
+  aliases.set(name, [...(aliases.get(name) ?? []), key])
+}
+const all = canonical.map(([name, Icon]) => ({ name, Icon, terms: [name, ...(aliases.get(name) ?? [])].join(' ').toLowerCase() }))
 
 export function IconCatalog() {
   const [q, setQ] = useState('')
-  const hits = all.filter(([name]) => name.toLowerCase().includes(q.toLowerCase()))
+  const [copied, setCopied] = useState<string | null>(null)
+  const words = q.toLowerCase().replace(/[-_]/g, ' ').split(' ').filter(Boolean)
+  const hits = all.filter(i => words.every(w => i.terms.includes(w)))
+  const copy = (name: string) =>
+    void navigator.clipboard?.writeText(name).then(() => {
+      setCopied(name)
+      setTimeout(() => setCopied(null), 1200)
+    })
   return (
     <div className="space-y-4 p-4">
       <input
@@ -1186,14 +1256,24 @@ export function IconCatalog() {
         placeholder={'Search ' + all.length + ' Lucide icons'}
         className="h-9 w-full max-w-sm rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
       />
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 lg:grid-cols-8">
-        {hits.slice(0, 160).map(([name, Icon]) => (
-          <div key={name} title={name} className="flex flex-col items-center gap-2 rounded-lg border border-border bg-card p-3 shadow-sm">
-            <Icon className="size-5" />
-            <span className="w-full truncate text-center font-mono text-xs text-muted-foreground">{name}</span>
-          </div>
-        ))}
-      </div>
+      {hits.length ? (
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 lg:grid-cols-8">
+          {hits.slice(0, 160).map(({ name, Icon }) => (
+            <button
+              key={name}
+              type="button"
+              title={'Copy ' + name + (aliases.get(name) ? ' (also ' + aliases.get(name)!.join(', ') + ')' : '')}
+              onClick={() => copy(name)}
+              className="flex cursor-copy flex-col items-center gap-2 rounded-lg border border-border bg-card p-3 shadow-sm transition-colors hover:border-primary"
+            >
+              <Icon className="size-5" />
+              <span className="w-full truncate text-center font-mono text-xs text-muted-foreground">{copied === name ? 'copied' : name}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">No Lucide icon matches &quot;{q}&quot;.</p>
+      )}
       {hits.length > 160 ? <p className="font-mono text-xs text-muted-foreground">{hits.length - 160} more: refine the search.</p> : null}
     </div>
   )
@@ -1206,28 +1286,46 @@ export function IconCatalog() {
   return { used, catalog }
 }
 
-const ICONS_PAGE = `${HEAD}import { icons } from '../../_data'
-import { usedIcons } from '../../_icons'
+const ICONS_PAGE = `${HEAD}import Link from 'next/link'
+import { components, hrefOf, iconLibraries, icons } from '../../_data'
+import { customIcons, usedIcons } from '../../_icons'
 import { IconCatalog } from '../../_icon-catalog'
+import { CopyTile } from '../../_copy'
 import { PageTitle, Panel } from '../../_ui'
 
 export default function IconsPage() {
+  const libraries = [...new Set(icons.map(i => i.library))]
+  const mixed = libraries.length > 1
   return (
     <div className="flex flex-col gap-6">
-      <PageTitle title="Icons" sub="Lucide, the icon set shadcn/ui is built with: one stroke style across the app. Use icons from this set only." />
+      <PageTitle
+        title="Icons"
+        sub={
+          (libraries.length ? 'In use: ' + libraries.join(', ') + '. ' : '') +
+          'Click an icon to copy its name. To switch library, ask your agent ("use Phosphor icons"); to add your own, ask for an icon component in components/icons.'
+        }
+      />
+      {mixed ? (
+        <p className="rounded-lg border border-border bg-card p-4 text-sm shadow-sm">
+          <span className="font-medium text-destructive">Mixed icon sets.</span>{' '}
+          <span className="text-muted-foreground">This app imports icons from {libraries.join(' and ')}. Ask your agent to move them to one library.</span>
+        </p>
+      ) : null}
       <Panel label={'in use · ' + icons.length}>
         {icons.length ? (
           <div className="grid gap-2 p-4 sm:grid-cols-2 lg:grid-cols-4">
             {icons.map(i => {
-              const Icon = usedIcons[i.name]
+              const Icon = usedIcons[i.key]
               return (
-                <div key={i.name} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 shadow-sm">
+                <CopyTile key={i.key} text={i.name} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 text-left shadow-sm transition-colors hover:border-primary">
                   {Icon ? <Icon className="size-5 shrink-0" /> : null}
                   <div className="min-w-0">
                     <div className="truncate font-mono text-sm">{i.name}</div>
-                    <div className="truncate font-mono text-xs text-muted-foreground">{i.files.length} file{i.files.length === 1 ? '' : 's'}</div>
+                    <div className="truncate font-mono text-xs text-muted-foreground">
+                      {(mixed ? i.library + ' · ' : '') + i.files.length + ' file' + (i.files.length === 1 ? '' : 's')}
+                    </div>
                   </div>
-                </div>
+                </CopyTile>
               )
             })}
           </div>
@@ -1235,9 +1333,33 @@ export default function IconsPage() {
           <p className="p-4 text-sm text-muted-foreground">No icons used yet.</p>
         )}
       </Panel>
-      <Panel label="library">
-        <IconCatalog />
+      <Panel label={'your icons · ' + customIcons.length}>
+        {customIcons.length ? (
+          <div className="grid gap-2 p-4 sm:grid-cols-2 lg:grid-cols-4">
+            {customIcons.map(({ slug, name, id, Icon }) => {
+              const c = components.find(x => x.slug === slug)
+              return (
+                <div key={slug} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 shadow-sm">
+                  <Icon className="size-5 shrink-0" />
+                  <div className="min-w-0">
+                    <div className="truncate font-mono text-sm">{name}</div>
+                    {c ? <Link href={hrefOf(c)} className="font-mono text-xs text-muted-foreground hover:underline">{id ?? 'no ID'}</Link> : null}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <p className="p-4 text-sm text-muted-foreground">
+            None yet. An icon of your own is a component in components/icons/ that renders an svg, takes className and uses currentColor. It gets an ID and shows here.
+          </p>
+        )}
       </Panel>
+      {iconLibraries.includes('Lucide') ? (
+        <Panel label="lucide library">
+          <IconCatalog />
+        </Panel>
+      ) : null}
     </div>
   )
 }
@@ -1640,7 +1762,7 @@ export default function RecommendationsPage() {
 export function renderDesignSystemFiles(ds: DesignSystem, appDir: string, ctx: SiteContext): Map<string, string> {
   const dir = `${appDir}/design-system`
   const { code: previews, live } = renderPreviews(ds, dir)
-  const icons = renderIcons(ctx)
+  const icons = renderIcons(ds, ctx, dir)
   const files: [string, string][] = [
     ['page.tsx', HOME],
     ['layout.tsx', LAYOUT],

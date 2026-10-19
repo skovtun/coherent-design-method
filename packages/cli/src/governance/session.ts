@@ -311,7 +311,17 @@ export function checkScope(graph: ProjectGraph, scope: EditScope, modify: string
     throw new Error(`A token edit changes only stylesheets; ${notStyle.join(', ')} need their own edit.`)
 }
 
-const LUCIDE_IMPORT = /import\s*(?:type\s*)?\{([^}]*)\}\s*from\s*['"]lucide-react['"]/g
+/** Icon libraries the viewer recognises; the first is the default the agent uses. */
+const ICON_LIBRARIES: { pkg: string; label: string }[] = [
+  { pkg: 'lucide-react', label: 'Lucide' },
+  { pkg: '@tabler/icons-react', label: 'Tabler' },
+  { pkg: '@heroicons/react', label: 'Heroicons' },
+  { pkg: '@phosphor-icons/react', label: 'Phosphor' },
+  { pkg: '@radix-ui/react-icons', label: 'Radix' },
+  { pkg: '@remixicon/react', label: 'Remix' },
+  { pkg: 'react-icons', label: 'React Icons' },
+]
+const NAMED_IMPORT = /import\s*(?:type\s*)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g
 
 function siteContext(root: string, graph: ProjectGraph, exclude?: string): SiteContext {
   let pkg: Record<string, unknown> = {}
@@ -339,11 +349,14 @@ function siteContext(root: string, graph: ProjectGraph, exclude?: string): SiteC
       at: t.startedAt,
       files: [...(t.changes?.modified ?? []), ...(t.changes?.created ?? [])],
     }))
-  const icons = new Map<string, Set<string>>()
+  const icons = new Map<string, { name: string; module: string; library: string; files: Set<string> }>()
   for (const n of Object.values(graph.nodes)) {
     if (!/\.(tsx|jsx|ts)$/.test(n.id)) continue
     const text = readFileSync(join(root, n.id), 'utf-8')
-    for (const m of text.matchAll(LUCIDE_IMPORT))
+    for (const m of text.matchAll(NAMED_IMPORT)) {
+      const module = m[2]
+      const lib = ICON_LIBRARIES.find(l => module === l.pkg || module.startsWith(l.pkg + '/'))
+      if (!lib) continue
       for (const spec of m[1].split(',')) {
         const raw = spec
           .trim()
@@ -353,14 +366,19 @@ function siteContext(root: string, graph: ProjectGraph, exclude?: string): SiteC
         // Types and the generic Icon are not icons.
         if (
           !/^[A-Z]\w*$/.test(raw) ||
-          ['LucideIcon', 'LucideProps', 'Icon', 'IconNode'].includes(raw) ||
+          ['LucideIcon', 'LucideProps', 'Icon', 'IconNode', 'IconProps', 'IconType', 'IconContext'].includes(raw) ||
           raw.endsWith('Props')
         )
           continue
         // Lucide exports each icon as Name, NameIcon and LucideName: one icon.
-        const name = raw.replace(/^Lucide(?=[A-Z])/, '').replace(/(?<=.)Icon$/, '')
-        icons.set(name, (icons.get(name) ?? new Set()).add(n.id))
+        const name = lib.pkg === 'lucide-react' ? raw.replace(/^Lucide(?=[A-Z])/, '').replace(/(?<=.)Icon$/, '') : raw
+        const at = lib.pkg === 'lucide-react' ? lib.pkg : module
+        const key = at + ':' + name
+        const entry = icons.get(key) ?? { name, module: at, library: lib.label, files: new Set<string>() }
+        entry.files.add(n.id)
+        icons.set(key, entry)
       }
+    }
   }
   return {
     appName,
@@ -370,9 +388,10 @@ function siteContext(root: string, graph: ProjectGraph, exclude?: string): SiteC
       .filter(n => n.kind === 'page')
       .map(n => n.route!)
       .sort(),
-    icons: [...icons]
-      .map(([name, files]) => ({ name, files: [...files].sort() }))
-      .sort((x, y) => x.name.localeCompare(y.name)),
+    icons: [...icons.values()]
+      .map(i => ({ ...i, files: [...i.files].sort() }))
+      .sort((x, y) => x.name.localeCompare(y.name) || x.module.localeCompare(y.module)),
+    iconLibraries: ICON_LIBRARIES.filter(l => deps[l.pkg]).map(l => l.label),
     hasIcons: 'lucide-react' in deps,
   }
 }

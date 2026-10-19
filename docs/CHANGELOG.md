@@ -12,6 +12,13 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.28.1] — 2026-10-19 — fix: icons in the design-system viewer
+
+- **Icon search finds renamed icons.** Lucide renamed some icons (Home is now House) and keeps the old name as an alias; the library search matched only current names, so "home" found nothing. It now matches aliases too and says when nothing matches.
+- **Click an icon to copy its name**, in the icons in use and in the library.
+- **Any icon library, and your own icons.** The viewer recognises Lucide, Tabler, Heroicons, Phosphor, Radix, Remix and React Icons, shows which ones the app uses and warns when sets are mixed. Components under `components/icons/` that render an svg show as "your icons" with their IDs. The agent template: one library per app (Lucide by default), a switch moves every icon in one edit, own icons are components in `components/icons/`.
+- Viewer footer links to the GitHub repository.
+
 ## [0.28.0] — 2026-10-19 — feat: a design system you can address, read from the code
 
 Agent mode now builds a design system alongside the app ([ADR-0013](./wiki/ADR/0013-design-system-from-code.md)). Every component carries an ID in its source, tokens are read from the stylesheets, and `/design-system` shows all of it. "CID-008: bigger number" changes that component only, and every page using it follows.
