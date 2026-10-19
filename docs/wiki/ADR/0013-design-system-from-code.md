@@ -40,6 +40,8 @@ Keep ADR-0011: the agent designs, no design rules in prompts. Add a design-syste
 
 Verified live on a copy of the A/B app: sync assigned 41 IDs and kept 11 rendered routes pixel-identical; `CID-008` edit modified only `kpi-card.tsx`, both consumers changed (4.8%), controls 0.00%; a `page`-scoped edit of `CID-008` was refused; `/design-system` rendered with no console errors.
 
+Agent end-to-end (2026-10-19, headless Claude Code with the updated template on the same app, $2.31 total): "show the design system" → inventory, `coherent_ds_sync`, `verify final`, link, honest `partially_verified` (106s). "CID-008: bigger number" → `begin_edit` with `target: "CID-008"`, only `kpi-card.tsx`, controls 0.00% (45s). "Only on Earnings, green border on the KPI cards" → no edit opened; the agent listed the 3 pages and asked new component vs everywhere (10s). Answer "option 1" → new `HighlightKpiCard` wrapping KpiCard (no markup copy), `/** @coherent-id CID-042 */`, border from `--primary`, only Earnings changed, `/design-system` updated in the same edit, `verified` (46s).
+
 ### Deferred (slices 2-3)
 
 - Raw-value checks (colors first, then arbitrary sizes/radius/shadow), baseline-relative, starting as warnings. The Tailwind theme scale (`p-4`, `rounded-lg`, `text-sm`) counts as tokens; `p-[13px]`, `text-[15px]` are raw.
