@@ -12,6 +12,14 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.27.1] — 2026-10-19 — chore: describe Coherent as what it now is
+
+- The CLI banner still said "AI-powered design system generator" (retired before 0.27.0). It now reads "the model designs, Coherent governs" with the canonical definition.
+- npm descriptions and keywords for `@getcoherent/cli` and `@getcoherent/core` describe the governance platform instead of "CLI interface" / "design system engine".
+- Publishing moved to npm trusted publishing (OIDC) from `publish.yml`, with provenance; no npm token in CI.
+
+No behaviour changes.
+
 ## [0.27.0] — 2026-10-18 — feat: agent mode — the model designs, Coherent governs
 
 **Breaking: `coherent init` now sets up agent mode.** An A/B on the same spec and model (plain Claude Code vs the `coherent chat` pipeline) went to plain Claude Code on all 8 matched screens, and every pipeline defect traced to a Coherent authoring step: template Header/Footer on app pages, keyword-category component reuse (an AI creator suggestion rendered as an AI review flag), per-page fragmentation. Coherent stops authoring design ([ADR-0011](./wiki/ADR/0011-governance-not-authorship.md)). The coding agent designs; Coherent governs each edit ([ADR-0012](./wiki/ADR/0012-agent-mode-adapter.md)).

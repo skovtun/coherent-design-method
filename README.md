@@ -4,7 +4,8 @@
 
 <p align="center">
   The model designs. Coherent governs.<br>
-  Your coding agent builds the UI; Coherent scopes every edit, checks it in a real browser, and rolls back what fails.
+  An open-source platform that governs AI-built frontends: your coding agent designs and builds the UI;<br>
+  Coherent scopes every edit, verifies it in a real browser and rolls back what fails.
 </p>
 
 <p align="center">
