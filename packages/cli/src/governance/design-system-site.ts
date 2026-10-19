@@ -234,6 +234,7 @@ function renderData(ds: DesignSystem, ctx: SiteContext, live: Set<string>): stri
     routes: c.routes,
     variants: (c.variants ?? []).map(g => ({ name: g.name, default: g.default ?? null, options: g.options })),
     preview: live.has(c.slug) ? (c.preview ? 'authored' : 'generated') : null,
+    example: c.example ?? null,
   }))
   const tokens = TOKEN_ORDER.flatMap(cat =>
     ds.tokens
@@ -257,6 +258,7 @@ function renderData(ds: DesignSystem, ctx: SiteContext, live: Set<string>): stri
   routes: string[]
   variants: { name: string; default: string | null; options: { value: string; classes: string }[] }[]
   preview: 'authored' | 'generated' | null
+  example: { code: string; file: string } | null
 }
 
 export interface DsToken {
@@ -795,6 +797,7 @@ const GROUPS: { label: string; hint: string; match: (n: string) => boolean }[] =
   { label: 'sidebar', hint: 'app navigation', match: n => n.startsWith('--sidebar') },
 ]
 
+const anchor = (n: string) => 'token' + n.slice(1)
 const isFg = (n: string) => n === '--foreground' || n.endsWith('-foreground')
 const baseOf = (n: string) => (n === '--foreground' ? '--background' : n.slice(0, -'-foreground'.length))
 const fgOf = (n: string) => (n === '--background' ? '--foreground' : n + '-foreground')
@@ -851,7 +854,7 @@ function Half({ bg, fg, label }: { bg?: string; fg?: string; label: string }) {
 function RoleCard({ role }: { role: Role }) {
   const { base, fg } = role
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+    <div id={anchor(base.name)} className="scroll-mt-20 overflow-hidden rounded-lg border border-border bg-card shadow-sm target:ring-2 target:ring-ring">
       <div className="flex">
         <Half bg={base.value} fg={fg?.value} label="light" />
         <Half bg={base.dark ?? base.value} fg={fg?.dark ?? fg?.value} label={base.dark ? 'dark' : 'dark · same'} />
@@ -882,7 +885,16 @@ function Strip({ roles, dark }: { roles: Role[]; dark: boolean }) {
     <div className="flex h-14 overflow-hidden rounded-lg border border-border">
       {roles.map(r => {
         const v = dark ? r.base.dark ?? r.base.value : r.base.value
-        return <div key={r.base.name} title={r.base.name + ' ' + v} className="flex-1" style={{ background: v }} />
+        return (
+          <a
+            key={r.base.name}
+            href={'#' + anchor(r.base.name)}
+            title={r.base.name + ' ' + v}
+            aria-label={r.base.name}
+            className="flex-1 transition-opacity hover:opacity-80"
+            style={{ background: v }}
+          />
+        )
       })}
     </div>
   )
@@ -1222,7 +1234,10 @@ export function ComponentDetail({ slug }: { slug: string }) {
   const importName = c.name
   const usage = c.variants.length
     ? '<' + importName + ' ' + c.variants.map(v => v.name + '="' + (v.default ?? v.options[0]?.value) + '"').join(' ') + ' />'
-    : '<' + importName + ' />'
+    : c.parts.length
+      ? '<' + importName + '>\\n  …\\n</' + importName + '>'
+      : '<' + importName + ' />'
+  const imported = c.example ? [importName, ...c.parts.filter(p => c.example!.code.includes('<' + p))] : [importName, ...c.parts]
   const from = '@/' + c.file.replace(/^src\\//, '').replace(/\\.(tsx|jsx)$/, '')
   return (
     <div className="flex flex-col gap-6">
@@ -1269,8 +1284,11 @@ export function ComponentDetail({ slug }: { slug: string }) {
         </Panel>
       ))}
 
-      <Panel label="usage">
-        <pre className="overflow-x-auto p-4 font-mono text-xs">{'import { ' + importName + ' } from \\'' + from + '\\'\\n\\n' + usage}</pre>
+      <Panel
+        label={c.example ? 'usage · in this app' : 'usage'}
+        right={<span className="truncate font-mono text-xs text-muted-foreground">{c.example ? c.example.file : 'not used in this app yet'}</span>}
+      >
+        <pre className="overflow-x-auto p-4 font-mono text-xs">{'import ' + (imported.length > 3 ? '{\\n  ' + imported.join(',\\n  ') + ',\\n}' : '{ ' + imported.join(', ') + ' }') + ' from \\'' + from + '\\'\\n\\n' + (c.example ? c.example.code : usage)}</pre>
       </Panel>
 
       <div className="grid gap-4 lg:grid-cols-2">

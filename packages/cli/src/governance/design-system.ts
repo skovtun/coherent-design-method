@@ -37,6 +37,8 @@ export interface DsComponent {
   variants?: VariantGroup[]
   /** Project-relative path of `<name>.preview.tsx` next to the component, written by the agent. */
   preview?: string
+  /** A real use of it in the app (the JSX element, dedented), with the file it comes from. */
+  example?: { code: string; file: string }
 }
 
 export interface VariantGroup {
@@ -283,6 +285,7 @@ export function buildDesignSystem(graph: ProjectGraph): DesignSystem {
           cvas.find(c => c.name.toLowerCase() === `${d.name}variants`.toLowerCase()) ?? (main ? cvas[0] : undefined)
         )?.groups,
         preview: all.length === 1 || main ? preview : undefined,
+        example: exampleOf(graph, n.id, d.name),
       })
     }
   }
@@ -303,6 +306,46 @@ export function buildDesignSystem(graph: ProjectGraph): DesignSystem {
     page: managedPage(graph.root, graph.appDir),
     route: DS_ROUTE,
   }
+}
+
+const EXAMPLE_MAX_LINES = 30
+
+/**
+ * The richest readable use of a component in the app: the JSX element that
+ * renders it in a file that imports it (most lines up to EXAMPLE_MAX_LINES,
+ * else the shortest), dedented. Real code, so it shows how parts compose.
+ */
+export function exampleOf(graph: ProjectGraph, file: string, name: string): DsComponent['example'] {
+  const found: { code: string; file: string; lines: number }[] = []
+  for (const user of graph.importers[file] ?? []) {
+    if (!/\.(tsx|jsx)$/.test(user) || isPreviewFile(user)) continue
+    const text = readFileSync(join(graph.root, user), 'utf-8')
+    if (!text.includes('<' + name)) continue
+    const sf = ts.createSourceFile(user, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+    const visit = (node: ts.Node): void => {
+      const tag = ts.isJsxElement(node)
+        ? node.openingElement.tagName
+        : ts.isJsxSelfClosingElement(node)
+          ? node.tagName
+          : undefined
+      if (tag && tag.getText(sf) === name) {
+        const start = sf.getLineAndCharacterOfPosition(node.getStart(sf))
+        const raw = text.slice(node.getStart(sf) - start.character, node.getEnd()).split('\n')
+        const indent = Math.min(...raw.filter(l => l.trim()).map(l => l.length - l.trimStart().length))
+        const code = raw.map(l => l.slice(indent)).join('\n')
+        found.push({ code, file: user, lines: raw.length })
+        return
+      }
+      ts.forEachChild(node, visit)
+    }
+    visit(sf)
+  }
+  if (!found.length) return undefined
+  const fits = found.filter(f => f.lines <= EXAMPLE_MAX_LINES).sort((a, b) => b.lines - a.lines)
+  const pick = fits[0] ?? [...found].sort((a, b) => a.lines - b.lines)[0]
+  const code =
+    pick.lines > EXAMPLE_MAX_LINES ? pick.code.split('\n').slice(0, EXAMPLE_MAX_LINES).join('\n') + '\n  …' : pick.code
+  return { code, file: pick.file }
 }
 
 /** The next `count` free IDs. */

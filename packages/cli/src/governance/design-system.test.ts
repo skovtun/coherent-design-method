@@ -162,6 +162,15 @@ describe('primitives', () => {
   })
   afterEach(() => rmSync(root, { recursive: true, force: true }))
 
+  it('show a real use from the app, with the parts it composes', () => {
+    write(
+      'src/app/page.tsx',
+      "import { Select, SelectItem } from '../components/ui/select'\nexport default () => (\n  <main>\n    <Select>\n      <SelectItem />\n    </Select>\n  </main>\n)\n",
+    )
+    const [select] = buildDesignSystem(buildGraph(root)).components
+    expect(select.example).toEqual({ code: '<Select>\n  <SelectItem />\n</Select>', file: 'src/app/page.tsx' })
+  })
+
   it('get one ID per file; their parts are addressed through it', () => {
     const plan = planSync(buildGraph(root))
     expect(plan.assigned).toEqual([{ id: 'CID-001', name: 'Select', file: 'src/components/ui/select.tsx' }])
