@@ -3,6 +3,16 @@ name: Publish to npm
 on:
   release:
     types: [created]
+  # Manual re-publish of the checked-out ref (e.g. a release whose publish run
+  # failed). Publishes to the chosen dist-tag.
+  workflow_dispatch:
+    inputs:
+      dist_tag:
+        description: 'npm dist-tag'
+        required: true
+        default: 'latest'
+        type: choice
+        options: [latest, next]
 
 jobs:
   publish:
@@ -22,9 +32,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
           cache: 'pnpm'
+
+      # Trusted publishing (OIDC, no NPM_TOKEN) needs npm >= 11.5.1. Each package
+      # is linked to this repo + publish.yml under npm → Settings → Trusted Publisher.
+      - name: Update npm
+        run: npm install -g npm@latest && npm --version
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -49,7 +64,10 @@ jobs:
         run: |
           TAG_NAME="${{ github.event.release.tag_name }}"
           IS_PRERELEASE="${{ github.event.release.prerelease }}"
-          if [[ "$IS_PRERELEASE" == "true" ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "dist_tag=${{ inputs.dist_tag }}" >> $GITHUB_OUTPUT
+            echo "Manual publish — '${{ inputs.dist_tag }}' dist-tag"
+          elif [[ "$IS_PRERELEASE" == "true" ]]; then
             echo "dist_tag=next" >> $GITHUB_OUTPUT
             echo "Pre-release detected ($TAG_NAME, prerelease=$IS_PRERELEASE) — publishing to 'next' dist-tag"
           else
@@ -57,23 +75,23 @@ jobs:
             echo "Stable release detected ($TAG_NAME, prerelease=$IS_PRERELEASE) — publishing to 'latest' dist-tag"
           fi
 
-      # Use `pnpm publish`, not `npm publish`. The packages declare
-      # `workspace:*` deps; npm doesn't resolve that protocol and the
-      # prepublishOnly guard hard-stops it. pnpm rewrites workspace:* into
-      # the resolved version at pack time, so the published tarball has
-      # real version specifiers and `npm install -g @getcoherent/cli`
-      # works downstream.
+      # Pack with pnpm, publish with npm. pnpm pack rewrites `workspace:*` into
+      # real versions (npm can't resolve that protocol); npm publish of the
+      # tarball authenticates through OIDC trusted publishing and attaches
+      # provenance. Publishing a tarball runs no lifecycle scripts, so the
+      # packages' "use pnpm publish" prepublishOnly guard does not fire.
+      - name: Pack packages
+        run: |
+          mkdir -p "$RUNNER_TEMP/pack"
+          (cd packages/core && pnpm pack --pack-destination "$RUNNER_TEMP/pack")
+          (cd packages/cli && pnpm pack --pack-destination "$RUNNER_TEMP/pack")
+          ls "$RUNNER_TEMP/pack"
+
       - name: Publish @getcoherent/core
-        working-directory: ./packages/core
-        run: pnpm publish --tag ${{ steps.tag.outputs.dist_tag }} --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish "$RUNNER_TEMP"/pack/getcoherent-core-*.tgz --tag ${{ steps.tag.outputs.dist_tag }} --access public
 
       - name: Publish @getcoherent/cli
-        working-directory: ./packages/cli
-        run: pnpm publish --tag ${{ steps.tag.outputs.dist_tag }} --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish "$RUNNER_TEMP"/pack/getcoherent-cli-*.tgz --tag ${{ steps.tag.outputs.dist_tag }} --access public
 
       # Surface promotion instructions in the GitHub Actions UI when an RC
       # was just published. DevEx review (2026-04-27) caught: documented as
@@ -83,6 +101,7 @@ jobs:
         if: steps.tag.outputs.dist_tag == 'next'
         run: |
           VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION:-$(node -p "require('./packages/cli/package.json').version")}"
           # Strip leading `v` if present (npm dist-tag uses bare semver).
           VERSION="${VERSION#v}"
           echo "::notice title=RC published to 'next' — promotion required for 'latest'::"
