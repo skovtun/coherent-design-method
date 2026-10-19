@@ -4,7 +4,8 @@
 
 <p align="center">
   The model designs. Coherent governs.<br>
-  Your coding agent builds the UI; Coherent scopes every edit, checks it in a real browser, and rolls back what fails.
+  An open-source platform that governs AI-built frontends: your coding agent designs and builds the UI;<br>
+  Coherent scopes every edit, verifies it in a real browser and rolls back what fails.
 </p>
 
 <p align="center">
@@ -25,7 +26,7 @@ Coherent is that layer. Since v0.27.0 it no longer generates design itself ([ADR
 1. **Inventory.** A graph of your app built from the code itself (TypeScript AST): pages, layouts, shared components, who imports what. Nothing stored that can drift.
 2. **Begin edit.** The agent declares a scope (`tokens`, `component`, `variant`, `page`, `new-component`) and the files it will write. Coherent answers with the impact: which routes must change, which must not.
 3. **Verify.** Type errors (against a baseline, so pre-existing ones don't block you), a production build, before/after screenshots on desktop and mobile, an exact pixel diff on control routes, new browser and hydration errors, identity leaks.
-4. **Verdict.** `verified`, `partially_verified`, `verified_without_visual`, `blocked_by_preexisting_failure` or `failed`. A failed edit is rolled back; rollback touches only that edit's own files, so your concurrent hand edits survive.
+4. **Verdict.** `verified`, `partially_verified`, `verified_without_visual`, `blocked_by_preexisting_failure` or `failed`. A failed edit is never committed: in agent mode it stays open until the agent fixes it or rolls it back; `coherent edit` rolls it back by default. Rollback touches only that edit's own files, so your concurrent hand edits survive.
 
 ## Quick Start
 

@@ -3,8 +3,8 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.27.0",
-  "description": "Core design system engine for Coherent",
+  "version": "0.27.1",
+  "description": "Core library of Coherent, an open-source platform that governs AI-built frontends.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

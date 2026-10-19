@@ -12,6 +12,14 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.27.1] — 2026-10-19 — chore: describe Coherent as what it now is
+
+- The CLI banner still said "AI-powered design system generator" (retired before 0.27.0). It now reads "the model designs, Coherent governs" with the canonical definition.
+- npm descriptions and keywords for `@getcoherent/cli` and `@getcoherent/core` describe the governance platform instead of "CLI interface" / "design system engine".
+- Publishing moved to npm trusted publishing (OIDC) from `publish.yml`, with provenance; no npm token in CI.
+
+No behaviour changes.
+
 ## [0.27.0] — 2026-10-18 — feat: agent mode — the model designs, Coherent governs
 
 **Breaking: `coherent init` now sets up agent mode.** An A/B on the same spec and model (plain Claude Code vs the `coherent chat` pipeline) went to plain Claude Code on all 8 matched screens, and every pipeline defect traced to a Coherent authoring step: template Header/Footer on app pages, keyword-category component reuse (an AI creator suggestion rendered as an AI review flag), per-page fragmentation. Coherent stops authoring design ([ADR-0011](./wiki/ADR/0011-governance-not-authorship.md)). The coding agent designs; Coherent governs each edit ([ADR-0012](./wiki/ADR/0012-agent-mode-adapter.md)).
@@ -21,7 +29,7 @@ If you are upgrading across breaking releases, follow the matching migration doc
 - **Scoped edits** with an enforced write set: scope `tokens` | `component` | `variant` | `page` | `new-component`; the apply step may write only declared files. Paths are normalized and symlink-checked.
 - **Transactions**: snapshot before the edit, rollback restores only the edit's own files (concurrent hand edits survive), created files and empty dirs are removed, secrets are never snapshotted. One open transaction per project, state persisted so a restarted server recovers it.
 - **Verification before commit**: type errors against a baseline, production build, desktop + mobile renders, exact pixel diff with ±1 per channel tolerance (anti-aliasing), new console/page/hydration errors (baseline-relative), identity leaks (`git config` name/email pasted into mock UI). The verification browser runs in `Pacific/Kiritimati` + `de-DE` so SSR/client mismatches surface.
-- **Honest verdicts**: `verified`, `partially_verified` (an affected route went unrendered), `verified_without_visual`, `blocked_by_preexisting_failure`, `failed`. A failed edit is rolled back; nonzero exit.
+- **Honest verdicts**: `verified`, `partially_verified` (an affected route went unrendered), `verified_without_visual`, `blocked_by_preexisting_failure`, `failed`. A failed edit is never committed: the agent fixes it or rolls it back; `coherent edit` rolls it back by default (nonzero exit).
 
 **Adapters**:
 - **`coherent mcp --profile agent`** — four tools: `coherent_inventory` (graph, open edit, `changedOutsideCoherent`, protocol handshake), `coherent_begin_edit` (impact folded in; `amend` adds files), `coherent_verify_edit` (`fast` | `final`), `coherent_rollback_edit`. No authoring tools. The agent cannot turn renders off; opting out stays a human CLI flag.
