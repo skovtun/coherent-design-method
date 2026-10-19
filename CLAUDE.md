@@ -133,7 +133,7 @@ packages/cli/templates/agent/   agent definition, welcome page
 
 **Invariants (do not break):**
 - Post-write verification is the enforcement boundary; the hook is only feedback (Bash/IDE writes bypass it).
-- Verification runs before commit; a failed edit is rolled back; verdicts never overstate coverage.
+- Verification runs before commit; a failed edit is never committed (agent: stays open to fix or roll back; `coherent edit`: rolled back unless --keep); verdicts never overstate coverage.
 - Rollback touches only the transaction's own files.
 - The agent tool surface has no authoring tools and cannot disable renders.
 - Claude Code host facts (found by trying): inline `mcpServers` and `hooks` in agent frontmatter do not work; project `.mcp.json` and `.claude/settings.json` do.

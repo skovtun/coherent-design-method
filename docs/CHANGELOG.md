@@ -29,7 +29,7 @@ No behaviour changes.
 - **Scoped edits** with an enforced write set: scope `tokens` | `component` | `variant` | `page` | `new-component`; the apply step may write only declared files. Paths are normalized and symlink-checked.
 - **Transactions**: snapshot before the edit, rollback restores only the edit's own files (concurrent hand edits survive), created files and empty dirs are removed, secrets are never snapshotted. One open transaction per project, state persisted so a restarted server recovers it.
 - **Verification before commit**: type errors against a baseline, production build, desktop + mobile renders, exact pixel diff with ±1 per channel tolerance (anti-aliasing), new console/page/hydration errors (baseline-relative), identity leaks (`git config` name/email pasted into mock UI). The verification browser runs in `Pacific/Kiritimati` + `de-DE` so SSR/client mismatches surface.
-- **Honest verdicts**: `verified`, `partially_verified` (an affected route went unrendered), `verified_without_visual`, `blocked_by_preexisting_failure`, `failed`. A failed edit is rolled back; nonzero exit.
+- **Honest verdicts**: `verified`, `partially_verified` (an affected route went unrendered), `verified_without_visual`, `blocked_by_preexisting_failure`, `failed`. A failed edit is never committed: the agent fixes it or rolls it back; `coherent edit` rolls it back by default (nonzero exit).
 
 **Adapters**:
 - **`coherent mcp --profile agent`** — four tools: `coherent_inventory` (graph, open edit, `changedOutsideCoherent`, protocol handshake), `coherent_begin_edit` (impact folded in; `amend` adds files), `coherent_verify_edit` (`fast` | `final`), `coherent_rollback_edit`. No authoring tools. The agent cannot turn renders off; opting out stays a human CLI flag.
