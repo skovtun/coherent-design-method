@@ -13,7 +13,14 @@ import { normalizeRelPath } from './transaction.js'
 
 export type Completer = (system: string, user: string) => Promise<string>
 
-export type EditScope = 'tokens' | 'component' | 'variant' | 'page' | 'new-component'
+export type EditScope =
+  | 'tokens'
+  | 'component'
+  | 'variant'
+  | 'page'
+  | 'new-component'
+  /** Coherent's own edit: ID comments + the generated /design-system page (coherent_ds_sync). */
+  | 'design-system'
 
 export interface EditPlan {
   scope: EditScope

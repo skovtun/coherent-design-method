@@ -38,6 +38,7 @@ coherent init [dir]              # Agent mode setup: empty folder → new Next.j
 coherent init --classic          # Deprecated: old generator project (coherent chat pipeline)
 coherent mcp --profile agent     # Agent mode: governance-only MCP tools (inventory, begin/verify/rollback edit)
 coherent hook pre-write          # Claude Code PreToolUse hook: deny writes outside the open edit
+coherent ds sync                 # Agent mode: give every component an ID (@coherent-id CID-NNN) + write /design-system, verified + undoable
 coherent fix --journal           # Capture session YAML to .coherent/fix-sessions/ for later review
 coherent journal list            # List captured fix sessions
 coherent journal aggregate       # Rank validators by recurrence across all sessions

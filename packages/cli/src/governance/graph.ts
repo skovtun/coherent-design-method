@@ -49,6 +49,21 @@ export interface Impact {
   routes: string[]
 }
 
+/** First-line marker of the files Coherent generates under `<app>/design-system/`. */
+export const DS_MARKER = '@coherent-generated design-system'
+
+/**
+ * Coherent's generated design-system viewer is not part of the product: it
+ * imports every component, so left in the graph it would make each one look
+ * rendered on /design-system and become a target of every edit.
+ */
+function managedDsDir(root: string, appDir: string): string | null {
+  const page = join(root, appDir, 'design-system', 'page.tsx')
+  return existsSync(page) && readFileSync(page, 'utf-8').slice(0, 300).includes(DS_MARKER)
+    ? `${appDir}/design-system/`
+    : null
+}
+
 const SOURCE_EXT = /\.(tsx?|jsx?|css)$/
 const SKIP_DIRS = new Set(['node_modules', '.next', '.git', 'dist', 'build', 'out', '.coherent', 'public'])
 
@@ -214,7 +229,8 @@ export function buildGraph(rootInput: string): ProjectGraph {
   const root = resolve(rootInput)
   const appDir = findAppDir(root)
   const opts = loadCompilerOptions(root)
-  const files = walk(root)
+  const dsDir = managedDsDir(root, appDir)
+  const files = walk(root).filter(abs => !dsDir || !toPosix(relative(root, abs)).startsWith(dsDir))
   const nodes: Record<string, GraphNode> = {}
   const importers: Record<string, string[]> = {}
 

@@ -404,6 +404,12 @@ dsCmd
   .command('regenerate')
   .description('Regenerate all Design System pages from current config')
   .action(dsRegenerateCommand)
+dsCmd
+  .command('sync')
+  .description('Agent mode: give every component an ID and write /design-system, as a verified, undoable edit')
+  .option('--dir <path>', 'Project root (default: cwd)')
+  // Lazy: loads the TypeScript compiler.
+  .action(async (opts: { dir?: string }) => (await import('./commands/ds-sync.js')).dsSyncCommand(opts))
 program.addCommand(dsCmd)
 
 program.command('status').description('Show current project status').action(statusCommand)

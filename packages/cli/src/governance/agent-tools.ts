@@ -13,11 +13,13 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { resolve } from 'path'
 import { z } from 'zod'
 import { CLI_VERSION } from '@getcoherent/core'
+import { buildDesignSystem, freeIds } from './design-system.js'
 import { buildGraph } from './graph.js'
 import { buildInventory } from './router.js'
 import {
   beginEdit,
   changedOutsideCoherent,
+  dsSync,
   loadSession,
   rollbackEdit,
   verifyEdit,
@@ -40,11 +42,12 @@ const ROOT = z
   .describe('Absolute project root. Defaults to the project this server was started for.')
 
 const SCOPE = z
-  .enum(['tokens', 'component', 'variant', 'page', 'new-component'])
+  .enum(['tokens', 'component', 'variant', 'page', 'new-component', 'design-system'])
   .describe(
     'tokens: design tokens in the stylesheet. component: one shared component, every consumer changes. ' +
       'variant: an opt-in prop on a shared component, set only on some pages; other consumers must render identically. ' +
-      'page: one page only. new-component: a new shared block (check the inventory for one with the same PURPOSE first).',
+      'page: one page only. new-component: a new shared block (check the inventory for one with the same PURPOSE first). ' +
+      'design-system: only component previews (<name>.preview.tsx next to a component) for the /design-system viewer.',
   )
 
 async function hasBrowser(): Promise<boolean> {
@@ -113,6 +116,25 @@ export function registerGovernanceTools(server: McpServer): void {
             : null
         })(),
         inventory: buildInventory(buildGraph(r)),
+        designSystem: (() => {
+          const ds = buildDesignSystem(buildGraph(r))
+          return {
+            page: ds.page ? ds.route : null,
+            nextId: ds.nextId,
+            duplicates: ds.duplicates,
+            components: ds.components.map(c => ({
+              id: c.id ?? null,
+              name: c.name,
+              kind: c.kind,
+              file: c.file,
+              routes: c.routes,
+            })),
+            tokens: ds.tokens.map(t => ({ name: t.name, category: t.category, value: t.value, dark: t.dark ?? null })),
+            note: ds.page
+              ? 'Address components by ID (CID-007) or exact name, tokens by --name, via coherent_begin_edit target.'
+              : 'No design-system page yet. Run coherent_ds_sync once the app has its components to give them IDs and generate /design-system.',
+          }
+        })(),
       })
     }),
   )
@@ -133,20 +155,62 @@ export function registerGovernanceTools(server: McpServer): void {
         modify: z.array(z.string()).default([]).describe('Existing files you will change (project-relative).'),
         create: z.array(z.string()).default([]).describe('New files you will create (project-relative).'),
         amend: z.string().optional().describe('txId of the open edit to add files to.'),
+        target: z
+          .string()
+          .optional()
+          .describe(
+            'What the user addressed: a component ID (CID-007), an exact component name (@KpiCard), or a token (--radius). Its file is added to modify, and the scope must fit it.',
+          ),
       },
     },
     guard(async a => {
-      const s = await beginEdit(projectRoot(a.root), {
+      const r = projectRoot(a.root)
+      const s = await beginEdit(r, {
         request: a.request,
         scope: a.scope,
         modify: a.modify,
         create: a.create,
         amend: a.amend,
+        target: a.target,
         log: m => console.error(m),
       })
+      const ds = buildDesignSystem(buildGraph(r))
+      const newComponentFiles = s.create.filter(f => /(^|\/)components\/.*\.(tsx|jsx)$/.test(f))
       return ok({
         ...summary(s),
+        ...(ds.page && newComponentFiles.length
+          ? {
+              idsForNewComponents: freeIds(ds, 5),
+              idNote: 'Put `/** @coherent-id CID-NNN */` above each new exported component, using these IDs in order.',
+            }
+          : {}),
         next: 'Write only the declared files, then call coherent_verify_edit with level "fast"; when it is clean, level "final".',
+      })
+    }),
+  )
+
+  server.registerTool(
+    'coherent_ds_sync',
+    {
+      title: 'Sync the design system',
+      description:
+        'Give every component an ID (a `@coherent-id CID-NNN` comment) and write the /design-system page that lists every token and component with its ID and the pages that use it. Opens an edit that Coherent writes itself; then call coherent_verify_edit level "final" (every page must render exactly as before). Run it after the first build of an app, or when the user asks for the design system. Later edits keep the page current on their own.',
+      inputSchema: { root: ROOT },
+    },
+    guard(async a => {
+      const r = await dsSync(projectRoot(a.root), { log: m => console.error(m) })
+      if (!r.session)
+        return ok({
+          inSync: true,
+          page: r.page,
+          next: 'Nothing to do: every component has an ID and the page is current.',
+        })
+      return ok({
+        ...summary(r.session),
+        assigned: r.assigned,
+        page: r.page,
+        withoutPreview: r.withoutPreview,
+        next: 'Coherent wrote the files. Call coherent_verify_edit with level "final". Then write previews for the components listed in withoutPreview: one coherent_begin_edit with scope "design-system" creating <name>.preview.tsx files (default export, realistic data).',
       })
     }),
   )
