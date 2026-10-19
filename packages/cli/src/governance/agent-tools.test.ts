@@ -122,6 +122,29 @@ describe('agent-mode MCP tools', () => {
     expect(read('src/app/page.tsx')).toContain('<Card />')
   })
 
+  it('holds an amend to the scope the edit began with', async () => {
+    const { call } = await connect()
+    const begun = await call('coherent_begin_edit', { request: 'r', scope: 'page', modify: ['src/app/page.tsx'] })
+    await expect(
+      call('coherent_begin_edit', {
+        request: 'r',
+        scope: 'page',
+        modify: ['src/components/card.tsx'],
+        amend: begun.txId,
+      }),
+    ).rejects.toThrow(/page edit cannot change components/)
+    // Declaring an existing component as "created" does not get around it.
+    await expect(
+      call('coherent_begin_edit', {
+        request: 'r',
+        scope: 'page',
+        create: ['src/components/card.tsx'],
+        amend: begun.txId,
+      }),
+    ).rejects.toThrow(/page edit cannot change components/)
+    await call('coherent_rollback_edit', {})
+  })
+
   it('recovers the open edit from disk after a server restart', async () => {
     const a = await connect()
     const begun = await a.call('coherent_begin_edit', {
@@ -253,6 +276,9 @@ describe('design system (ADR-0013)', () => {
     ).rejects.toThrow(/A page edit cannot change components or tokens/)
     await expect(
       call('coherent_begin_edit', { request: 'r', scope: 'tokens', modify: ['src/app/page.tsx'] }),
+    ).rejects.toThrow(/A token edit changes only stylesheets/)
+    await expect(
+      call('coherent_begin_edit', { request: 'r', scope: 'tokens', create: ['src/components/swatch.tsx'] }),
     ).rejects.toThrow(/A token edit changes only stylesheets/)
   })
 
