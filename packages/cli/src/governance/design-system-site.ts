@@ -12,13 +12,20 @@
  * own error boundary. Theme utilities only, no arbitrary values.
  */
 import { posix } from 'path'
-import { DS_MARKER, type DesignSystem, type DsComponent, type TokenCategory } from './design-system.js'
+import {
+  DS_MARKER,
+  DS_SYNC_REQUEST,
+  previewPathFor,
+  type DesignSystem,
+  type DsComponent,
+  type TokenCategory,
+} from './design-system.js'
 
 export interface SiteContext {
   appName: string
   version: string
   /** Every committed edit, most recent first (activity heatmap and recent changes). */
-  edits: { label: string; verdict: string | null; at: string }[]
+  edits: { label: string; verdict: string | null; at: string; files?: string[] }[]
   /** Page routes of the app, for the sitemap. */
   pages: string[]
   /** lucide-react icons the app imports, with the files that import them. */
@@ -39,6 +46,8 @@ const FILES = [
   '_detail.tsx',
   '_icons.tsx',
   '_icon-catalog.tsx',
+  '_copy.tsx',
+  '_color.ts',
   'tokens/page.tsx',
   'tokens/colors/page.tsx',
   'tokens/typography/page.tsx',
@@ -284,12 +293,25 @@ export const hrefOf = (c: DsComponent) => '/design-system/' + c.section + '/' + 
 `
 }
 
-function renderActivity(ctx: SiteContext): string {
+function renderActivity(ds: DesignSystem, ctx: SiteContext): string {
+  const own = ctx.edits.filter(e => !e.label.startsWith(DS_SYNC_REQUEST))
+  const history: Record<string, { label: string; verdict: string | null; at: string }[]> = {}
+  for (const c of ds.components) {
+    const files = [c.file, previewPathFor(c.file)]
+    const hits = own.filter(e => e.files?.some(f => files.includes(f))).slice(0, 10)
+    if (hits.length) history[c.slug] = hits.map(({ label, verdict, at }) => ({ label, verdict, at }))
+  }
   const activity: Record<string, number> = {}
   for (const e of ctx.edits) activity[e.at.slice(0, 10)] = (activity[e.at.slice(0, 10)] ?? 0) + 1
   return `${HEAD}export const generatedAt: string | null = ${JSON.stringify(ctx.edits[0]?.at.slice(0, 10) ?? null)}
 
-export const edits: { label: string; verdict: string | null; at: string }[] = ${JSON.stringify(ctx.edits.slice(0, 10), null, 2)}
+export const edits: { label: string; verdict: string | null; at: string }[] = ${JSON.stringify(
+    ctx.edits.slice(0, 10).map(({ label, verdict, at }) => ({ label, verdict, at })),
+    null,
+    2,
+  )}
+
+export const history: Record<string, { label: string; verdict: string | null; at: string }[]> = ${JSON.stringify(history, null, 2)}
 
 export const activity: Record<string, number> = ${JSON.stringify(activity, null, 2)}
 `
@@ -782,11 +804,87 @@ export default function FoundationsPage() {
 }
 `
 
+const COLOR = `${HEAD}import type { DsToken } from './_data'
+
+export type Tok = DsToken
+export type Role = { base: Tok; fg?: Tok }
+
+export const isFg = (n: string) => n === '--foreground' || n.endsWith('-foreground')
+export const baseOf = (n: string) => (n === '--foreground' ? '--background' : n.slice(0, -'-foreground'.length))
+export const fgOf = (n: string) => (n === '--background' ? '--foreground' : n + '-foreground')
+
+/** A colour and the text colour meant to sit on it, shown together. */
+export function roles(list: Tok[], all: Map<string, Tok>): Role[] {
+  return list
+    .filter(t => !(isFg(t.name) && all.has(baseOf(t.name))))
+    .map(t => ({ base: t, fg: isFg(t.name) ? undefined : all.get(fgOf(t.name)) }))
+}
+
+export function luminance(c?: string) {
+  const m = c?.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
+  if (!m) return null
+  const h = m[1].length === 3 ? m[1].split('').map(x => x + x).join('') : m[1]
+  const [r, g, b] = [0, 2, 4]
+    .map(i => parseInt(h.slice(i, i + 2), 16) / 255)
+    .map(v => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)))
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+export function contrast(a?: string, b?: string) {
+  const x = luminance(a)
+  const y = luminance(b)
+  if (x === null || y === null) return null
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
+}
+
+export const ink = (bg?: string) => {
+  const l = luminance(bg)
+  return l === null ? undefined : l > 0.4 ? '#000000' : '#ffffff'
+}
+
+/** Every colour with a text colour meant for it, and the contrast in each theme. */
+export function pairs(tokens: Tok[]) {
+  const colors = tokens.filter(t => t.category === 'color')
+  const all = new Map(colors.map(t => [t.name, t]))
+  return roles(colors, all)
+    .filter(r => r.fg)
+    .map(r => ({
+      ...r,
+      light: contrast(r.base.value, r.fg!.value),
+      dark: contrast(r.base.dark ?? r.base.value, r.fg!.dark ?? r.fg!.value),
+    }))
+}
+`
+
+const COPY = `${HEAD}'use client'
+
+import { useState } from 'react'
+
+/** Click to copy: IDs, token names and values are what you type into an edit. */
+export function Copy({ text, className = '' }: { text: string; className?: string }) {
+  const [done, setDone] = useState(false)
+  return (
+    <button
+      type="button"
+      title={'Copy ' + text}
+      onClick={() => {
+        void navigator.clipboard?.writeText(text).then(() => {
+          setDone(true)
+          setTimeout(() => setDone(false), 1200)
+        })
+      }}
+      className={'cursor-copy transition-colors hover:text-primary ' + className}
+    >
+      {done ? 'copied' : text}
+    </button>
+  )
+}
+`
+
 const COLORS = `${HEAD}import { tokens } from '../../_data'
 import { PageTitle, Panel, SectionLabel } from '../../_ui'
-
-type Tok = (typeof tokens)[number]
-type Role = { base: Tok; fg?: Tok }
+import { Copy } from '../../_copy'
+import { contrast, ink, roles, type Role, type Tok } from '../../_color'
 
 const GROUPS: { label: string; hint: string; match: (n: string) => boolean }[] = [
   { label: 'surfaces & text', hint: 'page, cards, popovers and the text on them', match: n => /^--(background|foreground|card|popover|muted)/.test(n) },
@@ -798,39 +896,6 @@ const GROUPS: { label: string; hint: string; match: (n: string) => boolean }[] =
 ]
 
 const anchor = (n: string) => 'token' + n.slice(1)
-const isFg = (n: string) => n === '--foreground' || n.endsWith('-foreground')
-const baseOf = (n: string) => (n === '--foreground' ? '--background' : n.slice(0, -'-foreground'.length))
-const fgOf = (n: string) => (n === '--background' ? '--foreground' : n + '-foreground')
-
-/** A colour and the text colour meant to sit on it, shown together. */
-function roles(list: Tok[], all: Map<string, Tok>): Role[] {
-  return list
-    .filter(t => !(isFg(t.name) && all.has(baseOf(t.name))))
-    .map(t => ({ base: t, fg: isFg(t.name) ? undefined : all.get(fgOf(t.name)) }))
-}
-
-function luminance(c?: string) {
-  const m = c?.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
-  if (!m) return null
-  const h = m[1].length === 3 ? m[1].split('').map(x => x + x).join('') : m[1]
-  const [r, g, b] = [0, 2, 4]
-    .map(i => parseInt(h.slice(i, i + 2), 16) / 255)
-    .map(v => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)))
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b
-}
-
-function contrast(a?: string, b?: string) {
-  const x = luminance(a)
-  const y = luminance(b)
-  if (x === null || y === null) return null
-  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
-}
-
-const ink = (bg?: string) => {
-  const l = luminance(bg)
-  return l === null ? undefined : l > 0.4 ? '#000000' : '#ffffff'
-}
-
 function Contrast({ ratio, theme }: { ratio: number | null; theme: string }) {
   if (ratio === null) return null
   const ok = ratio >= 4.5
@@ -862,10 +927,15 @@ function RoleCard({ role }: { role: Role }) {
       <div className="space-y-1.5 border-t border-border p-3">
         {[base, fg].filter((t): t is Tok => !!t).map(t => (
           <div key={t.name} className="flex flex-wrap items-baseline justify-between gap-x-3">
-            <span className="font-mono text-sm text-foreground">{t.name}</span>
+            <Copy text={t.name} className="font-mono text-sm text-foreground" />
             <span className="font-mono text-xs text-muted-foreground">
-              {t.value}
-              {t.dark && t.dark !== t.value ? ' / ' + t.dark : ''}
+              <Copy text={t.value} />
+              {t.dark && t.dark !== t.value ? (
+                <>
+                  {' / '}
+                  <Copy text={t.dark} />
+                </>
+              ) : null}
             </span>
           </div>
         ))}
@@ -1225,6 +1295,8 @@ import { components } from './_data'
 import { previews, variantPreviews } from './_previews'
 import { PreviewBoundary } from './_boundary'
 import { Panel, SectionLabel } from './_ui'
+import { Copy } from './_copy'
+import { history } from './_activity'
 
 export function ComponentDetail({ slug }: { slug: string }) {
   const c = components.find(x => x.slug === slug)
@@ -1245,7 +1317,7 @@ export function ComponentDetail({ slug }: { slug: string }) {
         <SectionLabel>{(c.section === 'components' ? 'components' : 'shared') + ' · ' + c.category}</SectionLabel>
         <div className="mt-2 flex flex-wrap items-baseline gap-3">
           <h1 className="text-3xl font-medium tracking-tight">{c.name}</h1>
-          <span className="rounded-md border border-border px-2 py-0.5 font-mono text-sm">{c.id ?? 'no ID'}</span>
+          {c.id ? <Copy text={c.id} className="rounded-md border border-border bg-card px-2 py-0.5 font-mono text-sm" /> : <span className="rounded-md border border-border px-2 py-0.5 font-mono text-sm">no ID</span>}
         </div>
         <p className="mt-1 font-mono text-sm text-muted-foreground">{c.file}</p>
       </div>
@@ -1312,6 +1384,26 @@ export function ComponentDetail({ slug }: { slug: string }) {
           </div>
         </Panel>
       </div>
+
+      <Panel label={'history · ' + (history[c.slug]?.length ?? 0)}>
+        <div className="p-2">
+          {history[c.slug]?.length ? (
+            history[c.slug].map(e => (
+              <div key={e.at + e.label} className="flex items-start gap-3 border-b border-border px-3 py-2 font-mono text-xs last:border-0">
+                <span className={'mt-0.5 shrink-0 rounded-sm border border-border bg-muted px-1.5 uppercase tracking-wide ' + (e.verdict === 'verified' ? 'text-primary' : e.verdict === 'failed' ? 'text-destructive' : 'text-muted-foreground')}>
+                  {e.verdict === 'verified' ? 'verified' : e.verdict === 'failed' ? 'failed' : 'partial'}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-foreground">{e.label}</div>
+                  <div className="mt-0.5 text-muted-foreground">{e.at.slice(0, 10)}</div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="px-2 py-3 font-mono text-xs text-muted-foreground">no edits to this component yet (ID syncs not counted)</p>
+          )}
+        </div>
+      </Panel>
     </div>
   )
 }
@@ -1443,6 +1535,7 @@ export default function DocsPage() {
 const RECOMMENDATIONS = `${HEAD}import Link from 'next/link'
 import { components, duplicates, hrefOf, tokens } from '../_data'
 import { PageTitle, Panel } from '../_ui'
+import { pairs } from '../_color'
 
 const enforced = [
   ['Addressed edits stay in place', 'An edit of a component by ID or name may change only that component. Pages that use it change; pages that do not must render pixel-identically.'],
@@ -1457,16 +1550,18 @@ export default function RecommendationsPage() {
   const noPreview = components.filter(c => !c.preview && c.section === 'shared')
   const unused = components.filter(c => c.section === 'shared' && c.routes.length === 0)
   const noDark = tokens.filter(t => t.category === 'color' && !t.dark)
+  const weak = pairs(tokens).filter(p => (p.light !== null && p.light < 4.5) || (p.dark !== null && p.dark < 4.5))
   const stats = [
     { label: 'components without ID', value: components.filter(c => !c.id).length },
     { label: 'duplicate IDs', value: duplicates.length },
     { label: 'shared components without preview', value: noPreview.length },
     { label: 'components not on any page', value: unused.length },
+    { label: 'text colours below AA contrast', value: weak.length },
   ]
   return (
     <div className="flex flex-col gap-6">
       <PageTitle title="Recommendations" sub="The state of this design system, and the rules Coherent checks on every edit." />
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {stats.map(s => (
           <div key={s.label} className="rounded-lg border border-border bg-card shadow-sm p-4">
             <div className={'font-mono text-3xl font-medium tabular-nums ' + (s.value ? 'text-foreground' : 'text-primary')}>{s.value}</div>
@@ -1474,7 +1569,7 @@ export default function RecommendationsPage() {
           </div>
         ))}
       </div>
-      {noPreview.length || unused.length || noDark.length ? (
+      {noPreview.length || unused.length || noDark.length || weak.length ? (
         <Panel label="suggestions">
           <div className="divide-y divide-border text-sm">
             {noPreview.length ? (
@@ -1495,6 +1590,24 @@ export default function RecommendationsPage() {
                 <div className="flex flex-wrap gap-1.5">
                   {unused.map(c => (
                     <Link key={c.slug} href={hrefOf(c)} className="rounded-md border border-border bg-card px-2 py-0.5 font-mono text-xs hover:bg-muted">{c.name}</Link>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {weak.length ? (
+              <div className="space-y-2 px-4 py-4">
+                <div className="font-medium">Low contrast text</div>
+                <p className="text-muted-foreground">
+                  Below 4.5:1 normal text is hard to read (WCAG AA). Fix the token, for example &quot;{weak[0].fg!.name}: more contrast&quot;.
+                </p>
+                <div className="flex flex-col gap-1 font-mono text-xs">
+                  {weak.map(p => (
+                    <Link key={p.base.name} href={'/design-system/tokens/colors#token' + p.base.name.slice(1)} className="hover:underline">
+                      {p.fg!.name} on {p.base.name}
+                      <span className="text-muted-foreground">
+                        {' · light ' + (p.light?.toFixed(1) ?? '?') + ' · dark ' + (p.dark?.toFixed(1) ?? '?')}
+                      </span>
+                    </Link>
                   ))}
                 </div>
               </div>
@@ -1532,7 +1645,9 @@ export function renderDesignSystemFiles(ds: DesignSystem, appDir: string, ctx: S
     ['page.tsx', HOME],
     ['layout.tsx', LAYOUT],
     ['_data.ts', renderData(ds, ctx, live)],
-    [DS_VOLATILE, renderActivity(ctx)],
+    [DS_VOLATILE, renderActivity(ds, ctx)],
+    ['_copy.tsx', COPY],
+    ['_color.ts', COLOR],
     ['_previews.tsx', previews],
     ['_shell.tsx', SHELL],
     ['_boundary.tsx', BOUNDARY],

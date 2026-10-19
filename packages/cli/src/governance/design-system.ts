@@ -68,6 +68,8 @@ export interface DesignSystem {
 }
 
 export const DS_ROUTE = '/design-system'
+/** Label prefix of the ID-sync edit; not a change to any component's design. */
+export const DS_SYNC_REQUEST = 'Sync the design system'
 const ID_RE = /@coherent-id\s+(CID-\d+)/i
 
 export const dsPagePath = (appDir: string) => `${appDir}/design-system/page.tsx`

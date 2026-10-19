@@ -131,7 +131,20 @@ describe('design system from a project', () => {
     const files = renderDesignSystemFiles(buildDesignSystem(buildGraph(root)), 'src/app', {
       appName: 'Demo',
       version: '1.0.0',
-      edits: [],
+      edits: [
+        {
+          label: 'CID-002: bigger number',
+          verdict: 'verified',
+          at: '2026-10-19T10:00:00Z',
+          files: ['src/components/kpi-card.tsx'],
+        },
+        {
+          label: 'Sync the design system: IDs',
+          verdict: 'verified',
+          at: '2026-10-18T10:00:00Z',
+          files: ['src/components/kpi-card.tsx'],
+        },
+      ],
       pages: ['/'],
       icons: [],
       hasIcons: false,
@@ -141,6 +154,10 @@ describe('design system from a project', () => {
     const data = files.get('src/app/design-system/_data.ts')!
     expect(data).toContain('"CID-002"')
     expect(data).toContain('"--primary"')
+    const activity = files.get('src/app/design-system/_activity.ts')!
+    expect(activity).toContain('"cid-002": [')
+    expect(activity.match(/bigger number/g)).toHaveLength(2) // recent edits + KpiCard history, sync not in history
+    expect(activity).not.toContain('"files"')
     const previews = files.get('src/app/design-system/_previews.tsx')!
     expect(previews).toMatch(/import \{ Badge as C\d+_Badge \} from '\.\.\/\.\.\/components\/ui\/badge'/)
     expect(previews).toContain('variant="outline">Outline<')

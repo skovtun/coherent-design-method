@@ -21,6 +21,7 @@ import {
   buildDesignSystem,
   DS_MARKER,
   DS_ROUTE,
+  DS_SYNC_REQUEST,
   freeIds,
   isPreviewFile,
   managedPage,
@@ -332,7 +333,12 @@ function siteContext(root: string, graph: ProjectGraph, exclude?: string): SiteC
     .map(id => loadTransaction(root, id))
     .filter(t => t.status !== 'open')
     .reverse()
-    .map(t => ({ label: t.label, verdict: t.verdict ?? null, at: t.startedAt }))
+    .map(t => ({
+      label: t.label,
+      verdict: t.verdict ?? null,
+      at: t.startedAt,
+      files: [...(t.changes?.modified ?? []), ...(t.changes?.created ?? [])],
+    }))
   const icons = new Map<string, Set<string>>()
   for (const n of Object.values(graph.nodes)) {
     if (!/\.(tsx|jsx|ts)$/.test(n.id)) continue
@@ -789,7 +795,7 @@ export async function dsSync(rootInput: string, opts: { log?: (msg: string) => v
     if (current) return { session: null, assigned: [], page: plan.page, withoutPreview: pending() }
   }
   const s = await beginEdit(root, {
-    request: 'Sync the design system: component IDs and the /design-system viewer',
+    request: `${DS_SYNC_REQUEST}: component IDs and the /design-system viewer`,
     scope: 'design-system',
     internal: true,
     modify: [...plan.annotations.keys(), ...files.filter(f => existsSync(join(root, f))), ...obsolete],
