@@ -4,7 +4,7 @@ type: adr
 status: accepted
 date: 2026-10-19
 confidence: verified
-shipped_in: []
+shipped_in: [0.28.0]
 ---
 
 # ADR 0013 — Design system from code: addressable components and tokens in agent mode
@@ -51,6 +51,8 @@ Live previews: primitives get generated renders (recipes emitted only when every
 Owner feedback: keep the classic viewer's structure. The viewer now mirrors it (sidebar with group icons and counts, expanding component lists, breadcrumbs, theme toggle, version footer; Overview with activity heatmap, quick links and recent edits; Foundations: Color, Typography, Spacing & radius, Icons; Base Components; Shared Components; Sitemap built from the graph; Documentation with handoff commands; Recommendations with health, suggestions and the enforced rules), fed by the code instead of the classic config. Icons: Lucide (shadcn's set) is the standard; the Icons page lists the icons the app imports (aliases like `CheckIcon` folded into `Check`) and searches the whole library. Volatile activity data lives in `_activity.ts` so it never makes the viewer stale; generated files a newer viewer no longer produces are deleted inside the edit.
 
 Found on the way (general, not viewer-specific): Next.js route types under `.next/` (build and stopped dev server) keep listing a deleted route, so removing a page failed typecheck and `next build`. Typecheck now ignores errors in `.next/` (the production build is the gate), and the verification build clears `.next/dev/types` like it already clears `.next/cache`.
+
+Owner review round (same day): heatmap cells are fixed 2px squares in calendar weeks (the app's own `rounded-sm` made them circles); colours are grouped and paired with their foreground, with WCAG contrast, and the palette links to each card; the sitemap groups pages by section; usage shows a real JSX use from the app (richest within 30 lines) instead of a bare tag; per-component edit history from transaction file lists (ID syncs excluded); low-contrast pairs surface in Recommendations; IDs and colour values copy on click.
 
 ### Deferred (slices 2-3)
 

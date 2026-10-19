@@ -12,6 +12,25 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.28.0] — 2026-10-19 — feat: a design system you can address, read from the code
+
+Agent mode now builds a design system alongside the app ([ADR-0013](./wiki/ADR/0013-design-system-from-code.md)). Every component carries an ID in its source, tokens are read from the stylesheets, and `/design-system` shows all of it. "CID-008: bigger number" changes that component only, and every page using it follows.
+
+- **IDs in the source.** Each exported component gets a `/** @coherent-id CID-NNN */` comment. Renames, moves and edits keep it; nothing is stored outside the code. A `components/ui` file is one entry (Select), its other exports are parts (SelectItem). Kinds by reach: primitive, shared (2+ pages), block.
+- **`coherent_ds_sync` / `coherent ds sync`.** One verified, undoable edit writes the IDs and the viewer; every page must render pixel-identically.
+- **Edit by target.** `coherent_begin_edit` takes `target`: `CID-007`, `@KpiCard`, `--radius`. Exact match only. The scope is enforced: a page edit cannot restyle components or tokens; an addressed component edit touches only that file. New components without an ID, or with a taken one, fail verification with the next free ID.
+- **Ask before changing shared things for one page.** The agent asks: a new component or token for that page, or update it everywhere.
+- **`/design-system` viewer**, regenerated inside every edit before the build, so it is verified and undone with the edit:
+  - Overview: counts, a GitHub-style activity heatmap, quick links, recent edits with verdicts.
+  - Color: palette strip (click a colour to jump to it); each colour paired with its text colour in light and dark, with WCAG contrast. Typography, Spacing & radius.
+  - Icons: Lucide is the standard set; the icons the app uses, and a search over the whole library.
+  - Base and Shared components with live previews (generated for primitives, authored `<name>.preview.tsx` for the rest), cva variants rendered live, props, parts, pages, a real usage example taken from the app, and the component's edit history.
+  - Sitemap grouped by section with the components each page uses; Documentation; Recommendations (missing IDs or previews, unused components, low-contrast text colours, the rules enforced on every edit).
+  - IDs, token names and colour values copy on click.
+- **Agent template**: component-first, IDs for new components, Lucide icons only unless the user picks another set, the user's own colours, fonts and radius win over any design direction, components named in words are resolved to their ID (the agent asks when it is ambiguous).
+
+**Fixed:** after a page was deleted, typecheck and `next build` failed on stale Next.js route types under `.next/`. Typecheck now ignores errors inside `.next/`, and the verification build clears `.next/dev/types`.
+
 ## [0.27.1] — 2026-10-19 — chore: describe Coherent as what it now is
 
 - The CLI banner still said "AI-powered design system generator" (retired before 0.27.0). It now reads "the model designs, Coherent governs" with the canonical definition.
