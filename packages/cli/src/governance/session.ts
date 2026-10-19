@@ -15,10 +15,11 @@
  * (session.json), so a restarted MCP server or CLI picks the session up.
  */
 import { createHash } from 'crypto'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { dirname, join, resolve } from 'path'
 import {
   buildDesignSystem,
+  DS_MARKER,
   DS_ROUTE,
   freeIds,
   isPreviewFile,
@@ -27,7 +28,7 @@ import {
   resolveTarget,
   type ResolvedTarget,
 } from './design-system.js'
-import { dsFiles, renderDesignSystemFiles, type SiteContext } from './design-system-site.js'
+import { DS_VOLATILE, dsFiles, renderDesignSystemFiles, type SiteContext } from './design-system-site.js'
 import { buildGraph, type Impact, type ProjectGraph } from './graph.js'
 import { scanLeaks, type Leak } from './privacy.js'
 import { withImpact, type EditScope } from './router.js'
@@ -309,30 +310,86 @@ export function checkScope(graph: ProjectGraph, scope: EditScope, modify: string
     throw new Error(`A token edit changes only stylesheets; ${notStyle.join(', ')} need their own edit.`)
 }
 
-function siteContext(root: string, exclude?: string): SiteContext {
-  let appName = 'App'
+const LUCIDE_IMPORT = /import\s*(?:type\s*)?\{([^}]*)\}\s*from\s*['"]lucide-react['"]/g
+
+function siteContext(root: string, graph: ProjectGraph, exclude?: string): SiteContext {
+  let pkg: Record<string, unknown> = {}
   try {
-    const name = String(JSON.parse(readFileSync(join(root, 'package.json'), 'utf-8')).name ?? '')
-    if (name)
-      appName = name
+    pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf-8'))
+  } catch {
+    // no package.json: defaults below
+  }
+  const rawName = String(pkg.name ?? '')
+  const appName = rawName
+    ? rawName
         .replace(/^@[^/]+\//, '')
         .replace(/[-_]+/g, ' ')
         .replace(/\b\w/g, c => c.toUpperCase())
-  } catch {
-    // no package.json name: keep the default
-  }
+    : 'App'
+  const deps = { ...(pkg.dependencies as object), ...(pkg.devDependencies as object) } as Record<string, string>
   const edits = listTransactions(root, { active: true })
     .filter(id => id !== exclude)
     .map(id => loadTransaction(root, id))
     .filter(t => t.status !== 'open')
     .reverse()
-    .slice(0, 8)
     .map(t => ({ label: t.label, verdict: t.verdict ?? null, at: t.startedAt }))
-  return { appName, edits }
+  const icons = new Map<string, Set<string>>()
+  for (const n of Object.values(graph.nodes)) {
+    if (!/\.(tsx|jsx|ts)$/.test(n.id)) continue
+    const text = readFileSync(join(root, n.id), 'utf-8')
+    for (const m of text.matchAll(LUCIDE_IMPORT))
+      for (const spec of m[1].split(',')) {
+        const raw = spec
+          .trim()
+          .replace(/^type\s+/, '')
+          .split(/\s+as\s+/)[0]
+          .trim()
+        // Types and the generic Icon are not icons.
+        if (
+          !/^[A-Z]\w*$/.test(raw) ||
+          ['LucideIcon', 'LucideProps', 'Icon', 'IconNode'].includes(raw) ||
+          raw.endsWith('Props')
+        )
+          continue
+        // Lucide exports each icon as Name, NameIcon and LucideName: one icon.
+        const name = raw.replace(/^Lucide(?=[A-Z])/, '').replace(/(?<=.)Icon$/, '')
+        icons.set(name, (icons.get(name) ?? new Set()).add(n.id))
+      }
+  }
+  return {
+    appName,
+    version: String(pkg.version ?? '0.0.0'),
+    edits,
+    pages: Object.values(graph.nodes)
+      .filter(n => n.kind === 'page')
+      .map(n => n.route!)
+      .sort(),
+    icons: [...icons]
+      .map(([name, files]) => ({ name, files: [...files].sort() }))
+      .sort((x, y) => x.name.localeCompare(y.name)),
+    hasIcons: 'lucide-react' in deps,
+  }
 }
 
 const renderSite = (root: string, graph: ProjectGraph, exclude?: string) =>
-  renderDesignSystemFiles(buildDesignSystem(graph), graph.appDir, siteContext(root, exclude))
+  renderDesignSystemFiles(buildDesignSystem(graph), graph.appDir, siteContext(root, graph, exclude))
+
+/** Generated viewer files no longer produced (an older viewer's pages): removed inside the edit. */
+function obsoleteDsFiles(root: string, appDir: string): string[] {
+  const dir = join(root, appDir, 'design-system')
+  if (!existsSync(dir)) return []
+  const keep = new Set(dsFiles(appDir))
+  const out: string[] = []
+  const walk = (d: string, rel: string) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const r = `${rel}/${e.name}`
+      if (e.isDirectory()) walk(join(d, e.name), r)
+      else if (!keep.has(r) && readFileSync(join(d, e.name), 'utf-8').slice(0, 300).includes(DS_MARKER)) out.push(r)
+    }
+  }
+  walk(dir, `${appDir}/design-system`)
+  return out.sort()
+}
 
 /**
  * The generated viewer joins every edit that changes components or tokens, so
@@ -356,7 +413,9 @@ function withDesignSystemFiles(
         ['component', 'ui', 'style'].includes(graph.nodes[f]?.kind ?? ''),
     )
   if (!shapes) return { modify, create }
-  const files = dsFiles(graph.appDir).filter(f => !modify.includes(f) && !create.includes(f))
+  const files = [...dsFiles(graph.appDir), ...obsoleteDsFiles(root, graph.appDir)].filter(
+    f => !modify.includes(f) && !create.includes(f),
+  )
   return {
     modify: [...modify, ...files.filter(f => existsSync(join(root, f)))],
     create: [...create, ...files.filter(f => !existsSync(join(root, f)))],
@@ -374,6 +433,13 @@ function refreshDesignSystemFiles(root: string, s: Pick<EditSession, 'modify' | 
     if (!declared.has(file)) continue
     mkdirSync(dirname(join(root, file)), { recursive: true })
     writeFileSync(join(root, file), text)
+  }
+  for (const file of obsoleteDsFiles(root, graph.appDir)) {
+    if (!declared.has(file)) continue
+    rmSync(join(root, file))
+    // Leave no empty route folder behind.
+    const dir = dirname(join(root, file))
+    if (!readdirSync(dir).length) rmSync(dir, { recursive: true })
   }
 }
 
@@ -697,10 +763,6 @@ export interface DsSyncResult {
   withoutPreview: { id: string | null; name: string; file: string }[]
 }
 
-/** Viewer files compared without the activity list, which changes with every edit. */
-const withoutActivity = (text: string) =>
-  text.replace(/export const edits[\s\S]*?\n\]\n|export const edits[^\n]*\n/, '')
-
 /**
  * Give every component an ID and (re)write the /design-system viewer, as a
  * normal edit: Coherent declares and writes the files, the caller verifies.
@@ -715,12 +777,14 @@ export async function dsSync(rootInput: string, opts: { log?: (msg: string) => v
     buildDesignSystem(buildGraph(root))
       .components.filter(c => c.kind !== 'ui' && !c.preview)
       .map(c => ({ id: c.id ?? null, name: c.name, file: c.file }))
-  if (!plan.annotations.size && plan.pageExists) {
+  const obsolete = obsoleteDsFiles(root, graph.appDir)
+  if (!plan.annotations.size && plan.pageExists && !obsolete.length) {
     const fresh = renderSite(root, graph)
+    // The activity file changes with every edit; it alone never makes the viewer stale.
     const current = files.every(
       f =>
-        existsSync(join(root, f)) &&
-        withoutActivity(readFileSync(join(root, f), 'utf-8')) === withoutActivity(fresh.get(f) ?? ''),
+        f.endsWith(`/${DS_VOLATILE}`) ||
+        (existsSync(join(root, f)) && readFileSync(join(root, f), 'utf-8') === fresh.get(f)),
     )
     if (current) return { session: null, assigned: [], page: plan.page, withoutPreview: pending() }
   }
@@ -728,7 +792,7 @@ export async function dsSync(rootInput: string, opts: { log?: (msg: string) => v
     request: 'Sync the design system: component IDs and the /design-system viewer',
     scope: 'design-system',
     internal: true,
-    modify: [...plan.annotations.keys(), ...files.filter(f => existsSync(join(root, f)))],
+    modify: [...plan.annotations.keys(), ...files.filter(f => existsSync(join(root, f))), ...obsolete],
     create: files.filter(f => !existsSync(join(root, f))),
     log: opts.log,
   })

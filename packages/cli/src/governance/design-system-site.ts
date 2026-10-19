@@ -16,27 +16,48 @@ import { DS_MARKER, type DesignSystem, type DsComponent, type TokenCategory } fr
 
 export interface SiteContext {
   appName: string
-  /** Most recent edits first. */
+  version: string
+  /** Every committed edit, most recent first (activity heatmap and recent changes). */
   edits: { label: string; verdict: string | null; at: string }[]
+  /** Page routes of the app, for the sitemap. */
+  pages: string[]
+  /** lucide-react icons the app imports, with the files that import them. */
+  icons: { name: string; files: string[] }[]
+  /** lucide-react is a dependency: the Icons page can browse the whole set. */
+  hasIcons: boolean
 }
 
 const FILES = [
   'page.tsx',
   'layout.tsx',
   '_data.ts',
+  '_activity.ts',
   '_previews.tsx',
-  '_nav.tsx',
+  '_shell.tsx',
   '_boundary.tsx',
+  '_ui.tsx',
+  '_detail.tsx',
+  '_icons.tsx',
+  '_icon-catalog.tsx',
+  'tokens/page.tsx',
   'tokens/colors/page.tsx',
   'tokens/typography/page.tsx',
   'tokens/spacing/page.tsx',
+  'tokens/icons/page.tsx',
   'components/page.tsx',
   'components/[id]/page.tsx',
-  'rules/page.tsx',
+  'shared/page.tsx',
+  'shared/[id]/page.tsx',
+  'sitemap/page.tsx',
+  'docs/page.tsx',
+  'recommendations/page.tsx',
 ]
 
 /** Every file of the viewer, project-relative; `page.tsx` first (it carries the ownership marker). */
 export const dsFiles = (appDir: string) => FILES.map(f => `${appDir}/design-system/${f}`)
+
+/** Changes with every edit; compared separately when checking the viewer is current. */
+export const DS_VOLATILE = '_activity.ts'
 
 const HEAD = `// ${DS_MARKER}: written by Coherent from the code on every edit that touches components or tokens. Do not edit by hand.\n`
 
@@ -200,7 +221,13 @@ function renderData(ds: DesignSystem, ctx: SiteContext, live: Set<string>): stri
     slug: c.slug,
     name: c.name,
     kind: KIND_LABEL[c.kind],
-    category: c.kind === 'ui' ? (PRIMITIVE_CATEGORY[c.name] ?? 'Other') : null,
+    section: c.kind === 'ui' ? 'components' : 'shared',
+    category:
+      c.kind === 'ui'
+        ? (PRIMITIVE_CATEGORY[c.name] ?? 'Other')
+        : c.kind === 'shared'
+          ? 'Used on several pages'
+          : 'Page blocks',
     file: c.file,
     props: c.props ? c.props.replace(/\s+/g, ' ').slice(0, 400) : null,
     parts: c.parts ?? [],
@@ -213,12 +240,17 @@ function renderData(ds: DesignSystem, ctx: SiteContext, live: Set<string>): stri
       .filter(t => t.category === cat)
       .map(t => ({ name: t.name, category: t.category, value: t.value, dark: t.dark ?? null })),
   )
+  const pages = ctx.pages.map(route => ({
+    route,
+    components: ds.components.filter(c => c.routes.includes(route)).map(c => c.slug),
+  }))
   return `${HEAD}export interface DsComponent {
   id: string | null
   slug: string
   name: string
   kind: 'Primitive' | 'Shared' | 'Block'
-  category: string | null
+  section: 'components' | 'shared'
+  category: string
   file: string
   props: string | null
   parts: string[]
@@ -234,86 +266,319 @@ export interface DsToken {
   dark: string | null
 }
 
-export const app = ${JSON.stringify({ name: ctx.appName })}
+export const app = ${JSON.stringify({ name: ctx.appName, version: ctx.version })}
 
 export const components: DsComponent[] = ${JSON.stringify(components, null, 2)}
 
 export const tokens: DsToken[] = ${JSON.stringify(tokens, null, 2)}
 
-export const edits: { label: string; verdict: string | null; at: string }[] = ${JSON.stringify(ctx.edits.slice(0, 8), null, 2)}
+export const pages: { route: string; components: string[] }[] = ${JSON.stringify(pages, null, 2)}
+
+export const icons: { name: string; files: string[] }[] = ${JSON.stringify(ctx.icons, null, 2)}
 
 export const duplicates: { id: string; components: string[] }[] = ${JSON.stringify(ds.duplicates)}
+
+export const hrefOf = (c: DsComponent) => '/design-system/' + c.section + '/' + c.slug
 `
 }
 
-const NAV = `${HEAD}'use client'
+function renderActivity(ctx: SiteContext): string {
+  const activity: Record<string, number> = {}
+  for (const e of ctx.edits) activity[e.at.slice(0, 10)] = (activity[e.at.slice(0, 10)] ?? 0) + 1
+  return `${HEAD}export const generatedAt: string | null = ${JSON.stringify(ctx.edits[0]?.at.slice(0, 10) ?? null)}
+
+export const edits: { label: string; verdict: string | null; at: string }[] = ${JSON.stringify(ctx.edits.slice(0, 10), null, 2)}
+
+export const activity: Record<string, number> = ${JSON.stringify(activity, null, 2)}
+`
+}
+
+const UI = `${HEAD}import type { ReactNode } from 'react'
+
+export function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-1.5 font-mono text-xs uppercase tracking-widest text-muted-foreground">
+      <span className="size-1.5 rounded-sm bg-primary" />
+      {children}
+    </div>
+  )
+}
+
+export function Panel({ label, right, children }: { label: string; right?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="rounded-md border border-border bg-card">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <SectionLabel>{label}</SectionLabel>
+        {right}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+export function PageTitle({ title, sub }: { title: string; sub?: ReactNode }) {
+  return (
+    <div>
+      <h1 className="text-3xl font-medium tracking-tight text-foreground">{title}</h1>
+      {sub ? <p className="mt-1 text-sm text-muted-foreground">{sub}</p> : null}
+    </div>
+  )
+}
+
+export function Arrow({ className = '' }: { className?: string }) {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className}>
+      <path d="M5 12h14" />
+      <path d="m12 5 7 7-7 7" />
+    </svg>
+  )
+}
+`
+
+const SHELL = `${HEAD}'use client'
 
 import Link from 'next/link'
+import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { usePathname } from 'next/navigation'
-import { app, components, tokens } from './_data'
+import { app, components, pages, tokens } from './_data'
+import { generatedAt } from './_activity'
 
-const sections = [
+type Icon = 'foundations' | 'base' | 'shared' | 'sitemap' | 'docs' | 'recs'
+type Group = { label: string; href: string; prefix: string; icon: Icon; links: { href: string; label: string }[]; count: number | null }
+
+const base = components.filter(c => c.section === 'components')
+const shared = components.filter(c => c.section === 'shared')
+
+const TOP: Group[] = [
   {
     label: 'Foundations',
-    items: [
-      { label: 'Colors', href: '/design-system/tokens/colors', count: tokens.filter(t => t.category === 'color').length },
-      { label: 'Typography', href: '/design-system/tokens/typography', count: null },
-      { label: 'Spacing, radius, shadow', href: '/design-system/tokens/spacing', count: null },
+    href: '/design-system/tokens',
+    prefix: '/design-system/tokens',
+    icon: 'foundations',
+    count: tokens.length,
+    links: [
+      { href: '/design-system/tokens/colors', label: 'Color' },
+      { href: '/design-system/tokens/typography', label: 'Typography' },
+      { href: '/design-system/tokens/spacing', label: 'Spacing & radius' },
+      { href: '/design-system/tokens/icons', label: 'Icons' },
     ],
   },
   {
-    label: 'Components',
-    items: [
-      { label: 'All components', href: '/design-system/components', count: components.length },
-      { label: 'Shared', href: '/design-system/components#shared', count: components.filter(c => c.kind === 'Shared').length },
-      { label: 'Blocks', href: '/design-system/components#blocks', count: components.filter(c => c.kind === 'Block').length },
-      { label: 'Primitives', href: '/design-system/components#primitives', count: components.filter(c => c.kind === 'Primitive').length },
+    label: 'Base Components',
+    href: '/design-system/components',
+    prefix: '/design-system/components',
+    icon: 'base',
+    count: base.length,
+    links: [
+      { href: '/design-system/components', label: 'All components' },
+      ...base.map(c => ({ href: '/design-system/components/' + c.slug, label: c.name })),
     ],
   },
-  { label: 'Governance', items: [{ label: 'Rules', href: '/design-system/rules', count: null }] },
+  {
+    label: 'Shared Components',
+    href: '/design-system/shared',
+    prefix: '/design-system/shared',
+    icon: 'shared',
+    count: shared.length,
+    links: [
+      { href: '/design-system/shared', label: 'All shared components' },
+      ...shared.map(c => ({ href: '/design-system/shared/' + c.slug, label: c.name })),
+    ],
+  },
 ]
 
-export function DsNav() {
-  const path = usePathname()
-  const link = (href: string) =>
-    'flex items-center justify-between rounded-md px-3 py-1.5 text-sm ' +
-    (href === path || (href === '/design-system/components' && path.startsWith(href + '/'))
-      ? 'bg-muted font-medium text-foreground'
-      : 'text-muted-foreground hover:text-foreground')
+const TAIL: Group[] = [
+  { label: 'Sitemap', href: '/design-system/sitemap', prefix: '/design-system/sitemap', icon: 'sitemap', count: pages.length, links: [] },
+  { label: 'Documentation', href: '/design-system/docs', prefix: '/design-system/docs', icon: 'docs', count: null, links: [] },
+  { label: 'Recommendations', href: '/design-system/recommendations', prefix: '/design-system/recommendations', icon: 'recs', count: null, links: [] },
+]
+
+function GroupIcon({ name }: { name: Icon }) {
+  const p = { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true }
+  if (name === 'foundations') return <svg {...p}><path d="M12 2 2 7l10 5 10-5-10-5z" /><path d="m2 17 10 5 10-5" /><path d="m2 12 10 5 10-5" /></svg>
+  if (name === 'base') return <svg {...p}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><path d="m3.3 7 8.7 5 8.7-5" /><path d="M12 22V12" /></svg>
+  if (name === 'shared') return <svg {...p}><rect width="7" height="7" x="3" y="3" rx="1" /><rect width="7" height="7" x="14" y="3" rx="1" /><rect width="7" height="7" x="14" y="14" rx="1" /><rect width="7" height="7" x="3" y="14" rx="1" /></svg>
+  if (name === 'sitemap') return <svg {...p}><circle cx="12" cy="5" r="2" /><circle cx="5" cy="19" r="2" /><circle cx="19" cy="19" r="2" /><path d="M12 7v4" /><path d="M5 17v-2a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v2" /></svg>
+  if (name === 'docs') return <svg {...p}><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" /></svg>
+  return <svg {...p}><path d="M9 18h6" /><path d="M10 22h4" /><path d="M12 2a7 7 0 0 0-4 12.7c.5.4 1 .9 1 1.6V18h6v-1.7c0-.7.5-1.2 1-1.6A7 7 0 0 0 12 2Z" /></svg>
+}
+
+function ThemeToggle() {
+  const [dark, setDark] = useState(false)
+  useEffect(() => setDark(document.documentElement.classList.contains('dark')), [])
   return (
-    <>
-      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col gap-6 overflow-y-auto border-r p-4 md:flex">
-        <div className="px-3">
-          <Link href="/design-system" className="font-semibold">
-            {app.name}
-          </Link>
-          <div className="text-xs uppercase tracking-widest text-muted-foreground">Design system</div>
-        </div>
-        <Link href="/" className="px-3 text-sm text-muted-foreground hover:text-foreground">
-          ← Back to app
+    <button
+      type="button"
+      onClick={() => {
+        const next = !dark
+        setDark(next)
+        document.documentElement.classList.toggle('dark', next)
+      }}
+      aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
+      className="inline-flex size-8 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:text-foreground"
+    >
+      {dark ? (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2" /><path d="M12 20v2" /><path d="m4.93 4.93 1.41 1.41" /><path d="m17.66 17.66 1.41 1.41" /><path d="M2 12h2" /><path d="M20 12h2" /><path d="m6.34 17.66-1.41 1.41" /><path d="m19.07 4.93-1.41 1.41" /></svg>
+      ) : (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" /></svg>
+      )}
+    </button>
+  )
+}
+
+const SECTION_LABEL: Record<string, string> = {
+  tokens: 'Foundations',
+  components: 'Base Components',
+  shared: 'Shared Components',
+  sitemap: 'Sitemap',
+  docs: 'Documentation',
+  recommendations: 'Recommendations',
+}
+
+function crumbs(path: string): { label: string; href: string }[] {
+  const parts = path.replace('/design-system', '').split('/').filter(Boolean)
+  if (!parts.length) return []
+  const out = [{ label: SECTION_LABEL[parts[0]] ?? parts[0], href: '/design-system/' + parts[0] }]
+  if (parts[1]) {
+    const c = components.find(x => x.slug === parts[1])
+    out.push({ label: c ? c.name : parts[1].charAt(0).toUpperCase() + parts[1].slice(1).replace(/-/g, ' '), href: path })
+  }
+  return out
+}
+
+export function Shell({ children }: { children: ReactNode }) {
+  const path = usePathname() ?? '/design-system'
+  const [open, setOpen] = useState(false)
+  const inGroup = (g: Group) => path === g.prefix || path.startsWith(g.prefix + '/') || g.links.some(l => l.href === path)
+
+  const renderGroup = (g: Group) => {
+    const active = inGroup(g)
+    return (
+      <div key={g.label} className="mb-1">
+        <Link
+          href={g.href}
+          onClick={() => setOpen(false)}
+          className={
+            'flex items-center gap-2.5 rounded-md px-3 py-1.5 text-xs font-medium uppercase tracking-widest transition-colors ' +
+            (active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground')
+          }
+        >
+          <span className={active ? 'shrink-0 text-foreground' : 'shrink-0 text-muted-foreground'}>
+            <GroupIcon name={g.icon} />
+          </span>
+          <span className="flex-1">{g.label}</span>
+          {g.count ? <span className="font-mono text-xs normal-case tracking-normal tabular-nums text-muted-foreground">{g.count}</span> : null}
         </Link>
-        {sections.map(s => (
-          <div key={s.label} className="space-y-1">
-            <div className="px-3 text-xs font-medium uppercase tracking-widest text-muted-foreground">{s.label}</div>
-            {s.items.map(i => (
-              <Link key={i.href} href={i.href} className={link(i.href)}>
-                <span>{i.label}</span>
-                {i.count !== null ? <span className="text-xs tabular-nums text-muted-foreground">{i.count}</span> : null}
+        {active && g.links.length ? (
+          <div className="mb-3 mt-1 flex flex-col gap-px">
+            {g.links.map(l => (
+              <Link
+                key={l.href}
+                href={l.href}
+                onClick={() => setOpen(false)}
+                className={
+                  'rounded-md px-3 py-1.5 text-sm transition-colors ' +
+                  (path === l.href ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground')
+                }
+              >
+                {l.label}
               </Link>
             ))}
           </div>
-        ))}
-      </aside>
-      <nav className="flex gap-4 overflow-x-auto border-b px-4 py-3 text-sm md:hidden">
-        <Link href="/design-system" className="font-semibold">
-          Design system
-        </Link>
-        <Link href="/design-system/tokens/colors">Colors</Link>
-        <Link href="/design-system/tokens/typography">Type</Link>
-        <Link href="/design-system/components">Components</Link>
-        <Link href="/design-system/rules">Rules</Link>
-      </nav>
+        ) : null}
+      </div>
+    )
+  }
+
+  const nav = (
+    <>
+      {TOP.map(renderGroup)}
+      <div className="my-3 border-t border-border" />
+      {TAIL.map(renderGroup)}
     </>
+  )
+  const back = (
+    <Link href="/" onClick={() => setOpen(false)} className="inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7" /><path d="M19 12H5" /></svg>
+      Back to App
+    </Link>
+  )
+  const trail = crumbs(path)
+
+  return (
+    <div className="flex min-h-dvh bg-background text-foreground">
+      <aside className="hidden w-64 shrink-0 border-r border-border bg-muted/30 md:block">
+        <div className="sticky top-0 flex h-dvh flex-col">
+          <div className="px-5 pb-4 pt-5">
+            <Link href="/design-system" className="block">
+              <div className="font-semibold tracking-tight text-foreground">{app.name}</div>
+              <div className="mt-0.5 text-xs uppercase tracking-widest text-muted-foreground">Design System</div>
+            </Link>
+          </div>
+          <div className="border-b border-border" />
+          <div className="px-3 py-2">{back}</div>
+          <div className="border-b border-border" />
+          <nav aria-label="Design System navigation" className="flex-1 overflow-y-auto px-3 py-4">
+            {nav}
+          </nav>
+          <div className="border-t border-border px-5 py-3 font-mono text-xs text-muted-foreground">
+            <div>version · <span className="tabular-nums text-foreground">{app.version}</span></div>
+            <div>updated · <span className="tabular-nums text-foreground">{generatedAt ?? '—'}</span></div>
+          </div>
+        </div>
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-40 flex h-12 items-center justify-between border-b border-border bg-background/90 px-4 backdrop-blur lg:px-6">
+          <div className="flex items-center gap-3 md:hidden">
+            <Link href="/design-system" className="text-sm font-semibold tracking-tight">{app.name}</Link>
+            <span className="text-xs uppercase tracking-widest text-muted-foreground">DS</span>
+          </div>
+          <div className="hidden items-center gap-1.5 text-sm text-muted-foreground md:flex">
+            <Link href="/design-system" className="transition-colors hover:text-foreground">Design System</Link>
+            {trail.map((c, i) => (
+              <Fragment key={c.href + i}>
+                <span aria-hidden>/</span>
+                {i === trail.length - 1 ? (
+                  <span className="text-foreground">{c.label}</span>
+                ) : (
+                  <Link href={c.href} className="transition-colors hover:text-foreground">{c.label}</Link>
+                )}
+              </Fragment>
+            ))}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <ThemeToggle />
+            <button
+              type="button"
+              onClick={() => setOpen(!open)}
+              aria-label={open ? 'Close menu' : 'Open menu'}
+              className="inline-flex size-8 items-center justify-center rounded-md border border-border bg-card text-muted-foreground md:hidden"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                {open ? (<><path d="M18 6 6 18" /><path d="m6 6 12 12" /></>) : (<><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h16" /></>)}
+              </svg>
+            </button>
+          </div>
+        </header>
+        {open ? (
+          <div className="border-b border-border bg-background px-3 py-4 md:hidden">
+            <div className="mb-3">{back}</div>
+            {nav}
+          </div>
+        ) : null}
+        <main className="flex-1">
+          <div className="mx-auto w-full max-w-7xl px-4 py-6 lg:px-6 lg:py-8">{children}</div>
+          <div className="mx-auto w-full max-w-7xl px-4 pb-4 lg:px-6">
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-t border-border pt-4 text-xs text-muted-foreground">
+              <a href="https://getcoherent.design" target="_blank" rel="noopener noreferrer" className="font-medium text-foreground transition-colors hover:text-primary">Coherent Design Method</a>
+              <span aria-hidden>·</span>
+              <span>design system read from this app&apos;s code</span>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
   )
 }
 `
@@ -329,91 +594,171 @@ export class PreviewBoundary extends Component<{ children: ReactNode }, { error:
     return { error: e.message }
   }
   render() {
-    return this.state.error ? (
-      <p className="text-sm text-destructive">Preview failed: {this.state.error}</p>
-    ) : (
-      this.props.children
-    )
+    return this.state.error ? <p className="text-sm text-destructive">Preview failed: {this.state.error}</p> : this.props.children
   }
 }
 `
 
 const LAYOUT = `${HEAD}import type { ReactNode } from 'react'
-import { DsNav } from './_nav'
+import { Shell } from './_shell'
 
-export const metadata = { title: 'Design system' }
+export const metadata = { title: 'Design System' }
 
 export default function DesignSystemLayout({ children }: { children: ReactNode }) {
+  return <Shell>{children}</Shell>
+}
+`
+
+const HOME = `${HEAD}import Link from 'next/link'
+import { components, icons, pages, tokens } from './_data'
+import { activity, edits } from './_activity'
+import { Arrow, PageTitle, Panel } from './_ui'
+
+const WEEKS = 52
+const levelColor = (l: number) =>
+  l === 0 ? 'var(--border)' : l === 4 ? 'var(--primary)' : 'color-mix(in srgb, var(--primary) ' + l * 25 + '%, var(--border))'
+
+export default function DesignSystemHome() {
+  const base = components.filter(c => c.section === 'components').length
+  const shared = components.filter(c => c.section === 'shared').length
+  const colors = tokens.filter(t => t.category === 'color').length
+  const total = Object.values(activity).reduce((a, b) => a + b, 0)
+  const end = new Date()
+  const days = Array.from({ length: WEEKS * 7 }, (_, i) => {
+    const d = new Date(end)
+    d.setDate(d.getDate() - (WEEKS * 7 - 1 - i))
+    return d.toISOString().slice(0, 10)
+  })
+  const summary = [
+    { href: '/design-system/tokens', label: 'foundations', value: tokens.length, hint: 'tokens · colors · type' },
+    { href: '/design-system/components', label: 'base', value: base, hint: 'shadcn primitives' },
+    { href: '/design-system/shared', label: 'shared', value: shared, hint: 'product components' },
+    { href: '/design-system/sitemap', label: 'pages', value: pages.length, hint: 'sitemap & usage' },
+  ]
+  const links = [
+    { href: '/design-system/tokens/colors', label: 'Colors', meta: String(colors), swatches: true },
+    { href: '/design-system/tokens/typography', label: 'Typography', meta: '' },
+    { href: '/design-system/tokens/spacing', label: 'Spacing & Radius', meta: '' },
+    { href: '/design-system/tokens/icons', label: 'Icons', meta: String(icons.length) },
+    { href: '/design-system/components', label: 'Base Components', meta: String(base) },
+    { href: '/design-system/shared', label: 'Shared Components', meta: String(shared) },
+    { href: '/design-system/sitemap', label: 'Sitemap', meta: String(pages.length) },
+    { href: '/design-system/docs', label: 'Documentation', meta: '' },
+    { href: '/design-system/recommendations', label: 'Recommendations', meta: '' },
+  ]
   return (
-    <div className="min-h-dvh bg-background text-foreground md:flex">
-      <DsNav />
-      <div className="min-w-0 flex-1">
-        <main className="mx-auto max-w-6xl px-6 py-10 lg:px-10">{children}</main>
+    <div className="flex flex-col gap-6">
+      <PageTitle title="Design System" sub="Components, tokens and recent activity, read from this app's code." />
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {summary.map(s => (
+          <Link key={s.href} href={s.href} className="group rounded-md border border-border bg-card p-4 transition-colors hover:border-primary hover:bg-muted">
+            <div className="font-mono text-xs uppercase tracking-widest text-muted-foreground">{s.label}</div>
+            <div className="mt-1.5 font-mono text-3xl font-medium tabular-nums text-foreground">{s.value}</div>
+            <div className="mt-2 flex items-center justify-between font-mono text-xs text-muted-foreground">
+              <span>{s.hint}</span>
+              <Arrow className="transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      <Panel label="activity · last year" right={<span className="font-mono text-xs tabular-nums text-muted-foreground">{total} edits</span>}>
+        <div className="overflow-x-auto p-4">
+          <div className="flex items-start gap-1">
+            {Array.from({ length: WEEKS }, (_, col) => (
+              <div key={col} className="flex shrink-0 flex-col gap-1">
+                {days.slice(col * 7, col * 7 + 7).map(day => {
+                  const n = activity[day] ?? 0
+                  const level = n === 0 ? 0 : Math.min(4, Math.ceil(n / 2))
+                  return <div key={day} title={day + ': ' + n + ' edit' + (n === 1 ? '' : 's')} className="size-2.5 rounded-sm" style={{ backgroundColor: levelColor(level) }} />
+                })}
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex items-center gap-2 font-mono text-xs text-muted-foreground">
+            <span>less</span>
+            {[0, 1, 2, 3, 4].map(l => (
+              <div key={l} className="size-2.5 rounded-sm" style={{ backgroundColor: levelColor(l) }} />
+            ))}
+            <span>more</span>
+          </div>
+        </div>
+      </Panel>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel label="quick links">
+          <div className="flex flex-col p-2">
+            {links.map(l => (
+              <Link key={l.href} href={l.href} className="flex items-center justify-between rounded-md px-3 py-2 font-mono text-sm text-foreground transition-colors hover:bg-muted">
+                <span className="flex items-center gap-2.5">
+                  {l.label}
+                  {l.swatches ? (
+                    <span className="flex gap-0.5">
+                      <span className="size-2.5 rounded-sm bg-primary" />
+                      <span className="size-2.5 rounded-sm bg-muted-foreground" />
+                      <span className="size-2.5 rounded-sm bg-destructive" />
+                    </span>
+                  ) : null}
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-xs tabular-nums text-muted-foreground">
+                  {l.meta}
+                  <Arrow />
+                </span>
+              </Link>
+            ))}
+          </div>
+        </Panel>
+        <Panel label="recent changes">
+          <div className="p-2">
+            {edits.length ? (
+              edits.map(e => (
+                <div key={e.at + e.label} className="flex items-start gap-3 border-b border-border px-3 py-2 font-mono text-xs last:border-0">
+                  <span className={'mt-0.5 shrink-0 rounded-sm border border-border bg-muted px-1.5 uppercase tracking-wide ' + (e.verdict === 'verified' ? 'text-primary' : e.verdict === 'failed' ? 'text-destructive' : 'text-muted-foreground')}>
+                    {e.verdict === 'verified' ? 'verified' : e.verdict === 'failed' ? 'failed' : 'partial'}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-foreground">{e.label}</div>
+                    <div className="mt-0.5 text-muted-foreground">{e.at.slice(0, 10)}</div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="px-2 py-3 font-mono text-xs text-muted-foreground">no edits recorded yet</p>
+            )}
+          </div>
+        </Panel>
       </div>
     </div>
   )
 }
 `
 
-const LABEL = `<div className="flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-muted-foreground"><span className="size-1.5 rounded-full bg-primary" />`
+const TOKENS_HOME = `${HEAD}import Link from 'next/link'
+import { icons, tokens } from '../_data'
+import { Arrow, PageTitle } from '../_ui'
 
-const HOME = `${HEAD}import Link from 'next/link'
-import { components, edits, tokens } from './_data'
-
-export default function DesignSystemHome() {
-  const count = (kind: string) => components.filter(c => c.kind === kind).length
+export default function FoundationsPage() {
+  const count = (c: string) => tokens.filter(t => t.category === c).length
   const cards = [
-    { label: 'Foundations', value: tokens.length, note: 'tokens: color, type, radius', href: '/design-system/tokens/colors' },
-    { label: 'Shared', value: count('Shared'), note: 'used on 2+ pages', href: '/design-system/components#shared' },
-    { label: 'Blocks', value: count('Block'), note: 'page sections', href: '/design-system/components#blocks' },
-    { label: 'Primitives', value: count('Primitive'), note: 'shadcn base components', href: '/design-system/components#primitives' },
+    { href: '/design-system/tokens/colors', label: 'Color', meta: count('color') + ' tokens, light and dark' },
+    { href: '/design-system/tokens/typography', label: 'Typography', meta: count('font') + ' font tokens, type scale, weights' },
+    { href: '/design-system/tokens/spacing', label: 'Spacing & radius', meta: count('radius') + ' radius, ' + count('shadow') + ' shadow tokens, spacing scale' },
+    { href: '/design-system/tokens/icons', label: 'Icons', meta: icons.length + ' icons in use' },
   ]
-  const sample = components.find(c => c.kind === 'Shared' && c.id) ?? components.find(c => c.id)
-  const token = tokens.find(t => t.name === '--primary') ?? tokens[0]
   return (
-    <div className="space-y-10">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Design system</h1>
-        <p className="text-muted-foreground">Every token and component of this app, read from its code and kept current with each edit.</p>
-      </header>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="flex flex-col gap-6">
+      <PageTitle title="Foundations" sub="The tokens every component and page is built from. Change one by name: &quot;--primary: a warmer shade&quot;." />
+      <div className="grid gap-3 sm:grid-cols-2">
         {cards.map(c => (
-          <Link key={c.label} href={c.href} className="rounded-lg border bg-card p-5 transition-colors hover:bg-muted">
-            <div className="text-xs font-medium uppercase tracking-widest text-muted-foreground">{c.label}</div>
-            <div className="mt-2 text-3xl font-semibold tabular-nums">{c.value}</div>
-            <div className="mt-2 text-sm text-muted-foreground">{c.note}</div>
+          <Link key={c.href} href={c.href} className="group flex items-center justify-between rounded-md border border-border bg-card p-5 transition-colors hover:border-primary hover:bg-muted">
+            <div>
+              <div className="font-medium">{c.label}</div>
+              <div className="mt-1 font-mono text-xs text-muted-foreground">{c.meta}</div>
+            </div>
+            <Arrow className="transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
           </Link>
         ))}
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-lg border bg-card">
-          <div className="border-b px-5 py-3">${LABEL}Change anything by address</div></div>
-          <div className="space-y-3 p-5 text-sm">
-            <p className="text-muted-foreground">Tell your agent what to change and name it. The edit stays inside that component or token, and every page using it follows.</p>
-            {sample ? (
-              <p className="rounded-md bg-muted px-3 py-2 font-mono">{sample.id}: make the corners rounder</p>
-            ) : null}
-            {token ? <p className="rounded-md bg-muted px-3 py-2 font-mono">{token.name}: a warmer shade</p> : null}
-            <p className="rounded-md bg-muted px-3 py-2 font-mono">Add a pricing table and put it on /pricing</p>
-          </div>
-        </section>
-        <section className="rounded-lg border bg-card">
-          <div className="border-b px-5 py-3">${LABEL}Recent changes</div></div>
-          <ul className="divide-y text-sm">
-            {edits.length ? (
-              edits.map(e => (
-                <li key={e.at + e.label} className="flex items-start justify-between gap-4 px-5 py-3">
-                  <span className="min-w-0">{e.label}</span>
-                  <span className="shrink-0 font-mono text-xs text-muted-foreground">{e.verdict ?? 'open'}</span>
-                </li>
-              ))
-            ) : (
-              <li className="px-5 py-3 text-muted-foreground">No edits yet.</li>
-            )}
-          </ul>
-        </section>
       </div>
     </div>
   )
@@ -421,23 +766,21 @@ export default function DesignSystemHome() {
 `
 
 const COLORS = `${HEAD}import { tokens } from '../../_data'
+import { PageTitle } from '../../_ui'
 
 export default function ColorsPage() {
   const colors = tokens.filter(t => t.category === 'color')
   return (
-    <div className="space-y-8">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Colors</h1>
-        <p className="text-muted-foreground">{colors.length} color tokens, light and dark. Change one by name: &quot;--primary: a warmer shade&quot;.</p>
-      </header>
+    <div className="flex flex-col gap-6">
+      <PageTitle title="Color" sub={colors.length + ' color tokens. Left: light theme, right: dark.'} />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {colors.map(t => (
-          <div key={t.name} className="overflow-hidden rounded-lg border bg-card">
+          <div key={t.name} className="overflow-hidden rounded-md border border-border bg-card">
             <div className="flex h-20">
               <div className="flex-1" style={{ background: t.value || undefined }} />
               {t.dark ? <div className="flex-1" style={{ background: t.dark }} /> : null}
             </div>
-            <div className="space-y-1 border-t p-3">
+            <div className="space-y-1 border-t border-border p-3">
               <div className="font-mono text-sm">{t.name}</div>
               <div className="font-mono text-xs text-muted-foreground">
                 {t.value}
@@ -453,96 +796,84 @@ export default function ColorsPage() {
 `
 
 const TYPOGRAPHY = `${HEAD}import { tokens } from '../../_data'
+import { PageTitle, Panel } from '../../_ui'
 
+const SAMPLE = 'The quick brown fox jumps over the lazy dog'
 const scale = [
-  { name: 'text-xs', className: 'text-xs' },
-  { name: 'text-sm', className: 'text-sm' },
-  { name: 'text-base', className: 'text-base' },
-  { name: 'text-lg', className: 'text-lg' },
-  { name: 'text-xl', className: 'text-xl' },
-  { name: 'text-2xl', className: 'text-2xl' },
-  { name: 'text-3xl', className: 'text-3xl' },
-  { name: 'text-4xl', className: 'text-4xl' },
-  { name: 'text-5xl', className: 'text-5xl' },
+  ['xs', 'text-xs', '0.75rem · 12px'],
+  ['sm', 'text-sm', '0.875rem · 14px'],
+  ['base', 'text-base', '1rem · 16px'],
+  ['lg', 'text-lg', '1.125rem · 18px'],
+  ['xl', 'text-xl', '1.25rem · 20px'],
+  ['2xl', 'text-2xl', '1.5rem · 24px'],
+  ['3xl', 'text-3xl', '1.875rem · 30px'],
+  ['4xl', 'text-4xl', '2.25rem · 36px'],
 ]
 const weights = [
-  { name: 'font-normal', className: 'font-normal' },
-  { name: 'font-medium', className: 'font-medium' },
-  { name: 'font-semibold', className: 'font-semibold' },
-  { name: 'font-bold', className: 'font-bold' },
+  ['normal', 'font-normal'],
+  ['medium', 'font-medium'],
+  ['semibold', 'font-semibold'],
+  ['bold', 'font-bold'],
 ]
 
 export default function TypographyPage() {
   const fonts = tokens.filter(t => t.category === 'font')
-  const sizes = tokens.filter(t => t.category === 'size')
   return (
-    <div className="space-y-10">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Typography</h1>
-        <p className="text-muted-foreground">Font families from the tokens, and the type scale the app uses.</p>
-      </header>
-      <section className="rounded-lg border bg-card">
-        <div className="border-b px-5 py-3">${LABEL}Font families</div></div>
-        <div className="divide-y">
+    <div className="flex flex-col gap-6">
+      <PageTitle title="Typography" sub="Font families, sizes and weights." />
+      <Panel label="font families">
+        <div className="divide-y divide-border">
           {fonts.length ? (
             fonts.map(t => (
-              <div key={t.name} className="space-y-1 px-5 py-4">
-                <div className="font-mono text-xs text-muted-foreground">{t.name} · {t.value}</div>
-                <div className="text-2xl" style={{ fontFamily: 'var(' + t.name + ')' }}>
-                  The quick brown fox jumps over the lazy dog
-                </div>
+              <div key={t.name} className="space-y-1 p-4">
+                <div className="font-mono text-xs uppercase tracking-widest text-muted-foreground">{t.name.replace('--font-', '')}</div>
+                <div className="font-mono text-xs text-muted-foreground">{t.value}</div>
+                <div className="text-lg" style={{ fontFamily: 'var(' + t.name + ')' }}>{SAMPLE}</div>
               </div>
             ))
           ) : (
-            <p className="px-5 py-4 text-sm text-muted-foreground">No font tokens in the stylesheet; the app uses the default font.</p>
+            <p className="p-4 text-sm text-muted-foreground">No font tokens in the stylesheet; the app uses the default font.</p>
           )}
         </div>
-      </section>
-      <section className="rounded-lg border bg-card">
-        <div className="border-b px-5 py-3">${LABEL}Type scale</div></div>
-        <div className="divide-y">
-          {scale.map(s => (
-            <div key={s.name} className="flex items-baseline gap-6 px-5 py-3">
-              <span className="w-24 shrink-0 font-mono text-xs text-muted-foreground">{s.name}</span>
-              <span className={s.className + ' truncate'}>The quick brown fox</span>
-            </div>
-          ))}
-          {sizes.map(t => (
-            <div key={t.name} className="flex items-baseline gap-6 px-5 py-3">
-              <span className="w-24 shrink-0 font-mono text-xs text-muted-foreground">{t.name}</span>
-              <span className="truncate" style={{ fontSize: 'var(' + t.name + ')' }}>The quick brown fox</span>
+      </Panel>
+      <Panel label="font sizes">
+        <div className="divide-y divide-border">
+          {scale.map(([name, cls, size]) => (
+            <div key={name} className="space-y-1 p-4">
+              <div className="font-mono text-xs text-muted-foreground"><span className="uppercase">{name}</span> {size}</div>
+              <div className={cls + ' truncate'}>{SAMPLE}</div>
             </div>
           ))}
         </div>
-      </section>
-      <section className="rounded-lg border bg-card">
-        <div className="border-b px-5 py-3">${LABEL}Weights</div></div>
-        <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
-          {weights.map(w => (
-            <div key={w.name} className="space-y-1">
-              <div className={w.className + ' text-xl'}>Aa Bb Cc</div>
-              <div className="font-mono text-xs text-muted-foreground">{w.name}</div>
+      </Panel>
+      <Panel label="weights">
+        <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
+          {weights.map(([name, cls]) => (
+            <div key={name} className="space-y-1">
+              <div className={cls + ' text-xl'}>Aa Bb Cc</div>
+              <div className="font-mono text-xs text-muted-foreground">{name}</div>
             </div>
           ))}
         </div>
-      </section>
+      </Panel>
     </div>
   )
 }
 `
 
 const SPACING = `${HEAD}import { tokens } from '../../_data'
+import { PageTitle, Panel } from '../../_ui'
 
 const space = [
-  { name: '1 · 4px', className: 'w-1' },
-  { name: '2 · 8px', className: 'w-2' },
-  { name: '3 · 12px', className: 'w-3' },
-  { name: '4 · 16px', className: 'w-4' },
-  { name: '6 · 24px', className: 'w-6' },
-  { name: '8 · 32px', className: 'w-8' },
-  { name: '12 · 48px', className: 'w-12' },
-  { name: '16 · 64px', className: 'w-16' },
-  { name: '24 · 96px', className: 'w-24' },
+  ['1', 'w-1', '4px'],
+  ['2', 'w-2', '8px'],
+  ['3', 'w-3', '12px'],
+  ['4', 'w-4', '16px'],
+  ['6', 'w-6', '24px'],
+  ['8', 'w-8', '32px'],
+  ['12', 'w-12', '48px'],
+  ['16', 'w-16', '64px'],
+  ['24', 'w-24', '96px'],
 ]
 const radii = ['rounded-sm', 'rounded-md', 'rounded-lg', 'rounded-xl', 'rounded-2xl', 'rounded-full']
 const shadows = ['shadow-xs', 'shadow-sm', 'shadow-md', 'shadow-lg', 'shadow-xl']
@@ -551,14 +882,10 @@ export default function SpacingPage() {
   const radiusTokens = tokens.filter(t => t.category === 'radius')
   const shadowTokens = tokens.filter(t => t.category === 'shadow')
   return (
-    <div className="space-y-10">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Spacing, radius, shadow</h1>
-        <p className="text-muted-foreground">The spacing scale, corner radii and elevation the app draws from.</p>
-      </header>
-      <section className="rounded-lg border bg-card">
-        <div className="border-b px-5 py-3">${LABEL}Radius</div></div>
-        <div className="grid gap-6 p-5 sm:grid-cols-3 lg:grid-cols-6">
+    <div className="flex flex-col gap-6">
+      <PageTitle title="Spacing & radius" sub="The spacing scale, corner radii and elevation." />
+      <Panel label="radius">
+        <div className="grid gap-6 p-4 sm:grid-cols-3 lg:grid-cols-6">
           {radiusTokens.map(t => (
             <div key={t.name} className="space-y-2">
               <div className="size-16 border-2 border-primary bg-muted" style={{ borderRadius: 'var(' + t.name + ')' }} />
@@ -573,21 +900,19 @@ export default function SpacingPage() {
             </div>
           ))}
         </div>
-      </section>
-      <section className="rounded-lg border bg-card">
-        <div className="border-b px-5 py-3">${LABEL}Spacing</div></div>
-        <div className="divide-y">
-          {space.map(s => (
-            <div key={s.name} className="flex items-center gap-6 px-5 py-2">
-              <span className="w-24 shrink-0 font-mono text-xs text-muted-foreground">{s.name}</span>
-              <span className={s.className + ' h-3 rounded-sm bg-primary'} />
+      </Panel>
+      <Panel label="spacing">
+        <div className="divide-y divide-border">
+          {space.map(([step, cls, px]) => (
+            <div key={step} className="flex items-center gap-6 px-4 py-2">
+              <span className="w-20 shrink-0 font-mono text-xs text-muted-foreground">{step} · {px}</span>
+              <span className={cls + ' h-3 rounded-sm bg-primary'} />
             </div>
           ))}
         </div>
-      </section>
-      <section className="rounded-lg border bg-card">
-        <div className="border-b px-5 py-3">${LABEL}Shadow</div></div>
-        <div className="grid gap-6 p-5 sm:grid-cols-3 lg:grid-cols-5">
+      </Panel>
+      <Panel label="shadow">
+        <div className="grid gap-6 p-4 sm:grid-cols-3 lg:grid-cols-5">
           {shadowTokens.map(t => (
             <div key={t.name} className="space-y-2">
               <div className="h-16 rounded-lg bg-card" style={{ boxShadow: 'var(' + t.name + ')' }} />
@@ -596,235 +921,423 @@ export default function SpacingPage() {
           ))}
           {shadows.map(s => (
             <div key={s} className="space-y-2">
-              <div className={s + ' h-16 rounded-lg border bg-card'} />
+              <div className={s + ' h-16 rounded-lg border border-border bg-card'} />
               <div className="font-mono text-xs text-muted-foreground">{s}</div>
             </div>
           ))}
         </div>
-      </section>
+      </Panel>
     </div>
   )
 }
 `
 
-const COMPONENTS = `${HEAD}import Link from 'next/link'
-import { components, type DsComponent } from '../_data'
+function renderIcons(ctx: SiteContext): { used: string; catalog: string } {
+  const names = ctx.icons.map(i => i.name)
+  const used =
+    ctx.hasIcons && names.length
+      ? `${HEAD}import type { ComponentType } from 'react'
+import { ${names.map((n, i) => `${n} as I${i}`).join(', ')} } from 'lucide-react'
 
-function Card({ c }: { c: DsComponent }) {
-  const meta = [
-    c.variants.length ? c.variants.map(v => v.options.length + ' ' + v.name).join(' · ') : null,
-    c.kind === 'Primitive' ? null : c.routes.length ? 'on ' + c.routes.length + (c.routes.length === 1 ? ' page' : ' pages') : 'not on a page yet',
-  ].filter(Boolean)
-  return (
-    <Link href={'/design-system/components/' + c.slug} className="flex items-start justify-between gap-3 rounded-lg border bg-card p-4 transition-colors hover:bg-muted">
-      <div className="min-w-0 space-y-1">
-        <div className="font-medium">{c.name}</div>
-        <div className="truncate font-mono text-xs text-muted-foreground">{meta.join(' · ') || c.file}</div>
-      </div>
-      <div className="shrink-0 space-y-1 text-right">
-        <div className="font-mono text-xs">{c.id ?? '—'}</div>
-        {c.preview ? null : <div className="text-xs text-muted-foreground">no preview</div>}
-      </div>
-    </Link>
-  )
+export const usedIcons: Record<string, ComponentType<{ className?: string }>> = {
+${names.map((n, i) => `  ${JSON.stringify(n)}: I${i},`).join('\n')}
 }
+`
+      : `${HEAD}import type { ComponentType } from 'react'
 
-function Group({ id, title, note, items }: { id: string; title: string; note: string; items: DsComponent[] }) {
-  if (!items.length) return null
-  return (
-    <section id={id} className="scroll-mt-8 space-y-3">
-      <div>
-        <h2 className="text-xl font-semibold">{title}</h2>
-        <p className="text-sm text-muted-foreground">{note}</p>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map(c => (
-          <Card key={c.slug} c={c} />
-        ))}
-      </div>
-    </section>
-  )
-}
+export const usedIcons: Record<string, ComponentType<{ className?: string }>> = {}
+`
+  const catalog = ctx.hasIcons
+    ? `${HEAD}'use client'
 
-export default function ComponentsPage() {
-  const primitives = components.filter(c => c.kind === 'Primitive')
-  const categories = [...new Set(primitives.map(c => c.category ?? 'Other'))]
+import { useState, type ComponentType } from 'react'
+import { icons } from 'lucide-react'
+
+const all = Object.entries(icons as unknown as Record<string, ComponentType<{ className?: string }>>)
+
+export function IconCatalog() {
+  const [q, setQ] = useState('')
+  const hits = all.filter(([name]) => name.toLowerCase().includes(q.toLowerCase()))
   return (
-    <div className="space-y-12">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Components</h1>
-        <p className="text-muted-foreground">{components.length} components. Open one for its preview, variants, props and the pages that use it.</p>
-      </header>
-      <Group id="shared" title="Shared" note="Used on two or more pages: a change reaches all of them." items={components.filter(c => c.kind === 'Shared')} />
-      <Group id="blocks" title="Blocks" note="Sections of a single page." items={components.filter(c => c.kind === 'Block')} />
-      <section id="primitives" className="scroll-mt-8 space-y-6">
-        <div>
-          <h2 className="text-xl font-semibold">Primitives</h2>
-          <p className="text-sm text-muted-foreground">The base components everything else is built from.</p>
-        </div>
-        {categories.map(cat => (
-          <div key={cat} className="space-y-3">
-            ${LABEL}{cat}</div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {primitives
-                .filter(c => (c.category ?? 'Other') === cat)
-                .map(c => (
-                  <Card key={c.slug} c={c} />
-                ))}
-            </div>
+    <div className="space-y-4 p-4">
+      <input
+        value={q}
+        onChange={e => setQ(e.target.value)}
+        placeholder={'Search ' + all.length + ' Lucide icons'}
+        className="h-9 w-full max-w-sm rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+      />
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 lg:grid-cols-8">
+        {hits.slice(0, 160).map(([name, Icon]) => (
+          <div key={name} title={name} className="flex flex-col items-center gap-2 rounded-md border border-border p-3">
+            <Icon className="size-5" />
+            <span className="w-full truncate text-center font-mono text-xs text-muted-foreground">{name}</span>
           </div>
         ))}
-      </section>
+      </div>
+      {hits.length > 160 ? <p className="font-mono text-xs text-muted-foreground">{hits.length - 160} more: refine the search.</p> : null}
+    </div>
+  )
+}
+`
+    : `${HEAD}export function IconCatalog() {
+  return <p className="p-4 text-sm text-muted-foreground">lucide-react is not installed in this app.</p>
+}
+`
+  return { used, catalog }
+}
+
+const ICONS_PAGE = `${HEAD}import { icons } from '../../_data'
+import { usedIcons } from '../../_icons'
+import { IconCatalog } from '../../_icon-catalog'
+import { PageTitle, Panel } from '../../_ui'
+
+export default function IconsPage() {
+  return (
+    <div className="flex flex-col gap-6">
+      <PageTitle title="Icons" sub="Lucide, the icon set shadcn/ui is built with: one stroke style across the app. Use icons from this set only." />
+      <Panel label={'in use · ' + icons.length}>
+        {icons.length ? (
+          <div className="grid gap-2 p-4 sm:grid-cols-2 lg:grid-cols-4">
+            {icons.map(i => {
+              const Icon = usedIcons[i.name]
+              return (
+                <div key={i.name} className="flex items-center gap-3 rounded-md border border-border p-3">
+                  {Icon ? <Icon className="size-5 shrink-0" /> : null}
+                  <div className="min-w-0">
+                    <div className="truncate font-mono text-sm">{i.name}</div>
+                    <div className="truncate font-mono text-xs text-muted-foreground">{i.files.length} file{i.files.length === 1 ? '' : 's'}</div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <p className="p-4 text-sm text-muted-foreground">No icons used yet.</p>
+        )}
+      </Panel>
+      <Panel label="library">
+        <IconCatalog />
+      </Panel>
+    </div>
+  )
+}
+`
+
+const INDEX = (section: 'components' | 'shared') => `${HEAD}import Link from 'next/link'
+import { components, hrefOf } from '../_data'
+import { Arrow, PageTitle, SectionLabel } from '../_ui'
+
+const items = components.filter(c => c.section === ${JSON.stringify(section)})
+
+export default function IndexPage() {
+  const groups = [...new Set(items.map(c => c.category))]
+  return (
+    <div className="flex flex-col gap-8">
+      <PageTitle
+        title=${JSON.stringify(section === 'components' ? 'Components' : 'Shared Components')}
+        sub={items.length + ${JSON.stringify(section === 'components' ? ' base components · click a card for variants, sizes and code.' : ' product components · click a card for its preview, props and the pages that use it.')}}
+      />
+      {groups.map(g => (
+        <section key={g} className="space-y-3">
+          <SectionLabel>{g}</SectionLabel>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {items
+              .filter(c => c.category === g)
+              .map(c => {
+                const meta = c.variants.length
+                  ? c.variants.map(v => v.options.length + ' ' + (v.name === 'variant' ? 'variants' : v.name === 'size' ? 'sizes' : v.name)).join(' · ')
+                  : c.section === 'shared'
+                    ? c.routes.length + (c.routes.length === 1 ? ' page' : ' pages')
+                    : 'default'
+                return (
+                  <Link key={c.slug} href={hrefOf(c)} className="group flex items-center justify-between rounded-md border border-border bg-card p-4 transition-colors hover:border-primary hover:bg-muted">
+                    <div className="min-w-0">
+                      <div className="font-medium">{c.name}</div>
+                      <div className="mt-1 font-mono text-xs text-muted-foreground">
+                        {c.id ?? 'no ID'} · {meta}
+                        {c.preview ? '' : ' · no preview'}
+                      </div>
+                    </div>
+                    <Arrow className="shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                  </Link>
+                )
+              })}
+          </div>
+        </section>
+      ))}
     </div>
   )
 }
 `
 
 const DETAIL = `${HEAD}import Link from 'next/link'
-import { notFound } from 'next/navigation'
-import { components } from '../../_data'
-import { previews, variantPreviews } from '../../_previews'
-import { PreviewBoundary } from '../../_boundary'
+import { components } from './_data'
+import { previews, variantPreviews } from './_previews'
+import { PreviewBoundary } from './_boundary'
+import { Panel, SectionLabel } from './_ui'
 
-export function generateStaticParams() {
-  return components.map(c => ({ id: c.slug }))
-}
-
-export default async function ComponentPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const c = components.find(x => x.slug === id)
-  if (!c) notFound()
+export function ComponentDetail({ slug }: { slug: string }) {
+  const c = components.find(x => x.slug === slug)
+  if (!c) return <p className="text-sm text-muted-foreground">Unknown component.</p>
   const preview = previews[c.slug]
-  const variantRenders = variantPreviews[c.slug] ?? {}
+  const renders = variantPreviews[c.slug] ?? {}
+  const importName = c.name
+  const usage = c.variants.length
+    ? '<' + importName + ' ' + c.variants.map(v => v.name + '="' + (v.default ?? v.options[0]?.value) + '"').join(' ') + ' />'
+    : '<' + importName + ' />'
+  const from = '@/' + c.file.replace(/^src\\//, '').replace(/\\.(tsx|jsx)$/, '')
   return (
-    <div className="space-y-8">
-      <header className="space-y-2">
-        <div className="text-sm text-muted-foreground">
-          <Link href="/design-system/components" className="hover:text-foreground">
-            Components
-          </Link>{' '}
-          / {c.kind}
+    <div className="flex flex-col gap-6">
+      <div>
+        <SectionLabel>{(c.section === 'components' ? 'components' : 'shared') + ' · ' + c.category}</SectionLabel>
+        <div className="mt-2 flex flex-wrap items-baseline gap-3">
+          <h1 className="text-3xl font-medium tracking-tight">{c.name}</h1>
+          <span className="rounded-md border border-border px-2 py-0.5 font-mono text-sm">{c.id ?? 'no ID'}</span>
         </div>
-        <div className="flex flex-wrap items-baseline gap-3">
-          <h1 className="text-3xl font-semibold tracking-tight">{c.name}</h1>
-          <span className="rounded-md border px-2 py-0.5 font-mono text-sm">{c.id ?? 'no ID'}</span>
-        </div>
-        <p className="font-mono text-sm text-muted-foreground">{c.file}</p>
-      </header>
+        <p className="mt-1 font-mono text-sm text-muted-foreground">{c.file}</p>
+      </div>
 
-      <section className="rounded-lg border bg-card">
-        <div className="border-b px-5 py-3">${LABEL}Preview</div></div>
+      <Panel label="preview">
         <div className="p-6">
           {preview ? (
             <PreviewBoundary>{preview()}</PreviewBoundary>
           ) : (
             <p className="text-sm text-muted-foreground">
-              No preview yet. Ask your agent: &quot;add a preview for {c.id ?? c.name}&quot;. Meanwhile, see it live on the pages below.
+              No preview yet. Ask your agent: &quot;add a preview for {c.id ?? c.name}&quot;. Meanwhile it is live on the pages below.
             </p>
           )}
         </div>
-      </section>
+      </Panel>
 
-      {c.variants.length ? (
-        <section className="rounded-lg border bg-card">
-          <div className="border-b px-5 py-3">${LABEL}Variants</div></div>
-          <div className="divide-y">
-            {c.variants.flatMap(g =>
-              g.options.map(o => (
-                <div key={g.name + o.value} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center">
-                  <div className="w-40 shrink-0">
-                    {variantRenders[g.name]?.[o.value] ? <PreviewBoundary>{variantRenders[g.name][o.value]()}</PreviewBoundary> : null}
-                  </div>
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="text-sm font-medium">
-                      {o.value}
-                      {g.default === o.value ? <span className="ml-2 text-xs text-muted-foreground">default</span> : null}
-                    </div>
-                    <div className="break-words font-mono text-xs text-muted-foreground">{o.classes}</div>
-                  </div>
-                  <code className="shrink-0 font-mono text-xs">{g.name + '="' + o.value + '"'}</code>
+      {c.variants.map(g => (
+        <Panel key={g.name} label={g.name === 'variant' ? 'variants' : g.name === 'size' ? 'sizes' : g.name}>
+          <div className="divide-y divide-border">
+            {g.options.map(o => (
+              <div key={o.value} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center">
+                <div className="w-36 shrink-0">
+                  {renders[g.name]?.[o.value] ? <PreviewBoundary>{renders[g.name][o.value]()}</PreviewBoundary> : null}
                 </div>
-              )),
-            )}
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="font-mono text-sm">
+                    {o.value}
+                    {g.default === o.value ? <span className="ml-2 text-xs text-muted-foreground">default</span> : null}
+                  </div>
+                  <div className="break-words font-mono text-xs text-muted-foreground">{o.classes}</div>
+                </div>
+                <code className="shrink-0 font-mono text-xs">{g.name + '="' + o.value + '"'}</code>
+              </div>
+            ))}
           </div>
-        </section>
-      ) : null}
+        </Panel>
+      ))}
+
+      <Panel label="usage">
+        <pre className="overflow-x-auto p-4 font-mono text-xs">{'import { ' + importName + ' } from \\'' + from + '\\'\\n\\n' + usage}</pre>
+      </Panel>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-lg border bg-card">
-          <div className="border-b px-5 py-3">${LABEL}Props</div></div>
-          <pre className="overflow-x-auto whitespace-pre-wrap p-5 font-mono text-xs">{c.props ?? 'No props'}</pre>
-          {c.parts.length ? <p className="border-t px-5 py-3 text-sm text-muted-foreground">Parts: {c.parts.join(', ')}</p> : null}
-        </section>
-        <section className="rounded-lg border bg-card">
-          <div className="border-b px-5 py-3">${LABEL}Used on</div></div>
-          <div className="flex flex-wrap gap-2 p-5">
+        <Panel label="props">
+          <pre className="overflow-x-auto whitespace-pre-wrap p-4 font-mono text-xs">{c.props ?? 'No props'}</pre>
+          {c.parts.length ? <p className="border-t border-border px-4 py-3 text-sm text-muted-foreground">Parts: {c.parts.join(', ')}</p> : null}
+        </Panel>
+        <Panel label={'used on · ' + c.routes.length}>
+          <div className="flex flex-wrap gap-2 p-4">
             {c.routes.length ? (
               c.routes.map(r =>
                 r.includes('[') ? (
-                  <span key={r} className="rounded-md bg-muted px-2 py-1 font-mono text-xs">
-                    {r}
-                  </span>
+                  <span key={r} className="rounded-md bg-muted px-2 py-1 font-mono text-xs">{r}</span>
                 ) : (
-                  <Link key={r} href={r} className="rounded-md bg-muted px-2 py-1 font-mono text-xs hover:underline">
-                    {r}
-                  </Link>
+                  <Link key={r} href={r} className="rounded-md bg-muted px-2 py-1 font-mono text-xs hover:underline">{r}</Link>
                 ),
               )
             ) : (
               <span className="text-sm text-muted-foreground">Not on a page yet.</span>
             )}
           </div>
-        </section>
+        </Panel>
       </div>
     </div>
   )
 }
 `
 
-const RULES = `${HEAD}import { components, duplicates } from '../_data'
+const DETAIL_PAGE = (section: 'components' | 'shared') => `${HEAD}import { notFound } from 'next/navigation'
+import { components } from '../../_data'
+import { ComponentDetail } from '../../_detail'
 
-const enforced = [
-  ['Addressed edits stay in place', 'An edit of a component by ID or name may change only that component. Every page that uses it changes; pages that do not must render pixel-identically.'],
-  ['Pages do not restyle components', 'A page edit cannot change shared components, primitives or tokens. Changing one everywhere is a component edit; changing it on some pages is a variant or a new component.'],
-  ['Tokens live in the stylesheet', 'A token edit changes only stylesheets, and every page follows.'],
-  ['Every component has an ID', 'A new component without an @coherent-id comment, or with an ID already taken, fails verification.'],
-  ['Shared changes are asked, not assumed', 'Asked to change something several pages use on only some of them, the agent asks: a new component or token, or change it everywhere.'],
-  ['Every edit is proven', 'Declared files only, no new type or browser errors, a production build, before/after renders, no real names or emails in the UI. A failed edit is never committed.'],
-]
+export function generateStaticParams() {
+  return components.filter(c => c.section === ${JSON.stringify(section)}).map(c => ({ id: c.slug }))
+}
 
-export default function RulesPage() {
-  const noPreview = components.filter(c => !c.preview)
-  const noId = components.filter(c => !c.id)
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  if (!components.some(c => c.slug === id && c.section === ${JSON.stringify(section)})) notFound()
+  return <ComponentDetail slug={id} />
+}
+`
+
+const SITEMAP = `${HEAD}import Link from 'next/link'
+import { components, hrefOf, pages } from '../_data'
+import { PageTitle, Panel } from '../_ui'
+
+export default function SitemapPage() {
+  const bySlug = new Map(components.map(c => [c.slug, c]))
   return (
-    <div className="space-y-10">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Rules</h1>
-        <p className="text-muted-foreground">What Coherent checks on every edit, and the state of this design system.</p>
-      </header>
-      <section className="grid gap-3 sm:grid-cols-3">
-        {[
-          { label: 'Components without ID', value: noId.length },
-          { label: 'Duplicate IDs', value: duplicates.length },
-          { label: 'Components without preview', value: noPreview.length },
-        ].map(s => (
-          <div key={s.label} className="rounded-lg border bg-card p-5">
-            <div className="text-3xl font-semibold tabular-nums">{s.value}</div>
-            <div className="mt-1 text-sm text-muted-foreground">{s.label}</div>
-          </div>
-        ))}
-      </section>
-      <section className="rounded-lg border bg-card">
-        <div className="border-b px-5 py-3">${LABEL}Enforced on every edit</div></div>
-        <div className="divide-y">
-          {enforced.map(([title, body]) => (
-            <div key={title} className="space-y-1 px-5 py-4">
+    <div className="flex flex-col gap-6">
+      <PageTitle title="Sitemap" sub={pages.length + ' pages, and the components each one is built from.'} />
+      <Panel label="pages">
+        <div className="divide-y divide-border">
+          {pages.map(p => (
+            <div key={p.route} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-start">
+              <div className="w-72 shrink-0 font-mono text-sm">
+                {p.route.includes('[') ? p.route : <Link href={p.route} className="hover:underline">{p.route}</Link>}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {p.components
+                  .map(s => bySlug.get(s))
+                  .filter(c => c && c.section === 'shared')
+                  .map(c => (
+                    <Link key={c!.slug} href={hrefOf(c!)} className="rounded-md border border-border px-2 py-0.5 font-mono text-xs hover:bg-muted">
+                      {c!.name}
+                    </Link>
+                  ))}
+                <span className="font-mono text-xs text-muted-foreground">
+                  + {p.components.filter(s => bySlug.get(s)?.section === 'components').length} base
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Panel>
+    </div>
+  )
+}
+`
+
+const DOCS = `${HEAD}import { components, tokens } from '../_data'
+import { PageTitle, Panel } from '../_ui'
+
+export default function DocsPage() {
+  const sample = components.find(c => c.section === 'shared' && c.id) ?? components.find(c => c.id)
+  const token = tokens.find(t => t.name === '--primary') ?? tokens[0]
+  const steps = [
+    ['Change a component by name or ID', (sample ? sample.id + ': make the corners rounder' : 'CID-001: make the corners rounder') + '. Only that component changes; every page using it follows, and pages that do not use it must render pixel-identically.'],
+    ['Change a token', (token ? token.name : '--primary') + ': a warmer shade. Every component built from the token follows.'],
+    ['Change something on one page only', 'If a component or token is shared, your agent asks first: a new component (or token) just for that page, or update it everywhere.'],
+    ['Add a component', 'Describe it and where it goes. It gets the next free ID and appears here with a preview.'],
+    ['Undo', 'Say "undo that": only the files of that edit are restored, byte for byte.'],
+  ]
+  const handoff = [
+    ['Tokens for developers', 'npx coherent export tokens --format dtcg   (also: css, tailwind)'],
+    ['For AI agents', 'npx coherent mcp --profile agent   (inventory, IDs, governed edits)'],
+    ['Component source', 'Every component lives in components/ with its ID in a comment above it.'],
+  ]
+  return (
+    <div className="flex flex-col gap-6">
+      <PageTitle title="Documentation" sub="How to work with this design system, and how to hand it off." />
+      <Panel label="working with the system">
+        <div className="divide-y divide-border">
+          {steps.map(([title, body]) => (
+            <div key={title} className="space-y-1 px-4 py-4">
               <div className="font-medium">{title}</div>
               <p className="text-sm text-muted-foreground">{body}</p>
             </div>
           ))}
         </div>
-      </section>
+      </Panel>
+      <Panel label="handoff">
+        <div className="divide-y divide-border">
+          {handoff.map(([title, body]) => (
+            <div key={title} className="space-y-1 px-4 py-4">
+              <div className="font-medium">{title}</div>
+              <p className="font-mono text-sm text-muted-foreground">{body}</p>
+            </div>
+          ))}
+        </div>
+      </Panel>
+    </div>
+  )
+}
+`
+
+const RECOMMENDATIONS = `${HEAD}import Link from 'next/link'
+import { components, duplicates, hrefOf, tokens } from '../_data'
+import { PageTitle, Panel } from '../_ui'
+
+const enforced = [
+  ['Addressed edits stay in place', 'An edit of a component by ID or name may change only that component. Pages that use it change; pages that do not must render pixel-identically.'],
+  ['Pages do not restyle components', 'A page edit cannot change shared components, primitives or tokens.'],
+  ['Tokens live in the stylesheet', 'A token edit changes only stylesheets, and every page follows.'],
+  ['Every component has an ID', 'A new component without an @coherent-id comment, or with an ID already taken, fails verification.'],
+  ['Shared changes are asked, not assumed', 'Asked to change something several pages use on only some of them, the agent asks: new component or token, or everywhere.'],
+  ['Every edit is proven', 'Declared files only, no new type or browser errors, a production build, before/after renders, no real names or emails. A failed edit is never committed.'],
+]
+
+export default function RecommendationsPage() {
+  const noPreview = components.filter(c => !c.preview && c.section === 'shared')
+  const unused = components.filter(c => c.section === 'shared' && c.routes.length === 0)
+  const noDark = tokens.filter(t => t.category === 'color' && !t.dark)
+  const stats = [
+    { label: 'components without ID', value: components.filter(c => !c.id).length },
+    { label: 'duplicate IDs', value: duplicates.length },
+    { label: 'shared components without preview', value: noPreview.length },
+    { label: 'components not on any page', value: unused.length },
+  ]
+  return (
+    <div className="flex flex-col gap-6">
+      <PageTitle title="Recommendations" sub="The state of this design system, and the rules Coherent checks on every edit." />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {stats.map(s => (
+          <div key={s.label} className="rounded-md border border-border bg-card p-4">
+            <div className={'font-mono text-3xl font-medium tabular-nums ' + (s.value ? 'text-foreground' : 'text-primary')}>{s.value}</div>
+            <div className="mt-1 font-mono text-xs text-muted-foreground">{s.label}</div>
+          </div>
+        ))}
+      </div>
+      {noPreview.length || unused.length || noDark.length ? (
+        <Panel label="suggestions">
+          <div className="divide-y divide-border text-sm">
+            {noPreview.length ? (
+              <div className="space-y-2 px-4 py-4">
+                <div className="font-medium">Add previews</div>
+                <p className="text-muted-foreground">Ask your agent to add previews for these, so they can be reviewed here:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {noPreview.map(c => (
+                    <Link key={c.slug} href={hrefOf(c)} className="rounded-md border border-border px-2 py-0.5 font-mono text-xs hover:bg-muted">{c.id ?? c.name}</Link>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {unused.length ? (
+              <div className="space-y-2 px-4 py-4">
+                <div className="font-medium">Not used on any page</div>
+                <p className="text-muted-foreground">Place them, or ask your agent to remove them.</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {unused.map(c => (
+                    <Link key={c.slug} href={hrefOf(c)} className="rounded-md border border-border px-2 py-0.5 font-mono text-xs hover:bg-muted">{c.name}</Link>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {noDark.length ? (
+              <div className="space-y-2 px-4 py-4">
+                <div className="font-medium">Colors without a dark value</div>
+                <p className="font-mono text-xs text-muted-foreground">{noDark.map(t => t.name).join(' · ')}</p>
+              </div>
+            ) : null}
+          </div>
+        </Panel>
+      ) : null}
+      <Panel label="enforced on every edit">
+        <div className="divide-y divide-border">
+          {enforced.map(([title, body]) => (
+            <div key={title} className="space-y-1 px-4 py-4">
+              <div className="font-medium">{title}</div>
+              <p className="text-sm text-muted-foreground">{body}</p>
+            </div>
+          ))}
+        </div>
+      </Panel>
     </div>
   )
 }
@@ -834,19 +1347,31 @@ export default function RulesPage() {
 export function renderDesignSystemFiles(ds: DesignSystem, appDir: string, ctx: SiteContext): Map<string, string> {
   const dir = `${appDir}/design-system`
   const { code: previews, live } = renderPreviews(ds, dir)
-  const files = new Map<string, string>([
+  const icons = renderIcons(ctx)
+  const files: [string, string][] = [
     ['page.tsx', HOME],
     ['layout.tsx', LAYOUT],
     ['_data.ts', renderData(ds, ctx, live)],
+    [DS_VOLATILE, renderActivity(ctx)],
     ['_previews.tsx', previews],
-    ['_nav.tsx', NAV],
+    ['_shell.tsx', SHELL],
     ['_boundary.tsx', BOUNDARY],
+    ['_ui.tsx', UI],
+    ['_detail.tsx', DETAIL],
+    ['_icons.tsx', icons.used],
+    ['_icon-catalog.tsx', icons.catalog],
+    ['tokens/page.tsx', TOKENS_HOME],
     ['tokens/colors/page.tsx', COLORS],
     ['tokens/typography/page.tsx', TYPOGRAPHY],
     ['tokens/spacing/page.tsx', SPACING],
-    ['components/page.tsx', COMPONENTS],
-    ['components/[id]/page.tsx', DETAIL],
-    ['rules/page.tsx', RULES],
-  ])
-  return new Map([...files].map(([f, c]) => [`${dir}/${f}`, c]))
+    ['tokens/icons/page.tsx', ICONS_PAGE],
+    ['components/page.tsx', INDEX('components')],
+    ['components/[id]/page.tsx', DETAIL_PAGE('components')],
+    ['shared/page.tsx', INDEX('shared')],
+    ['shared/[id]/page.tsx', DETAIL_PAGE('shared')],
+    ['sitemap/page.tsx', SITEMAP],
+    ['docs/page.tsx', DOCS],
+    ['recommendations/page.tsx', RECOMMENDATIONS],
+  ]
+  return new Map(files.map(([f, c]) => [`${dir}/${f}`, c]))
 }

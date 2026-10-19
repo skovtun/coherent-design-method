@@ -130,8 +130,13 @@ describe('design system from a project', () => {
     )
     const files = renderDesignSystemFiles(buildDesignSystem(buildGraph(root)), 'src/app', {
       appName: 'Demo',
+      version: '1.0.0',
       edits: [],
+      pages: ['/'],
+      icons: [],
+      hasIcons: false,
     })
+    expect([...files.keys()]).toContain('src/app/design-system/shared/[id]/page.tsx')
     expect([...files.keys()]).toContain('src/app/design-system/components/[id]/page.tsx')
     const data = files.get('src/app/design-system/_data.ts')!
     expect(data).toContain('"CID-002"')

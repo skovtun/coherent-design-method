@@ -48,6 +48,10 @@ The one-page list was too thin next to the classic viewer (owner, 2026-10-19). `
 
 Live previews: primitives get generated renders (recipes emitted only when every needed part is exported, so they typecheck; variants from `cva`); shared components and blocks show `<name>.preview.tsx` the agent writes (new agent scope `design-system`, which may only write preview files). Each preview has its own error boundary. Live: on the A/B app the viewer built and verified; the agent wrote 17 previews in one edit (`verified`, 182s, $1.36), rendered with no console errors.
 
+Owner feedback: keep the classic viewer's structure. The viewer now mirrors it (sidebar with group icons and counts, expanding component lists, breadcrumbs, theme toggle, version footer; Overview with activity heatmap, quick links and recent edits; Foundations: Color, Typography, Spacing & radius, Icons; Base Components; Shared Components; Sitemap built from the graph; Documentation with handoff commands; Recommendations with health, suggestions and the enforced rules), fed by the code instead of the classic config. Icons: Lucide (shadcn's set) is the standard; the Icons page lists the icons the app imports (aliases like `CheckIcon` folded into `Check`) and searches the whole library. Volatile activity data lives in `_activity.ts` so it never makes the viewer stale; generated files a newer viewer no longer produces are deleted inside the edit.
+
+Found on the way (general, not viewer-specific): Next.js route types under `.next/` (build and stopped dev server) keep listing a deleted route, so removing a page failed typecheck and `next build`. Typecheck now ignores errors in `.next/` (the production build is the gate), and the verification build clears `.next/dev/types` like it already clears `.next/cache`.
+
 ### Deferred (slices 2-3)
 
 - Raw-value checks (colors first, then arbitrary sizes/radius/shadow), baseline-relative, starting as warnings. The Tailwind theme scale (`p-4`, `rounded-lg`, `text-sm`) counts as tokens; `p-[13px]`, `text-[15px]` are raw.
