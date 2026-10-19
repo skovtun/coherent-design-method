@@ -796,6 +796,8 @@ export async function verifyEdit(
           (expectedChange.length === 0 && s.scope !== 'design-system')
         ? 'partially_verified'
         : 'verified'
+  // The committed record is the truth: it includes the activity file stamped just before the commit.
+  let committed = changes
   if (verdict !== 'failed') {
     stampActivity(root, s, {
       label: tx.label,
@@ -803,10 +805,11 @@ export async function verifyEdit(
       at: tx.startedAt,
       files: [...changes.modified, ...changes.created],
     })
-    commitTransaction(root, tx, verdict)
+    committed = commitTransaction(root, tx, verdict).changes ?? pendingChanges(root, tx)
   }
   return {
     ...base,
+    changes: committed,
     level: 'final',
     status: verdict === 'failed' ? 'open' : 'committed',
     verdict,

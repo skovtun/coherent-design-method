@@ -318,6 +318,8 @@ describe('design system (ADR-0013)', () => {
     expect(begun.writeSet.modify).toContain('src/app/design-system/_activity.ts')
     write('src/app/about/page.tsx', 'export default () => <p>About us</p>\n')
     const v = await call('coherent_verify_edit', { level: 'final' })
+    expect(v.changes.modified).toContain('src/app/design-system/_activity.ts')
+    expect(v.changes).toEqual(loadTransaction(root, begun.txId).changes)
     const activity = read('src/app/design-system/_activity.ts')
     expect(activity).toMatch(new RegExp('"label": "Retitle about",\\s*"verdict": "' + v.verdict + '"'))
     expect(hashTree(root)['src/app/design-system/_activity.ts']).toBe(

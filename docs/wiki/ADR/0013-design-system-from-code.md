@@ -4,7 +4,7 @@ type: adr
 status: accepted
 date: 2026-10-19
 confidence: verified
-shipped_in: [0.28.0]
+shipped_in: [0.28.0, 0.29.0]
 ---
 
 # ADR 0013 — Design system from code: addressable components and tokens in agent mode
@@ -54,10 +54,19 @@ Found on the way (general, not viewer-specific): Next.js route types under `.nex
 
 Owner review round (same day): heatmap cells are fixed 2px squares in calendar weeks (the app's own `rounded-sm` made them circles); colours are grouped and paired with their foreground, with WCAG contrast, and the palette links to each card; the sitemap groups pages by section; usage shows a real JSX use from the app (richest within 30 lines) instead of a bare tag; per-component edit history from transaction file lists (ID syncs excluded); low-contrast pairs surface in Recommendations; IDs and colour values copy on click.
 
-### Deferred (slices 2-3)
+### Slice 2 (implemented, 0.29.0)
 
-- Raw-value checks (colors first, then arbitrary sizes/radius/shadow), baseline-relative, starting as warnings. The Tailwind theme scale (`p-4`, `rounded-lg`, `text-sm`) counts as tokens; `p-[13px]`, `text-[15px]` are raw.
-- Token → component reach (needs a CSS/Tailwind dependency graph); until then a token edit is global.
+Codex reviewed the plan first and cut it: token reach moved to slice 3 (it doubles the semantic surface without strengthening governance), the scan is AST-based rather than regex, and activity freshness had to be fixed for real.
+
+- **Hardcoded values** (`governance/raw-values.ts`): read from the TypeScript AST only where styling lives (`className`, `cn`/`clsx`/`cva`/`twMerge`/`tv`, `style={{…}}`, svg `fill`/`stroke`). Flagged: palette utilities (`text-blue-500`), arbitrary colours (`bg-[#3b82f6]`), arbitrary type/spacing/radius/shadow values with a length, literal colours in `style`, svg colours. Not flagged: theme scale, `var(--…)`, layout dimensions (`w-[280px]`), `text-white`/`text-black` (overlay use), keywords (`rounded-[inherit]`). On the A/B app: 23 hits in 76 files, one false positive (fixed), and a real finding: `text-[11px]` ×8 with no token for it.
+- **Warnings, baseline-relative**: `verifyEdit` returns `warnings` for values an edit adds (per file, kind+value multiset against the transaction snapshot). They never change the verdict. The agent template tells the agent to replace them unless the user asked for that value.
+- **Viewer always current**: once the viewer exists it joins every edit (page edits included), and the edit being committed is written into its activity with its verdict right before the commit (only the data file; the pages reading it were built with the edit). Viewer files do not count as an edit's own change, except for design-system edits, whose job they are.
+- **Recommendations**: app-wide hardcoded values by file, and values repeated 3+ times as token candidates.
+
+### Deferred (slice 3)
+
+- Raw values as failures (after measuring warnings on more apps).
+- Token → component reach (needs a CSS/Tailwind dependency graph; label static references as such); until then a token edit is global.
 - Live component previews: element crops from real pages are best-effort (hidden/conditional components, multiple instances, fragments); optional authored previews.
 - Explicit impact acknowledgement (bound to target + hash + routes) for shared edits.
 - Exact-copy detection of an existing component's markup.
