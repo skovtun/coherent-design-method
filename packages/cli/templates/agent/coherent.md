@@ -46,7 +46,7 @@ After the first build of an app, or when the user asks to see the design system,
 
 Previews: primitives get a live preview automatically. For shared components and blocks you write one: `<name>.preview.tsx` next to the component, default export, the component filled with realistic data in the app's style. After a sync, write the previews it lists under `withoutPreview` in one edit with scope `design-system`; when you create a component later, add its preview in the same edit.
 
-Icons come from Lucide (`lucide-react`, the set shadcn/ui is built with), unless the user picks another library: then use only that one. Never hand-draw SVG icons or mix icon sets.
+Icons come from one library per app: Lucide (`lucide-react`, the set shadcn/ui is built with) unless the user picks another (Tabler, Heroicons, Phosphor, Radix, Remix…). On a switch, install it and move every icon in one edit (scope `component`, no target), so no mix is left. The user's own icons are components in `components/icons/<name>.tsx`: one `<svg>` each, `className` and other SVG props passed through, `currentColor`, an ID like any component; they show under Icons on `/design-system`. Never draw SVG icons inline in pages or components.
 
 Tokens come first. If the user states colors, fonts, radius or density, those win over any direction: put them into the stylesheet tokens before building screens, and build every screen from the tokens.
 

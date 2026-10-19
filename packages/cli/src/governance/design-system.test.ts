@@ -168,6 +168,38 @@ describe('design system from a project', () => {
   })
 })
 
+describe('icons', () => {
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'cds-'))
+    write(
+      'src/components/icons/logo.tsx',
+      "import type { SVGProps } from 'react'\nexport function Logo(props: SVGProps<SVGSVGElement>) { return <svg {...props} /> }\n",
+    )
+    write('src/app/page.tsx', "import { Logo } from '../components/icons/logo'\nexport default () => <Logo />\n")
+  })
+  afterEach(() => rmSync(root, { recursive: true, force: true }))
+
+  it('imports used icons from each library and the app’s own icons', () => {
+    const files = renderDesignSystemFiles(buildDesignSystem(buildGraph(root)), 'src/app', {
+      appName: 'Demo',
+      version: '1.0.0',
+      edits: [],
+      pages: ['/'],
+      icons: [
+        { name: 'House', module: 'lucide-react', library: 'Lucide', files: ['src/app/page.tsx'] },
+        { name: 'HomeIcon', module: '@heroicons/react/24/outline', library: 'Heroicons', files: ['src/app/page.tsx'] },
+      ],
+      iconLibraries: ['Lucide', 'Heroicons'],
+      hasIcons: true,
+    })
+    const icons = files.get('src/app/design-system/_icons.tsx')!
+    expect(icons).toContain('import { House as I0 } from "lucide-react"')
+    expect(icons).toContain('import { HomeIcon as I1 } from "@heroicons/react/24/outline"')
+    expect(icons).toContain('import { Logo as U0 } from "../../components/icons/logo"')
+    expect(files.get('src/app/design-system/_data.ts')).toContain('"key": "@heroicons/react/24/outline:HomeIcon"')
+  })
+})
+
 describe('primitives', () => {
   beforeEach(() => {
     root = mkdtempSync(join(tmpdir(), 'cds-'))
