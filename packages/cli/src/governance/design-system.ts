@@ -105,7 +105,10 @@ function unwrapFn(init: ts.Expression | undefined): boolean {
   let e = init
   // forwardRef(...) / memo(...) wrappers
   while (e && ts.isCallExpression(e) && e.arguments[0]) e = e.arguments[0]
-  return !!e && (ts.isArrowFunction(e) || ts.isFunctionExpression(e))
+  if (!e) return false
+  // A re-exported primitive part: `const Select = SelectPrimitive.Root` (shadcn).
+  if (ts.isPropertyAccessExpression(e)) return ts.isIdentifier(e.expression) && isComponentName(e.name.text)
+  return ts.isArrowFunction(e) || ts.isFunctionExpression(e)
 }
 
 /** Exported React components in a file, with the ID each one carries. */
@@ -285,7 +288,8 @@ export function buildDesignSystem(graph: ProjectGraph): DesignSystem {
     const main = n.kind === 'ui' ? primaryDecl(n.id, all) : undefined
     for (const d of main ? [main] : all) {
       components.push({
-        id: d.id,
+        // A primitive's ID belongs to its file: keep one written above another export.
+        id: d.id ?? (main ? all.find(x => x.id)?.id : undefined),
         name: d.name,
         file: n.id,
         kind: n.kind === 'ui' ? 'ui' : routes.length >= 2 ? 'shared' : 'block',
