@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { addedRawValues, classifyClass, rawValues } from './raw-values.js'
+import { addedRawValues, classifyClass, rawValues, tokenRefs } from './raw-values.js'
 
 describe('classifyClass', () => {
   it('flags literals, not tokens, theme scale or layout sizes', () => {
@@ -55,5 +55,43 @@ export function A({ on }: { on: boolean }) {
       `export const A = () => <><p className="text-[13px]" /><p className="text-[13px] bg-[#000]" /></>\n`,
     )
     expect(addedRawValues(before, after).map(v => v.value)).toEqual(['text-[13px]', 'bg-[#000]'])
+  })
+})
+
+describe('tokenRefs', () => {
+  const tokens = new Set([
+    '--primary',
+    '--primary-foreground',
+    '--border',
+    '--radius',
+    '--font-sans',
+    '--ring',
+    '--chart-1',
+    '--shadow-card',
+    '--background',
+  ])
+  it('finds tokens through theme utilities and var(), with variants, opacity and every split', () => {
+    const src = `export const A = () => (
+  <div className={cn('md:hover:bg-primary/90 text-primary-foreground border-t-border rounded-lg font-sans ring-offset-background', on && 'shadow-card')} style={{ color: 'var(--chart-1)' }}>
+    <p className="bg-(--ring) rounded-[3px] text-sm" />
+  </div>
+)`
+    expect(tokenRefs('a.tsx', src, tokens)).toEqual([
+      '--background',
+      '--border',
+      '--chart-1',
+      '--font-sans',
+      '--primary',
+      '--primary-foreground',
+      '--radius',
+      '--ring',
+      '--shadow-card',
+    ])
+  })
+  it('ignores tokens named only in plain strings, and non-TSX files', () => {
+    expect(
+      tokenRefs('a.tsx', 'const label = \'bg-primary\'\nexport const A = () => <p className="p-4" />', tokens),
+    ).toEqual([])
+    expect(tokenRefs('a.css', '.a { color: var(--primary) }', tokens)).toEqual([])
   })
 })

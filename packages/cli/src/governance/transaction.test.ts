@@ -126,9 +126,28 @@ describe('transactions', () => {
   })
 })
 
+describe('agent state', () => {
+  it('is not part of the app: tools writing it mid-edit change nothing', () => {
+    const before = hashTree(root)
+    write('.claude/settings.local.json', '{}')
+    write('.gstack/claude-available.json', '{}')
+    write('.cursor/state.json', '{}')
+    expect(hashTree(root)).toEqual(before)
+  })
+})
+
 describe('path safety', () => {
   it('rejects paths outside the project or inside tool dirs', () => {
-    for (const p of ['../x.tsx', 'src/../../x.tsx', '/etc/passwd', 'C:/x.tsx', 'node_modules/a.js', '.git/config', ''])
+    for (const p of [
+      '../x.tsx',
+      'src/../../x.tsx',
+      '/etc/passwd',
+      'C:/x.tsx',
+      'node_modules/a.js',
+      '.git/config',
+      '.claude/settings.local.json',
+      '',
+    ])
       expect(() => normalizeRelPath(p), p).toThrow(/Unsafe path/)
     expect(normalizeRelPath('src/./a.tsx')).toBe('src/a.tsx')
     expect(normalizeRelPath('src\\b.tsx')).toBe('src/b.tsx')

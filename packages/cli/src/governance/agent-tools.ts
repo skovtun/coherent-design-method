@@ -129,7 +129,15 @@ export function registerGovernanceTools(server: McpServer): void {
               file: c.file,
               routes: c.routes,
             })),
-            tokens: ds.tokens.map(t => ({ name: t.name, category: t.category, value: t.value, dark: t.dark ?? null })),
+            tokens: ds.tokens.map(t => ({
+              name: t.name,
+              category: t.category,
+              value: t.value,
+              dark: t.dark ?? null,
+              // Static references (classes like bg-primary, var(--x)); stylesheet rules reach further.
+              usedBy: t.usedBy ?? [],
+              pages: t.routes?.length ?? 0,
+            })),
             note: ds.page
               ? 'Address components by ID (CID-007) or exact name, tokens by --name, via coherent_begin_edit target.'
               : 'No design-system page yet. Run coherent_ds_sync once the app has its components to give them IDs and generate /design-system.',

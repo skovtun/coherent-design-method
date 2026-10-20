@@ -15,6 +15,7 @@ import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import ts from 'typescript'
 import { DS_MARKER, impactOf, type ProjectGraph } from './graph.js'
+import { tokenRefs } from './raw-values.js'
 
 export { DS_MARKER }
 
@@ -39,6 +40,8 @@ export interface DsComponent {
   preview?: string
   /** A real use of it in the app (the JSX element, dedented), with the file it comes from. */
   example?: { code: string; file: string }
+  /** Tokens its file references statically (`bg-primary`, `var(--radius)`), not through other components. */
+  tokens?: string[]
 }
 
 export interface VariantGroup {
@@ -54,6 +57,13 @@ export interface DsToken {
   value: string
   dark?: string
   file: string
+  /** Components whose file references it statically (by ID, else name). */
+  usedBy?: string[]
+  /**
+   * Routes whose render tree has a file that references it statically. Stylesheet
+   * rules (`@apply` in the base layer) reach further: a token edit still renders every route.
+   */
+  routes?: string[]
 }
 
 export interface DesignSystem {
@@ -296,6 +306,7 @@ export function buildDesignSystem(graph: ProjectGraph): DesignSystem {
   const tokens = nodes
     .filter(n => n.kind === 'style')
     .flatMap(n => parseTokens(n.id, readFileSync(join(graph.root, n.id), 'utf-8')))
+  reach(graph, components, tokens)
 
   const byId = new Map<string, string[]>()
   for (const c of components) if (c.id) byId.set(c.id, [...(byId.get(c.id) ?? []), `${c.name} (${c.file})`])
@@ -307,6 +318,32 @@ export function buildDesignSystem(graph: ProjectGraph): DesignSystem {
     nextId: formatId(max + 1),
     page: managedPage(graph.root, graph.appDir),
     route: DS_ROUTE,
+  }
+}
+
+/** Token → components and routes, from static references in every TSX file of the graph. */
+function reach(graph: ProjectGraph, components: DsComponent[], tokens: DsToken[]): void {
+  const names = new Set(tokens.map(t => t.name))
+  const byToken = new Map<string, { usedBy: Set<string>; routes: Set<string> }>()
+  for (const n of Object.values(graph.nodes)) {
+    if (!/\.(tsx|jsx)$/.test(n.id) || isPreviewFile(n.id)) continue
+    const refs = tokenRefs(n.id, readFileSync(join(graph.root, n.id), 'utf-8'), names)
+    if (!refs.length) continue
+    const routes = impactOf(graph, n.id).routes
+    const own = components.filter(c => c.file === n.id)
+    for (const c of own) c.tokens = refs
+    for (const r of refs) {
+      const e = byToken.get(r) ?? { usedBy: new Set(), routes: new Set() }
+      for (const c of own) e.usedBy.add(c.id ?? c.name)
+      for (const route of routes) e.routes.add(route)
+      byToken.set(r, e)
+    }
+  }
+  for (const t of tokens) {
+    const e = byToken.get(t.name)
+    if (!e) continue
+    t.usedBy = [...e.usedBy].sort()
+    t.routes = [...e.routes].sort()
   }
 }
 

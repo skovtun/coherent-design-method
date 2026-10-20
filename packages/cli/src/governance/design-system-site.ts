@@ -52,6 +52,7 @@ const FILES = [
   '_icon-catalog.tsx',
   '_copy.tsx',
   '_color.ts',
+  '_reach.tsx',
   'tokens/page.tsx',
   'tokens/colors/page.tsx',
   'tokens/typography/page.tsx',
@@ -248,11 +249,19 @@ function renderData(ds: DesignSystem, ctx: SiteContext, live: Set<string>): stri
     variants: (c.variants ?? []).map(g => ({ name: g.name, default: g.default ?? null, options: g.options })),
     preview: live.has(c.slug) ? (c.preview ? 'authored' : 'generated') : null,
     example: c.example ?? null,
+    tokens: c.tokens ?? [],
   }))
   const tokens = TOKEN_ORDER.flatMap(cat =>
     ds.tokens
       .filter(t => t.category === cat)
-      .map(t => ({ name: t.name, category: t.category, value: t.value, dark: t.dark ?? null })),
+      .map(t => ({
+        name: t.name,
+        category: t.category,
+        value: t.value,
+        dark: t.dark ?? null,
+        usedBy: ds.components.filter(c => c.tokens?.includes(t.name)).map(c => c.slug),
+        routes: t.routes ?? [],
+      })),
   )
   const pages = ctx.pages.map(route => ({
     route,
@@ -272,6 +281,8 @@ function renderData(ds: DesignSystem, ctx: SiteContext, live: Set<string>): stri
   variants: { name: string; default: string | null; options: { value: string; classes: string }[] }[]
   preview: 'authored' | 'generated' | null
   example: { code: string; file: string } | null
+  /** Tokens its file references directly. */
+  tokens: string[]
 }
 
 export interface DsToken {
@@ -279,6 +290,10 @@ export interface DsToken {
   category: string
   value: string
   dark: string | null
+  /** Slugs of components whose file references it directly. */
+  usedBy: string[]
+  /** Pages that render a file referencing it directly. */
+  routes: string[]
 }
 
 export const app = ${JSON.stringify({ name: ctx.appName, version: ctx.version })}
@@ -916,9 +931,57 @@ export function CopyTile({ text, className = '', children }: { text: string; cla
 }
 `
 
+const REACH = `${HEAD}import Link from 'next/link'
+import { components, hrefOf, tokens } from './_data'
+import { baseOf, isFg } from './_color'
+
+const plural = (n: number, one: string) => n + ' ' + one + (n === 1 ? '' : 's')
+
+/** Where tokens are referenced in the code (static references: classes like bg-primary, var(--x)). */
+export function Reach({ names }: { names: string[] }) {
+  const own = tokens.filter(t => names.includes(t.name))
+  const used = components.filter(c => own.some(t => t.usedBy.includes(c.slug)))
+  const routes = [...new Set(own.flatMap(t => t.routes))].sort()
+  if (!used.length && !routes.length)
+    return <div className="font-mono text-xs text-muted-foreground">not referenced in components or pages; may be used from the stylesheet</div>
+  return (
+    <details className="font-mono text-xs">
+      <summary
+        title="Static references in the code: classes like bg-primary and var(--name). Stylesheet rules can reach further, so a token edit still re-renders every page."
+        className="cursor-pointer text-muted-foreground hover:text-foreground"
+      >
+        {'used by ' + plural(used.length, 'component') + ' · on ' + plural(routes.length, 'page')}
+      </summary>
+      {used.length ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {used.map(c => (
+            <Link key={c.slug} href={hrefOf(c)} className="rounded-md border border-border bg-card px-2 py-0.5 hover:bg-muted">
+              {c.id ? c.name + ' · ' + c.id : c.name}
+            </Link>
+          ))}
+        </div>
+      ) : null}
+      <div className="mt-2 break-all text-muted-foreground">{routes.join('  ·  ')}</div>
+    </details>
+  )
+}
+
+const TOKEN_PAGE: Record<string, string> = { color: 'colors', font: 'typography', radius: 'spacing', shadow: 'spacing', space: 'spacing' }
+
+/** Where a token is shown in the viewer. */
+export const tokenHref = (name: string) => {
+  const t = tokens.find(x => x.name === name)
+  const page = t ? TOKEN_PAGE[t.category] : undefined
+  // A text colour sits on the card of the colour it is meant for.
+  const card = isFg(name) && tokens.some(x => x.name === baseOf(name)) ? baseOf(name) : name
+  return '/design-system/tokens' + (page ? '/' + page : '') + (t?.category === 'color' ? '#token' + card.slice(1) : '')
+}
+`
+
 const COLORS = `${HEAD}import { tokens } from '../../_data'
 import { PageTitle, Panel, SectionLabel } from '../../_ui'
 import { Copy } from '../../_copy'
+import { Reach } from '../../_reach'
 import { contrast, ink, roles, type Role, type Tok } from '../../_color'
 
 const GROUPS: { label: string; hint: string; match: (n: string) => boolean }[] = [
@@ -980,6 +1043,9 @@ function RoleCard({ role }: { role: Role }) {
             <Contrast ratio={contrast(base.dark ?? base.value, fg.dark ?? fg.value)} theme="dark" />
           </div>
         ) : null}
+        <div className="pt-1">
+          <Reach names={[base.name, ...(fg ? [fg.name] : [])]} />
+        </div>
       </div>
     </div>
   )
@@ -1051,6 +1117,7 @@ export default function ColorsPage() {
 `
 
 const TYPOGRAPHY = `${HEAD}import { tokens } from '../../_data'
+import { Reach } from '../../_reach'
 import { PageTitle, Panel } from '../../_ui'
 
 const SAMPLE = 'The quick brown fox jumps over the lazy dog'
@@ -1084,6 +1151,7 @@ export default function TypographyPage() {
                 <div className="font-mono text-xs uppercase tracking-widest text-muted-foreground">{t.name.replace('--font-', '')}</div>
                 <div className="font-mono text-xs text-muted-foreground">{t.value}</div>
                 <div className="text-lg" style={{ fontFamily: 'var(' + t.name + ')' }}>{SAMPLE}</div>
+                <Reach names={[t.name]} />
               </div>
             ))
           ) : (
@@ -1117,6 +1185,7 @@ export default function TypographyPage() {
 `
 
 const SPACING = `${HEAD}import { tokens } from '../../_data'
+import { Reach } from '../../_reach'
 import { PageTitle, Panel } from '../../_ui'
 
 const space = [
@@ -1140,14 +1209,20 @@ export default function SpacingPage() {
     <div className="flex flex-col gap-6">
       <PageTitle title="Spacing & radius" sub="The spacing scale, corner radii and elevation." />
       <Panel label="radius">
+        {radiusTokens.length ? (
+          <div className="divide-y divide-border border-b border-border">
+            {radiusTokens.map(t => (
+              <div key={t.name} className="flex items-start gap-4 p-4">
+                <div className="size-12 shrink-0 border-2 border-primary bg-muted" style={{ borderRadius: 'var(' + t.name + ')' }} />
+                <div className="min-w-0 space-y-1">
+                  <div className="font-mono text-xs">{t.name} <span className="text-muted-foreground">{t.value}</span></div>
+                  <Reach names={[t.name]} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
         <div className="grid gap-6 p-4 sm:grid-cols-3 lg:grid-cols-6">
-          {radiusTokens.map(t => (
-            <div key={t.name} className="space-y-2">
-              <div className="size-16 border-2 border-primary bg-muted" style={{ borderRadius: 'var(' + t.name + ')' }} />
-              <div className="font-mono text-xs">{t.name}</div>
-              <div className="font-mono text-xs text-muted-foreground">{t.value}</div>
-            </div>
-          ))}
           {radii.map(r => (
             <div key={r} className="space-y-2">
               <div className={r + ' size-16 border-2 border-primary bg-muted'} />
@@ -1172,6 +1247,7 @@ export default function SpacingPage() {
             <div key={t.name} className="space-y-2">
               <div className="h-16 rounded-lg bg-card" style={{ boxShadow: 'var(' + t.name + ')' }} />
               <div className="font-mono text-xs">{t.name}</div>
+              <Reach names={[t.name]} />
             </div>
           ))}
           {shadows.map(s => (
@@ -1423,6 +1499,7 @@ import { PreviewBoundary } from './_boundary'
 import { Panel, SectionLabel } from './_ui'
 import { Copy } from './_copy'
 import { history } from './_activity'
+import { tokenHref } from './_reach'
 
 export function ComponentDetail({ slug }: { slug: string }) {
   const c = components.find(x => x.slug === slug)
@@ -1510,6 +1587,21 @@ export function ComponentDetail({ slug }: { slug: string }) {
           </div>
         </Panel>
       </div>
+
+      <Panel
+        label={'tokens · ' + c.tokens.length}
+        right={<span className="font-mono text-xs text-muted-foreground">referenced in its file</span>}
+      >
+        <div className="flex flex-wrap gap-1.5 p-4">
+          {c.tokens.length ? (
+            c.tokens.map(t => (
+              <Link key={t} href={tokenHref(t)} className="rounded-md border border-border bg-card px-2 py-0.5 font-mono text-xs hover:bg-muted">{t}</Link>
+            ))
+          ) : (
+            <span className="text-sm text-muted-foreground">No token referenced directly; it may style itself through the components it renders.</span>
+          )}
+        </div>
+      </Panel>
 
       <Panel label={'history · ' + (history[c.slug]?.length ?? 0)}>
         <div className="p-2">
@@ -1679,9 +1771,13 @@ export default function RecommendationsPage() {
   const noPreview = components.filter(c => !c.preview && c.section === 'shared')
   const unused = components.filter(c => c.section === 'shared' && c.routes.length === 0)
   const noDark = tokens.filter(t => t.category === 'color' && !t.dark)
-  const rawFiles = [...new Set(rawValues.map(v => v.file))]
+  // Primitives in components/ui carry their library's own literals (shadcn's text-[0.8rem]): listed apart.
+  const primitiveFiles = new Set(components.filter(c => c.section === 'components').map(c => c.file))
+  const vendor = rawValues.filter(v => primitiveFiles.has(v.file))
+  const own = rawValues.filter(v => !primitiveFiles.has(v.file))
+  const rawFiles = [...new Set(own.map(v => v.file))]
   const repeated = Object.entries(
-    rawValues.reduce<Record<string, number>>((acc, v) => ({ ...acc, [v.value]: (acc[v.value] ?? 0) + 1 }), {}),
+    own.reduce<Record<string, number>>((acc, v) => ({ ...acc, [v.value]: (acc[v.value] ?? 0) + 1 }), {}),
   )
     .filter(([, n]) => n > 2)
     .sort((a, b) => b[1] - a[1])
@@ -1692,7 +1788,7 @@ export default function RecommendationsPage() {
     { label: 'shared components without preview', value: noPreview.length },
     { label: 'components not on any page', value: unused.length },
     { label: 'text colours below AA contrast', value: weak.length },
-    { label: 'hardcoded values', value: rawValues.length },
+    { label: 'hardcoded values', value: own.length },
   ]
   return (
     <div className="flex flex-col gap-6">
@@ -1758,10 +1854,10 @@ export default function RecommendationsPage() {
         </Panel>
       ) : null}
       {rawValues.length ? (
-        <Panel label={'hardcoded values · ' + rawValues.length} right={<span className="font-mono text-xs text-muted-foreground">{rawFiles.length} files</span>}>
+        <Panel label={'hardcoded values · ' + own.length} right={<span className="font-mono text-xs text-muted-foreground">{rawFiles.length} files</span>}>
           <div className="divide-y divide-border text-sm">
             <p className="px-4 py-3 text-muted-foreground">
-              Colours, sizes and radii written as literals instead of tokens. They do not follow a token change. Coherent warns when an edit adds one; ask your agent to replace them, for example &quot;replace hardcoded values in {rawFiles[0]}&quot;.
+              Colours, sizes and radii written as literals instead of tokens. They do not follow a token change. Coherent warns when an edit adds one; ask your agent to replace them, for example &quot;replace hardcoded values in {rawFiles[0] ?? 'components/ui'}&quot;.
             </p>
             {repeated.length ? (
               <div className="space-y-2 px-4 py-3">
@@ -1778,7 +1874,7 @@ export default function RecommendationsPage() {
             {rawFiles.map(f => (
               <div key={f} className="space-y-1 px-4 py-3">
                 <div className="font-mono text-xs text-foreground">{f}</div>
-                {rawValues
+                {own
                   .filter(v => v.file === f)
                   .map(v => (
                     <div key={v.line + v.value} className="flex gap-3 font-mono text-xs text-muted-foreground">
@@ -1789,6 +1885,20 @@ export default function RecommendationsPage() {
                   ))}
               </div>
             ))}
+            {vendor.length ? (
+              <details className="px-4 py-3">
+                <summary className="cursor-pointer text-muted-foreground">
+                  {vendor.length + ' more in UI primitives (components/ui): mostly defaults of the UI library, left as they are'}
+                </summary>
+                <div className="mt-2 space-y-1 font-mono text-xs text-muted-foreground">
+                  {vendor.map(v => (
+                    <div key={v.file + v.line + v.value}>
+                      {v.file}:{v.line} <span className="text-foreground">{v.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            ) : null}
           </div>
         </Panel>
       ) : null}
@@ -1819,6 +1929,7 @@ export function renderDesignSystemFiles(ds: DesignSystem, appDir: string, ctx: S
     [DS_VOLATILE, renderActivity(ds, ctx)],
     ['_copy.tsx', COPY],
     ['_color.ts', COLOR],
+    ['_reach.tsx', REACH],
     ['_previews.tsx', previews],
     ['_shell.tsx', SHELL],
     ['_boundary.tsx', BOUNDARY],

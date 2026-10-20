@@ -30,7 +30,10 @@ import {
 } from 'fs'
 import { dirname, isAbsolute, join, posix, relative, sep } from 'path'
 
-const SKIP = new Set(['node_modules', '.next', '.git', '.coherent', 'dist', 'build', 'out', '.turbo'])
+// Coding agents and their tools keep state in the project (`.claude/settings.local.json`,
+// `.gstack/`) and write it while an edit runs: not part of the app.
+const AGENT_STATE = ['.claude', '.codex', '.cursor', '.gstack']
+const SKIP = new Set(['node_modules', '.next', '.git', '.coherent', 'dist', 'build', 'out', '.turbo', ...AGENT_STATE])
 const TX_DIR = '.coherent/tx'
 // Written by tsc/next themselves, not by an edit: never part of the edit's write set.
 const SKIP_FILES = /(^|\/)(\.DS_Store|next-env\.d\.ts|[^/]*\.tsbuildinfo)$/
