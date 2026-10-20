@@ -12,6 +12,13 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.30.1] — 2026-10-20 — fix: the design system builds in new Next 16 apps
+
+Found by building a new app (Orbit) end to end with `coherent init` and `coherent ds sync`.
+- **`/design-system` builds with `cacheComponents`.** New apps from `coherent init` use Next 16 with `cacheComponents: true`, which refuses to prerender a server page that reads the current time; the activity heatmap did, so the build failed and `ds sync` rolled back on every new app. The heatmap now ends on the day the viewer was written.
+- **Primitives declared as `const Select = SelectPrimitive.Root`** (current shadcn) are named after their file again (Select, not SelectGroup). An ID already written above another export of the file is kept: a primitive's ID belongs to its file.
+- Recommendations no longer suggest replacing hardcoded values in `components/ui` when your own code has none.
+
 ## [0.30.0] — 2026-10-19 — feat: see which components use each token
 
 - **Token reach in `/design-system`.** Each colour card, font, radius and shadow token shows "used by N components · on M pages"; open it to see the components (linked) and the pages. Each component page lists the tokens it uses, linked to their cards. Counted from static references in the code (`bg-primary`, `rounded-lg`, `var(--brand)`): stylesheet rules can reach further, so a token edit still re-renders every page.

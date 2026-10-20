@@ -330,7 +330,11 @@ function renderActivity(ds: DesignSystem, ctx: SiteContext): string {
   }
   const activity: Record<string, number> = {}
   for (const e of ctx.edits) activity[e.at.slice(0, 10)] = (activity[e.at.slice(0, 10)] ?? 0) + 1
+  // The heatmap ends on the day the viewer was written: a server page may not read
+  // the current time (Next 16 cacheComponents refuses to prerender it).
   return `${HEAD}export const generatedAt: string | null = ${JSON.stringify(ctx.edits[0]?.at.slice(0, 10) ?? null)}
+
+export const renderedOn: string = ${JSON.stringify((ctx.edits[0]?.at ?? new Date().toISOString()).slice(0, 10))}
 
 export const edits: { label: string; verdict: string | null; at: string }[] = ${JSON.stringify(
     ctx.edits.slice(0, 10).map(({ label, verdict, at }) => ({ label, verdict, at })),
@@ -664,7 +668,7 @@ export default function DesignSystemLayout({ children }: { children: ReactNode }
 
 const HOME = `${HEAD}import Link from 'next/link'
 import { components, icons, pages, tokens } from './_data'
-import { activity, edits } from './_activity'
+import { activity, edits, renderedOn } from './_activity'
 import { Arrow, PageTitle, Panel } from './_ui'
 
 const WEEKS = 52
@@ -677,7 +681,7 @@ export default function DesignSystemHome() {
   const colors = tokens.filter(t => t.category === 'color').length
   const total = Object.values(activity).reduce((a, b) => a + b, 0)
   // Columns are calendar weeks starting on Sunday, like GitHub; days after today stay empty.
-  const today = new Date()
+  const today = new Date(renderedOn + 'T12:00:00')
   const start = new Date(today)
   start.setDate(start.getDate() - start.getDay() - (WEEKS - 1) * 7)
   const days = Array.from({ length: WEEKS * 7 }, (_, i) => {
@@ -1857,7 +1861,13 @@ export default function RecommendationsPage() {
         <Panel label={'hardcoded values · ' + own.length} right={<span className="font-mono text-xs text-muted-foreground">{rawFiles.length} files</span>}>
           <div className="divide-y divide-border text-sm">
             <p className="px-4 py-3 text-muted-foreground">
-              Colours, sizes and radii written as literals instead of tokens. They do not follow a token change. Coherent warns when an edit adds one; ask your agent to replace them, for example &quot;replace hardcoded values in {rawFiles[0] ?? 'components/ui'}&quot;.
+              {own.length ? (
+                <>
+                  Colours, sizes and radii written as literals instead of tokens. They do not follow a token change. Coherent warns when an edit adds one; ask your agent to replace them, for example &quot;replace hardcoded values in {rawFiles[0]}&quot;.
+                </>
+              ) : (
+                'None in your code: every colour, size and radius comes from a token or the theme scale.'
+              )}
             </p>
             {repeated.length ? (
               <div className="space-y-2 px-4 py-3">

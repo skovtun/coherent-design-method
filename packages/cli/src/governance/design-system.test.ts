@@ -180,9 +180,12 @@ describe('design system from a project', () => {
     const previews = files.get('src/app/design-system/_previews.tsx')!
     expect(previews).toMatch(/import \{ Badge as C\d+_Badge \} from '\.\.\/\.\.\/components\/ui\/badge'/)
     expect(previews).toContain('variant="outline">Outline<')
+    expect(activity).toContain('export const renderedOn: string = "2026-10-19"')
     for (const [, text] of files) {
       expect(text.startsWith('// @coherent-generated design-system')).toBe(true)
       expect(text.match(/className="[^"]*\[[^"]*"/g)).toBeNull()
+      // Next 16 cacheComponents refuses to prerender a page that reads the current time.
+      expect(text).not.toMatch(/new Date\(\)|Date\.now\(\)/)
     }
   })
 })
@@ -216,6 +219,28 @@ describe('icons', () => {
     expect(icons).toContain('import { HomeIcon as I1 } from "@heroicons/react/24/outline"')
     expect(icons).toContain('import { Logo as U0 } from "../../components/icons/logo"')
     expect(files.get('src/app/design-system/_data.ts')).toContain('"key": "@heroicons/react/24/outline:HomeIcon"')
+  })
+})
+
+describe('primitive aliases', () => {
+  it('names a primitive after its file even when it is a re-exported part, and keeps an ID written elsewhere in the file', () => {
+    const src = `import * as SelectPrimitive from "@radix-ui/react-select"
+const Select = SelectPrimitive.Root
+/** @coherent-id CID-022 */
+function SelectGroup() { return <SelectPrimitive.Group /> }
+function SelectItem() { return <SelectPrimitive.Item /> }
+export { Select, SelectGroup, SelectItem }
+`
+    expect(componentDecls('select.tsx', src).map(d => d.name)).toEqual(['Select', 'SelectGroup', 'SelectItem'])
+    root = mkdtempSync(join(tmpdir(), 'cds-'))
+    try {
+      write('src/components/ui/select.tsx', src)
+      write('src/app/page.tsx', "import { Select } from '../components/ui/select'\nexport default () => <Select />\n")
+      const c = buildDesignSystem(buildGraph(root)).components.find(x => x.file.endsWith('select.tsx'))
+      expect([c?.name, c?.id, c?.parts]).toEqual(['Select', 'CID-022', ['SelectGroup', 'SelectItem']])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })
 
