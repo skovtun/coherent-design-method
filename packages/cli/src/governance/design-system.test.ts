@@ -97,6 +97,25 @@ describe('design system from a project', () => {
     expect(ds.page).toBeNull()
   })
 
+  it('maps each token to the components and pages that reference it in code', () => {
+    write('src/app/globals.css', ':root { --primary: #10b981; --radius: 0.5rem; --muted: #eee; --brand: #f00; }\n')
+    write(
+      'src/components/kpi-card.tsx',
+      '/** @coherent-id CID-002 */\nexport function KpiCard() { return <div className="rounded-lg bg-primary/90 hover:text-muted" /> }\n',
+    )
+    write(
+      'src/components/hero.tsx',
+      "export function Hero() { return <section style={{ color: 'var(--brand)' }} /> }\n",
+    )
+    const ds = buildDesignSystem(buildGraph(root))
+    const t = (n: string) => ds.tokens.find(x => x.name === n)
+    expect([t('--primary')?.usedBy, t('--primary')?.routes]).toEqual([['CID-002'], ['/', '/earnings']])
+    expect([t('--brand')?.usedBy, t('--brand')?.routes]).toEqual([['Hero'], ['/']])
+    expect(t('--radius')?.usedBy).toEqual(['CID-002'])
+    expect(ds.components.find(c => c.name === 'KpiCard')?.tokens).toEqual(['--muted', '--primary', '--radius'])
+    expect(ds.components.find(c => c.name === 'Button')?.tokens).toBeUndefined()
+  })
+
   it('addresses exactly: by ID, by name, by token; never by a guess', () => {
     const ds = buildDesignSystem(buildGraph(root))
     expect(resolveTarget(ds, 'cid-002')).toMatchObject({ type: 'component', component: { name: 'KpiCard' } })

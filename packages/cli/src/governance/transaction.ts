@@ -30,10 +30,13 @@ import {
 } from 'fs'
 import { dirname, isAbsolute, join, posix, relative, sep } from 'path'
 
-const SKIP = new Set(['node_modules', '.next', '.git', '.coherent', 'dist', 'build', 'out', '.turbo'])
+// `.gstack/` is a browser tool's state, written while an edit runs: not part of the app.
+const SKIP = new Set(['node_modules', '.next', '.git', '.coherent', 'dist', 'build', 'out', '.turbo', '.gstack'])
 const TX_DIR = '.coherent/tx'
-// Written by tsc/next themselves, not by an edit: never part of the edit's write set.
-const SKIP_FILES = /(^|\/)(\.DS_Store|next-env\.d\.ts|[^/]*\.tsbuildinfo)$/
+// Written by tsc/next, or by the coding agent's host (Claude Code's local permissions),
+// not by an edit: never part of the edit's write set. The rest of `.claude/`, `.cursor/rules/`
+// and the like are project files and stay governed.
+const SKIP_FILES = /(^|\/)(\.DS_Store|next-env\.d\.ts|[^/]*\.tsbuildinfo)$|^\.claude\/settings\.local\.json$/
 // Hashed (so a change is detected) but never copied into .coherent/tx.
 const SECRET = /(^|\/)(\.env(\.[^/]*)?|[^/]*\.(pem|key|p12|pfx))$/i
 const MAX_FILE = 5 * 1024 * 1024
