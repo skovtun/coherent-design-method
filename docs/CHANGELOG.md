@@ -12,6 +12,13 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.30.0] — 2026-10-19 — feat: see which components use each token
+
+- **Token reach in `/design-system`.** Each colour card, font, radius and shadow token shows "used by N components · on M pages"; open it to see the components (linked) and the pages. Each component page lists the tokens it uses, linked to their cards. Counted from static references in the code (`bg-primary`, `rounded-lg`, `var(--brand)`): stylesheet rules can reach further, so a token edit still re-renders every page.
+- **`coherent_inventory` returns `usedBy` and `pages` for every token**, so the agent knows how far "make the primary warmer" spreads before asking.
+- **Hardcoded values stay warnings**, by measurement on 8 apps: failing on them would block brand logo colours and the UI library's own values. Recommendations now list the values inside `components/ui` (mostly shadcn defaults) apart, collapsed, and count only yours.
+- **Fix: agent tool state no longer disturbs verification.** Claude Code's local permissions file (`.claude/settings.local.json`) and the gstack browser's state (`.gstack/`) change while an edit runs and are not part of the app; before, they could fail an edit as an undeclared change or skip its visual check. Committed agent configuration (`.claude/agents`, `.cursor/rules`) stays governed.
+
 ## [0.29.0] — 2026-10-19 — feat: hardcoded values flagged; the design-system viewer is always current
 
 - **Hardcoded values.** Every edit's verification returns `warnings` for colours, type sizes, spacing, radius and shadows it writes as literals instead of tokens: `bg-[#3b82f6]`, `text-blue-500`, `text-[15px]`, `rounded-[10px]`, colours in `style={{…}}` or svg `fill`. Only what the edit adds counts; the theme scale (`p-4`, `text-sm`, `rounded-lg`) and `var(--…)` are tokens; layout sizes like `w-[280px]` are not flagged. Warnings never fail an edit. `coherent edit` prints them; the agent replaces them unless you asked for that value.

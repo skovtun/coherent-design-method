@@ -4,7 +4,7 @@ type: adr
 status: accepted
 date: 2026-10-19
 confidence: verified
-shipped_in: [0.28.0, 0.29.0]
+shipped_in: [0.28.0, 0.29.0, 0.30.0]
 ---
 
 # ADR 0013 — Design system from code: addressable components and tokens in agent mode
@@ -63,10 +63,16 @@ Codex reviewed the plan first and cut it: token reach moved to slice 3 (it doubl
 - **Viewer always current**: once the viewer exists it joins every edit (page edits included), and the edit being committed is written into its activity with its verdict right before the commit (only the data file; the pages reading it were built with the edit). Viewer files do not count as an edit's own change, except for design-system edits, whose job they are.
 - **Recommendations**: app-wide hardcoded values by file, and values repeated 3+ times as token candidates.
 
-### Deferred (slice 3)
+### Slice 3 (implemented, 0.30.0)
 
-- Raw values as failures (after measuring warnings on more apps).
-- Token → component reach (needs a CSS/Tailwind dependency graph; label static references as such); until then a token edit is global.
+- **Raw values stay warnings (measured).** The scan ran over 8 local apps (2 to 730 TSX files). No false positives, but failures would block legitimate code: brand logos (`fill="#4285F4"`, Google's colours), and the UI library's own literals in `components/ui` (shadcn's `text-[0.8rem]`, `p-[3px]`). Apps built without tokens carry hundreds (1,223 in one); baseline-relative warnings handle them, a hard gate would not. Recommendations now list primitive-file values apart, collapsed.
+- **Token reach** (`tokenRefs` in `raw-values.ts`, `reach` in `design-system.ts`): which tokens each TSX file references statically, through theme utilities named after a token (`bg-primary` → `--primary`, `rounded-lg` → `--radius`, `font-sans`, `shadow-*`, `bg-(--x)`) and `var(--x)`. A token's `usedBy` is the components whose file references it; its routes are the pages that render any referencing file (graph impact). Information only, labelled as static references: stylesheet rules (`@apply` in the base layer) reach further, so a token edit still renders every route. Shown on colour cards, font, radius and shadow tokens, and as "tokens" on each component page; returned by `coherent_inventory`. The agent template points the "ask before spreading a token change" rule at `usedBy`.
+- **Agent state is not part of the app**: `.gstack/` and `.claude/settings.local.json` are skipped by tree hashing (Codex: skipping whole `.claude`/`.cursor` dirs would ungovern committed rules like `.cursor/rules`). Found live: a browser tool wrote `.gstack/claude-available.json` during `next build`, which downgraded a sync to `verified_without_visual`; Claude Code's own `settings.local.json` would have failed an edit as an undeclared change.
+
+### Deferred (slice 4)
+
+- Raw values as failures, opt-in per project, if a team asks for it.
+- Reach through stylesheet rules (`@apply`, base layer) and runtime-built classes.
 - Live component previews: element crops from real pages are best-effort (hidden/conditional components, multiple instances, fragments); optional authored previews.
 - Explicit impact acknowledgement (bound to target + hash + routes) for shared edits.
 - Exact-copy detection of an existing component's markup.

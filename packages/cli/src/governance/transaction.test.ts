@@ -131,8 +131,17 @@ describe('agent state', () => {
     const before = hashTree(root)
     write('.claude/settings.local.json', '{}')
     write('.gstack/claude-available.json', '{}')
-    write('.cursor/state.json', '{}')
     expect(hashTree(root)).toEqual(before)
+  })
+  it('keeps agent configuration that belongs to the project governed', () => {
+    const before = hashTree(root)
+    write('.cursor/rules/style.mdc', 'rule')
+    write('.claude/agents/coherent.md', 'agent')
+    expect(Object.keys(hashTree(root)).filter(f => !(f in before))).toEqual([
+      '.claude/agents/coherent.md',
+      '.cursor/rules/style.mdc',
+    ])
+    expect(normalizeRelPath('.cursor/rules/style.mdc')).toBe('.cursor/rules/style.mdc')
   })
 })
 
@@ -145,7 +154,7 @@ describe('path safety', () => {
       'C:/x.tsx',
       'node_modules/a.js',
       '.git/config',
-      '.claude/settings.local.json',
+      '.gstack/x.json',
       '',
     ])
       expect(() => normalizeRelPath(p), p).toThrow(/Unsafe path/)

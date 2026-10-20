@@ -8,9 +8,9 @@
 > Why: ADR-0011 (plain Claude Code beat the `coherent chat` pipeline on every screen).
 > The generator pipeline below is **classic / deprecated** (`init --classic`).
 
-**Current version:** 0.29.0
+**Current version:** 0.30.0
 **Packages:** `@getcoherent/core` + `@getcoherent/cli` (published together, same version)
-**Tests:** 2665 passing
+**Tests:** 2670 passing
 
 ---
 
@@ -125,7 +125,7 @@ packages/cli/src/governance/
   agent-tools.ts  the 5 MCP agent tools over session.ts (inventory, begin/verify/rollback edit, ds_sync)
   design-system.ts       ADR-0013: IDs in source, tokens, exact targets, ds sync plan
   design-system-site.ts  the generated /design-system viewer
-  raw-values.ts          hardcoded colours/sizes in TSX (AST); edit warnings, viewer list
+  raw-values.ts          hardcoded colours/sizes in TSX (AST); edit warnings, viewer list; token references (reach)
   hook.ts         `coherent hook pre-write` (PreToolUse write guard, feedback only)
 packages/cli/src/commands/
   agent-init.ts   `coherent init`: new app / agent-only / update; writes agent, .mcp.json, settings, AGENTS.md
