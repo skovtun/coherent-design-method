@@ -169,6 +169,12 @@ export function registerGovernanceTools(server: McpServer): void {
           .describe(
             'What the user addressed: a component ID (CID-007), an exact component name (@KpiCard), or a token (--radius). Its file is added to modify, and the scope must fit it.',
           ),
+        refactor: z
+          .boolean()
+          .optional()
+          .describe(
+            'A change that must not show: extracting components, replacing hardcoded values with equal tokens, renames. Every affected page must then render pixel-identically, and nothing visible is expected to change.',
+          ),
       },
     },
     guard(async a => {
@@ -180,6 +186,7 @@ export function registerGovernanceTools(server: McpServer): void {
         create: a.create,
         amend: a.amend,
         target: a.target,
+        refactor: a.refactor,
         log: m => console.error(m),
       })
       const ds = buildDesignSystem(buildGraph(r))

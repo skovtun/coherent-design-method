@@ -1144,6 +1144,9 @@ const weights = [
 
 export default function TypographyPage() {
   const fonts = tokens.filter(t => t.category === 'font')
+  // The project's own type scale (--text-*), when it has one; else the theme scale.
+  const sizes = tokens.filter(t => t.category === 'size' && t.name.startsWith('--text-'))
+  const rhythm = tokens.filter(t => /^--(leading|tracking)-/.test(t.name))
   return (
     <div className="flex flex-col gap-6">
       <PageTitle title="Typography" sub="Font families, sizes and weights." />
@@ -1163,16 +1166,47 @@ export default function TypographyPage() {
           )}
         </div>
       </Panel>
-      <Panel label="font sizes">
+      <Panel label={sizes.length ? 'font sizes · ' + sizes.length : 'font sizes · theme scale'}>
         <div className="divide-y divide-border">
-          {scale.map(([name, cls, size]) => (
-            <div key={name} className="space-y-1 p-4">
-              <div className="font-mono text-xs text-muted-foreground"><span className="uppercase">{name}</span> {size}</div>
-              <div className={cls + ' truncate'}>{SAMPLE}</div>
-            </div>
-          ))}
+          {sizes.length
+            ? sizes.map(t => (
+                <div key={t.name} className="space-y-1 p-4">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2 font-mono text-xs text-muted-foreground">
+                    <span>
+                      <span className="text-foreground">{t.name.replace('--text-', 'text-')}</span> {t.value}
+                    </span>
+                    <Reach names={[t.name]} />
+                  </div>
+                  <div className="truncate" style={{ fontSize: 'var(' + t.name + ')' }}>{SAMPLE}</div>
+                </div>
+              ))
+            : scale.map(([name, cls, size]) => (
+                <div key={name} className="space-y-1 p-4">
+                  <div className="font-mono text-xs text-muted-foreground"><span className="uppercase">{name}</span> {size}</div>
+                  <div className={cls + ' truncate'}>{SAMPLE}</div>
+                </div>
+              ))}
         </div>
       </Panel>
+      {rhythm.length ? (
+        <Panel label={'line height & tracking · ' + rhythm.length}>
+          <div className="divide-y divide-border">
+            {rhythm.map(t => (
+              <div key={t.name} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="font-mono text-xs text-muted-foreground">
+                  <span className="text-foreground">{t.name.slice(2)}</span> {t.value}
+                </div>
+                <div
+                  className="max-w-md text-sm"
+                  style={t.name.startsWith('--leading') ? { lineHeight: 'var(' + t.name + ')' } : { letterSpacing: 'var(' + t.name + ')' }}
+                >
+                  {t.name.startsWith('--leading') ? 'Two lines of text, set to show the line height of this token.' : 'Letter spacing'}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      ) : null}
       <Panel label="weights">
         <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
           {weights.map(([name, cls]) => (
@@ -1496,7 +1530,11 @@ export default function IndexPage() {
 }
 `
 
-const DETAIL = `${HEAD}import Link from 'next/link'
+// A client module: previews render any component, including primitives that use
+// hooks without their own 'use client' (older shadcn copies).
+const DETAIL = `${HEAD}'use client'
+
+import Link from 'next/link'
 import { components } from './_data'
 import { previews, variantPreviews } from './_previews'
 import { PreviewBoundary } from './_boundary'

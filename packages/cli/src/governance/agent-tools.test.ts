@@ -293,6 +293,15 @@ describe('design system (ADR-0013)', () => {
     await expect(
       call('coherent_begin_edit', { request: 'r', scope: 'tokens', create: ['src/components/swatch.tsx'] }),
     ).rejects.toThrow(/A token edit changes only stylesheets/)
+    // Tailwind v3 keeps its scale in tailwind.config: a token edit may change it.
+    write('tailwind.config.ts', 'export default { theme: { extend: {} } }\n')
+    const t = await call('coherent_begin_edit', {
+      request: 'r',
+      scope: 'tokens',
+      modify: ['src/app/globals.css', 'tailwind.config.ts'],
+    })
+    expect((t as { writeSet: { modify: string[] } }).writeSet.modify).toContain('tailwind.config.ts')
+    await call('coherent_rollback_edit', {})
   })
 
   it('re-syncs a viewer that only needs regenerating', async () => {

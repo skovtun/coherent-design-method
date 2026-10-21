@@ -192,9 +192,12 @@ export function tokenRefs(file: string, text: string, tokens: ReadonlySet<string
     for (let i = u.indexOf('-'); i > 0; i = u.indexOf('-', i + 1)) {
       const prefix = u.slice(0, i)
       const name = u.slice(i + 1)
+      // text-* is a colour or a size: try both.
       if (COLOR_PREFIX.test(prefix)) hit(`--${name}`, `--color-${name}`)
+      if (prefix === 'text') hit(`--text-${name}`)
       else if (prefix === 'font') hit(`--font-${name}`)
-      else if (prefix === 'text') hit(`--text-${name}`)
+      else if (prefix === 'leading' || prefix === 'tracking') hit(`--${prefix}-${name}`)
+      else if (prefix === 'rounded') hit(`--radius-${name}`)
       if (prefix === 'shadow') hit(`--shadow-${name}`)
     }
   })

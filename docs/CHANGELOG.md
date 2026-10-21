@@ -12,6 +12,16 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.31.0] — 2026-10-21 — feat: refactors proven to change nothing; Tailwind v3 tokens; renders you can trust on real sites
+
+Found by moving getcoherent.design itself onto Coherent: 403 hardcoded values to tokens and a 1,000-line page split into components, every step a governed edit.
+- **Refactor edits.** `coherent_begin_edit` takes `refactor: true` for changes that must not show: splitting a page into components, replacing hardcoded values with equal tokens, renames. Every affected page is compared pixel by pixel and must not change; a pass is `verified`. Before, such an edit failed ("did not visibly change any affected page"), so a safe restructuring could not go through Coherent at all. The first run caught a real regression: new tokens named like Tailwind defaults (`tracking-tight`, `leading-snug`) silently overrode them across the site.
+- **The build is checked even when renders are unavailable.** When the "before" renders could not be taken (no browser, a page that never settles), final verification still runs the production build; a broken build no longer passes as `verified_without_visual`.
+- **Tailwind v3 projects:** a token edit may change `tailwind.config.*`, where v3 keeps its theme scale.
+- **The viewer renders any component.** Component pages are a client module, so previews of primitives that use hooks without their own `'use client'` (older shadcn copies) no longer break the build.
+- **Local renders stub Vercel's `/_vercel/*` endpoints** (Web Analytics, Speed Insights): a local preview answered 404 on every page and downgraded verdicts to `partially_verified` for an error no user sees.
+- Agent template: when to pass `refactor: true`.
+
 ## [0.30.1] — 2026-10-20 — fix: the design system builds in new Next 16 apps
 
 Found by building a new app (Orbit) end to end with `coherent init` and `coherent ds sync`.

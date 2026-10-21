@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { buildGraph } from './graph.js'
+import { buildGraph, impactOf } from './graph.js'
+import { planTargets } from './session.js'
 import { annotate, buildDesignSystem, componentDecls, parseTokens, planSync, resolveTarget } from './design-system.js'
 import { renderDesignSystemFiles } from './design-system-site.js'
 
@@ -114,6 +115,19 @@ describe('design system from a project', () => {
     expect(t('--radius')?.usedBy).toEqual(['CID-002'])
     expect(ds.components.find(c => c.name === 'KpiCard')?.tokens).toEqual(['--muted', '--primary', '--radius'])
     expect(ds.components.find(c => c.name === 'Button')?.tokens).toBeUndefined()
+  })
+
+  it('a refactor expects every affected page to render unchanged', () => {
+    const graph = buildGraph(root)
+    const file = 'src/components/kpi-card.tsx'
+    const impact = impactOf(graph, file)
+    const normal = planTargets(root, graph, 'component', [file], impact)
+    const refactor = planTargets(root, graph, 'component', [file], impact, true)
+    expect(normal.targets.filter(t => t.expected === 'change').map(t => t.route)).toEqual(['/', '/earnings'])
+    expect(refactor.targets.map(t => [t.route, t.expected])).toEqual([
+      ['/', 'same'],
+      ['/earnings', 'same'],
+    ])
   })
 
   it('addresses exactly: by ID, by name, by token; never by a guess', () => {
