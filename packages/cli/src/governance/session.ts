@@ -33,7 +33,7 @@ import { DS_VOLATILE, dsFiles, renderDesignSystemFiles, type SiteContext } from 
 import { buildGraph, type Impact, type ProjectGraph } from './graph.js'
 import { scanLeaks, type Leak } from './privacy.js'
 import { addedRawValues, rawValues, rawValueWarning } from './raw-values.js'
-import { withImpact, type EditScope } from './router.js'
+import { TAILWIND_CONFIG, withImpact, type EditScope } from './router.js'
 import {
   beginTransaction,
   commitTransaction,
@@ -59,6 +59,7 @@ import {
   normalizeBrowserError,
   PreviewBuildError,
   shotsForTree,
+  startPreview,
   typecheck,
   type Shot,
 } from './verify.js'
@@ -97,6 +98,8 @@ export interface EditSession {
   target?: string
   /** Coherent's own edit (ID sync): may write the viewer and ID comments. */
   internal?: boolean
+  /** A refactor: every affected page must render exactly as before. */
+  refactor?: boolean
 }
 
 export interface VisualResult {
@@ -226,6 +229,7 @@ export function planTargets(
   scope: EditScope,
   modify: string[],
   impact: Impact,
+  refactor = false,
 ): { targets: Target[]; unverifiedRoutes: string[] } {
   // The generated design-system page changes with every component edit: never a target or a control.
   const affected = affectedRoutes(modify, impact, graph).filter(r => r !== DS_ROUTE)
@@ -242,7 +246,7 @@ export function planTargets(
       route: r,
       // A design-system sync only adds ID comments: every page must render exactly as before.
       expected:
-        scope === 'design-system' || (scope === 'variant' && !edited.includes(r))
+        refactor || scope === 'design-system' || (scope === 'variant' && !edited.includes(r))
           ? ('same' as const)
           : ('change' as const),
     })),
@@ -274,6 +278,11 @@ export interface BeginInput {
   target?: string
   /** Coherent's own design-system sync (writes ID comments); not available to agents. */
   internal?: boolean
+  /**
+   * A change that must not show (extracting components, replacing literals with
+   * equal tokens): every affected page is compared pixel by pixel and must not change.
+   */
+  refactor?: boolean
   log?: (msg: string) => void
 }
 
@@ -322,9 +331,13 @@ export function checkScope(
     )
   // New files are judged by what they are: a token edit may add a stylesheet, nothing else.
   // (A page edit may create new components: that is component-first, not restyling a shared one.)
-  const notStyle = [...modify.filter(f => kind(f) !== 'style'), ...create.filter(f => !/\.(css|scss)$/.test(f))]
+  // Tailwind v3 keeps its theme scale in tailwind.config: part of the tokens.
+  const isTheme = (f: string) => kind(f) === 'style' || TAILWIND_CONFIG.test(f)
+  const notStyle = [...modify.filter(f => !isTheme(f)), ...create.filter(f => !/\.(css|scss)$/.test(f))]
   if (scope === 'tokens' && notStyle.length)
-    throw new Error(`A token edit changes only stylesheets; ${notStyle.join(', ')} need their own edit.`)
+    throw new Error(
+      `A token edit changes only stylesheets and the Tailwind config; ${notStyle.join(', ')} need their own edit.`,
+    )
 }
 
 /** Icon libraries the viewer recognises; the first is the default the agent uses. */
@@ -348,7 +361,8 @@ function siteContext(root: string, graph: ProjectGraph, exclude?: string, curren
   } catch {
     // no package.json: defaults below
   }
-  const rawName = String(pkg.name ?? '')
+  // `displayName` (as in VS Code extensions) names the app when the package name is a slug.
+  const rawName = String(pkg.displayName ?? pkg.name ?? '')
   const appName = rawName
     ? rawName
         .replace(/^@[^/]+\//, '')
@@ -558,7 +572,7 @@ export async function beginEdit(rootInput: string, input: BeginInput): Promise<E
     extendTransaction(root, s.txId, { modify: addModify, create: addCreate })
     const modify = [...s.modify, ...addModify]
     const impact = withImpact({ scope: s.scope, modify, create: [], rationale: '' }, graph).impact
-    const planned = planTargets(root, graph, s.scope, modify, impact)
+    const planned = planTargets(root, graph, s.scope, modify, impact, s.refactor)
     // A route added by the amend has no "before" render; it cannot be verified.
     const shot = new Set(s.beforeShots.map(b => b.route))
     const targets = planned.targets.filter(t => !s.visual || !s.beforeShots.length || shot.has(t.route))
@@ -571,7 +585,13 @@ export async function beginEdit(rootInput: string, input: BeginInput): Promise<E
       unverifiedRoutes: [
         ...new Set([
           ...planned.unverifiedRoutes,
-          ...planned.targets.filter(t => !targets.includes(t) && t.expected === 'change').map(t => t.route),
+          // A route the amend brought in has no "before" render: unverified. In a refactor
+          // every affected route must stay identical, so it counts too (Codex review).
+          ...planned.targets
+            .filter(
+              t => !targets.includes(t) && (t.expected === 'change' || (s.refactor && impact.routes.includes(t.route))),
+            )
+            .map(t => t.route),
         ]),
       ],
     }
@@ -602,7 +622,7 @@ export async function beginEdit(rootInput: string, input: BeginInput): Promise<E
   if (open) throw new Error(`Edit ${open.id} is still open; verify, roll it back, or amend it before starting another`)
 
   const impact = withImpact({ scope: input.scope, modify, create, rationale: '' }, graph).impact
-  const { targets, unverifiedRoutes } = planTargets(root, graph, input.scope, modify, impact)
+  const { targets, unverifiedRoutes } = planTargets(root, graph, input.scope, modify, impact, input.refactor)
   const baseline = typecheck(root)
   const leaksBefore = errorLeaks(root)
 
@@ -645,6 +665,7 @@ export async function beginEdit(rootInput: string, input: BeginInput): Promise<E
     preexistingFailure,
     ...(input.target ? { target: input.target } : {}),
     ...(input.internal ? { internal: true } : {}),
+    ...(input.refactor ? { refactor: true } : {}),
   }
   saveSession(root, s)
   return s
@@ -756,6 +777,24 @@ export async function verifyEdit(
     } catch (e) {
       buildError = String((e as Error).message)
     }
+  } else if (
+    !s.visual &&
+    !s.url &&
+    s.visualSkipped !== 'disabled' &&
+    !s.preexistingFailure &&
+    // Without Next installed there is nothing to build with: an environment gap, not the edit.
+    existsSync(join(root, 'node_modules', '.bin', 'next')) &&
+    !typeErrors.length &&
+    !outOfPlan.length
+  ) {
+    // Renders were unavailable (no browser, a page that never settles), but the
+    // production build is still a check: a broken build must not pass.
+    try {
+      opts.log?.('Building (renders unavailable)…')
+      await (await startPreview(root)).stop()
+    } catch (e) {
+      buildError = String((e as Error).message)
+    }
   }
   // Controls must be pixel-identical. "Change" routes are judged together: the
   // edit must visibly land somewhere in its impact set, but a page that imports
@@ -793,7 +832,7 @@ export async function verifyEdit(
       : s.preexistingFailure ||
           preexistingBrowserErrors > 0 ||
           s.unverifiedRoutes.length > 0 ||
-          (expectedChange.length === 0 && s.scope !== 'design-system')
+          (expectedChange.length === 0 && s.scope !== 'design-system' && !s.refactor)
         ? 'partially_verified'
         : 'verified'
   // The committed record is the truth: it includes the activity file stamped just before the commit.

@@ -88,6 +88,15 @@ describe('tokenRefs', () => {
       '--shadow-card',
     ])
   })
+  it('reads type rhythm and custom radius tokens', () => {
+    const t = new Set(['--text-micro', '--leading-copy', '--tracking-label', '--radius-control', '--radius'])
+    expect(tokenRefs('a.tsx', '<p className="text-micro leading-copy tracking-label rounded-control" />', t)).toEqual([
+      '--leading-copy',
+      '--radius-control',
+      '--text-micro',
+      '--tracking-label',
+    ])
+  })
   it('ignores tokens named only in plain strings, and non-TSX files', () => {
     expect(
       tokenRefs('a.tsx', 'const label = \'bg-primary\'\nexport const A = () => <p className="p-4" />', tokens),

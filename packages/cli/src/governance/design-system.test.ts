@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { buildGraph } from './graph.js'
+import { buildGraph, impactOf } from './graph.js'
+import { planTargets } from './session.js'
 import { annotate, buildDesignSystem, componentDecls, parseTokens, planSync, resolveTarget } from './design-system.js'
 import { renderDesignSystemFiles } from './design-system-site.js'
 
@@ -116,6 +117,19 @@ describe('design system from a project', () => {
     expect(ds.components.find(c => c.name === 'Button')?.tokens).toBeUndefined()
   })
 
+  it('a refactor expects every affected page to render unchanged', () => {
+    const graph = buildGraph(root)
+    const file = 'src/components/kpi-card.tsx'
+    const impact = impactOf(graph, file)
+    const normal = planTargets(root, graph, 'component', [file], impact)
+    const refactor = planTargets(root, graph, 'component', [file], impact, true)
+    expect(normal.targets.filter(t => t.expected === 'change').map(t => t.route)).toEqual(['/', '/earnings'])
+    expect(refactor.targets.map(t => [t.route, t.expected])).toEqual([
+      ['/', 'same'],
+      ['/earnings', 'same'],
+    ])
+  })
+
   it('addresses exactly: by ID, by name, by token; never by a guess', () => {
     const ds = buildDesignSystem(buildGraph(root))
     expect(resolveTarget(ds, 'cid-002')).toMatchObject({ type: 'component', component: { name: 'KpiCard' } })
@@ -177,9 +191,14 @@ describe('design system from a project', () => {
     expect(activity).toContain('"cid-002": [')
     expect(activity.match(/bigger number/g)).toHaveLength(2) // recent edits + KpiCard history, sync not in history
     expect(activity).not.toContain('"files"')
+    // Generated primitive previews render in a client module; the server module only points at them.
     const previews = files.get('src/app/design-system/_previews.tsx')!
-    expect(previews).toMatch(/import \{ Badge as C\d+_Badge \} from '\.\.\/\.\.\/components\/ui\/badge'/)
-    expect(previews).toContain('variant="outline">Outline<')
+    const ui = files.get('src/app/design-system/_ui-previews.tsx')!
+    expect(ui.split('\n')[1]).toBe("'use client'")
+    expect(ui).toMatch(/import \{ Badge as C\d+_Badge \} from '\.\.\/\.\.\/components\/ui\/badge'/)
+    expect(ui).toContain('variant="outline">Outline<')
+    expect(previews).not.toContain('components/ui/badge')
+    expect(previews).toMatch(/<UiPreview slug="[^"]+" group="variant" value="outline" \/>/)
     expect(activity).toContain('export const renderedOn: string = "2026-10-19"')
     for (const [, text] of files) {
       expect(text.startsWith('// @coherent-generated design-system')).toBe(true)

@@ -119,6 +119,9 @@ export async function captureRoutes(
         timezoneId: 'Pacific/Kiritimati',
         locale: 'de-DE',
       })
+      // Vercel serves /_vercel/* (Web Analytics, Speed Insights) only on its own
+      // hosting; a local preview answers 404 on every page, an error no user sees.
+      await ctx.route('**/_vercel/**', route => route.fulfill({ status: 204, body: '' }))
       for (const r of routes) {
         const page = await ctx.newPage()
         // A page can look right and still be broken: React reports hydration

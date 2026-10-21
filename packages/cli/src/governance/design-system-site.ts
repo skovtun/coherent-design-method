@@ -44,6 +44,7 @@ const FILES = [
   '_data.ts',
   '_activity.ts',
   '_previews.tsx',
+  '_ui-previews.tsx',
   '_shell.tsx',
   '_boundary.tsx',
   '_ui.tsx',
@@ -166,10 +167,18 @@ const toImport = (fromDir: string, file: string) => {
   return rel.startsWith('.') ? rel : `./${rel}`
 }
 
-function renderPreviews(ds: DesignSystem, dir: string): { code: string; live: Set<string> } {
+/**
+ * Previews: authored ones stay in a server module (they may be async or server-only);
+ * generated primitive previews live in a client module, so primitives that use hooks
+ * without their own 'use client' (older shadcn copies) still render.
+ */
+function renderPreviews(ds: DesignSystem, dir: string): { code: string; ui: string; live: Set<string> } {
   const imports: string[] = []
   const entries: string[] = []
   const variantEntries: string[] = []
+  const uiImports: string[] = []
+  const uiEntries: string[] = []
+  const uiVariantEntries: string[] = []
   const live = new Set<string>()
   ds.components.forEach((c, i) => {
     const prefix = `C${i}`
@@ -196,24 +205,48 @@ function renderPreviews(ds: DesignSystem, dir: string): { code: string; live: Se
         ? `<div className="flex flex-wrap items-center gap-3">${g.options.map(o => one(` variant="${o.value}"`, label(o.value))).join('')}</div>`
         : one('', r.children!)
     }
-    entries.push(`  '${c.slug}': () => (${main}),`)
-    if (groups.length)
-      variantEntries.push(
+    uiEntries.push(`  '${c.slug}': () => (${main}),`)
+    entries.push(`  '${c.slug}': () => <UiPreview slug="${c.slug}" />,`)
+    if (groups.length) {
+      const nested = (render: (g: string, v: string) => string) =>
         `  '${c.slug}': {\n${groups
           .map(
             g =>
               `    ${JSON.stringify(g.name)}: {\n${g.options
-                .map(o => `      ${JSON.stringify(o.value)}: () => ${one(` ${g.name}="${o.value}"`, label(o.value))},`)
+                .map(o => `      ${JSON.stringify(o.value)}: () => ${render(g.name, o.value)},`)
                 .join('\n')}\n    },`,
           )
-          .join('\n')}\n  },`,
+          .join('\n')}\n  },`
+      uiVariantEntries.push(nested((g, v) => one(` ${g}="${v}"`, label(v))))
+      variantEntries.push(
+        nested((g, v) => `<UiPreview slug="${c.slug}" group=${JSON.stringify(g)} value=${JSON.stringify(v)} />`),
       )
-    imports.push(
+    }
+    uiImports.push(
       `import { ${[...used].map(n => `${n} as ${prefix}_${n}`).join(', ')} } from '${toImport(dir, c.file)}'`,
     )
     live.add(c.slug)
   })
+  const ui = `${HEAD}'use client'
+
+import type { ReactNode } from 'react'
+${uiImports.join('\n')}
+
+const recipes: Record<string, () => ReactNode> = {
+${uiEntries.join('\n')}
+}
+
+const variants: Record<string, Record<string, Record<string, () => ReactNode>>> = {
+${uiVariantEntries.join('\n')}
+}
+
+export function UiPreview({ slug, group, value }: { slug: string; group?: string; value?: string }) {
+  const render = group ? variants[slug]?.[group]?.[value ?? ''] : recipes[slug]
+  return render ? <>{render()}</> : null
+}
+`
   const code = `${HEAD}import type { ReactNode } from 'react'
+import { UiPreview } from './_ui-previews'
 ${imports.join('\n')}
 
 export const previews: Record<string, () => ReactNode> = {
@@ -224,7 +257,7 @@ export const variantPreviews: Record<string, Record<string, Record<string, () =>
 ${variantEntries.join('\n')}
 }
 `
-  return { code, live }
+  return { code, ui, live }
 }
 
 const TOKEN_ORDER: TokenCategory[] = ['color', 'font', 'size', 'space', 'radius', 'shadow', 'other']
@@ -361,7 +394,7 @@ export function SectionLabel({ children }: { children: ReactNode }) {
 
 export function Panel({ label, right, children }: { label: string; right?: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-lg border border-border bg-card shadow-sm">
+    <section className="min-w-0 rounded-lg border border-border bg-card shadow-sm">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <SectionLabel>{label}</SectionLabel>
         {right}
@@ -1144,6 +1177,9 @@ const weights = [
 
 export default function TypographyPage() {
   const fonts = tokens.filter(t => t.category === 'font')
+  // The project's own type scale (--text-*), when it has one; else the theme scale.
+  const sizes = tokens.filter(t => t.category === 'size' && t.name.startsWith('--text-'))
+  const rhythm = tokens.filter(t => /^--(leading|tracking)-/.test(t.name))
   return (
     <div className="flex flex-col gap-6">
       <PageTitle title="Typography" sub="Font families, sizes and weights." />
@@ -1163,16 +1199,47 @@ export default function TypographyPage() {
           )}
         </div>
       </Panel>
-      <Panel label="font sizes">
+      <Panel label={sizes.length ? 'font sizes · ' + sizes.length : 'font sizes · theme scale'}>
         <div className="divide-y divide-border">
-          {scale.map(([name, cls, size]) => (
-            <div key={name} className="space-y-1 p-4">
-              <div className="font-mono text-xs text-muted-foreground"><span className="uppercase">{name}</span> {size}</div>
-              <div className={cls + ' truncate'}>{SAMPLE}</div>
-            </div>
-          ))}
+          {sizes.length
+            ? sizes.map(t => (
+                <div key={t.name} className="space-y-1 p-4">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2 font-mono text-xs text-muted-foreground">
+                    <span>
+                      <span className="text-foreground">{t.name.replace('--text-', 'text-')}</span> {t.value}
+                    </span>
+                    <Reach names={[t.name]} />
+                  </div>
+                  <div className="truncate" style={{ fontSize: 'var(' + t.name + ')' }}>{SAMPLE}</div>
+                </div>
+              ))
+            : scale.map(([name, cls, size]) => (
+                <div key={name} className="space-y-1 p-4">
+                  <div className="font-mono text-xs text-muted-foreground"><span className="uppercase">{name}</span> {size}</div>
+                  <div className={cls + ' truncate'}>{SAMPLE}</div>
+                </div>
+              ))}
         </div>
       </Panel>
+      {rhythm.length ? (
+        <Panel label={'line height & tracking · ' + rhythm.length}>
+          <div className="divide-y divide-border">
+            {rhythm.map(t => (
+              <div key={t.name} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="font-mono text-xs text-muted-foreground">
+                  <span className="text-foreground">{t.name.slice(2)}</span> {t.value}
+                </div>
+                <div
+                  className="max-w-md text-sm"
+                  style={t.name.startsWith('--leading') ? { lineHeight: 'var(' + t.name + ')' } : { letterSpacing: 'var(' + t.name + ')' }}
+                >
+                  {t.name.startsWith('--leading') ? 'Two lines of text, set to show the line height of this token.' : 'Letter spacing'}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      ) : null}
       <Panel label="weights">
         <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
           {weights.map(([name, cls]) => (
@@ -1530,7 +1597,8 @@ export function ComponentDetail({ slug }: { slug: string }) {
       </div>
 
       <Panel label="preview">
-        <div className="p-6">
+        {/* A wide component (a page header, a full section) scrolls inside the panel, not the page. */}
+        <div className="overflow-x-auto p-6">
           {preview ? (
             <PreviewBoundary>{preview()}</PreviewBoundary>
           ) : (
@@ -1930,7 +1998,7 @@ export default function RecommendationsPage() {
 /** All viewer files for this design system, keyed by project-relative path. */
 export function renderDesignSystemFiles(ds: DesignSystem, appDir: string, ctx: SiteContext): Map<string, string> {
   const dir = `${appDir}/design-system`
-  const { code: previews, live } = renderPreviews(ds, dir)
+  const { code: previews, ui: uiPreviews, live } = renderPreviews(ds, dir)
   const icons = renderIcons(ds, ctx, dir)
   const files: [string, string][] = [
     ['page.tsx', HOME],
@@ -1941,6 +2009,7 @@ export function renderDesignSystemFiles(ds: DesignSystem, appDir: string, ctx: S
     ['_color.ts', COLOR],
     ['_reach.tsx', REACH],
     ['_previews.tsx', previews],
+    ['_ui-previews.tsx', uiPreviews],
     ['_shell.tsx', SHELL],
     ['_boundary.tsx', BOUNDARY],
     ['_ui.tsx', UI],
