@@ -112,10 +112,17 @@ export function parsePlan(raw: string, graph: ProjectGraph): EditPlan {
   return { scope: p.scope, modify, create, rationale: p.rationale ?? '', question: p.question || undefined }
 }
 
+/** Tailwind's config (v3 keeps the theme scale there): no file imports it, yet it styles every page. */
+export const TAILWIND_CONFIG = /^tailwind\.config\.(ts|js|mjs|cjs)$/
+
 export function withImpact(plan: EditPlan, graph: ProjectGraph): PlanWithImpact {
   const files = new Set<string>()
   const routes = new Set<string>()
   for (const f of plan.modify) {
+    if (TAILWIND_CONFIG.test(f)) {
+      for (const n of Object.values(graph.nodes)) if (n.kind === 'page' && n.route) routes.add(n.route)
+      continue
+    }
     const i = impactOf(graph, f)
     i.files.forEach(x => files.add(x))
     i.routes.forEach(x => routes.add(x))

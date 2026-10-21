@@ -33,7 +33,7 @@ import { DS_VOLATILE, dsFiles, renderDesignSystemFiles, type SiteContext } from 
 import { buildGraph, type Impact, type ProjectGraph } from './graph.js'
 import { scanLeaks, type Leak } from './privacy.js'
 import { addedRawValues, rawValues, rawValueWarning } from './raw-values.js'
-import { withImpact, type EditScope } from './router.js'
+import { TAILWIND_CONFIG, withImpact, type EditScope } from './router.js'
 import {
   beginTransaction,
   commitTransaction,
@@ -339,8 +339,6 @@ export function checkScope(
       `A token edit changes only stylesheets and the Tailwind config; ${notStyle.join(', ')} need their own edit.`,
     )
 }
-
-const TAILWIND_CONFIG = /^tailwind\.config\.(ts|js|mjs|cjs)$/
 
 /** Icon libraries the viewer recognises; the first is the default the agent uses. */
 const ICON_LIBRARIES: { pkg: string; label: string }[] = [

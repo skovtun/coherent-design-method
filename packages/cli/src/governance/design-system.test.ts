@@ -191,9 +191,14 @@ describe('design system from a project', () => {
     expect(activity).toContain('"cid-002": [')
     expect(activity.match(/bigger number/g)).toHaveLength(2) // recent edits + KpiCard history, sync not in history
     expect(activity).not.toContain('"files"')
+    // Generated primitive previews render in a client module; the server module only points at them.
     const previews = files.get('src/app/design-system/_previews.tsx')!
-    expect(previews).toMatch(/import \{ Badge as C\d+_Badge \} from '\.\.\/\.\.\/components\/ui\/badge'/)
-    expect(previews).toContain('variant="outline">Outline<')
+    const ui = files.get('src/app/design-system/_ui-previews.tsx')!
+    expect(ui.split('\n')[1]).toBe("'use client'")
+    expect(ui).toMatch(/import \{ Badge as C\d+_Badge \} from '\.\.\/\.\.\/components\/ui\/badge'/)
+    expect(ui).toContain('variant="outline">Outline<')
+    expect(previews).not.toContain('components/ui/badge')
+    expect(previews).toMatch(/<UiPreview slug="[^"]+" group="variant" value="outline" \/>/)
     expect(activity).toContain('export const renderedOn: string = "2026-10-19"')
     for (const [, text] of files) {
       expect(text.startsWith('// @coherent-generated design-system')).toBe(true)

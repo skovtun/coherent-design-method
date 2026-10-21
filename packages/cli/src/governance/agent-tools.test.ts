@@ -301,6 +301,8 @@ describe('design system (ADR-0013)', () => {
       modify: ['src/app/globals.css', 'tailwind.config.ts'],
     })
     expect((t as { writeSet: { modify: string[] } }).writeSet.modify).toContain('tailwind.config.ts')
+    // No file imports the config, yet it styles every page: all routes are affected.
+    expect((t as { affectedRoutes: string[] }).affectedRoutes).toContain('/')
     await call('coherent_rollback_edit', {})
   })
 
