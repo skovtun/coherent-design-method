@@ -585,7 +585,13 @@ export async function beginEdit(rootInput: string, input: BeginInput): Promise<E
       unverifiedRoutes: [
         ...new Set([
           ...planned.unverifiedRoutes,
-          ...planned.targets.filter(t => !targets.includes(t) && t.expected === 'change').map(t => t.route),
+          // A route the amend brought in has no "before" render: unverified. In a refactor
+          // every affected route must stay identical, so it counts too (Codex review).
+          ...planned.targets
+            .filter(
+              t => !targets.includes(t) && (t.expected === 'change' || (s.refactor && impact.routes.includes(t.route))),
+            )
+            .map(t => t.route),
         ]),
       ],
     }
