@@ -394,7 +394,7 @@ export function SectionLabel({ children }: { children: ReactNode }) {
 
 export function Panel({ label, right, children }: { label: string; right?: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-lg border border-border bg-card shadow-sm">
+    <section className="min-w-0 rounded-lg border border-border bg-card shadow-sm">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <SectionLabel>{label}</SectionLabel>
         {right}
