@@ -12,6 +12,17 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.32.0] — 2026-10-22 — feat: verification that survives a running dev server, both themes, Safari errors
+
+### Fixed
+- **A running `next dev` no longer corrupts verification.** Before Next 16, `next dev` and `next build` share `.next`; a verification build while the dev server ran rendered every page as an error ("100% changed" on controls) and could break the dev server. Next 15 and earlier now build in a temporary copy of the app (of its whole workspace in a monorepo, preserving paths) with every `node_modules` linked in; the user's `.next` is never touched. Next 16 builds in place as before (its dev output lives in `.next/dev`). An app whose config reaches outside it without a workspace still builds in place.
+- **Interrupted renders are never cached.** Screenshots go to a scratch directory and move into the per-tree cache only when every shot was taken.
+
+### Added
+- **Both colour themes.** When the app defines `.dark` tokens, desktop renders also cover the other theme (`desktop, other theme` in verdicts), on a fresh page with the theme chosen before load (class, colour scheme, `localStorage.theme` for next-themes). A light-only token edit is no longer "no visible change".
+- **Safari errors.** When Playwright's WebKit is installed and launches, every rendered route is also loaded in WebKit and its browser errors are compared before and after like Chromium's (no screenshot diff). Decided once per edit. It found `calc()` in SVG attributes on getcoherent.design, which Chromium accepts and Safari rejects. `COHERENT_WEBKIT=0` skips it.
+- **Previews for files with several components.** `<name>.preview.tsx` can export a named `<Name>Preview` for each component of the file; single-component files keep the default export. The agent template and `coherent_ds_sync` say so.
+
 ## [0.31.2] — 2026-10-22 — fix: renders see below the fold
 
 ### Fixed

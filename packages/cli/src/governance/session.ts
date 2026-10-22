@@ -59,6 +59,8 @@ import {
   normalizeBrowserError,
   PreviewBuildError,
   shotsForTree,
+  viewportLabel,
+  loadWebkit,
   startPreview,
   typecheck,
   type Shot,
@@ -100,6 +102,10 @@ export interface EditSession {
   internal?: boolean
   /** A refactor: every affected page must render exactly as before. */
   refactor?: boolean
+  /** The app has a class-based dark theme: desktop renders cover both themes. */
+  themes?: boolean
+  /** WebKit launched before the edit: its browser errors are compared too. */
+  safari?: boolean
 }
 
 export interface VisualResult {
@@ -258,10 +264,16 @@ export function planTargets(
   return { targets, unverifiedRoutes: affected.filter(r => !targets.some(t => t.route === r)) }
 }
 
-function shoot(root: string, s: Pick<EditSession, 'url' | 'modify' | 'create'>, targets: Target[], key: string) {
+function shoot(
+  root: string,
+  s: Pick<EditSession, 'url' | 'modify' | 'create' | 'themes' | 'safari'>,
+  targets: Target[],
+  key: string,
+) {
+  const opts = { themes: !!s.themes, safari: !!s.safari }
   return s.url
-    ? captureRoutes(s.url, targets, join(root, '.coherent', 'shots', `url-${Date.now()}-${key}`))
-    : shotsForTree(root, treeKey(root, [...s.modify, ...s.create]), targets)
+    ? captureRoutes(s.url, targets, join(root, '.coherent', 'shots', `url-${Date.now()}-${key}`), opts)
+    : shotsForTree(root, treeKey(root, [...s.modify, ...s.create]), targets, opts)
 }
 
 export interface BeginInput {
@@ -623,6 +635,8 @@ export async function beginEdit(rootInput: string, input: BeginInput): Promise<E
 
   const impact = withImpact({ scope: input.scope, modify, create, rationale: '' }, graph).impact
   const { targets, unverifiedRoutes } = planTargets(root, graph, input.scope, modify, impact, input.refactor)
+  // Decided once, before the edit, so before and after renders cover the same themes.
+  const themes = buildDesignSystem(graph).tokens.some(t => t.dark !== undefined)
   const baseline = typecheck(root)
   const leaksBefore = errorLeaks(root)
 
@@ -630,10 +644,12 @@ export async function beginEdit(rootInput: string, input: BeginInput): Promise<E
   let visualSkipped: string | undefined = visual ? undefined : 'disabled'
   let preexistingFailure = !baseline.ok
   let beforeShots: Shot[] = []
+  let safari = false
   if (visual) {
     try {
       log(`Rendering ${targets.length} route(s) before the edit…`)
-      beforeShots = await shoot(root, { url: input.url, modify, create }, targets, 'before')
+      safari = !!(await loadWebkit())
+      beforeShots = await shoot(root, { url: input.url, modify, create, themes, safari }, targets, 'before')
     } catch (e) {
       // A missing browser or a broken pre-existing build must not block the edit,
       // but the result can then never be reported as fully verified.
@@ -666,6 +682,8 @@ export async function beginEdit(rootInput: string, input: BeginInput): Promise<E
     ...(input.target ? { target: input.target } : {}),
     ...(input.internal ? { internal: true } : {}),
     ...(input.refactor ? { refactor: true } : {}),
+    ...(themes ? { themes: true } : {}),
+    ...(safari ? { safari: true } : {}),
   }
   saveSession(root, s)
   return s
@@ -760,6 +778,8 @@ export async function verifyEdit(
       opts.log?.(`Building and rendering ${s.targets.length} route(s)…`)
       const after = await shoot(root, s, s.targets, 'after')
       const pairs = s.beforeShots
+        // Safari contributes browser errors only; it has no screenshot to diff.
+        .filter(b => b.viewport !== 'safari')
         .map(b => [b, after.find(x => x.route === b.route && x.viewport === b.viewport)] as const)
         .filter((p): p is readonly [Shot, Shot] => !!p[1])
       const diffs = await diffMany(pairs.map(([b, a]) => [b.path, a.path]))
@@ -804,10 +824,12 @@ export async function verifyEdit(
   if (buildError) problems.push(`Build/render failed:\n${buildError.split('\n').slice(0, 12).join('\n')}`)
   if (!landed) problems.push('The edit did not visibly change any affected page.')
   for (const e of browserErrors.slice(0, 10))
-    problems.push(`New browser error on ${e.route} (${e.viewport}): ${e.error}`)
+    problems.push(`New browser error on ${e.route} (${viewportLabel(e.viewport)}): ${e.error}`)
   for (const v of visual ?? [])
     if (!v.pass)
-      problems.push(`${v.route} (${v.viewport}) should render unchanged but ${(v.diff * 100).toFixed(2)}% changed.`)
+      problems.push(
+        `${v.route} (${viewportLabel(v.viewport)}) should render unchanged but ${(v.diff * 100).toFixed(2)}% changed.`,
+      )
   const failed =
     !!typeErrors.length ||
     !!outOfPlan.length ||

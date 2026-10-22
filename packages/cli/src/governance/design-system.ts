@@ -38,6 +38,8 @@ export interface DsComponent {
   variants?: VariantGroup[]
   /** Project-relative path of `<name>.preview.tsx` next to the component, written by the agent. */
   preview?: string
+  /** For a file with several components: the preview file's named export for this one (`<Name>Preview`). */
+  previewExport?: string
   /** A real use of it in the app (the JSX element, dedented), with the file it comes from. */
   example?: { code: string; file: string }
   /** Tokens its file references statically (`bg-primary`, `var(--radius)`), not through other components. */
@@ -274,6 +276,32 @@ function primaryDecl(file: string, decls: ComponentDecl[]): ComponentDecl | unde
   return decls.find(d => d.name === pascal) ?? decls[0]
 }
 
+/**
+ * Named `<Name>Preview` exports a preview file renders: exported functions
+ * (async too), exported consts holding a function, and `export { … }` lists,
+ * re-exports included. Read from the AST, so comments and strings never count.
+ */
+export function previewExports(file: string, text: string): Set<string> {
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const out = new Set<string>()
+  const exported = (n: ts.Node) =>
+    ts.canHaveModifiers(n) && !!ts.getModifiers(n)?.some(m => m.kind === ts.SyntaxKind.ExportKeyword)
+  for (const s of sf.statements) {
+    const isDefault = ts.canHaveModifiers(s) && !!ts.getModifiers(s)?.some(m => m.kind === ts.SyntaxKind.DefaultKeyword)
+    if (ts.isFunctionDeclaration(s) && s.name && exported(s) && !isDefault) out.add(s.name.text)
+    else if (ts.isVariableStatement(s) && exported(s))
+      for (const d of s.declarationList.declarations) {
+        const init = d.initializer
+        if (ts.isIdentifier(d.name) && init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init)))
+          out.add(d.name.text)
+      }
+    else if (ts.isExportDeclaration(s) && !s.isTypeOnly && s.exportClause && ts.isNamedExports(s.exportClause))
+      for (const e of s.exportClause.elements) if (!e.isTypeOnly) out.add(e.name.text)
+  }
+  // `Preview` alone is the default export's usual name, not a component's preview.
+  return new Set([...out].filter(n => n.endsWith('Preview') && n !== 'Preview'))
+}
+
 export function buildDesignSystem(graph: ProjectGraph): DesignSystem {
   const nodes = Object.values(graph.nodes)
   const components: DsComponent[] = []
@@ -284,6 +312,10 @@ export function buildDesignSystem(graph: ProjectGraph): DesignSystem {
     const all = componentDecls(n.id, text)
     const cvas = cvaDefinitions(n.id, text)
     const preview = existsSync(join(graph.root, previewPathFor(n.id))) ? previewPathFor(n.id) : undefined
+    // A file with several components previews each as a named `<Name>Preview` export.
+    const named = preview
+      ? previewExports(preview, readFileSync(join(graph.root, preview), 'utf-8'))
+      : new Set<string>()
     // A primitive is one design-system entry: `select.tsx` is Select, its other exports are parts.
     const main = n.kind === 'ui' ? primaryDecl(n.id, all) : undefined
     for (const d of main ? [main] : all) {
@@ -300,7 +332,11 @@ export function buildDesignSystem(graph: ProjectGraph): DesignSystem {
         variants: (
           cvas.find(c => c.name.toLowerCase() === `${d.name}variants`.toLowerCase()) ?? (main ? cvas[0] : undefined)
         )?.groups,
-        preview: all.length === 1 || main ? preview : undefined,
+        ...(all.length === 1 || main
+          ? { preview }
+          : named.has(`${d.name}Preview`)
+            ? { preview, previewExport: `${d.name}Preview` }
+            : {}),
         example: exampleOf(graph, n.id, d.name),
       })
     }
