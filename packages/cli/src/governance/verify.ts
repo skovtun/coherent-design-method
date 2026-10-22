@@ -91,7 +91,22 @@ export const shotName = (route: string, vp: string) =>
 
 const VIEWPORTS = { desktop: { width: 1440, height: 900 }, mobile: { width: 390, height: 844 } } as const
 
-const FREEZE_CSS = `*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}`
+const FREEZE_CSS = `*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}html{scroll-behavior:auto!important}`
+
+async function scrollThrough(page: import('playwright').Page): Promise<void> {
+  // A string, not a function: this package compiles without the DOM lib.
+  await page.evaluate(`(async () => {
+    const step = Math.max(200, Math.floor(innerHeight / 2))
+    // Pages can grow while revealing; cap the walk so a feed cannot loop forever.
+    for (let y = 0, i = 0; y < document.documentElement.scrollHeight && i < 200; y += step, i++) {
+      scrollTo(0, y)
+      await new Promise(r => setTimeout(r, 40))
+    }
+    scrollTo(0, 0)
+  })()`)
+  // Reveal animations run in JavaScript, not CSS, so FREEZE_CSS does not stop them.
+  await page.waitForTimeout(700)
+}
 
 async function loadChromium() {
   const pw = await import('playwright')
@@ -133,6 +148,11 @@ export async function captureRoutes(
         page.on('pageerror', e => errors.push(e.message))
         await page.goto(baseUrl + r.url, { waitUntil: 'networkidle', timeout: 90_000 })
         await page.addStyleTag({ content: FREEZE_CSS })
+        // A full-page screenshot does not scroll, so scroll-triggered reveals
+        // (whileInView, IntersectionObserver) never fire and everything below
+        // the fold renders blank: edits there would look like no change at all
+        // (observed on getcoherent.design). Scroll through the page first.
+        await scrollThrough(page)
         await page.waitForTimeout(600)
         const path = join(outDir, shotName(r.route, vp))
         await page.screenshot({ path, fullPage: true })
@@ -296,13 +316,19 @@ export async function startPreview(root: string): Promise<PreviewServer> {
   throw new Error(`next start did not answer on ${url} within 30s`)
 }
 
+/**
+ * Bump when captureRoutes changes what a screenshot shows (2: scroll-through), so
+ * cached shots from the old capture are never compared with new ones.
+ */
+const RENDER_VERSION = 2
+
 /** Screenshots for a tree state, cached by tree hash so chained edits reuse "after" as the next "before". */
 export async function shotsForTree(
   root: string,
   treeKey: string,
   targets: { route: string; url: string }[],
 ): Promise<Shot[]> {
-  const dir = join(root, '.coherent', 'shots', treeKey)
+  const dir = join(root, '.coherent', 'shots', `${treeKey}.r${RENDER_VERSION}`)
   const expected = targets.flatMap(t =>
     (['desktop', 'mobile'] as const).map(vp => ({
       route: t.route,
