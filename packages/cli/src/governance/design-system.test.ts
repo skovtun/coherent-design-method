@@ -4,7 +4,15 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { buildGraph, impactOf } from './graph.js'
 import { planTargets } from './session.js'
-import { annotate, buildDesignSystem, componentDecls, parseTokens, planSync, resolveTarget } from './design-system.js'
+import {
+  annotate,
+  buildDesignSystem,
+  componentDecls,
+  parseTokens,
+  planSync,
+  previewExports,
+  resolveTarget,
+} from './design-system.js'
 import { renderDesignSystemFiles } from './design-system-site.js'
 
 describe('componentDecls', () => {
@@ -151,6 +159,35 @@ describe('design system from a project', () => {
     expect(plan.page).toBe('src/app/design-system/page.tsx')
   })
 
+  it('previews each component of a multi-component file from a named <Name>Preview export', () => {
+    write(
+      'src/components/reveal.tsx',
+      'export function Reveal() { return <div /> }\nexport function Stagger() { return <div /> }\n',
+    )
+    write(
+      'src/app/page.tsx',
+      "import { Reveal, Stagger } from '@/components/reveal'\nexport default () => <><Reveal /><Stagger /></>\n",
+    )
+    write(
+      'src/components/reveal.preview.tsx',
+      "import { Reveal } from './reveal'\nexport function RevealPreview() { return <Reveal /> }\n",
+    )
+    const ds = buildDesignSystem(buildGraph(root))
+    const reveal = ds.components.find(c => c.name === 'Reveal')!
+    const stagger = ds.components.find(c => c.name === 'Stagger')!
+    expect(reveal).toMatchObject({ preview: 'src/components/reveal.preview.tsx', previewExport: 'RevealPreview' })
+    expect(stagger.preview).toBeUndefined()
+    const previews = renderDesignSystemFiles(ds, 'src/app', {
+      appName: 'Demo',
+      version: '1.0.0',
+      edits: [],
+      pages: ['/'],
+      icons: [],
+      hasIcons: false,
+    }).get('src/app/design-system/_previews.tsx')!
+    expect(previews).toMatch(/import \{ RevealPreview as C\d+_Preview \} from '[^']*reveal\.preview'/)
+  })
+
   it('refuses to take over a /design-system page that is not Coherent’s', () => {
     write('src/app/design-system/page.tsx', 'export default () => <p>mine</p>\n')
     expect(() => planSync(buildGraph(root))).toThrow(/not Coherent's design-system page/)
@@ -290,5 +327,29 @@ describe('primitives', () => {
     const ds = buildDesignSystem(buildGraph(root))
     expect(ds.components).toMatchObject([{ id: 'CID-001', name: 'Select', parts: ['SelectItem'] }])
     expect(resolveTarget(ds, '@SelectItem')).toMatchObject({ component: { id: 'CID-001' } })
+  })
+})
+
+describe('previewExports', () => {
+  it('reads named <Name>Preview exports from the AST, not from text', () => {
+    const src = [
+      '// export function CommentPreview() {}',
+      "const s = 'export const StringPreview = () => null'",
+      'export async function AsyncPreview() { return null }',
+      'export const ArrowPreview = () => null',
+      'export const NotAFunctionPreview = 3',
+      'function LocalPreview() { return null }',
+      'export { LocalPreview, LocalPreview as RenamedPreview }',
+      "export { ReexportPreview } from './other'",
+      "export type { TypePreview } from './types'",
+      'export default function Preview() { return null }',
+    ].join('\n')
+    expect([...previewExports('x.preview.tsx', src)].sort()).toEqual([
+      'ArrowPreview',
+      'AsyncPreview',
+      'LocalPreview',
+      'ReexportPreview',
+      'RenamedPreview',
+    ])
   })
 })

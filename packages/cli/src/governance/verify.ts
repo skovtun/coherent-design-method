@@ -7,9 +7,23 @@
  */
 import { execFileSync, spawn, type ChildProcess } from 'child_process'
 import { createHash } from 'crypto'
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'fs'
+import { createRequire } from 'module'
 import { createServer } from 'net'
-import { join } from 'path'
+import { tmpdir } from 'os'
+import { basename, dirname, join, relative, resolve, sep } from 'path'
 import { diffTrees, hashTree } from './transaction.js'
 
 export interface TypecheckResult {
@@ -64,12 +78,29 @@ export function concreteUrl(route: string, params: Record<string, string>): stri
 
 export interface Shot {
   route: string
-  viewport: 'desktop' | 'mobile'
+  /**
+   * desktop-theme: the desktop render in the app's other colour theme.
+   * safari: browser errors from WebKit, no screenshot (path is the errors file's stem).
+   */
+  viewport: 'desktop' | 'mobile' | 'desktop-theme' | 'safari'
   path: string
   /** Console errors and uncaught page errors (hydration mismatches land here) while rendering. */
   errors?: string[]
 }
 
+/** How a shot's viewport reads in a verdict. */
+export const viewportLabel = (v: string) =>
+  v === 'desktop-theme' ? 'desktop, other theme' : v === 'safari' ? 'Safari (WebKit)' : v
+
+// Strings, not functions: this package compiles without the DOM lib.
+const IS_DARK = `document.documentElement.classList.contains('dark')`
+/** Force the class-based colour theme (`.dark`, as shadcn and next-themes set it). */
+const setTheme = (theme: 'dark' | 'light') => `(() => {
+  const h = document.documentElement
+  h.classList.toggle('dark', ${theme === 'dark'})
+  h.classList.toggle('light', ${theme === 'light'})
+  h.style.colorScheme = '${theme}'
+})()`
 /**
  * Stable form of a browser error for before/after comparison: drop URLs,
  * positions and long digit runs that differ between builds, keep the message.
@@ -113,55 +144,146 @@ async function loadChromium() {
   return pw.chromium
 }
 
+/**
+ * WebKit when Playwright's build of it is installed and launches
+ * (`npx playwright install webkit`), else null. Safari rejects things Chromium
+ * accepts (observed: calc() in SVG attributes, an error per render), so its
+ * console is checked too. COHERENT_WEBKIT=0 skips it. Probed once per process.
+ */
+let webkitProbe: Promise<import('playwright').BrowserType | null> | undefined
+export function loadWebkit() {
+  if (process.env.COHERENT_WEBKIT === '0') return Promise.resolve(null)
+  webkitProbe ??= (async () => {
+    try {
+      const { webkit } = await import('playwright')
+      if (!existsSync(webkit.executablePath())) return null
+      await (await webkit.launch()).close()
+      return webkit
+    } catch {
+      return null
+    }
+  })()
+  return webkitProbe
+}
+
+export interface CaptureOptions {
+  /** Also render desktop in the app's other colour theme (class-based dark theme). */
+  themes?: boolean
+  /** Also collect browser errors in WebKit. */
+  safari?: boolean
+}
+
+// The preview server runs on this machine; a browser in the same zone and
+// locale hides SSR/client mismatches that real users elsewhere hit
+// (observed: dates rendered a day apart server vs client). Render as a
+// far-away user so those hydration errors surface.
+const CONTEXT = { reducedMotion: 'reduce', timezoneId: 'Pacific/Kiritimati', locale: 'de-DE' } as const
+
+type Ctx = import('playwright').BrowserContext
+
+async function newContext(
+  browser: import('playwright').Browser,
+  opts: Parameters<import('playwright').Browser['newContext']>[0],
+) {
+  const ctx = await browser.newContext({ ...CONTEXT, ...opts })
+  // Vercel serves /_vercel/* (Web Analytics, Speed Insights) only on its own
+  // hosting; a local preview answers 404 on every page, an error no user sees.
+  await ctx.route('**/_vercel/**', route => route.fulfill({ status: 204, body: '' }))
+  return ctx
+}
+
+/** Load a route ready to shoot, with its browser errors collected from the first request. */
+async function openRoute(ctx: Ctx, url: string, prepare?: string) {
+  const page = await ctx.newPage()
+  // A page can look right and still be broken: React reports hydration
+  // mismatches and runtime failures only to the console.
+  const errors: string[] = []
+  page.on('console', m => {
+    if (m.type() === 'error') errors.push(m.text())
+  })
+  page.on('pageerror', e => errors.push(e.message))
+  await page.goto(url, { waitUntil: 'networkidle', timeout: 90_000 })
+  if (prepare) await page.evaluate(prepare)
+  await page.addStyleTag({ content: FREEZE_CSS })
+  // A full-page screenshot does not scroll, so scroll-triggered reveals
+  // (whileInView, IntersectionObserver) never fire and everything below
+  // the fold renders blank: edits there would look like no change at all
+  // (observed on getcoherent.design). Scroll through the page first.
+  await scrollThrough(page)
+  await page.waitForTimeout(600)
+  return { page, errors }
+}
+
 export async function captureRoutes(
   baseUrl: string,
   routes: { route: string; url: string }[],
   outDir: string,
+  opts: CaptureOptions = {},
 ): Promise<Shot[]> {
   mkdirSync(outDir, { recursive: true })
   const chromium = await loadChromium()
   const browser = await chromium.launch()
   const shots: Shot[] = []
+  const shoot = async (ctx: Ctx, r: { route: string; url: string }, vp: Shot['viewport'], prepare?: string) => {
+    const { page, errors } = await openRoute(ctx, baseUrl + r.url, prepare)
+    const path = join(outDir, shotName(r.route, vp))
+    await page.screenshot({ path, fullPage: true })
+    writeFileSync(errorsSidecar(path), JSON.stringify(errors))
+    shots.push({ route: r.route, viewport: vp, path, errors })
+    return page
+  }
   try {
     for (const vp of ['desktop', 'mobile'] as const) {
-      // The preview server runs on this machine; a browser in the same zone and
-      // locale hides SSR/client mismatches that real users elsewhere hit
-      // (observed: dates rendered a day apart server vs client). Render as a
-      // far-away user so those hydration errors surface.
-      const ctx = await browser.newContext({
-        viewport: VIEWPORTS[vp],
-        reducedMotion: 'reduce',
-        timezoneId: 'Pacific/Kiritimati',
-        locale: 'de-DE',
-      })
-      // Vercel serves /_vercel/* (Web Analytics, Speed Insights) only on its own
-      // hosting; a local preview answers 404 on every page, an error no user sees.
-      await ctx.route('**/_vercel/**', route => route.fulfill({ status: 204, body: '' }))
+      const ctx = await newContext(browser, { viewport: VIEWPORTS[vp] })
+      // Renders use the app's default theme, so an edit to the other theme's
+      // tokens showed no change at all (observed: light tokens on a dark site).
+      // With a class-based dark theme, desktop is rendered in the other one too,
+      // on its own page with the theme chosen before load (next-themes reads
+      // localStorage and the colour scheme), so its errors are its own.
+      const alt: Record<string, Ctx> = {}
       for (const r of routes) {
-        const page = await ctx.newPage()
-        // A page can look right and still be broken: React reports hydration
-        // mismatches and runtime failures only to the console.
-        const errors: string[] = []
-        page.on('console', m => {
-          if (m.type() === 'error') errors.push(m.text())
-        })
-        page.on('pageerror', e => errors.push(e.message))
-        await page.goto(baseUrl + r.url, { waitUntil: 'networkidle', timeout: 90_000 })
-        await page.addStyleTag({ content: FREEZE_CSS })
-        // A full-page screenshot does not scroll, so scroll-triggered reveals
-        // (whileInView, IntersectionObserver) never fire and everything below
-        // the fold renders blank: edits there would look like no change at all
-        // (observed on getcoherent.design). Scroll through the page first.
-        await scrollThrough(page)
-        await page.waitForTimeout(600)
-        const path = join(outDir, shotName(r.route, vp))
-        await page.screenshot({ path, fullPage: true })
-        writeFileSync(errorsSidecar(path), JSON.stringify(errors))
-        shots.push({ route: r.route, viewport: vp, path, errors })
+        const page = await shoot(ctx, r, vp)
+        const dark = opts.themes && vp === 'desktop' ? ((await page.evaluate(IS_DARK)) as boolean) : undefined
         await page.close()
+        if (dark === undefined) continue
+        const theme = dark ? 'light' : 'dark'
+        alt[theme] ??= await newContext(browser, { viewport: VIEWPORTS.desktop, colorScheme: theme })
+        await alt[theme].addInitScript(`try { localStorage.setItem('theme', '${theme}') } catch {}`)
+        await (await shoot(alt[theme], r, 'desktop-theme', setTheme(theme))).close()
       }
+      for (const c of Object.values(alt)) await c.close()
       await ctx.close()
     }
+  } finally {
+    await browser.close()
+  }
+  if (opts.safari) {
+    const webkit = await loadWebkit()
+    if (!webkit) throw new Error('WebKit was available before the edit and no longer launches')
+    shots.push(...(await safariErrors(webkit, baseUrl, routes, outDir)))
+  }
+  return shots
+}
+
+/** Browser errors per route in WebKit at desktop size; compared like any shot's, never diffed. */
+async function safariErrors(
+  webkit: import('playwright').BrowserType,
+  baseUrl: string,
+  routes: { route: string; url: string }[],
+  outDir: string,
+): Promise<Shot[]> {
+  const browser = await webkit.launch()
+  const shots: Shot[] = []
+  try {
+    const ctx = await newContext(browser, { viewport: VIEWPORTS.desktop })
+    for (const r of routes) {
+      const { page, errors } = await openRoute(ctx, baseUrl + r.url)
+      const path = join(outDir, shotName(r.route, 'safari'))
+      writeFileSync(errorsSidecar(path), JSON.stringify(errors))
+      shots.push({ route: r.route, viewport: 'safari', path, errors })
+      await page.close()
+    }
+    await ctx.close()
   } finally {
     await browser.close()
   }
@@ -258,27 +380,178 @@ function freePort(): Promise<number> {
  */
 const BUILD_REWRITES = ['tsconfig.json', 'jsconfig.json']
 
+/** Major version of the Next.js the project resolves, or null when unknown. */
+export function nextMajor(root: string): number | null {
+  try {
+    const pkg = createRequire(join(root, 'package.json')).resolve('next/package.json')
+    const m = /^(\d+)\./.exec(JSON.parse(readFileSync(pkg, 'utf-8')).version as string)
+    return m ? Number(m[1]) : null
+  } catch {
+    return null
+  }
+}
+
+/** Entries a preview copy leaves out at any depth: dependencies are linked, the rest is output or history. */
+// Caches and other apps' output only; dist/ and build/ stay, workspace packages may be consumed built.
+const NOT_COPIED = new Set([
+  'node_modules',
+  '.next',
+  '.git',
+  '.coherent',
+  '.turbo',
+  '.vercel',
+  '.cache',
+  '.nuxt',
+  '.output',
+  '.svelte-kit',
+  'coverage',
+  'storybook-static',
+])
+const WORKSPACE_MARKERS = ['pnpm-workspace.yaml', 'lerna.json', 'turbo.json', 'nx.json', 'rush.json']
+const CONFIGS = [
+  'next.config.js',
+  'next.config.mjs',
+  'next.config.cjs',
+  'next.config.ts',
+  'tsconfig.json',
+  'jsconfig.json',
+]
+
+/** The monorepo the app lives in (nearest ancestor with a workspace marker), or null. */
+export function workspaceRoot(root: string): string | null {
+  for (let d = resolve(root); ; d = dirname(d)) {
+    if (WORKSPACE_MARKERS.some(f => existsSync(join(d, f)))) return d
+    try {
+      if (JSON.parse(readFileSync(join(d, 'package.json'), 'utf-8')).workspaces) return d
+    } catch {
+      /* no package.json here */
+    }
+    if (dirname(d) === d) return null
+  }
+}
+
+/**
+ * What to copy so the copy builds like the app: the workspace for an app in a
+ * monorepo (siblings imported as ../packages/*, hoisted dependencies), else the
+ * app itself; null when the app is neither and its config reaches outside it.
+ */
+export function copyRoot(root: string): string | null {
+  const ws = workspaceRoot(root)
+  if (ws) return ws
+  const outside = CONFIGS.some(f => {
+    const p = join(root, f)
+    return existsSync(p) && /outputFileTracingRoot|externalDir|["'`]\.\.\//.test(readFileSync(p, 'utf-8'))
+  })
+  return outside ? null : resolve(root)
+}
+
+/** Every node_modules directory under base, outside other node_modules. */
+function nodeModulesDirs(base: string, rel = ''): string[] {
+  const out: string[] = []
+  for (const e of readdirSync(join(base, rel), { withFileTypes: true })) {
+    const r = rel ? join(rel, e.name) : e.name
+    // By name first: on Windows a node_modules junction is not a directory entry.
+    if (e.name === 'node_modules') out.push(r)
+    else if (e.isDirectory() && !NOT_COPIED.has(e.name)) out.push(...nodeModulesDirs(base, r))
+  }
+  return out
+}
+
+const PREVIEW_PREFIX = 'coherent-preview-'
+
+/** Copies a crashed run left behind (older than six hours). */
+function pruneStalePreviews() {
+  const cutoff = Date.now() - 6 * 3600_000
+  for (const name of readdirSync(tmpdir()).filter(n => n.startsWith(PREVIEW_PREFIX))) {
+    const p = join(tmpdir(), name)
+    try {
+      if (statSync(p).mtimeMs < cutoff) rmSync(p, { recursive: true, force: true })
+    } catch {
+      /* raced with another run */
+    }
+  }
+}
+
+/**
+ * Before Next 16, `next dev` and `next build` share .next: a build while the
+ * user's dev server runs corrupts both (observed: every page rendered as an
+ * error, "100% changed" on controls). Build those in a copy (the app, or its
+ * whole workspace) with every node_modules linked in; the user's .next is never
+ * touched. Next 16 keeps dev output in .next/dev, and Turbopack rejects a
+ * node_modules link that resolves outside the project root, so it builds in
+ * place, as does an app whose config reaches outside it with no workspace.
+ */
+export function previewDir(root: string): {
+  dir: string
+  isolated: boolean
+  cleanup(): void
+  /** Paths in build output as the project's, not the copy's. */
+  shown(out: string): string
+} {
+  const major = nextMajor(root)
+  const base = major !== null && major < 16 ? copyRoot(root) : null
+  if (!base) return { dir: root, isolated: false, cleanup: () => {}, shown: out => out }
+  pruneStalePreviews()
+  const tmp = mkdtempSync(join(tmpdir(), PREVIEW_PREFIX))
+  const cleanup = () => rmSync(tmp, { recursive: true, force: true })
+  try {
+    cpSync(base, tmp, {
+      recursive: true,
+      filter: src =>
+        !relative(base, src)
+          .split(sep)
+          .some(s => NOT_COPIED.has(s)),
+    })
+    for (const nm of nodeModulesDirs(base)) symlinkSync(join(base, nm), join(tmp, nm), WIN ? 'junction' : 'dir')
+  } catch (e) {
+    cleanup()
+    throw e
+  }
+  return {
+    dir: join(tmp, relative(base, resolve(root))),
+    isolated: true,
+    cleanup,
+    shown: out => out.split(tmp).join(base),
+  }
+}
+
 export async function startPreview(root: string): Promise<PreviewServer> {
   const next = bin(root, 'next')
   if (!existsSync(next)) throw new Error('next is not installed in this project (node_modules/.bin/next missing)')
+  const preview = previewDir(root)
+  try {
+    return await buildAndStart(root, preview, next)
+  } catch (e) {
+    preview.cleanup()
+    throw e
+  }
+}
+
+async function buildAndStart(
+  root: string,
+  preview: ReturnType<typeof previewDir>,
+  next: string,
+): Promise<PreviewServer> {
+  const { dir, cleanup } = preview
+  const inPlace = !preview.isolated
   // Turbopack's persistent build cache intermittently kept a CSS-only edit out
   // of the next build (observed: renders lagged exactly one globals.css edit
   // behind the source). A cold build of a 13-page app is ~6s; correctness wins.
-  rmSync(join(root, '.next', 'cache'), { recursive: true, force: true })
+  rmSync(join(dir, '.next', 'cache'), { recursive: true, force: true })
   // Route types a stopped `next dev` left in .next/dev/types still list routes
   // an edit removed, and `next build` typechecks them (tsconfig includes them):
   // a deleted page would fail the build. They are a cache the dev server rewrites.
-  rmSync(join(root, '.next', 'dev', 'types'), { recursive: true, force: true })
+  rmSync(join(dir, '.next', 'dev', 'types'), { recursive: true, force: true })
   // `next build` rewrites tsconfig.json on a minimally configured project. The
   // build is an observer here: put config back, and refuse to go on if it
   // touched anything else, so build side effects never leak into an edit.
-  const sourceBefore = hashTree(root)
+  const sourceBefore = inPlace ? hashTree(root) : {}
   const configs = Object.fromEntries(
     BUILD_REWRITES.filter(f => existsSync(join(root, f))).map(f => [f, readFileSync(join(root, f))]),
   )
   try {
     execFileSync(next, ['build'], {
-      cwd: root,
+      cwd: dir,
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, NEXT_TELEMETRY_DISABLED: '1' },
@@ -286,16 +559,16 @@ export async function startPreview(root: string): Promise<PreviewServer> {
     })
   } catch (e) {
     const out = String((e as { stdout?: string }).stdout ?? '') + String((e as { stderr?: string }).stderr ?? '')
-    throw new PreviewBuildError(`next build failed:\n${out.split('\n').slice(-25).join('\n')}`)
+    throw new PreviewBuildError(`next build failed:\n${preview.shown(out).split('\n').slice(-25).join('\n')}`)
   } finally {
-    for (const [f, c] of Object.entries(configs)) writeFileSync(join(root, f), c)
+    if (inPlace) for (const [f, c] of Object.entries(configs)) writeFileSync(join(root, f), c)
   }
-  const touched = diffTrees(sourceBefore, hashTree(root))
+  const touched = inPlace ? diffTrees(sourceBefore, hashTree(root)) : { created: [], modified: [], deleted: [] }
   const stray = [...touched.created, ...touched.modified, ...touched.deleted]
   if (stray.length) throw new Error(`next build changed project source files: ${stray.slice(0, 5).join(', ')}`)
   const port = await freePort()
   const child = spawn(next, ['start', '-p', String(port)], {
-    cwd: root,
+    cwd: dir,
     stdio: 'ignore',
     env: { ...process.env, NEXT_TELEMETRY_DISABLED: '1' },
     // Own process group on POSIX so stopTree can signal the whole tree.
@@ -306,13 +579,21 @@ export async function startPreview(root: string): Promise<PreviewServer> {
   for (let i = 0; i < 60; i++) {
     try {
       const r = await fetch(url, { redirect: 'manual' })
-      if (r.status < 500) return { url, stop: () => stopTree(child) }
+      if (r.status < 500)
+        return {
+          url,
+          stop: async () => {
+            await stopTree(child)
+            cleanup()
+          },
+        }
     } catch {
       /* not up yet */
     }
     await new Promise(r => setTimeout(r, 500))
   }
   await stopTree(child)
+  cleanup()
   throw new Error(`next start did not answer on ${url} within 30s`)
 }
 
@@ -327,21 +608,37 @@ export async function shotsForTree(
   root: string,
   treeKey: string,
   targets: { route: string; url: string }[],
+  opts: CaptureOptions = {},
 ): Promise<Shot[]> {
-  const dir = join(root, '.coherent', 'shots', `${treeKey}.r${RENDER_VERSION}`)
+  const variant = `${opts.themes ? '.themes' : ''}${opts.safari ? '.safari' : ''}`
+  const dir = join(root, '.coherent', 'shots', `${treeKey}.r${RENDER_VERSION}${variant}`)
+  const viewports: Shot['viewport'][] = ['desktop', 'mobile']
+  if (opts.themes) viewports.push('desktop-theme')
+  if (opts.safari) viewports.push('safari')
   const expected = targets.flatMap(t =>
-    (['desktop', 'mobile'] as const).map(vp => ({
+    viewports.map(vp => ({
       route: t.route,
       viewport: vp,
       path: join(dir, shotName(t.route, vp)),
     })),
   )
-  if (expected.every(s => existsSync(s.path) && existsSync(errorsSidecar(s.path))))
+  if (expected.every(s => (s.viewport === 'safari' || existsSync(s.path)) && existsSync(errorsSidecar(s.path))))
     return expected.map(s => ({ ...s, errors: JSON.parse(readFileSync(errorsSidecar(s.path), 'utf-8')) as string[] }))
   const server = await startPreview(root)
+  // Capture into a scratch dir and move it into the cache only when every shot
+  // is taken: a run cut short must not leave shots a later edit reuses.
+  const work = `${dir}.partial-${process.pid}`
+  rmSync(work, { recursive: true, force: true })
+  let shots: Shot[]
   try {
-    return await captureRoutes(server.url, targets, dir)
+    shots = await captureRoutes(server.url, targets, work, opts)
+  } catch (e) {
+    rmSync(work, { recursive: true, force: true })
+    throw e
   } finally {
     await server.stop()
   }
+  rmSync(dir, { recursive: true, force: true })
+  renameSync(work, dir)
+  return shots.map(s => ({ ...s, path: join(dir, basename(s.path)) }))
 }

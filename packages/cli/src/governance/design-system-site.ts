@@ -183,7 +183,11 @@ function renderPreviews(ds: DesignSystem, dir: string): { code: string; ui: stri
   ds.components.forEach((c, i) => {
     const prefix = `C${i}`
     if (c.preview) {
-      imports.push(`import ${prefix}_Preview from '${toImport(dir, c.preview)}'`)
+      imports.push(
+        c.previewExport
+          ? `import { ${c.previewExport} as ${prefix}_Preview } from '${toImport(dir, c.preview)}'`
+          : `import ${prefix}_Preview from '${toImport(dir, c.preview)}'`,
+      )
       entries.push(`  '${c.slug}': () => <${prefix}_Preview />,`)
       live.add(c.slug)
       return

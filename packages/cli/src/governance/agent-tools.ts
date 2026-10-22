@@ -225,7 +225,7 @@ export function registerGovernanceTools(server: McpServer): void {
         assigned: r.assigned,
         page: r.page,
         withoutPreview: r.withoutPreview,
-        next: 'Coherent wrote the files. Call coherent_verify_edit with level "final". Then write previews for the components listed in withoutPreview: one coherent_begin_edit with scope "design-system" creating <name>.preview.tsx files (default export, realistic data).',
+        next: 'Coherent wrote the files. Call coherent_verify_edit with level "final". Then write previews for the components listed in withoutPreview: one coherent_begin_edit with scope "design-system" creating <name>.preview.tsx files (default export, realistic data; for a file with several components, a named export <Name>Preview per component).',
       })
     }),
   )
