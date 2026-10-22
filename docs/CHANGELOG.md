@@ -12,6 +12,11 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.31.1] — 2026-10-22 — fix: design-system footer links
+
+### Fixed
+- The `/design-system` footer shows a GitHub icon next to the GitHub link, and its line starts with a capital: "Design system read from this app's code". Run `coherent_ds_sync` (or any edit) to regenerate the viewer.
+
 ## [0.31.0] — 2026-10-21 — feat: refactors proven to change nothing; Tailwind v3 tokens; renders you can trust on real sites
 
 Found by moving getcoherent.design itself onto Coherent: 403 hardcoded values to tokens and a 1,000-line page split into components, every step a governed edit.
