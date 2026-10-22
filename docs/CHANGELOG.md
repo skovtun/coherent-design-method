@@ -12,6 +12,16 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.31.2] — 2026-10-22 — fix: renders see below the fold
+
+### Fixed
+- **Scroll-triggered content is rendered.** A full-page screenshot does not scroll, so sections that reveal on scroll (`whileInView`, IntersectionObserver) rendered blank and an edit there looked like no change at all (observed on getcoherent.design). Renders now scroll through the page before the screenshot, and smooth scrolling is turned off while they do.
+- **Cached renders are versioned.** Screenshots are cached per source tree; the cache key now includes the render version, so shots from an older capture are never compared with new ones.
+- **Readable swatch labels.** On the Colors page the "light"/"dark" labels use black or white, whichever reads better on the swatch, at full opacity; only the "Aa" specimen shows the token pair. Some mid-tone swatches had labels under 3:1.
+
+### Known
+- Renders use the app's default theme. A change that only affects the other theme (e.g. light tokens on a dark-by-default site) shows no visual change; declare it as a refactor and check that theme separately.
+
 ## [0.31.1] — 2026-10-22 — fix: design-system footer links
 
 ### Fixed

@@ -908,9 +908,10 @@ export function contrast(a?: string, b?: string) {
   return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
 }
 
+/** Black or white, whichever reads better on bg. */
 export const ink = (bg?: string) => {
-  const l = luminance(bg)
-  return l === null ? undefined : l > 0.4 ? '#000000' : '#ffffff'
+  if (luminance(bg) === null) return undefined
+  return contrast(bg, '#000000')! >= contrast(bg, '#ffffff')! ? '#000000' : '#ffffff'
 }
 
 /** Every colour with a text colour meant for it, and the contrast in each theme. */
@@ -1049,9 +1050,10 @@ function Contrast({ ratio, theme }: { ratio: number | null; theme: string }) {
 
 function Half({ bg, fg, label }: { bg?: string; fg?: string; label: string }) {
   return (
-    <div className="flex h-24 flex-1 flex-col justify-between p-3" style={{ background: bg, color: fg ?? ink(bg) }}>
-      <span className="font-mono text-xs" style={{ opacity: 0.75 }}>{label}</span>
-      {fg ? <span className="text-2xl font-medium leading-none">Aa</span> : null}
+    <div className="flex h-24 flex-1 flex-col justify-between p-3" style={{ background: bg, color: ink(bg) }}>
+      {/* The label is chrome and always readable; only the specimen shows the pair. */}
+      <span className="font-mono text-xs">{label}</span>
+      {fg ? <span className="text-2xl font-medium leading-none" style={{ color: fg }}>Aa</span> : null}
     </div>
   )
 }
