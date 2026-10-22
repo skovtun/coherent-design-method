@@ -87,11 +87,25 @@ jobs:
           (cd packages/cli && pnpm pack --pack-destination "$RUNNER_TEMP/pack")
           ls "$RUNNER_TEMP/pack"
 
+      # Skip a version already on npm, so a release that failed half-way (npm
+      # answered 503 after core went out, 2026-10-22) can simply be re-run.
       - name: Publish @getcoherent/core
-        run: npm publish "$RUNNER_TEMP"/pack/getcoherent-core-*.tgz --tag ${{ steps.tag.outputs.dist_tag }} --access public
+        run: |
+          V=$(node -p "require('./packages/core/package.json').version")
+          if npm view "@getcoherent/core@$V" version >/dev/null 2>&1; then
+            echo "@getcoherent/core@$V is already on npm; skipping"
+          else
+            npm publish "$RUNNER_TEMP"/pack/getcoherent-core-*.tgz --tag ${{ steps.tag.outputs.dist_tag }} --access public
+          fi
 
       - name: Publish @getcoherent/cli
-        run: npm publish "$RUNNER_TEMP"/pack/getcoherent-cli-*.tgz --tag ${{ steps.tag.outputs.dist_tag }} --access public
+        run: |
+          V=$(node -p "require('./packages/cli/package.json').version")
+          if npm view "@getcoherent/cli@$V" version >/dev/null 2>&1; then
+            echo "@getcoherent/cli@$V is already on npm; skipping"
+          else
+            npm publish "$RUNNER_TEMP"/pack/getcoherent-cli-*.tgz --tag ${{ steps.tag.outputs.dist_tag }} --access public
+          fi
 
       # Surface promotion instructions in the GitHub Actions UI when an RC
       # was just published. DevEx review (2026-04-27) caught: documented as
