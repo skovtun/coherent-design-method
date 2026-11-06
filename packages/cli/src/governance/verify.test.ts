@@ -2,7 +2,43 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { copyRoot, nextMajor, previewDir, shotName, sourceTypeErrors } from './verify.js'
+import { copyRoot, nextMajor, previewDir, settledShot, shotName, sourceTypeErrors } from './verify.js'
+
+describe('settledShot', () => {
+  const seq = (...frames: string[]) => {
+    let i = 0
+    const taken: string[] = []
+    return {
+      taken,
+      take: async () => {
+        const f = frames[Math.min(i++, frames.length - 1)]
+        taken.push(f)
+        return Buffer.from(f)
+      },
+    }
+  }
+  const pause = async () => {}
+
+  it('returns once two consecutive captures match', async () => {
+    const s = seq('fading', 'shown', 'shown')
+    const r = await settledShot(s.take, pause)
+    expect(r).toEqual({ png: Buffer.from('shown'), stable: true })
+    expect(s.taken).toEqual(['fading', 'shown', 'shown'])
+  })
+
+  it('takes two captures on a page that is already still', async () => {
+    const s = seq('still')
+    expect((await settledShot(s.take, pause)).stable).toBe(true)
+    expect(s.taken).toHaveLength(2)
+  })
+
+  it('keeps the last capture and reports unstable when the page never settles', async () => {
+    const s = seq('a', 'b', 'c', 'd', 'e')
+    const r = await settledShot(s.take, pause, 4)
+    expect(r).toEqual({ png: Buffer.from('d'), stable: false })
+    expect(s.taken).toHaveLength(4)
+  })
+})
 
 describe('shotName', () => {
   it('keeps routes that slug alike apart', () => {

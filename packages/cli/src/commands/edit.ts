@@ -213,7 +213,12 @@ function printReport(r: EditReport) {
   for (const v of r.visual ?? []) {
     const mark = !v.pass ? chalk.red('✗') : v.expected === 'change' && v.diff === 0 ? chalk.dim('·') : chalk.green('✓')
     console.log(
-      `  ${mark} ${v.route} ${v.viewport}: ${(v.diff * 100).toFixed(2)}% pixels changed (expected ${v.expected})`,
+      `  ${mark} ${v.route} ${v.viewport}: ${(v.diff * 100).toFixed(2)}% pixels changed (expected ${v.expected})` +
+        (v.unstable
+          ? chalk.yellow(' — this page does not render the same way twice; the difference may not come from the edit')
+          : v.rechecked && v.pass
+            ? chalk.dim(' — first render was a bad load; a second one matched')
+            : ''),
     )
   }
   if (r.unverifiedRoutes.length)

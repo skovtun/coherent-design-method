@@ -86,6 +86,8 @@ export interface Shot {
   path: string
   /** Console errors and uncaught page errors (hydration mismatches land here) while rendering. */
   errors?: string[]
+  /** The page was still moving after every settle attempt: a diff on it may be animation, not the edit. */
+  unstable?: boolean
 }
 
 /** How a shot's viewport reads in a verdict. */
@@ -115,6 +117,30 @@ export const normalizeBrowserError = (e: string) =>
     .slice(0, 300)
 
 const errorsSidecar = (shotPath: string) => `${shotPath}.errors.json`
+const unstableMarker = (shotPath: string) => `${shotPath}.unstable`
+
+/**
+ * Screenshot until two consecutive captures are byte-identical. Fixed waits
+ * did not cover JavaScript entrance animations (framer-motion ignores
+ * reducedMotion unless the app opts in, and FREEZE_CSS cannot reach it): one
+ * "before" shot caught a hero mid-fade and failed a metadata-only refactor
+ * with 4.85% changed. A page that never settles keeps its last capture and is
+ * reported as unstable rather than trusted silently.
+ */
+export async function settledShot(
+  take: () => Promise<Buffer>,
+  pause: () => Promise<void>,
+  maxTries = 4,
+): Promise<{ png: Buffer; stable: boolean }> {
+  let prev = await take()
+  for (let i = 1; i < maxTries; i++) {
+    await pause()
+    const next = await take()
+    if (next.equals(prev)) return { png: next, stable: true }
+    prev = next
+  }
+  return { png: prev, stable: false }
+}
 
 /** Collision-free file name: "/foo-bar" and "/foo/bar" slug alike, so the route hash disambiguates. */
 export const shotName = (route: string, vp: string) =>
@@ -227,9 +253,14 @@ export async function captureRoutes(
   const shoot = async (ctx: Ctx, r: { route: string; url: string }, vp: Shot['viewport'], prepare?: string) => {
     const { page, errors } = await openRoute(ctx, baseUrl + r.url, prepare)
     const path = join(outDir, shotName(r.route, vp))
-    await page.screenshot({ path, fullPage: true })
+    const { png, stable } = await settledShot(
+      () => page.screenshot({ fullPage: true }),
+      () => page.waitForTimeout(500),
+    )
+    writeFileSync(path, png)
     writeFileSync(errorsSidecar(path), JSON.stringify(errors))
-    shots.push({ route: r.route, viewport: vp, path, errors })
+    if (!stable) writeFileSync(unstableMarker(path), '')
+    shots.push({ route: r.route, viewport: vp, path, errors, ...(stable ? {} : { unstable: true }) })
     return page
   }
   try {
@@ -598,10 +629,54 @@ async function buildAndStart(
 }
 
 /**
- * Bump when captureRoutes changes what a screenshot shows (2: scroll-through), so
+ * Bump when captureRoutes changes what a screenshot shows (2: scroll-through,
+ * 3: settle until two captures match), so
  * cached shots from the old capture are never compared with new ones.
  */
-const RENDER_VERSION = 2
+const RENDER_VERSION = 3
+
+function shotsDir(root: string, treeKey: string, opts: CaptureOptions): string {
+  const variant = `${opts.themes ? '.themes' : ''}${opts.safari ? '.safari' : ''}`
+  return join(root, '.coherent', 'shots', `${treeKey}.r${RENDER_VERSION}${variant}`)
+}
+
+/**
+ * Render routes of the current tree again from scratch, outside the cache: a
+ * second opinion when a page that should be unchanged differs. Some pages do
+ * not render the same on every load (observed: a WebGL hero on
+ * getcoherent.design came out plain white on one load in eight).
+ */
+export async function recaptureTree(
+  root: string,
+  treeKey: string,
+  targets: { route: string; url: string }[],
+  opts: CaptureOptions = {},
+): Promise<Shot[]> {
+  const dir = `${shotsDir(root, treeKey, opts)}.recheck-${process.pid}`
+  rmSync(dir, { recursive: true, force: true })
+  const server = await startPreview(root)
+  try {
+    return await captureRoutes(server.url, targets, dir, opts)
+  } finally {
+    await server.stop()
+  }
+}
+
+/**
+ * Put re-rendered shots in the cache in place of the first ones, so a chained
+ * edit does not start from a render that turned out to be a bad load.
+ */
+export function adoptShots(root: string, treeKey: string, shots: Shot[], opts: CaptureOptions = {}): void {
+  const dir = shotsDir(root, treeKey, opts)
+  if (!existsSync(dir)) return
+  for (const sh of shots) {
+    const to = join(dir, basename(sh.path))
+    cpSync(sh.path, to)
+    cpSync(errorsSidecar(sh.path), errorsSidecar(to))
+    rmSync(unstableMarker(to), { force: true })
+    if (sh.unstable) writeFileSync(unstableMarker(to), '')
+  }
+}
 
 /** Screenshots for a tree state, cached by tree hash so chained edits reuse "after" as the next "before". */
 export async function shotsForTree(
@@ -610,8 +685,7 @@ export async function shotsForTree(
   targets: { route: string; url: string }[],
   opts: CaptureOptions = {},
 ): Promise<Shot[]> {
-  const variant = `${opts.themes ? '.themes' : ''}${opts.safari ? '.safari' : ''}`
-  const dir = join(root, '.coherent', 'shots', `${treeKey}.r${RENDER_VERSION}${variant}`)
+  const dir = shotsDir(root, treeKey, opts)
   const viewports: Shot['viewport'][] = ['desktop', 'mobile']
   if (opts.themes) viewports.push('desktop-theme')
   if (opts.safari) viewports.push('safari')
@@ -623,7 +697,11 @@ export async function shotsForTree(
     })),
   )
   if (expected.every(s => (s.viewport === 'safari' || existsSync(s.path)) && existsSync(errorsSidecar(s.path))))
-    return expected.map(s => ({ ...s, errors: JSON.parse(readFileSync(errorsSidecar(s.path), 'utf-8')) as string[] }))
+    return expected.map(s => ({
+      ...s,
+      errors: JSON.parse(readFileSync(errorsSidecar(s.path), 'utf-8')) as string[],
+      ...(existsSync(unstableMarker(s.path)) ? { unstable: true } : {}),
+    }))
   const server = await startPreview(root)
   // Capture into a scratch dir and move it into the cache only when every shot
   // is taken: a run cut short must not leave shots a later edit reuses.
