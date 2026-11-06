@@ -12,6 +12,15 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.32.1] — 2026-11-05 — fix: a bad page load no longer fails an edit
+
+### Fixed
+- **A second render before blaming the edit.** Some pages do not render the same way on every load: on getcoherent.design the WebGL hero came out plain white on one load in about eight, and a metadata-only refactor failed with "4.85% changed". When a page that must stay unchanged differs, the failing routes are now rendered again from scratch. If the second render matches the original pixel for pixel, the first was a bad load: the route passes, the verdict carries a warning, and the good render replaces the bad one in the cache. If two renders of the same code differ from each other, the edit still fails, but the verdict says the page does not render the same way twice instead of blaming the edit. Clean edits pay nothing; the second render only runs after a mismatch.
+- **Screenshots wait for the page to stop moving.** Each shot is retaken until two consecutive captures are identical (up to four). JavaScript entrance animations are not stopped by reduced motion or the animation freeze, so fixed waits could catch a hero mid-fade. A page that never settles is marked unstable in the verdict. The render version is bumped, so shots from the old capture are not reused.
+
+### Known limit
+- A bad load in the "before" render cannot be retaken, because the code it showed is no longer on disk. That case still fails as a change.
+
 ## [0.32.0] — 2026-10-22 — feat: verification that survives a running dev server, both themes, Safari errors
 
 ### Fixed

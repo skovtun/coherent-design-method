@@ -59,6 +59,8 @@ import {
   normalizeBrowserError,
   PreviewBuildError,
   shotsForTree,
+  recaptureTree,
+  adoptShots,
   viewportLabel,
   loadWebkit,
   startPreview,
@@ -114,6 +116,25 @@ export interface VisualResult {
   diff: number
   expected: 'change' | 'same'
   pass: boolean
+  /**
+   * The page does not render the same way twice: it never stopped moving
+   * (see settledShot), or two loads of the same code differed.
+   */
+  unstable?: boolean
+  /** A second render was taken because the first differed where nothing should have. */
+  rechecked?: boolean
+}
+
+/**
+ * Judge a failed "should be unchanged" comparison against a second render of
+ * the same code. A second render identical to the "before" one means the first
+ * was a bad load, not the edit: pass. Two renders of the same code that differ
+ * from each other mean the page changes between loads: still a failure (the
+ * edit cannot be shown harmless), but it is reported as such.
+ */
+export function recheckVisual(v: VisualResult, beforeVsAgain: number, firstVsAgain: number): VisualResult {
+  if (beforeVsAgain === 0) return { ...v, diff: 0, pass: true, rechecked: true }
+  return { ...v, rechecked: true, ...(firstVsAgain > 0 ? { unstable: true } : {}) }
 }
 
 /**
@@ -262,6 +283,18 @@ export function planTargets(
     .filter((t): t is Target => !!t.url)
     .slice(0, MAX_AFFECTED + MAX_CONTROLS)
   return { targets, unverifiedRoutes: affected.filter(r => !targets.some(t => t.route === r)) }
+}
+
+/** A second render of failing routes, from scratch, bypassing the shot cache. */
+function reshoot(
+  root: string,
+  s: Pick<EditSession, 'url' | 'modify' | 'create' | 'themes' | 'safari'>,
+  targets: Target[],
+) {
+  const opts = { themes: !!s.themes, safari: false }
+  return s.url
+    ? captureRoutes(s.url, targets, join(root, '.coherent', 'shots', `url-${Date.now()}-recheck`), opts)
+    : recaptureTree(root, treeKey(root, [...s.modify, ...s.create]), targets, opts)
 }
 
 function shoot(
@@ -784,7 +817,7 @@ export async function verifyEdit(
         .filter((p): p is readonly [Shot, Shot] => !!p[1])
       const diffs = await diffMany(pairs.map(([b, a]) => [b.path, a.path]))
       browserErrors = newBrowserErrors(s.beforeShots, after)
-      visual = pairs.map(([b], i) => {
+      visual = pairs.map(([b, a], i) => {
         const t = s.targets.find(x => x.route === b.route)!
         return {
           route: b.route,
@@ -792,8 +825,10 @@ export async function verifyEdit(
           diff: diffs[i],
           expected: t.expected,
           pass: t.expected === 'same' ? diffs[i] === 0 : true,
+          ...(b.unstable || a.unstable ? { unstable: true } : {}),
         }
       })
+      visual = await recheckFailures(root, s, visual, after, opts.log, warnings)
     } catch (e) {
       buildError = String((e as Error).message)
     }
@@ -828,7 +863,10 @@ export async function verifyEdit(
   for (const v of visual ?? [])
     if (!v.pass)
       problems.push(
-        `${v.route} (${viewportLabel(v.viewport)}) should render unchanged but ${(v.diff * 100).toFixed(2)}% changed.`,
+        `${v.route} (${viewportLabel(v.viewport)}) should render unchanged but ${(v.diff * 100).toFixed(2)}% changed.` +
+          (v.unstable
+            ? ' This page does not render the same way twice (it kept moving, or two loads of the same code differed), so the difference may not come from the edit.'
+            : ''),
       )
   const failed =
     !!typeErrors.length ||
@@ -882,6 +920,56 @@ export async function verifyEdit(
     landed,
     buildError,
   }
+}
+
+/**
+ * Give every failed "should be unchanged" shot a second render from scratch
+ * (see recheckVisual). Only runs when something already failed, so a clean
+ * edit pays nothing. A recheck that cannot run leaves the first verdict.
+ */
+async function recheckFailures(
+  root: string,
+  s: EditSession,
+  visual: VisualResult[],
+  after: Shot[],
+  log: ((msg: string) => void) | undefined,
+  warnings: string[],
+): Promise<VisualResult[]> {
+  const failing = visual.filter(v => !v.pass)
+  if (!failing.length) return visual
+  const routes = new Set(failing.map(v => v.route))
+  const targets = s.targets.filter(t => routes.has(t.route))
+  log?.(`Rendering ${targets.length} route(s) again to rule out a page that differs between loads…`)
+  let again: Shot[]
+  try {
+    again = await reshoot(root, s, targets)
+  } catch {
+    return visual
+  }
+  const find = (list: Shot[], v: VisualResult) => list.find(x => x.route === v.route && x.viewport === v.viewport)
+  const triples = failing
+    .map(v => [v, find(s.beforeShots, v), find(after, v), find(again, v)] as const)
+    .filter((t): t is readonly [VisualResult, Shot, Shot, Shot] => !!(t[1] && t[2] && t[3]))
+  const diffs = await diffMany(
+    triples.flatMap(([, b, a, a2]) => [[b.path, a2.path] as [string, string], [a.path, a2.path] as [string, string]]),
+  )
+  const judged = new Map<VisualResult, VisualResult>()
+  const adopted: Shot[] = []
+  triples.forEach(([v, , , a2], i) => {
+    const r = recheckVisual(v, diffs[2 * i], diffs[2 * i + 1])
+    judged.set(v, r)
+    if (r.pass) {
+      adopted.push(a2)
+      warnings.push(
+        `${v.route} (${viewportLabel(v.viewport)}) rendered differently on one load; a second render matched the original exactly.`,
+      )
+    }
+  })
+  if (adopted.length && !s.url)
+    adoptShots(root, treeKey(root, [...s.modify, ...s.create]), adopted, { themes: !!s.themes, safari: !!s.safari })
+  // The second render served its purpose: the shots that matched now live in the cache.
+  if (again[0]) rmSync(dirname(again[0].path), { recursive: true, force: true })
+  return visual.map(v => judged.get(v) ?? v)
 }
 
 /**

@@ -3,7 +3,15 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
-const vis = vi.hoisted(() => ({ diff: 0.1, calls: 0, afterErrors: [] as string[] }))
+const vis = vi.hoisted(() => ({
+  diff: 0.1,
+  calls: 0,
+  afterErrors: [] as string[],
+  beforeKey: '',
+  rechecks: 0,
+  // Per-pair diff when set; shot paths are "<tree>|<route>|<viewport>[|again]".
+  diffOf: null as null | ((a: string, b: string) => number),
+}))
 
 // Fake compiler: one error per line containing BROKEN, positioned like tsc output.
 vi.mock('../governance/verify.js', async orig => {
@@ -14,12 +22,30 @@ vi.mock('../governance/verify.js', async orig => {
     // Rendering is faked: each shot "differs" by vis.diff.
     // First call renders "before", the next one "after".
     shotsForTree: async (_r: string, key: string, targets: { route: string }[]) => {
+      if (vis.calls === 0) vis.beforeKey = key
       const errors = vis.calls++ === 0 ? [] : vis.afterErrors
       return targets.flatMap(t =>
-        ['desktop', 'mobile'].map(viewport => ({ route: t.route, viewport, path: key, errors })),
+        ['desktop', 'mobile'].map(viewport => ({
+          route: t.route,
+          viewport,
+          path: `${key}|${t.route}|${viewport}`,
+          errors,
+        })),
       )
     },
-    diffMany: async (pairs: unknown[]) => pairs.map(() => vis.diff),
+    recaptureTree: async (_r: string, key: string, targets: { route: string }[]) => {
+      vis.rechecks++
+      return targets.flatMap(t =>
+        ['desktop', 'mobile'].map(viewport => ({
+          route: t.route,
+          viewport,
+          path: `${key}|${t.route}|${viewport}|again`,
+          errors: [],
+        })),
+      )
+    },
+    adoptShots: () => {},
+    diffMany: async (pairs: [string, string][]) => pairs.map(([a, b]) => (vis.diffOf ? vis.diffOf(a, b) : vis.diff)),
     typecheck: (root: string) => {
       const errors: string[] = []
       for (const f of ['src/app/page.tsx', 'src/lib/old.ts']) {
@@ -45,7 +71,7 @@ vi.mock('../governance/privacy.js', async orig => {
 })
 
 import { runEdit } from './edit.js'
-import { introducedLeaksOf, newBrowserErrors, newTypeErrors } from '../governance/session.js'
+import { introducedLeaksOf, newBrowserErrors, newTypeErrors, recheckVisual } from '../governance/session.js'
 import { hashTree, listTransactions, loadTransaction } from '../governance/transaction.js'
 
 let root: string
@@ -227,6 +253,82 @@ describe('verified means every affected route was rendered', () => {
     const r = await edit('src/components/card.tsx')
     expect(r!.landed).toBe(false)
     expect(r!.verdict).toBe('failed')
+  })
+})
+
+describe('a control page that differs gets a second render', () => {
+  // card.tsx changes "/"; "/about" does not use it and must render unchanged.
+  beforeEach(() => {
+    write('src/components/card.tsx', 'export function Card() {\n  return <div />\n}\n')
+    write(PAGE, "import { Card } from '../components/card'\nexport default function P() {\n  return <Card />\n}\n")
+    write('src/app/about/page.tsx', 'export default function A() {\n  return <p />\n}\n')
+    vis.calls = 0
+    vis.rechecks = 0
+    vis.afterErrors = []
+  })
+  afterEach(() => {
+    vis.diffOf = null
+  })
+  const edit = () =>
+    runEdit(
+      'x',
+      { dir: root, yes: true },
+      llm(
+        JSON.stringify({ scope: 'component', modify: ['src/components/card.tsx'], create: [], rationale: 'r' }),
+        files({ 'src/components/card.tsx': 'export function Card() {\n  return <span />\n}' }),
+      ),
+    )
+  // about's diffs: first comparison, before vs the second render, first vs second render.
+  const about = (first: number, beforeVsAgain: number, firstVsAgain: number) => (a: string, b: string) => {
+    if (!a.includes('|/about|')) return a.includes('|/|') ? 0.1 : 0
+    if (!b.endsWith('|again')) return first
+    return a.startsWith(vis.beforeKey + '|') ? beforeVsAgain : firstVsAgain
+  }
+
+  it('passes when the second render matches the original: the first was a bad load', async () => {
+    vis.diffOf = about(0.0485, 0, 0.0485)
+    const r = await edit()
+    expect(vis.rechecks).toBe(1)
+    expect(r!.verdict).toBe('verified')
+    expect(r!.visual!.filter(v => v.route === '/about').every(v => v.pass && v.rechecked)).toBe(true)
+  })
+
+  it('fails, naming the page unstable, when two renders of the same code differ', async () => {
+    vis.diffOf = about(0.0485, 0.0485, 0.03)
+    const r = await edit()
+    expect(r!.verdict).toBe('failed')
+    expect(r!.visual!.find(v => v.route === '/about')!.unstable).toBe(true)
+  })
+
+  it('fails as a real change when the second render repeats the first', async () => {
+    vis.diffOf = about(0.0485, 0.0485, 0)
+    const r = await edit()
+    expect(r!.verdict).toBe('failed')
+    expect(r!.visual!.find(v => v.route === '/about')!.unstable).toBeUndefined()
+    expect(r!.visual!.find(v => v.route === '/about')!.rechecked).toBe(true)
+  })
+
+  it('renders nothing twice when every control matches', async () => {
+    vis.diffOf = about(0, 0, 0)
+    const r = await edit()
+    expect(vis.rechecks).toBe(0)
+    expect(r!.verdict).toBe('verified')
+  })
+})
+
+describe('recheckVisual', () => {
+  const v = { route: '/about', viewport: 'desktop', diff: 0.0485, expected: 'same' as const, pass: false }
+  it('passes when the second render is identical to the original', () => {
+    expect(recheckVisual(v, 0, 0.0485)).toMatchObject({ pass: true, diff: 0, rechecked: true })
+  })
+  it('stays failed and unstable when two renders of the same code differ', () => {
+    const r = recheckVisual(v, 0.0485, 0.03)
+    expect(r).toMatchObject({ pass: false, unstable: true, rechecked: true, diff: 0.0485 })
+  })
+  it('stays failed as a real change when the second render repeats the first', () => {
+    const r = recheckVisual(v, 0.0485, 0)
+    expect(r.pass).toBe(false)
+    expect(r.unstable).toBeUndefined()
   })
 })
 
