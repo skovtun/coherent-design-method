@@ -38,7 +38,7 @@ See ADR-0002 for architecture rationale.
 ## How to use
 
 **Starting a new session working on Coherent?**
-CLAUDE.md requires reading `PATTERNS_JOURNAL.md`, `RULES_MAP.md`, `MODEL_PROFILE.md`, `IDEAS_BACKLOG.md`, and any new ADRs first. Most bugs you'll encounter are variations of something already seen.
+CLAUDE.md requires reading ADR-0011/0012/0013, `PATTERNS_JOURNAL.md` and `IDEAS_BACKLOG.md` first; `RULES_MAP.md` and `MODEL_PROFILE.md` only for classic-generator work (`docs/classic/CLAUDE-classic.md`). Most bugs you'll encounter are variations of something already seen.
 
 **About to add a rule to `design-constraints.ts`?**
 Check `RULES_MAP.md` to see if a related rule already exists. Run `node packages/cli/scripts/generate-rules-map.mjs` after edits to refresh the auto-generated section.
