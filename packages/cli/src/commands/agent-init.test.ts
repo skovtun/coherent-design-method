@@ -97,6 +97,39 @@ describe('writeAgentFiles', () => {
     expect(read('.gitignore').match(/\.coherent\/tx\//g)).toHaveLength(1)
   })
 
+  const built = existsSync(join(__dirname, '..', '..', 'dist', 'standalone', 'design-check.mjs'))
+  const withTypescript = () => {
+    write('node_modules/typescript/package.json', '{"name":"typescript","main":"index.js"}')
+    write('node_modules/typescript/index.js', '')
+  }
+
+  it('writes the design section to AGENTS.md and CLAUDE.md, kept on update, with the checker', () => {
+    withTypescript()
+    write('CLAUDE.md', '# Notes\n\nMine.\n')
+    write('app/globals.css', '@import "tailwindcss";\n')
+    writeAgentFiles(dir, inv)
+    writeAgentFiles(dir, inv)
+    for (const f of ['AGENTS.md', 'CLAUDE.md']) {
+      expect(read(f).match(/coherent:design:start/g)).toHaveLength(1)
+      expect(read(f)).toContain('Tokens (colours, radius, type, shadows) live in `app/globals.css`')
+      if (built) expect(read(f)).toContain('node scripts/design-check.mjs')
+    }
+    expect(read('CLAUDE.md')).toMatch(/^# Notes\n\nMine.\n\n<!-- coherent:design:start -->/)
+    if (built) expect(read('scripts/design-check.mjs')).toContain('coherent:managed design-check')
+  })
+
+  it('does not write the checker without typescript, and never over a user file', () => {
+    const notes = writeAgentFiles(dir, inv)
+    expect(existsSync(join(dir, 'scripts', 'design-check.mjs'))).toBe(false)
+    expect(read('AGENTS.md')).not.toContain('design-check.mjs')
+    if (!built) return
+    expect(notes.join('\n')).toMatch(/no typescript dependency/)
+    withTypescript()
+    write('scripts/design-check.mjs', '// my own\n')
+    expect(writeAgentFiles(dir, inv).join('\n')).toMatch(/Kept your own scripts\/design-check\.mjs/)
+    expect(read('scripts/design-check.mjs')).toBe('// my own\n')
+  })
+
   it("keeps a user's own default agent and says so", () => {
     write('.claude/settings.json', JSON.stringify({ agent: 'reviewer' }))
     const notes = writeAgentFiles(dir, inv)

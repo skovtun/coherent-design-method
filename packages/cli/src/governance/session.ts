@@ -33,6 +33,7 @@ import { DS_VOLATILE, dsFiles, renderDesignSystemFiles, type SiteContext } from 
 import { buildGraph, type Impact, type ProjectGraph } from './graph.js'
 import { scanLeaks, type Leak } from './privacy.js'
 import { addedRawValues, rawValues, rawValueWarning } from './raw-values.js'
+import { addedDeadClasses, deadClasses, deadClassProblem, loadClassChecker } from './tailwind-classes.js'
 import { TAILWIND_CONFIG, withImpact, type EditScope } from './router.js'
 import {
   beginTransaction,
@@ -175,6 +176,8 @@ export interface VerifyResult {
   typeErrors: string[]
   baselineTypeErrors: number
   typecheckSkipped?: string
+  /** Why classes that compile to no CSS were not checked (not Tailwind 4, no CSS entry). */
+  classCheckSkipped?: string
   introducedLeaks: Leak[]
   visual?: VisualResult[]
   visualSkipped?: string
@@ -775,6 +778,20 @@ export async function verifyEdit(
         rawValues(f, readFileSync(join(root, f), 'utf-8')),
       ).map(v => rawValueWarning(f, v))
     })
+  // Classes this edit adds that compile to no CSS (a renamed or missing token): the style is
+  // silently gone, so it fails the edit like a type error.
+  const checker = await loadClassChecker(root)
+  const classCheckSkipped = checker ? undefined : 'not a Tailwind 4 project (or its CSS entry did not load)'
+  if (checker)
+    for (const f of [...touched].filter(f => !f.startsWith(viewerDir) && /\.(tsx|jsx|ts|js)$/.test(f))) {
+      if (!existsSync(join(root, f))) continue
+      const before = snapshotText(root, s.txId, f)
+      const added = addedDeadClasses(
+        before === null ? [] : deadClasses(f, before, checker),
+        deadClasses(f, readFileSync(join(root, f), 'utf-8'), checker),
+      )
+      problems.push(...added.map(d => deadClassProblem(f, d)))
+    }
   const designSystemProblems = idProblems(root, [...touched])
   problems.push(...designSystemProblems)
 
@@ -785,6 +802,7 @@ export async function verifyEdit(
     typeErrors,
     baselineTypeErrors: s.baselineTypeErrors.length,
     typecheckSkipped: tc.skipped,
+    classCheckSkipped,
     introducedLeaks,
     unverifiedRoutes: s.unverifiedRoutes,
     visualSkipped: s.visualSkipped,

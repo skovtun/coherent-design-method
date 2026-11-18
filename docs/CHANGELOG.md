@@ -12,6 +12,16 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.33.0] — 2026-11-18 — feat: classes of tokens that do not exist fail the edit; design checks that outlive Coherent
+
+### Added
+- **Dead classes fail the edit.** A class that Tailwind parses as a utility but that compiles to no CSS (`text-success` after `--success` was renamed, `text-warning-foreground` for a token that never existed) is now a problem in the verdict, like a new type error. Tailwind 4 drops these silently: the build passes and the colour is just gone. Measured: in 17 of 30 agent sessions, agents wrote a renamed token's old class (PJ-028). The answer comes from the project's own Tailwind 4 (`@tailwindcss/node`, found directly or through `@tailwindcss/postcss` / `vite`, from the app's folder in a monorepo), loaded once per stylesheet, so it matches the build. Classes in variables, ternaries, class maps and `className`-named properties are checked too; slugs, ids and properties like `classification` are not. On Tailwind 3 the verdict says the check was skipped.
+- **`scripts/design-check.mjs`, written by `coherent init`.** One self-contained file built from the same source as the edit check, using the project's own `typescript` and Tailwind. Run `node scripts/design-check.mjs`: it checks what changed since the last commit (or the files given, or `--all`), exits 1 on dead classes and lists hardcoded values the change adds. It keeps working after Coherent is removed. Written only when the project has `typescript`, and never over a `scripts/design-check.mjs` of your own (the managed file carries a marker).
+- **A "Design system" section in AGENTS.md and CLAUDE.md**, managed by `coherent init` with its own markers: where the tokens live, reuse before writing, renamed tokens update their classes, run the checker before finishing. Written to stay valid without Coherent.
+
+### Not shipped, by measurement
+- A full exported design kit (tokens.md + components.md + SKILL.md). In a 90-turn experiment it did not beat a one-line pointer; see `docs/plans/2026-11-18-design-kit-export.md` and IDEAS_BACKLOG K1.
+
 ## [0.32.1] — 2026-11-05 — fix: a bad page load no longer fails an edit
 
 ### Fixed

@@ -3,7 +3,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.32.1",
+  "version": "0.33.0",
   "description": "Open-source platform that governs AI-built frontends: your coding agent designs and builds the UI; Coherent scopes every edit, verifies it in a real browser and rolls back what fails.",
   "type": "module",
   "main": "./dist/index.js",
@@ -51,13 +51,13 @@
   "license": "MIT",
   "scripts": {
     "dev": "tsup --watch",
-    "build": "tsup",
+    "build": "tsup && tsup --config tsup.standalone.config.ts",
     "postbuild": "node scripts/check-constraint-budget.mjs && node scripts/generate-rules-map.mjs && node scripts/build-wiki-index.mjs",
     "check-budget": "node scripts/check-constraint-budget.mjs",
     "generate-rules-map": "node scripts/generate-rules-map.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
-    "prepublishOnly": "node -e \"if (!(process.env.npm_config_user_agent || '').includes('pnpm')) { console.error('\\n\u274c Use pnpm publish, not npm publish.\\nReason: npm does not resolve workspace:* protocol, publishing will break global install.\\nRun: pnpm publish --no-git-checks\\n'); process.exit(1); }\""
+    "prepublishOnly": "node -e \"if (!(process.env.npm_config_user_agent || '').includes('pnpm')) { console.error('\\n❌ Use pnpm publish, not npm publish.\\nReason: npm does not resolve workspace:* protocol, publishing will break global install.\\nRun: pnpm publish --no-git-checks\\n'); process.exit(1); }\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.0",
@@ -74,11 +74,13 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@tailwindcss/node": "4.3.3",
     "@types/node": "^20.11.0",
     "@types/prompts": "^2.4.9",
     "lucide-react": "^1.0.1",
     "playwright": "1.59.1",
     "react": "^19.2.4",
+    "tailwindcss": "4.3.3",
     "tsup": "^8.0.1"
   },
   "peerDependencies": {

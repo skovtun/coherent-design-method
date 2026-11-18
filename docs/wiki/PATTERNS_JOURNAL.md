@@ -575,6 +575,18 @@ A `max_tokens` raise costs nothing extra per call — you pay per token *generat
 
 ---
 
+## PJ-028 · Agents keep writing a renamed token's old class (silent in Tailwind 4)
+
+**Observed:** step 0 of the design-kit plan (2026-11-18; `docs/plans/2026-11-18-design-kit-export.md`): 30 Claude Code sessions (sonnet + haiku) added screens to a copy of the SubmitAd app; before the third turn `--success` was renamed to `--positive` in the CSS and in every existing class. In **17 of 30 runs** the agent's new code used `text-success` anyway, in every arm (no instructions, a one-line pointer, a full exported design kit). The build passed; the colour was simply missing. The same scan found `text-success-foreground` / `text-warning-foreground` (tokens that never existed) in the original app and `animate-in`/`zoom-in-95` in three apps that never imported `tw-animate-css`.
+
+**Root cause:** the agent's own session memory of the old name, not missing documentation (it happened without any kit). Tailwind 4 drops a utility whose value resolves to nothing without a warning, so neither the build nor the type check notices. Agents also put classes in variables and maps (`const tone = up ? "text-success" : "text-destructive"`) before they reach `className`, where a className-only scan does not look.
+
+**Fix (v0.33.0):** `governance/tailwind-classes.ts` asks the project's own Tailwind 4 design system (`@tailwindcss/node` `__unstable__loadDesignSystem`) whether each candidate parses as a utility and compiles: parses + no CSS = dead. Strings outside class contexts count only when every string of their ternary/array/object is utilities and one of them works, so slugs (`"my-threads"`, `"from-hambela-to-bergen"`) are not flagged. A dead class an edit adds **fails the edit** (`verifyEdit` problem); on Tailwind 3 the verdict says the check was skipped. The same code ships as the standalone `scripts/design-check.mjs` that `coherent init` writes, so the check outlives Coherent. Measured on 3 local apps + 30 runs: 17/17 stale uses caught, no false positives after the grouping rule.
+
+**Lesson:** documentation did not stop it in any arm; only a check did. Ask the tool that owns the semantics (Tailwind's own design system) instead of re-implementing its rules with regexes.
+
+---
+
 ## How to add a new entry
 
 1. Observe the failure (screenshot/transcript in the repo's discussion).

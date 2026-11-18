@@ -35,6 +35,7 @@ coherent edit "<request>" --dry-run   # Show scope + affected pages only
 coherent edit "<request>" --keep      # Keep an edit that failed verification (default: rolled back, exit 1)
 coherent edit --undo [id]        # Byte-exact rollback of that edit's own files; refuses if newer edits changed them (--force)
 coherent init [dir]              # Agent mode setup: empty folder → new Next.js app + welcome page; existing app → agent only; re-run → update
+node scripts/design-check.mjs    # Written by init; works without Coherent: fails on classes that compile to no CSS (renamed/missing token), lists hardcoded values (--all, or files)
 coherent init --classic          # Deprecated: old generator project (coherent chat pipeline)
 coherent mcp --profile agent     # Agent mode: governance-only MCP tools (inventory, begin/verify/rollback edit)
 coherent hook pre-write          # Claude Code PreToolUse hook: deny writes outside the open edit
