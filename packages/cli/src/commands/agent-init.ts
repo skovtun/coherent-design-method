@@ -11,6 +11,8 @@
  *   .claude/settings.json        "agent": "coherent" + PreToolUse write guard (merged)
  *   .mcp.json                    the coherent MCP server, agent profile (merged)
  *   AGENTS.md                    managed section for Codex and other agents
+ *   AGENTS.md + CLAUDE.md        managed "Design system" section, valid without Coherent
+ *   scripts/design-check.mjs     standalone design checks (managed, overwritten on update)
  *   .gitignore                   Coherent's local state
  * and adds @getcoherent/cli + playwright as dev dependencies so the server,
  * the hook and rendered verification run from the project, at a pinned version.
@@ -18,9 +20,10 @@
 import chalk from 'chalk'
 import { execFileSync } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'fs'
-import { dirname, join, resolve } from 'path'
+import { dirname, join, relative, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { CLI_VERSION } from '@getcoherent/core'
+import { findTailwindEntry } from '../governance/tailwind-classes.js'
 
 export interface AgentInitOptions {
   /** Use this machine's CLI build by absolute path instead of a project dev dependency (development). */
@@ -70,6 +73,84 @@ export function pmCommands(pm: PackageManager): {
 
 const START = '<!-- coherent:start -->'
 const END = '<!-- coherent:end -->'
+const DESIGN_START = '<!-- coherent:design:start -->'
+const DESIGN_END = '<!-- coherent:design:end -->'
+
+/** Replace the marked section of a file, or append it; the rest of the file is kept. */
+function upsertSection(path: string, start: string, end: string, content: string) {
+  const section = `${start}\n${content}\n${end}`
+  const existing = existsSync(path) ? readFileSync(path, 'utf-8') : ''
+  const next =
+    existing.includes(start) && existing.includes(end)
+      ? existing.slice(0, existing.indexOf(start)) + section + existing.slice(existing.indexOf(end) + end.length)
+      : (existing ? existing.trimEnd() + '\n\n' : '') + section + '\n'
+  writeFileSync(path, next)
+}
+
+/**
+ * Rules any agent can follow without Coherent. Measured 2026-11-18
+ * (docs/plans/2026-11-18-design-kit-export.md): a pointer like this matched a full
+ * exported kit; what slipped through everywhere was a renamed token's old class,
+ * which only the checker catches.
+ */
+export function designSection(dir: string, withChecker = true): string {
+  const css = findTailwindEntry(dir)
+  const entry = css ? relative(dir, css) : 'app/globals.css'
+  return [
+    '## Design system (managed by `coherent init`; stays valid without Coherent)',
+    '',
+    `- Tokens (colours, radius, type, shadows) live in \`${entry}\`. Use them through Tailwind classes (\`bg-primary\`, \`text-muted-foreground\`, \`rounded-md\`), never literal colours or sizes.`,
+    '- Before writing UI, look in `components/` (shadcn primitives in `components/ui`). Reuse what exists; if a component almost fits, add a prop or variant instead of a near copy.',
+    '- A new or renamed token needs a reason in the change, and every class that used the old name is updated with it.',
+    ...(withChecker
+      ? [
+          '- Before finishing, run `node scripts/design-check.mjs`. It fails on classes that compile to no CSS (a renamed or missing token) and lists hardcoded values the change adds.',
+        ]
+      : []),
+  ].join('\n')
+}
+
+const MANAGED_MARK = 'coherent:managed design-check'
+
+/**
+ * Copy the standalone checker to scripts/design-check.mjs. Returns a note when it
+ * was not written: no build of it, no `typescript` in the project (it parses TSX
+ * with the project's own), or a user's own file already at that path.
+ */
+function writeDesignCheck(dir: string): string | null {
+  const src = standaloneDesignCheck()
+  if (!src) return 'scripts/design-check.mjs not written: this CLI build has no dist/standalone/design-check.mjs.'
+  // The script imports `typescript` as an ES module: found only in node_modules up the tree.
+  let d = resolve(dir)
+  let found = false
+  for (;;) {
+    if (existsSync(join(d, 'node_modules', 'typescript', 'package.json'))) found = true
+    const up = dirname(d)
+    if (found || up === d) break
+    d = up
+  }
+  if (!found)
+    return 'scripts/design-check.mjs not written: the project has no typescript dependency (the checker reads TSX with it).'
+  const target = join(dir, 'scripts', 'design-check.mjs')
+  if (existsSync(target) && !readFileSync(target, 'utf-8').includes(MANAGED_MARK))
+    return "Kept your own scripts/design-check.mjs; Coherent's checker was not written."
+  mkdirSync(join(dir, 'scripts'), { recursive: true })
+  writeFileSync(target, readFileSync(src, 'utf-8'))
+  return null
+}
+
+/** The built standalone checker next to this CLI build (dist/standalone), if present. */
+function standaloneDesignCheck(): string | null {
+  let d = dirname(fileURLToPath(import.meta.url))
+  for (let i = 0; i < 4; i++) {
+    const p = join(d, 'dist', 'standalone', 'design-check.mjs')
+    if (existsSync(p)) return p
+    const q = join(d, 'standalone', 'design-check.mjs')
+    if (existsSync(q)) return q
+    d = dirname(d)
+  }
+  return null
+}
 const STATE_IGNORES = ['.coherent/tx/', '.coherent/shots/', '.coherent/edits/']
 
 export type ProjectState = 'empty' | 'next' | 'other'
@@ -150,17 +231,22 @@ export function writeAgentFiles(dir: string, inv: ReturnType<typeof cliInvocatio
   }
   writeJson(settingsPath, settings)
 
-  const agentsPath = join(dir, 'AGENTS.md')
   const body = readFileSync(join(tpl, 'coherent.md'), 'utf-8')
     .replace(/^---[\s\S]*?\n---\n/, '')
     .trim()
-  const section = `${START}\n## Coherent (managed by \`coherent init\`; edits here are overwritten)\n\nUse the \`coherent\` MCP server's tools for every change to project files.\n\n${body}\n${END}`
-  const existing = existsSync(agentsPath) ? readFileSync(agentsPath, 'utf-8') : ''
-  const next =
-    existing.includes(START) && existing.includes(END)
-      ? existing.slice(0, existing.indexOf(START)) + section + existing.slice(existing.indexOf(END) + END.length)
-      : (existing ? existing.trimEnd() + '\n\n' : '') + section + '\n'
-  writeFileSync(agentsPath, next)
+  upsertSection(
+    join(dir, 'AGENTS.md'),
+    START,
+    END,
+    `## Coherent (managed by \`coherent init\`; edits here are overwritten)\n\nUse the \`coherent\` MCP server's tools for every change to project files.\n\n${body}`,
+  )
+
+  // The design rules and checker are written so they keep working once Coherent is removed.
+  const checkerNote = writeDesignCheck(dir)
+  if (checkerNote) notes.push(checkerNote)
+  const design = designSection(dir, !checkerNote)
+  upsertSection(join(dir, 'AGENTS.md'), DESIGN_START, DESIGN_END, design)
+  upsertSection(join(dir, 'CLAUDE.md'), DESIGN_START, DESIGN_END, design)
 
   const giPath = join(dir, '.gitignore')
   const gi = existsSync(giPath) ? readFileSync(giPath, 'utf-8') : ''

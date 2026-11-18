@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 // Each call builds the TypeScript graph; under a full parallel run that can pass 5s.
 vi.setConfig({ testTimeout: 30_000 })
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
-import { join } from 'path'
+import { join, resolve } from 'path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
@@ -155,6 +155,35 @@ describe('agent-mode MCP tools', () => {
     expect(v.warnings).toEqual([
       expect.stringMatching(/^src\/app\/about\/page\.tsx:1 bg-\[#ff0000\] — use a colour token/),
     ])
+    await call('coherent_rollback_edit', {})
+  })
+
+  it('fails an edit that adds a class of a token that does not exist (Tailwind 4)', async () => {
+    write('package.json', '{"name":"fixture","private":true}')
+    symlinkSync(resolve(__dirname, '../../node_modules'), join(root, 'node_modules'))
+    write('src/app/globals.css', '@import "tailwindcss";\n@theme inline { --color-positive: var(--positive); }\n')
+    const { call } = await connect()
+    await call('coherent_begin_edit', { request: 'r', scope: 'page', modify: ['src/app/about/page.tsx'] })
+    write(
+      'src/app/about/page.tsx',
+      'const tone = (up: boolean) => (up ? "text-success" : "text-positive")\nexport default () => <p className={tone(true)}>About</p>\n',
+    )
+    const v = await call('coherent_verify_edit', { level: 'fast' })
+    expect(v.ok).toBe(false)
+    expect(v.classCheckSkipped).toBeUndefined()
+    expect(v.problems).toContainEqual(
+      expect.stringMatching(/^src\/app\/about\/page\.tsx:1 text-success compiles to no CSS/),
+    )
+    await call('coherent_rollback_edit', {})
+  })
+
+  it('says when classes could not be checked (no Tailwind 4)', async () => {
+    const { call } = await connect()
+    await call('coherent_begin_edit', { request: 'r', scope: 'page', modify: ['src/app/about/page.tsx'] })
+    write('src/app/about/page.tsx', 'export default () => <p className="text-success">About</p>\n')
+    const v = await call('coherent_verify_edit', { level: 'fast' })
+    expect(v.ok).toBe(true)
+    expect(v.classCheckSkipped).toMatch(/not a Tailwind 4 project/)
     await call('coherent_rollback_edit', {})
   })
 

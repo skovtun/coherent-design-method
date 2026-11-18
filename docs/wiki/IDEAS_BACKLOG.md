@@ -1191,6 +1191,18 @@ Same 41 validator types reported on real code; regex and AST agree on shape but 
 
 ---
 
+---
+id: K1
+type: idea
+status: rejected
+date: 2026-11-18
+confidence: empirical-n5
+---
+
+### K1 — Export a portable design kit (tokens.md + components.md + SKILL.md)
+
+Owner idea: Coherent writes a bundle so people keep building consistent UI without Coherent. **Rejected by measurement** (step 0, `docs/plans/2026-11-18-design-kit-export.md`): agents inside the repo already write tokens (0 literals in all 30 runs); a full kit did not beat a one-line pointer for sonnet and only nudged haiku (shared-block reuse 10 → 12 → 17 of 60, n = 5); every arm missed the same semantic reuse (MoneyCell, KpiCard `delta`). Shipped instead (v0.33.0): a managed "Design system" section in AGENTS.md + CLAUDE.md and `scripts/design-check.mjs`, aimed at the failure that did happen (PJ-028). Revisit only with a repo of hundreds of components as new evidence.
+
 ## Meta-ideas (about the process)
 
 - **Session memory bridging** — Claude Code memory at `~/.claude/projects/.../memory/` persists across sessions ON MY MACHINE. For contributors and other instances, they must read `docs/wiki/`. Keep both in sync. (2026-04-19)

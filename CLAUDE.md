@@ -9,9 +9,9 @@
 > The old generator (`coherent chat`, `init --classic`) is deprecated, fixes only:
 > its notes live in `docs/classic/CLAUDE-classic.md`.
 
-**Current version:** 0.32.1
+**Current version:** 0.33.0
 **Packages:** `@getcoherent/core` + `@getcoherent/cli` (published together, same version)
-**Tests:** 2689 passing
+**Tests:** 2704 passing
 
 ---
 
@@ -114,6 +114,7 @@ packages/cli/src/governance/
   design-system.ts       ADR-0013: IDs in source, tokens, exact targets, ds sync plan
   design-system-site.ts  the generated /design-system viewer
   raw-values.ts          hardcoded colours/sizes in TSX (AST); edit warnings, viewer list; token references (reach)
+  tailwind-classes.ts    classes that compile to no CSS (project's Tailwind 4); fail the edit; also in scripts/design-check.mjs
   hook.ts         `coherent hook pre-write` (PreToolUse write guard, feedback only)
 packages/cli/src/commands/
   agent-init.ts   `coherent init`: new app / agent-only / update; writes agent, .mcp.json, settings, AGENTS.md

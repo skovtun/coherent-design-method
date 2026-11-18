@@ -164,6 +164,69 @@ export function rawValues(file: string, text: string): RawValue[] {
   return out
 }
 
+/** Names that hold classes: `class`, `className`, `classes`, `iconClassName`; not `classification`. */
+const CLASS_NAME = /^(class|className|classes|\w+ClassName|\w+Classes)$/
+
+/** A string literal that may hold classes (see `classLikeStrings`). */
+export interface ClassLikeString {
+  words: string[]
+  line: number
+  /** Written where styling lives: className/class, a class helper's arguments. */
+  inClass: boolean
+  /** Strings sharing a ternary, array or object literal share a group. */
+  group: number
+}
+
+/**
+ * Every string in the file that could hold classes, wherever it sits: class
+ * contexts, but also `const tone = ok ? "text-success" : "text-destructive"` and
+ * class maps, which agents write before passing the value to className. Skips
+ * imports, `style`, non-class JSX attributes and object keys. A caller decides
+ * which are class lists: in a class context always; elsewhere only when every
+ * word is a utility and a sibling in its group is a working class.
+ */
+export function classLikeStrings(file: string, text: string): ClassLikeString[] {
+  if (!/\.(tsx|jsx|ts|js)$/.test(file)) return []
+  const sf = parse(file, text)
+  const classNodes = new Set<number>()
+  walkStyling(sf, (_cls, n) => classNodes.add(n.getStart(sf)))
+  const out: ClassLikeString[] = []
+  const groupOf = (n: ts.Node): number => {
+    let p = n.parent
+    if (p && ts.isPropertyAssignment(p)) p = p.parent
+    while (p && ts.isParenthesizedExpression(p)) p = p.parent
+    if (p && ts.isConditionalExpression(p)) {
+      // `a ? "x" : b ? "y" : "z"` is one group: climb the chain of branches.
+      while (p.parent && ts.isConditionalExpression(p.parent) && p.parent.condition !== p) p = p.parent
+      return p.getStart(sf)
+    }
+    if (p && (ts.isArrayLiteralExpression(p) || ts.isObjectLiteralExpression(p))) return p.getStart(sf)
+    return n.getStart(sf)
+  }
+  // `{ label: "Paused", className: "bg-warning …" }`: a property named like a class is a class context.
+  const visit = (n: ts.Node, cls = false): void => {
+    if (ts.isImportDeclaration(n) || ts.isExportDeclaration(n) || ts.isImportTypeNode(n)) return
+    if (ts.isJsxAttribute(n) && !CLASS_NAME.test(n.name.getText(sf))) return
+    if (ts.isPropertyAssignment(n))
+      return visit(n.initializer, cls || CLASS_NAME.test(n.name.getText(sf).replace(/['"]/g, '')))
+    if (isStringy(n)) {
+      const words = (n as { text: string }).text.split(/\s+/).filter(Boolean)
+      const start = n.getStart(sf)
+      if (words.length)
+        out.push({
+          words,
+          line: sf.getLineAndCharacterOfPosition(start).line + 1,
+          inClass: cls || classNodes.has(start),
+          group: groupOf(n),
+        })
+      return
+    }
+    ts.forEachChild(n, c => visit(c, cls))
+  }
+  visit(sf)
+  return out
+}
+
 const RADIUS_UTILITY = /^rounded(-(?:[trblse]|tl|tr|br|bl|ss|se|es|ee))?(?:-(xs|sm|md|lg|xl|2xl|3xl|4xl))?$/
 
 /**

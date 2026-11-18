@@ -65,6 +65,8 @@ export interface EditReport {
   buildError?: string
   /** Hardcoded design values the edit added (advisory). */
   warnings: string[]
+  /** Why classes that compile to no CSS were not checked, when they were not. */
+  classCheckSkipped?: string
   verdict: Verdict
   /** A failed edit is rolled back unless --keep. */
   rolledBack: boolean
@@ -171,6 +173,7 @@ export async function runEdit(request: string, opts: EditOptions, llm: Completer
     landed: res.landed,
     buildError: res.buildError,
     warnings: res.warnings ?? [],
+    classCheckSkipped: res.classCheckSkipped,
     verdict,
     rolledBack,
     ok: verdict === 'verified',
@@ -239,6 +242,7 @@ function printReport(r: EditReport) {
     ),
     failed: chalk.red('FAILED'),
   }
+  if (r.classCheckSkipped) console.log(chalk.dim(`  Unknown-class check skipped: ${r.classCheckSkipped}`))
   if (r.warnings.length) {
     console.log(chalk.yellow(`\nHardcoded values added (${r.warnings.length}), not failing the edit:`))
     for (const w of r.warnings.slice(0, 12)) console.log(chalk.yellow(`  ${w}`))
