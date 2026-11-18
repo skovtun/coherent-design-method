@@ -1,6 +1,6 @@
 # Cut a release
 
-From green `main` to merged PR on GitHub. Covers patch/minor/major bumps. npm publish is optional (user decision).
+From green `main` to merged PR on GitHub. Covers patch/minor/major bumps. npm publish runs from a GitHub release (see the last section).
 
 ## Prerequisites
 
@@ -125,14 +125,22 @@ git reset --hard origin/main   # local main diverged from origin due to squash �
 - `gh pr view <N>` shows `MERGED`.
 - `grep -n "Current version" CLAUDE.md` matches the new version.
 
-## npm publish (optional — only when you want the npm registry updated)
+## npm publish (from a GitHub release)
+
+Publishing runs in CI: `.github/workflows/publish.yml`, npm trusted publishing (OIDC), no tokens.
 
 ```bash
-cd packages/core && pnpm publish --no-git-checks
-cd packages/cli && pnpm publish --no-git-checks
+# After the release PR is merged to main (Claude cannot create releases; the owner runs this):
+gh release create vX.Y.Z --target main --title "vX.Y.Z" --notes-file <CHANGELOG section>
+# Release candidate → `next` dist-tag instead of `latest`:
+gh release create vX.Y.Z-rc.1 --target main --prerelease --notes "..."
 ```
 
-Both must succeed. If `core` publishes but `cli` fails mid-flight, the registry has a version mismatch — fix immediately or deprecate the half-published version.
+- A stable release publishes to `latest`, a pre-release to `next`.
+- The workflow skips a version already on npm, so a half-failed release (core published, cli not) is fixed by re-running it: `gh workflow run publish.yml --ref vX.Y.Z -f dist_tag=latest`.
+- Right after a successful run, the tarball URL can 404 for a few minutes while npm processes it. Poll it before calling the publish failed:
+  `curl -sI https://registry.npmjs.org/@getcoherent/cli/-/cli-X.Y.Z.tgz | head -1`
+- Check: `npm view @getcoherent/cli dist-tags` and `npx @getcoherent/cli@X.Y.Z --version`.
 
 ## Common failures
 
