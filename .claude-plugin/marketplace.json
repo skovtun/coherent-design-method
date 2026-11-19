@@ -1,0 +1,16 @@
+{
+  "name": "coherent",
+  "description": "Coherent: governed, verified UI edits for coding agents",
+  "owner": {
+    "name": "Sergei Kovtun",
+    "url": "https://getcoherent.design"
+  },
+  "plugins": [
+    {
+      "name": "coherent",
+      "source": "./plugins/coherent",
+      "description": "Governs UI edits by your coding agent: scopes each change, verifies it in a real browser (build, renders, pixel diff) and rolls back what fails. Next.js + Tailwind 4.",
+      "category": "development"
+    }
+  ]
+}

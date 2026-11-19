@@ -12,6 +12,11 @@ If you are upgrading across breaking releases, follow the matching migration doc
 
 ---
 
+## [0.33.1] — 2026-11-19
+
+### Added
+- **Coherent as a plugin and an MCP registry entry.** `plugins/coherent/` is a Claude Code and Codex plugin with one skill (`coherent`: set Coherent up in a Next.js app, the governed edit loop, design-system rules that hold without Coherent). The repository is its own marketplace: `/plugin marketplace add skovtun/coherent-design-method` in Claude Code, `.agents/plugins/marketplace.json` for Codex. `server.json` and `mcpName` in `@getcoherent/cli` list the agent MCP server (`coherent mcp --profile agent`) in the official MCP registry as `io.github.skovtun/coherent`. A test keeps the plugin, server.json and package versions equal.
+
 ## [0.33.0] — 2026-11-18 — feat: classes of tokens that do not exist fail the edit; design checks that outlive Coherent
 
 ### Added

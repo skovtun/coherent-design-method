@@ -20,7 +20,11 @@ From green `main` to merged PR on GitHub. Covers patch/minor/major bumps. npm pu
 # Edit packages/cli/package.json    → "version": "X.Y.Z"
 # Edit CLAUDE.md                    → **Current version:** X.Y.Z
 # Edit CLAUDE.md                    → **Tests:** NNNN passing (from vitest output)
+# Edit server.json                  → "version" and packages[0].version: X.Y.Z
+# Edit plugins/coherent/.claude-plugin/plugin.json and plugins/coherent/plugin.json → "version": X.Y.Z
 ```
+
+`distribution.test.ts` fails if the plugin or `server.json` versions differ from the CLI. After npm has the version, run `mcp-publisher publish` from the repo root to update the MCP registry entry (`docs/runbooks/directory-listings.md`).
 
 **2. Update CHANGELOG.**
 
