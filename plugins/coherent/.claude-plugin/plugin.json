@@ -2,7 +2,7 @@
   "name": "coherent",
   "displayName": "Coherent",
   "version": "0.33.1",
-  "description": "Governs UI edits by your coding agent: scopes each change, verifies it in a real browser (build, renders, pixel diff) and rolls back what fails. Next.js + Tailwind 4.",
+  "description": "Your agent changes the UI; Coherent proves nothing else moved. Real-browser checks, pixel diff, rollback. Next.js + Tailwind 4.",
   "author": {
     "name": "Sergei Kovtun",
     "url": "https://getcoherent.design"
