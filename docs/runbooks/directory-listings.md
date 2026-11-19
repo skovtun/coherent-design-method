@@ -52,4 +52,4 @@ Plugin: `/plugin marketplace add skovtun/coherent-design-method`, then `/plugin 
 **Tags:** design-system, nextjs, tailwind, shadcn, visual-regression, verification, mcp, claude-code, codex
 **Links:** https://getcoherent.design · https://github.com/skovtun/coherent-design-method · https://www.npmjs.com/package/@getcoherent/cli
 **License:** MIT · **Pricing:** free
-**Icon:** `plugins/coherent/assets/icon.svg`
+**Icon:** `plugins/coherent/assets/icon.png` (1024×1024; the directory wants a square PNG/JPEG, 512–2048 px)

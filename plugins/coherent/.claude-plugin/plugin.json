@@ -20,7 +20,7 @@
     "visual-regression",
     "mcp"
   ],
-  "icon": "./assets/icon.svg",
+  "icon": "./assets/icon.png",
   "documentationUrl": "https://github.com/skovtun/coherent-design-method#readme",
   "supportUrl": "https://github.com/skovtun/coherent-design-method/issues"
 }
