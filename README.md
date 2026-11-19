@@ -49,6 +49,15 @@ npx @getcoherent/cli init
 
 Adds only the agent; your code is not touched. Run it again later to update the agent files.
 
+### As a plugin (Claude Code, Codex)
+
+```
+/plugin marketplace add skovtun/coherent-design-method
+/plugin install coherent@coherent
+```
+
+Adds the `coherent` skill: your agent sets Coherent up in a Next.js app when you ask, and follows the governed edit loop.
+
 ### What init writes
 
 | File | Purpose |

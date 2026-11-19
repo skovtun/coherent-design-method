@@ -9,9 +9,9 @@
 > The old generator (`coherent chat`, `init --classic`) is deprecated, fixes only:
 > its notes live in `docs/classic/CLAUDE-classic.md`.
 
-**Current version:** 0.33.0
+**Current version:** 0.33.1
 **Packages:** `@getcoherent/core` + `@getcoherent/cli` (published together, same version)
-**Tests:** 2704 passing
+**Tests:** 2706 passing
 
 ---
 

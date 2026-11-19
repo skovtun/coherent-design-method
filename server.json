@@ -1,0 +1,33 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.skovtun/coherent",
+  "title": "Coherent",
+  "description": "Governs UI edits by coding agents in Next.js: scope, real-browser verification, rollback.",
+  "websiteUrl": "https://getcoherent.design",
+  "repository": {
+    "url": "https://github.com/skovtun/coherent-design-method",
+    "source": "github"
+  },
+  "version": "0.33.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@getcoherent/cli",
+      "version": "0.33.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        },
+        {
+          "type": "named",
+          "name": "--profile",
+          "value": "agent"
+        }
+      ]
+    }
+  ]
+}
