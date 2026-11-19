@@ -2,13 +2,13 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "coherent",
   "version": "0.33.1",
-  "description": "Governs UI edits by your coding agent: scopes each change, verifies it in a real browser (build, renders, pixel diff) and rolls back what fails. Next.js + Tailwind 4.",
+  "description": "Your agent changes the UI; Coherent proves nothing else moved. Real-browser checks, pixel diff, rollback. Next.js + Tailwind 4.",
   "extensions": {
     "com.openai": {
       "interface": {
         "displayName": "Coherent",
-        "shortDescription": "Governed, verified UI edits for Next.js",
-        "longDescription": "Governs UI edits by your coding agent: scopes each change, verifies it in a real browser (build, renders, pixel diff) and rolls back what fails. Next.js + Tailwind 4.",
+        "shortDescription": "Proves your agent's UI edits changed nothing else",
+        "longDescription": "Your agent changes the UI; Coherent proves nothing else moved. Real-browser checks, pixel diff, rollback. Next.js + Tailwind 4.",
         "developerName": "Sergei Kovtun",
         "category": "Developer Tools",
         "websiteURL": "https://getcoherent.design",

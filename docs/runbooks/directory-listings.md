@@ -33,9 +33,9 @@ Check each site's current terms right before submitting; blog posts about them d
 
 **Name:** Coherent
 
-**Tagline (≤ 80):** Governed, verified UI edits for your coding agent.
+**Tagline (≤ 80):** Your agent changes the UI; Coherent proves nothing else moved.
 
-**Short (≤ 160):** Your agent designs the UI; Coherent scopes each edit, verifies it in a real browser (build, renders, pixel diff) and rolls back what fails. Next.js.
+**Short (≤ 160):** Your agent changes the UI; Coherent proves nothing else moved. Real-browser checks, pixel diff, rollback. Next.js + Tailwind 4.
 
 **Long:**
 Frontier coding agents already write good UI. What they don't do is prove an edit stayed in its lane. Coherent is that layer for Next.js apps. Before a change, it tells the agent what the change touches (a code-derived graph of pages, layouts and shared components). During the change, it holds the agent to the declared files. After it, it verifies: type errors against a baseline, a production build, before/after renders on desktop and mobile in both themes, an exact pixel diff on routes that must not change, new browser and hydration errors, classes of design tokens that do not exist, and real names or emails leaking into the UI. The verdict is honest (`verified`, `partially_verified`, `failed` …), and a failed edit is rolled back, touching only its own files. Design-system IDs for every component, a generated `/design-system` page, and a standalone `design-check` script that keeps working without Coherent. Open source, MIT, no servers, no API key.
